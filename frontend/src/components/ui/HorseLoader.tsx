@@ -31,10 +31,6 @@ export function HorseLoader({ size = 96, label = 'Loading…' }: HorseLoaderProp
         style={{ width: size, height: size }}
       />
 
-      {/* ── Static horse silhouette in the centre ───────────── */}
-      <div className={styles.centre} style={{ width: inner, height: inner }}>
-        <HorseSVG />
-      </div>
     </div>
   );
 }
