@@ -19,6 +19,7 @@ import {
 } from '@/api/providers';
 import { listSpecializations } from '@/api/specializations';
 import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -228,153 +229,161 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
       )}
 
       {/* ── Basic information ─────────────────────────────────────────────── */}
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>Basic information</h3>
-        <div className={styles.grid}>
-          <Select
-            label="Provider type"
-            options={PROVIDER_TYPE_OPTIONS}
-            placeholder="Select type…"
-            value={providerType}
-            onChange={(e) => setProviderType(e.target.value)}
-            error={fieldErrors.provider_type}
-            required
-          />
-          <Input
-            label="Name"
-            placeholder="e.g. St. Mary's Hospital"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            error={fieldErrors.name}
-            required
-            maxLength={300}
-          />
-        </div>
-
-        <FormField label="Description" optional htmlFor="provider-desc">
-          <textarea
-            id="provider-desc"
-            className={styles.textarea}
-            placeholder="Brief description of this provider…"
-            rows={3}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </FormField>
-
-        <div className={styles.grid}>
-          <Input
-            label="Email"
-            type="email"
-            placeholder="contact@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <Input
-            label="Phone"
-            type="tel"
-            placeholder="+1 555 000 0000"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
-          <Input
-            label="Website"
-            type="url"
-            placeholder="https://example.com"
-            value={website}
-            onChange={(e) => setWebsite(e.target.value)}
-          />
-        </div>
-      </section>
-
-      {/* ── Classification ────────────────────────────────────────────────── */}
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>Classification</h3>
-        <div className={styles.grid}>
-          <Select
-            label="Visit stability"
-            options={VISIT_STABILITY_OPTIONS}
-            placeholder="Select…"
-            value={visitStability}
-            onChange={(e) => setVisitStability(e.target.value)}
-            error={fieldErrors.visit_stability}
-            required
-          />
-          <Select
-            label="Status"
-            options={STATUS_OPTIONS}
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-          />
-          <Select
-            label="Publication status"
-            options={PUBLICATION_OPTIONS}
-            value={publication}
-            onChange={(e) => setPublication(e.target.value)}
-          />
-        </div>
-      </section>
-
-      {/* ── Specializations ───────────────────────────────────────────────── */}
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>Specializations</h3>
-        {specsError && <p className={styles.fieldError} role="alert">{specsError}</p>}
-        {!specsError && specializations.length === 0 && (
-          <p className={styles.hint}>No active specializations available.</p>
-        )}
-        <div className={styles.specGrid}>
-          {specializations.map((spec) => (
-            <label key={spec.id} className={styles.checkboxRow}>
-              <input
-                type="checkbox"
-                checked={selectedSpecIds.includes(spec.id)}
-                onChange={() => toggleSpec(spec.id)}
-              />
-              <span>{spec.name}</span>
-            </label>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Primary location (create mode only) ───────────────────────────── */}
-      {!isEdit && (
+      <Card padding="lg" shadow="sm">
         <section className={styles.section}>
-          <h3 className={styles.sectionTitle}>Primary location <span className={styles.optionalTag}>— optional</span></h3>
+          <h3 className={styles.sectionTitle}>Basic information</h3>
+          <div className={styles.grid}>
+            <Select
+              label="Provider type"
+              options={PROVIDER_TYPE_OPTIONS}
+              placeholder="Select type…"
+              value={providerType}
+              onChange={(e) => setProviderType(e.target.value)}
+              error={fieldErrors.provider_type}
+              required
+            />
+            <Input
+              label="Name"
+              placeholder="e.g. St. Mary's Hospital"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              error={fieldErrors.name}
+              required
+              maxLength={300}
+            />
+          </div>
+
+          <FormField label="Description" optional htmlFor="provider-desc">
+            <textarea
+              id="provider-desc"
+              className={styles.textarea}
+              placeholder="Brief description of this provider…"
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </FormField>
+
           <div className={styles.grid}>
             <Input
-              label="Address line 1"
-              value={location.address_line_1}
-              onChange={(e) => setLocation((l) => ({ ...l, address_line_1: e.target.value }))}
-              error={fieldErrors.address_line_1}
+              label="Email"
+              type="email"
+              placeholder="contact@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
             <Input
-              label="Address line 2"
-              value={location.address_line_2}
-              onChange={(e) => setLocation((l) => ({ ...l, address_line_2: e.target.value }))}
+              label="Phone"
+              type="tel"
+              placeholder="+1 555 000 0000"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
             />
             <Input
-              label="City"
-              value={location.city}
-              onChange={(e) => setLocation((l) => ({ ...l, city: e.target.value }))}
-              error={fieldErrors.city}
-            />
-            <Input
-              label="State / Province"
-              value={location.state_province}
-              onChange={(e) => setLocation((l) => ({ ...l, state_province: e.target.value }))}
-            />
-            <Input
-              label="Country"
-              value={location.country}
-              onChange={(e) => setLocation((l) => ({ ...l, country: e.target.value }))}
-            />
-            <Input
-              label="Postal code"
-              value={location.postal_code}
-              onChange={(e) => setLocation((l) => ({ ...l, postal_code: e.target.value }))}
+              label="Website"
+              type="url"
+              placeholder="https://example.com"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
             />
           </div>
         </section>
+      </Card>
+
+      {/* ── Classification ────────────────────────────────────────────────── */}
+      <Card padding="lg" shadow="sm">
+        <section className={styles.section}>
+          <h3 className={styles.sectionTitle}>Classification</h3>
+          <div className={styles.grid}>
+            <Select
+              label="Visit stability"
+              options={VISIT_STABILITY_OPTIONS}
+              placeholder="Select…"
+              value={visitStability}
+              onChange={(e) => setVisitStability(e.target.value)}
+              error={fieldErrors.visit_stability}
+              required
+            />
+            <Select
+              label="Status"
+              options={STATUS_OPTIONS}
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            />
+            <Select
+              label="Publication status"
+              options={PUBLICATION_OPTIONS}
+              value={publication}
+              onChange={(e) => setPublication(e.target.value)}
+            />
+          </div>
+        </section>
+      </Card>
+
+      {/* ── Specializations ───────────────────────────────────────────────── */}
+      <Card padding="lg" shadow="sm">
+        <section className={styles.section}>
+          <h3 className={styles.sectionTitle}>Specializations</h3>
+          {specsError && <p className={styles.fieldError} role="alert">{specsError}</p>}
+          {!specsError && specializations.length === 0 && (
+            <p className={styles.hint}>No active specializations available.</p>
+          )}
+          <div className={styles.specGrid}>
+            {specializations.map((spec) => (
+              <label key={spec.id} className={styles.checkboxRow}>
+                <input
+                  type="checkbox"
+                  checked={selectedSpecIds.includes(spec.id)}
+                  onChange={() => toggleSpec(spec.id)}
+                />
+                <span>{spec.name}</span>
+              </label>
+            ))}
+          </div>
+        </section>
+      </Card>
+
+      {/* ── Primary location (create mode only) ───────────────────────────── */}
+      {!isEdit && (
+        <Card padding="lg" shadow="sm">
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>Primary location <span className={styles.optionalTag}>— optional</span></h3>
+            <div className={styles.grid}>
+              <Input
+                label="Address line 1"
+                value={location.address_line_1}
+                onChange={(e) => setLocation((l) => ({ ...l, address_line_1: e.target.value }))}
+                error={fieldErrors.address_line_1}
+              />
+              <Input
+                label="Address line 2"
+                value={location.address_line_2}
+                onChange={(e) => setLocation((l) => ({ ...l, address_line_2: e.target.value }))}
+              />
+              <Input
+                label="City"
+                value={location.city}
+                onChange={(e) => setLocation((l) => ({ ...l, city: e.target.value }))}
+                error={fieldErrors.city}
+              />
+              <Input
+                label="State / Province"
+                value={location.state_province}
+                onChange={(e) => setLocation((l) => ({ ...l, state_province: e.target.value }))}
+              />
+              <Input
+                label="Country"
+                value={location.country}
+                onChange={(e) => setLocation((l) => ({ ...l, country: e.target.value }))}
+              />
+              <Input
+                label="Postal code"
+                value={location.postal_code}
+                onChange={(e) => setLocation((l) => ({ ...l, postal_code: e.target.value }))}
+              />
+            </div>
+          </section>
+        </Card>
       )}
 
       <footer className={styles.footer}>

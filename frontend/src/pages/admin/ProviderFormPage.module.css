@@ -11,7 +11,6 @@
   flex-direction: column;
   gap: var(--space-6);
   flex: 1;
-  max-width: 960px;
   width: 100%;
 }
 

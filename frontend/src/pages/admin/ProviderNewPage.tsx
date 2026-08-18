@@ -2,7 +2,6 @@
  * Create Provider page — /admin/providers/new
  */
 import { useNavigate } from 'react-router-dom';
-import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ProviderForm } from '@/components/admin/ProviderForm';
 import styles from './ProviderFormPage.module.css';
@@ -22,12 +21,10 @@ export function ProviderNewPage() {
         ]}
       />
       <div className={styles.body}>
-        <Card padding="lg" shadow="sm">
-          <ProviderForm
-            onSuccess={(provider) => navigate(`/admin/providers/${provider.id}`)}
-            onCancel={() => navigate('/admin/providers')}
-          />
-        </Card>
+        <ProviderForm
+          onSuccess={(provider) => navigate(`/admin/providers/${provider.id}`)}
+          onCancel={() => navigate('/admin/providers')}
+        />
       </div>
     </div>
   );

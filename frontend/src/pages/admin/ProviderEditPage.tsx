@@ -6,7 +6,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
 import { getProvider } from '@/api/providers';
-import { Card } from '@/components/ui/Card';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -58,13 +57,11 @@ export function ProviderEditPage() {
           <ErrorState title="Failed to load provider" message={errorMessage ?? undefined} onRetry={load} />
         )}
         {loadState === 'success' && provider && (
-          <Card padding="lg" shadow="sm">
-            <ProviderForm
-              initialData={provider}
-              onSuccess={(saved) => navigate(`/admin/providers/${saved.id}`)}
-              onCancel={() => navigate(`/admin/providers/${provider.id}`)}
-            />
-          </Card>
+          <ProviderForm
+            initialData={provider}
+            onSuccess={(saved) => navigate(`/admin/providers/${saved.id}`)}
+            onCancel={() => navigate(`/admin/providers/${provider.id}`)}
+          />
         )}
       </div>
     </div>
