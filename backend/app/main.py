@@ -3,9 +3,12 @@ EquiConnected Portal — FastAPI application entry point.
 """
 from contextlib import asynccontextmanager
 
+import os
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import api_v1_router
 from app.core.config import get_settings
@@ -51,6 +54,11 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # ── Static file serving (uploaded photos, etc.) ───────────────────────────
+    uploads_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
+    os.makedirs(uploads_dir, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
     # ── Routers ───────────────────────────────────────────────────────────────
     app.include_router(api_v1_router)

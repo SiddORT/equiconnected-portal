@@ -8,7 +8,6 @@ import { extractErrorMessage } from '@/api/client';
 import {
   addProviderSpecialization,
   createProviderLocation,
-  createProviderPhoto,
   deleteProviderLocation,
   deleteProviderPhoto,
   getProvider,
@@ -16,6 +15,7 @@ import {
   setProviderThumbnail,
   updateProviderPublication,
   updateProviderStatus,
+  uploadProviderPhoto,
 } from '@/api/providers';
 import { listSpecializations } from '@/api/specializations';
 import { ActionMenu } from '@/components/ui/ActionMenu';
@@ -65,7 +65,11 @@ interface PhotoFormValues {
 const EMPTY_PHOTO_FORM: PhotoFormValues = { alt_text: '', caption: '' };
 
 function isImageUrl(ref: string) {
-  return ref.startsWith('data:image') || /\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(ref);
+  return (
+    ref.startsWith('data:image') ||
+    ref.startsWith('/uploads/') ||
+    /\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(ref)
+  );
 }
 
 export function ProviderDetailPage() {
@@ -491,13 +495,12 @@ export function ProviderDetailPage() {
                 className={styles.inlineForm}
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (!photoPreview) {
+                  if (!photoFile) {
                     setActionError('Please select an image to upload.');
                     return;
                   }
                   void run(async () => {
-                    await createProviderPhoto(p.id, {
-                      storage_reference: photoPreview,
+                    await uploadProviderPhoto(p.id, photoFile, {
                       alt_text: photoForm.alt_text.trim() || null,
                       caption: photoForm.caption.trim() || null,
                     });

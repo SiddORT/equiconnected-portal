@@ -140,6 +140,25 @@ export async function removeProviderEmail(id: string, emailId: string): Promise<
 
 // ── Photos sub-resource ───────────────────────────────────────────────────────
 
+export async function uploadProviderPhoto(
+  id: string,
+  file: File,
+  meta?: { alt_text?: string | null; caption?: string | null; display_order?: number; is_thumbnail?: boolean }
+): Promise<ProviderPhoto> {
+  const form = new FormData();
+  form.append('file', file);
+  if (meta?.alt_text) form.append('alt_text', meta.alt_text);
+  if (meta?.caption) form.append('caption', meta.caption);
+  if (meta?.display_order !== undefined) form.append('display_order', String(meta.display_order));
+  if (meta?.is_thumbnail !== undefined) form.append('is_thumbnail', String(meta.is_thumbnail));
+
+  const { data } = await apiClient.post<ProviderPhoto>(`/admin/providers/${id}/photos`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}
+
+/** @deprecated Use uploadProviderPhoto instead */
 export async function createProviderPhoto(
   id: string,
   body: ProviderPhotoCreate

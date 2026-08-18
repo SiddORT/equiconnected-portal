@@ -21,7 +21,10 @@ from math import ceil
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import os
+import uuid as _uuid
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require_role
@@ -315,6 +318,19 @@ def remove_provider_email(id: UUID, email_id: UUID, svc: _Svc):
         raise _404("email_not_found", "Email not found")
 
 
+# Resolve uploads dir: backend/app/api/v1/ → 4 levels up → backend/uploads
+_UPLOADS_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+    "uploads",
+)
+
+_ALLOWED_IMAGE_TYPES: dict[str, str] = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+}
+
 # ── Photos ────────────────────────────────────────────────────────────────────
 
 @router.post(
@@ -322,10 +338,58 @@ def remove_provider_email(id: UUID, email_id: UUID, svc: _Svc):
     response_model=PhotoResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def add_provider_photo(id: UUID, body: PhotoCreate, svc: _Svc):
+def add_provider_photo(
+    id: UUID,
+    svc: _Svc,
+    file: UploadFile = File(...),
+    alt_text: str | None = Form(None),
+    caption: str | None = Form(None),
+    display_order: int = Form(0),
+    is_thumbnail: bool = Form(False),
+):
+    """Upload an image file and create a photo record for this provider."""
+    # Validate MIME type
+    content_type = file.content_type or ""
+    ext = _ALLOWED_IMAGE_TYPES.get(content_type)
+    if ext is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "invalid_image_type",
+                "message": "Only JPEG, PNG, GIF, and WebP images are accepted.",
+            },
+        )
+
+    # Build destination: uploads/providers/{provider_id}/photos/{uuid}{ext}
+    dest_dir = os.path.join(_UPLOADS_DIR, "providers", str(id), "photos")
+    os.makedirs(dest_dir, exist_ok=True)
+    filename = f"{_uuid.uuid4()}{ext}"
+    dest_path = os.path.join(dest_dir, filename)
+
+    # Write file to disk
     try:
-        return PhotoResponse.model_validate(svc.add_photo(id, fields=body.model_dump()))
+        contents = file.file.read()
+    finally:
+        file.file.close()
+
+    with open(dest_path, "wb") as fh:
+        fh.write(contents)
+
+    # URL path served by the /uploads StaticFiles mount
+    storage_reference = f"/uploads/providers/{id}/photos/{filename}"
+
+    try:
+        return PhotoResponse.model_validate(
+            svc.add_photo(id, fields={
+                "storage_reference": storage_reference,
+                "alt_text": alt_text,
+                "caption": caption,
+                "display_order": display_order,
+                "is_thumbnail": is_thumbnail,
+            })
+        )
     except ProviderNotFoundError:
+        os.remove(dest_path)
         raise _404("provider_not_found", "Provider not found")
 
 
