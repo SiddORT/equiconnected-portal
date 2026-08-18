@@ -1,0 +1,301 @@
+"""
+Healthcare Provider management endpoints (admin only).
+
+GET    /api/v1/admin/providers                       — list with search/filter/pagination
+POST   /api/v1/admin/providers                       — create
+GET    /api/v1/admin/providers/{id}                  — get detail
+PATCH  /api/v1/admin/providers/{id}                  — partial update of core fields
+PATCH  /api/v1/admin/providers/{id}/status           — toggle operational status
+PATCH  /api/v1/admin/providers/{id}/publication      — toggle publication status
+POST   /api/v1/admin/providers/{id}/specializations  — assign specialization
+DELETE /api/v1/admin/providers/{id}/specializations/{spec_id} — unassign
+POST   /api/v1/admin/providers/{id}/locations        — add location
+PATCH  /api/v1/admin/providers/{id}/locations/{loc_id}   — update location
+DELETE /api/v1/admin/providers/{id}/locations/{loc_id}   — delete location
+POST   /api/v1/admin/providers/{id}/photos           — add photo metadata
+PATCH  /api/v1/admin/providers/{id}/photos/{photo_id}    — update photo metadata
+DELETE /api/v1/admin/providers/{id}/photos/{photo_id}    — delete photo
+PATCH  /api/v1/admin/providers/{id}/photos/{photo_id}/thumbnail — set thumbnail
+"""
+from math import ceil
+from typing import Annotated
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+
+from app.auth.dependencies import require_role
+from app.db.session import get_db
+from app.models.enums import (
+    ProviderStatus,
+    ProviderType,
+    PublicationStatus,
+    VisitStability,
+)
+from app.repositories.provider_repository import ProviderRepository
+from app.schemas.common import PaginatedResponse, PaginationMeta
+from app.schemas.provider import (
+    LocationCreate,
+    LocationResponse,
+    LocationUpdate,
+    PhotoCreate,
+    PhotoResponse,
+    PhotoUpdate,
+    ProviderCreate,
+    ProviderListItem,
+    ProviderPublicationUpdate,
+    ProviderResponse,
+    ProviderSpecializationAdd,
+    ProviderStatusUpdate,
+    ProviderUpdate,
+)
+from app.services.provider_service import (
+    DuplicateSpecializationError,
+    LocationNotFoundError,
+    PhotoNotFoundError,
+    ProviderNotFoundError,
+    ProviderService,
+    SpecializationNotFoundError,
+)
+
+router = APIRouter(
+    prefix="/admin/providers",
+    tags=["Providers"],
+    dependencies=[Depends(require_role("admin"))],
+)
+
+_DB = Annotated[Session, Depends(get_db)]
+
+
+def _svc(db: _DB) -> ProviderService:
+    return ProviderService(ProviderRepository(db))
+
+
+_Svc = Annotated[ProviderService, Depends(_svc)]
+
+
+def _404(code: str, message: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail={"code": code, "message": message},
+    )
+
+
+def _409(code: str, message: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={"code": code, "message": message},
+    )
+
+
+# ── List ──────────────────────────────────────────────────────────────────────
+
+@router.get("", response_model=PaginatedResponse[ProviderListItem])
+def list_providers(
+    svc: _Svc,
+    search: str | None = Query(None, max_length=300, description="Name substring search"),
+    provider_type: ProviderType | None = Query(None),
+    visit_stability: VisitStability | None = Query(None),
+    status_: ProviderStatus | None = Query(None, alias="status"),
+    publication_status: PublicationStatus | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+):
+    items, total = svc.list(
+        search=search,
+        provider_type=provider_type,
+        visit_stability=visit_stability,
+        status=status_,
+        publication_status=publication_status,
+        page=page,
+        page_size=page_size,
+    )
+    total_pages = max(1, ceil(total / page_size))
+    return PaginatedResponse(
+        data=[ProviderListItem.model_validate(p) for p in items],
+        meta=PaginationMeta(
+            page=page, page_size=page_size, total=total, total_pages=total_pages
+        ),
+    )
+
+
+# ── Create ────────────────────────────────────────────────────────────────────
+
+@router.post("", response_model=ProviderResponse, status_code=status.HTTP_201_CREATED)
+def create_provider(body: ProviderCreate, svc: _Svc):
+    core = body.model_dump(exclude={"specialization_ids", "primary_location"})
+    try:
+        provider = svc.create(
+            core_fields=core,
+            specialization_ids=body.specialization_ids,
+            primary_location=(
+                body.primary_location.model_dump() if body.primary_location else None
+            ),
+        )
+        return ProviderResponse.from_provider(provider)
+    except SpecializationNotFoundError as exc:
+        raise _404("specialization_not_found", f"Specialization not found or inactive: {exc}")
+    except DuplicateSpecializationError as exc:
+        raise _409("duplicate_specialization", str(exc))
+
+
+# ── Get detail ────────────────────────────────────────────────────────────────
+
+@router.get("/{id}", response_model=ProviderResponse)
+def get_provider(id: UUID, svc: _Svc):
+    try:
+        return ProviderResponse.from_provider(svc.get(id))
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+
+
+# ── Update core fields ────────────────────────────────────────────────────────
+
+@router.patch("/{id}", response_model=ProviderResponse)
+def update_provider(id: UUID, body: ProviderUpdate, svc: _Svc):
+    try:
+        provider = svc.update(id, update_fields=body.model_dump(exclude_unset=True))
+        return ProviderResponse.from_provider(provider)
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+
+
+# ── Status / publication toggles ──────────────────────────────────────────────
+
+@router.patch("/{id}/status", response_model=ProviderResponse)
+def update_provider_status(id: UUID, body: ProviderStatusUpdate, svc: _Svc):
+    try:
+        return ProviderResponse.from_provider(svc.set_status(id, status=body.status))
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+
+
+@router.patch("/{id}/publication", response_model=ProviderResponse)
+def update_provider_publication(id: UUID, body: ProviderPublicationUpdate, svc: _Svc):
+    try:
+        return ProviderResponse.from_provider(
+            svc.set_publication(id, publication_status=body.publication_status)
+        )
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+
+
+# ── Specializations ───────────────────────────────────────────────────────────
+
+@router.post(
+    "/{id}/specializations",
+    response_model=ProviderResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_provider_specialization(id: UUID, body: ProviderSpecializationAdd, svc: _Svc):
+    try:
+        return ProviderResponse.from_provider(
+            svc.add_specialization(id, body.specialization_id)
+        )
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+    except SpecializationNotFoundError:
+        raise _404("specialization_not_found", "Specialization not found")
+    except DuplicateSpecializationError as exc:
+        raise _409("duplicate_specialization", str(exc))
+
+
+@router.delete("/{id}/specializations/{spec_id}", response_model=ProviderResponse)
+def remove_provider_specialization(id: UUID, spec_id: UUID, svc: _Svc):
+    try:
+        return ProviderResponse.from_provider(svc.remove_specialization(id, spec_id))
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+    except SpecializationNotFoundError:
+        raise _404(
+            "specialization_not_assigned",
+            "Specialization is not assigned to this provider",
+        )
+
+
+# ── Locations ─────────────────────────────────────────────────────────────────
+
+@router.post(
+    "/{id}/locations",
+    response_model=LocationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_provider_location(id: UUID, body: LocationCreate, svc: _Svc):
+    try:
+        return LocationResponse.model_validate(
+            svc.add_location(id, fields=body.model_dump())
+        )
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+
+
+@router.patch("/{id}/locations/{loc_id}", response_model=LocationResponse)
+def update_provider_location(id: UUID, loc_id: UUID, body: LocationUpdate, svc: _Svc):
+    try:
+        return LocationResponse.model_validate(
+            svc.update_location(
+                id, loc_id, update_fields=body.model_dump(exclude_unset=True)
+            )
+        )
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+    except LocationNotFoundError:
+        raise _404("location_not_found", "Location not found")
+
+
+@router.delete("/{id}/locations/{loc_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_provider_location(id: UUID, loc_id: UUID, svc: _Svc):
+    try:
+        svc.delete_location(id, loc_id)
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+    except LocationNotFoundError:
+        raise _404("location_not_found", "Location not found")
+
+
+# ── Photos ────────────────────────────────────────────────────────────────────
+
+@router.post(
+    "/{id}/photos",
+    response_model=PhotoResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_provider_photo(id: UUID, body: PhotoCreate, svc: _Svc):
+    try:
+        return PhotoResponse.model_validate(svc.add_photo(id, fields=body.model_dump()))
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+
+
+@router.patch("/{id}/photos/{photo_id}", response_model=PhotoResponse)
+def update_provider_photo(id: UUID, photo_id: UUID, body: PhotoUpdate, svc: _Svc):
+    try:
+        return PhotoResponse.model_validate(
+            svc.update_photo(
+                id, photo_id, update_fields=body.model_dump(exclude_unset=True)
+            )
+        )
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+    except PhotoNotFoundError:
+        raise _404("photo_not_found", "Photo not found")
+
+
+@router.delete("/{id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_provider_photo(id: UUID, photo_id: UUID, svc: _Svc):
+    try:
+        svc.delete_photo(id, photo_id)
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+    except PhotoNotFoundError:
+        raise _404("photo_not_found", "Photo not found")
+
+
+@router.patch("/{id}/photos/{photo_id}/thumbnail", response_model=PhotoResponse)
+def set_provider_thumbnail(id: UUID, photo_id: UUID, svc: _Svc):
+    try:
+        return PhotoResponse.model_validate(svc.set_thumbnail(id, photo_id))
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+    except PhotoNotFoundError:
+        raise _404("photo_not_found", "Photo not found")

@@ -60,3 +60,11 @@ exceptions) → router (maps domain exceptions to HTTP status codes). PATCH uses
 so only provided fields are updated. Deactivation = set `is_active=False`; never DELETE master records.
 The `SpecializationRepository.list()` returns `(items, total)` for server-side search/filter/pagination.
 Apply this same pattern to future masters (Facilities, Services, Provider types).
+Provider module follows the same layering; single-primary location and single-thumbnail photo are
+enforced both in the service (clear-then-set) and by partial unique DB indexes scoped per provider.
+
+## Class-body builtin shadowing pitfall
+A service class with a method named `list` (or `dict`, etc.) breaks later annotations like
+`list[UUID]` in the same class body ("'function' object is not subscriptable").
+**How to apply:** add `from __future__ import annotations` to any module whose classes define
+methods that shadow builtins used in type annotations.

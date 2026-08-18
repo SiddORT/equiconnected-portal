@@ -1,0 +1,191 @@
+"""
+ProviderRepository — data-access layer for healthcare providers and their
+locations, photos, and specialization assignments.
+"""
+from uuid import UUID
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, selectinload
+
+from app.models.enums import (
+    ProviderStatus,
+    ProviderType,
+    PublicationStatus,
+    VisitStability,
+)
+from app.models.provider import (
+    Provider,
+    ProviderLocation,
+    ProviderPhoto,
+    ProviderSpecialization,
+)
+from app.models.specialization import Specialization
+
+
+class ProviderRepository:
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    # ── Provider reads ────────────────────────────────────────────────────────
+
+    def get_by_id(self, id: UUID) -> Provider | None:
+        return self._db.scalar(
+            select(Provider)
+            .where(Provider.id == id)
+            .options(
+                selectinload(Provider.locations),
+                selectinload(Provider.photos),
+                selectinload(Provider.provider_specializations).selectinload(
+                    ProviderSpecialization.specialization
+                ),
+            )
+        )
+
+    def list(
+        self,
+        *,
+        search: str | None = None,
+        provider_type: ProviderType | None = None,
+        visit_stability: VisitStability | None = None,
+        status: ProviderStatus | None = None,
+        publication_status: PublicationStatus | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[list[Provider], int]:
+        """Return (items, total_count) for the requested page — all filters at the DB level."""
+        stmt = select(Provider)
+        count_stmt = select(func.count()).select_from(Provider)
+
+        conditions = []
+        if search:
+            conditions.append(Provider.name.ilike(f"%{search.strip()}%"))
+        if provider_type is not None:
+            conditions.append(Provider.provider_type == provider_type)
+        if visit_stability is not None:
+            conditions.append(Provider.visit_stability == visit_stability)
+        if status is not None:
+            conditions.append(Provider.status == status)
+        if publication_status is not None:
+            conditions.append(Provider.publication_status == publication_status)
+
+        for cond in conditions:
+            stmt = stmt.where(cond)
+            count_stmt = count_stmt.where(cond)
+
+        total: int = self._db.scalar(count_stmt) or 0
+
+        stmt = (
+            stmt.order_by(Provider.name, Provider.id)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        items = list(self._db.scalars(stmt).all())
+        return items, total
+
+    # ── Provider writes ───────────────────────────────────────────────────────
+
+    def create(self, **fields) -> Provider:
+        provider = Provider(**fields)
+        self._db.add(provider)
+        self._db.flush()
+        return provider
+
+    def update(self, provider: Provider, update_fields: dict) -> Provider:
+        for key, value in update_fields.items():
+            setattr(provider, key, value)
+        self._db.flush()
+        return provider
+
+    # ── Specialization sub-operations ─────────────────────────────────────────
+
+    def get_specialization(self, spec_id: UUID) -> Specialization | None:
+        return self._db.get(Specialization, spec_id)
+
+    def get_assignment(
+        self, provider_id: UUID, spec_id: UUID
+    ) -> ProviderSpecialization | None:
+        return self._db.get(ProviderSpecialization, (provider_id, spec_id))
+
+    def add_specialization(
+        self, provider_id: UUID, spec_id: UUID
+    ) -> ProviderSpecialization:
+        link = ProviderSpecialization(
+            provider_id=provider_id, specialization_id=spec_id
+        )
+        self._db.add(link)
+        self._db.flush()
+        return link
+
+    def remove_specialization(self, link: ProviderSpecialization) -> None:
+        self._db.delete(link)
+        self._db.flush()
+
+    # ── Location sub-operations ───────────────────────────────────────────────
+
+    def get_location(self, provider_id: UUID, loc_id: UUID) -> ProviderLocation | None:
+        return self._db.scalar(
+            select(ProviderLocation).where(
+                ProviderLocation.id == loc_id,
+                ProviderLocation.provider_id == provider_id,
+            )
+        )
+
+    def add_location(self, provider_id: UUID, **fields) -> ProviderLocation:
+        loc = ProviderLocation(provider_id=provider_id, **fields)
+        self._db.add(loc)
+        self._db.flush()
+        return loc
+
+    def delete_location(self, loc: ProviderLocation) -> None:
+        self._db.delete(loc)
+        self._db.flush()
+
+    def clear_primary_location(self, provider_id: UUID) -> None:
+        """Clear the is_primary flag on every location of the provider."""
+        for loc in self._db.scalars(
+            select(ProviderLocation).where(
+                ProviderLocation.provider_id == provider_id,
+                ProviderLocation.is_primary.is_(True),
+            )
+        ):
+            loc.is_primary = False
+        self._db.flush()
+
+    # ── Photo sub-operations ──────────────────────────────────────────────────
+
+    def get_photo(self, provider_id: UUID, photo_id: UUID) -> ProviderPhoto | None:
+        return self._db.scalar(
+            select(ProviderPhoto).where(
+                ProviderPhoto.id == photo_id,
+                ProviderPhoto.provider_id == provider_id,
+            )
+        )
+
+    def add_photo(self, provider_id: UUID, **fields) -> ProviderPhoto:
+        photo = ProviderPhoto(provider_id=provider_id, **fields)
+        self._db.add(photo)
+        self._db.flush()
+        return photo
+
+    def delete_photo(self, photo: ProviderPhoto) -> None:
+        self._db.delete(photo)
+        self._db.flush()
+
+    def clear_thumbnail(self, provider_id: UUID) -> None:
+        """Clear the is_thumbnail flag on every photo of the provider."""
+        for photo in self._db.scalars(
+            select(ProviderPhoto).where(
+                ProviderPhoto.provider_id == provider_id,
+                ProviderPhoto.is_thumbnail.is_(True),
+            )
+        ):
+            photo.is_thumbnail = False
+        self._db.flush()
+
+    # ── Transaction helpers ───────────────────────────────────────────────────
+
+    def commit(self) -> None:
+        self._db.commit()
+
+    def rollback(self) -> None:
+        self._db.rollback()
