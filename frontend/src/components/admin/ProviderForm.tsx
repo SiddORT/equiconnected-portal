@@ -98,6 +98,7 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
 
   const [specializations, setSpecializations] = useState<Specialization[]>([]);
   const [specsError, setSpecsError] = useState<string | null>(null);
+  const [specFilter, setSpecFilter] = useState('');
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [apiError, setApiError] = useState<string | null>(null);
@@ -323,22 +324,44 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
       {/* ── Specializations ───────────────────────────────────────────────── */}
       <Card padding="lg" shadow="sm">
         <section className={styles.section}>
-          <h3 className={styles.sectionTitle}>Specializations</h3>
+          <h3 className={styles.sectionTitle}>
+            Specializations
+            {selectedSpecIds.length > 0 && (
+              <span className={styles.specCountBadge}>{selectedSpecIds.length} selected</span>
+            )}
+          </h3>
           {specsError && <p className={styles.fieldError} role="alert">{specsError}</p>}
           {!specsError && specializations.length === 0 && (
             <p className={styles.hint}>No active specializations available.</p>
           )}
-          <div className={styles.specGrid}>
-            {specializations.map((spec) => (
-              <label key={spec.id} className={styles.checkboxRow}>
-                <input
-                  type="checkbox"
-                  checked={selectedSpecIds.includes(spec.id)}
-                  onChange={() => toggleSpec(spec.id)}
-                />
-                <span>{spec.name}</span>
-              </label>
-            ))}
+          {specializations.length >= 8 && (
+            <input
+              type="text"
+              className={styles.specFilterInput}
+              placeholder="Filter specializations…"
+              value={specFilter}
+              onChange={(e) => setSpecFilter(e.target.value)}
+            />
+          )}
+          <div className={styles.specChipGrid}>
+            {specializations
+              .filter((spec) =>
+                spec.name.toLowerCase().includes(specFilter.toLowerCase())
+              )
+              .map((spec) => {
+                const selected = selectedSpecIds.includes(spec.id);
+                return (
+                  <button
+                    key={spec.id}
+                    type="button"
+                    className={`${styles.specChip}${selected ? ` ${styles.specChipSelected}` : ''}`}
+                    onClick={() => toggleSpec(spec.id)}
+                  >
+                    {selected && <span className={styles.specChipCheck}>✓</span>}
+                    {spec.name}
+                  </button>
+                );
+              })}
           </div>
         </section>
       </Card>
