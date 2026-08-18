@@ -66,6 +66,16 @@ export function SpecializationsPage() {
       if (filterStatus === 'inactive') params.is_active = false;
 
       const data = await listSpecializations(params as Parameters<typeof listSpecializations>[0]);
+
+      // Defensive guard: if the current page is beyond the last page (e.g. a
+      // filter narrowed the result set), snap back to page 1 and let the
+      // effect re-fire.  This makes the component self-healing regardless of
+      // which code path changed the filters.
+      if (page > 1 && data.meta.total_pages > 0 && page > data.meta.total_pages) {
+        setPage(1);
+        return;
+      }
+
       setResult(data);
       setLoadState('success');
     } catch (err) {
