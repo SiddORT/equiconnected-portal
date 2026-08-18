@@ -11,7 +11,8 @@ from math import ceil
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require_role
@@ -19,10 +20,20 @@ from app.db.session import get_db
 from app.repositories.specialization_repository import SpecializationRepository
 from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.schemas.specialization import (
+    ImportConfirmRequest,
+    ImportPreviewResponse,
+    ImportResult,
+    ImportRowPreview,
     SpecializationCreate,
     SpecializationResponse,
     SpecializationStatusUpdate,
     SpecializationUpdate,
+)
+from app.services import specialization_import_export_service as ie_svc
+from app.services.specialization_import_export_service import (
+    ImportFileError,
+    ImportRowResult,
+    MAX_FILE_SIZE_BYTES,
 )
 from app.services.specialization_service import (
     DuplicateSpecializationError,
@@ -84,6 +95,93 @@ def create_specialization(body: SpecializationCreate, svc: _Svc):
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "duplicate_specialization", "message": str(exc)},
         )
+
+
+# ── CSV export ────────────────────────────────────────────────────────────────
+# NOTE: static-path routes must be declared BEFORE the /{id} route.
+
+@router.get("/export")
+def export_specializations(
+    db: _DB,
+    search: str | None = Query(None, max_length=200),
+    is_active: bool | None = Query(None),
+):
+    filename = ie_svc.export_filename()
+    return StreamingResponse(
+        ie_svc.export_csv(db, search=search, is_active=is_active),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/import/template")
+def download_import_template():
+    return Response(
+        content=ie_svc.template_csv(),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="equiconnected-specializations-template.csv"'
+        },
+    )
+
+
+# ── CSV import ────────────────────────────────────────────────────────────────
+
+def _validate_upload(file: UploadFile) -> None:
+    name = (file.filename or "").lower()
+    if not name.endswith(".csv"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "invalid_file_type", "message": "Only .csv files are accepted."},
+        )
+    if file.content_type not in (
+        "text/csv",
+        "application/csv",
+        "application/vnd.ms-excel",
+        "text/plain",
+        "application/octet-stream",
+        None,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "invalid_file_type", "message": "File must be a CSV."},
+        )
+
+
+@router.post("/import/preview", response_model=ImportPreviewResponse)
+async def preview_import(file: UploadFile, db: _DB):
+    _validate_upload(file)
+    contents = await file.read(MAX_FILE_SIZE_BYTES + 1)
+    try:
+        rows = ie_svc.parse_and_validate(contents, db)
+    except ImportFileError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "invalid_import_file", "message": str(exc)},
+        )
+    return ImportPreviewResponse(
+        total=len(rows),
+        valid=sum(1 for r in rows if r.state == "valid"),
+        duplicate=sum(1 for r in rows if r.state == "duplicate"),
+        invalid=sum(1 for r in rows if r.state == "invalid"),
+        rows=[ImportRowPreview(**r.__dict__) for r in rows],
+    )
+
+
+@router.post("/import", response_model=ImportResult)
+def confirm_import(body: ImportConfirmRequest, db: _DB):
+    validated = [ImportRowResult(**r.model_dump()) for r in body.rows]
+    # Re-run canonical field validation server-side: never trust client 'state'.
+    for r in validated:
+        if r.state == "valid":
+            ie_svc.validate_row_fields(r)
+    result = ie_svc.commit_import(db, validated)
+    return ImportResult(
+        imported=result.imported,
+        skipped=result.skipped,
+        errors=result.errors,
+        row_details=[ImportRowPreview(**r.__dict__) for r in result.row_details],
+    )
 
 
 # ── Get single ────────────────────────────────────────────────────────────────

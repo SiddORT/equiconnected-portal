@@ -211,3 +211,13 @@
   .searchInput { max-width: 100%; }
   .pageSizeLabel { margin-left: 0; }
 }
+
+.exportError {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.88rem;
+  margin-bottom: 0.9rem;
+}

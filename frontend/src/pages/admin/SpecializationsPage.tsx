@@ -7,9 +7,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { extractErrorMessage } from '@/api/client';
 import {
+  confirmImport,
+  downloadImportTemplate,
+  exportSpecializations,
   listSpecializations,
+  previewImport,
   setSpecializationStatus,
 } from '@/api/specializations';
+import { CsvImportDialog } from '@/components/admin/CsvImportDialog';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -41,6 +46,9 @@ export function SpecializationsPage() {
   const [editTarget, setEditTarget] = useState<Specialization | null>(null);
 
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // Debounce search
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -113,6 +121,22 @@ export function SpecializationsPage() {
     }
   }
 
+  async function handleExport() {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const params: { search?: string; is_active?: boolean } = {};
+      if (debouncedSearch) params.search = debouncedSearch;
+      if (filterStatus === 'active') params.is_active = true;
+      if (filterStatus === 'inactive') params.is_active = false;
+      await exportSpecializations(params);
+    } catch (err) {
+      setExportError(extractErrorMessage(err, 'Failed to export specializations.'));
+    } finally {
+      setExporting(false);
+    }
+  }
+
   // ── Derived ───────────────────────────────────────────────────────────────
   const totalPages = result?.meta.total_pages ?? 1;
   const meta = result?.meta;
@@ -127,13 +151,30 @@ export function SpecializationsPage() {
         subtitle="Manage medical specialization master data used across hospitals, clinics, and doctors."
         breadcrumbs={[{ label: 'Admin' }, { label: 'Specializations' }]}
         actions={
-          <Button variant="primary" onClick={openCreate} leftIcon="＋">
-            Add specialization
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              onClick={handleExport}
+              loading={exporting}
+              leftIcon="⬇"
+            >
+              Export
+            </Button>
+            <Button variant="outline" onClick={() => setImportOpen(true)} leftIcon="⬆">
+              Import
+            </Button>
+            <Button variant="primary" onClick={openCreate} leftIcon="＋">
+              Add specialization
+            </Button>
+          </>
         }
       />
 
       <div className={styles.body}>
+        {exportError && (
+          <div className={styles.exportError} role="alert">{exportError}</div>
+        )}
+
         {/* ── Toolbar ─────────────────────────────────────────────────────── */}
         <div className={styles.toolbar}>
           <Input
@@ -292,6 +333,18 @@ export function SpecializationsPage() {
       </div>
 
       {/* ── Modal form ──────────────────────────────────────────────────────── */}
+      {/* ── CSV import wizard ──────────────────────────────────────────────── */}
+      {importOpen && (
+        <CsvImportDialog
+          title="Import Specializations"
+          onPreview={previewImport}
+          onImport={confirmImport}
+          onDownloadTemplate={downloadImportTemplate}
+          onClose={() => setImportOpen(false)}
+          onImported={() => { void load(); }}
+        />
+      )}
+
       {formOpen && (
         <SpecializationForm
           initialValues={editTarget ?? undefined}

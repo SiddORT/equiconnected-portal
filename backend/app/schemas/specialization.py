@@ -38,6 +38,36 @@ class SpecializationStatusUpdate(BaseModel):
     is_active: bool
 
 
+# ── CSV import/export ─────────────────────────────────────────────────────────
+
+class ImportRowPreview(BaseModel):
+    row_num: int
+    name: str
+    description: str | None
+    status: str
+    state: str  # "valid" | "duplicate" | "invalid"
+    reason: str | None = None
+
+
+class ImportPreviewResponse(BaseModel):
+    total: int
+    valid: int
+    duplicate: int
+    invalid: int
+    rows: list[ImportRowPreview]
+
+
+class ImportConfirmRequest(BaseModel):
+    rows: list[ImportRowPreview] = Field(..., min_length=1)
+
+
+class ImportResult(BaseModel):
+    imported: int
+    skipped: int
+    errors: int
+    row_details: list[ImportRowPreview]
+
+
 class SpecializationResponse(BaseModel):
     id: UUID
     name: str

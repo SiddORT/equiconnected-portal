@@ -99,3 +99,31 @@ export interface SpecializationUpdate {
   name?: string;
   description?: string | null;
 }
+
+// ── CSV import/export ─────────────────────────────────────────────────────────
+
+export type ImportRowState = 'valid' | 'duplicate' | 'invalid';
+
+export interface ImportRowPreview {
+  row_num: number;
+  name: string;
+  description: string | null;
+  status: string;
+  state: ImportRowState;
+  reason: string | null;
+}
+
+export interface ImportPreviewResponse {
+  total: number;
+  valid: number;
+  duplicate: number;
+  invalid: number;
+  rows: ImportRowPreview[];
+}
+
+export interface ImportResult {
+  imported: number;
+  skipped: number;
+  errors: number;
+  row_details: ImportRowPreview[];
+}

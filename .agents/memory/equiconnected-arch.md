@@ -54,6 +54,17 @@ Migrations live in `backend/alembic/versions/`. Always use `alembic revision --a
 model changes; never hand-edit the schema. The Alembic aggregator is `app.db.base` — new models
 must be imported there so autogenerate sees them.
 
+## Frontend build (tsc -b) requirements
+TypeScript ≥5.9 rejects `baseUrl` (deprecated) and project references without `composite: true`.
+Fixed: `paths` uses `./src/*` without baseUrl; `tsconfig.node.json` has `composite: true` +
+`emitDeclarationOnly` (references may not use plain `noEmit`); `src/vite-env.d.ts` provides
+`vite/client` types so CSS-module imports typecheck. Don't reintroduce baseUrl/noEmit there.
+
+## CSV import trust boundary
+Import "confirm" endpoints must re-run the same canonical field validation used at preview time
+(shared `validate_row_fields`) and re-check duplicates at commit — never trust client-sent `state`.
+**Why:** payloads can be tampered or go stale between preview and confirm.
+
 ## Specialization master-data pattern (reusable for future masters)
 Layers: model → repository (flush, commit, rollback) → service (catches IntegrityError, raises domain
 exceptions) → router (maps domain exceptions to HTTP status codes). PATCH uses `body.model_dump(exclude_unset=True)`

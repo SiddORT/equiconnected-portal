@@ -106,7 +106,7 @@ export function extractErrorMessage(error: unknown, fallback = 'An unexpected er
     if (error.response?.status === 401) return 'Authentication required. Please log in.';
     if (error.response?.status === 403) return 'You do not have permission to perform this action.';
     if (error.response?.status === 404) return 'The requested resource was not found.';
-    if (error.response?.status >= 500) return 'A server error occurred. Please try again later.';
+    if ((error.response?.status ?? 0) >= 500) return 'A server error occurred. Please try again later.';
   }
   return fallback;
 }
