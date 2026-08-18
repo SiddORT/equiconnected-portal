@@ -30,22 +30,6 @@
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
 }
 
-.codeSelect {
-  height: 40px;
-  max-width: 128px;
-  padding: 0 var(--space-2) 0 var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--text-primary);
-  background: transparent;
-  border: none;
-  outline: none !important;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.codeSelect:disabled {
-  cursor: not-allowed;
-  color: var(--text-muted);
-}
 
 .divider {
   width: 1px;
