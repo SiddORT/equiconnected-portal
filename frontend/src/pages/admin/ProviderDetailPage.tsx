@@ -2,7 +2,7 @@
  * Provider Detail page — /admin/providers/:id
  * Sections: Overview, Basic Information, Specializations, Locations, Photos.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
 import {
@@ -58,12 +58,15 @@ const EMPTY_LOCATION_FORM: LocationFormValues = {
 };
 
 interface PhotoFormValues {
-  storage_reference: string;
   alt_text: string;
   caption: string;
 }
 
-const EMPTY_PHOTO_FORM: PhotoFormValues = { storage_reference: '', alt_text: '', caption: '' };
+const EMPTY_PHOTO_FORM: PhotoFormValues = { alt_text: '', caption: '' };
+
+function isImageUrl(ref: string) {
+  return ref.startsWith('data:image') || /\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(ref);
+}
 
 export function ProviderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -86,6 +89,9 @@ export function ProviderDetailPage() {
   // Add-photo form
   const [photoFormOpen, setPhotoFormOpen] = useState(false);
   const [photoForm, setPhotoForm] = useState<PhotoFormValues>(EMPTY_PHOTO_FORM);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -115,7 +121,7 @@ export function ProviderDetailPage() {
         }
         if (!cancelled) setAllSpecs(all);
       } catch {
-        /* non-fatal — the add select just stays empty */
+        /* non-fatal */
       }
     })();
     return () => { cancelled = true; };
@@ -132,6 +138,24 @@ export function ProviderDetailPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setPhotoPreview(ev.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function resetPhotoForm() {
+    setPhotoForm(EMPTY_PHOTO_FORM);
+    setPhotoFile(null);
+    setPhotoPreview('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   if (loadState === 'loading') {
@@ -206,11 +230,11 @@ export function ProviderDetailPage() {
 
       <div className={styles.body}>
         {actionError && (
-          <div className={styles.actionError} role="alert">{actionError}</div>
+          <div className={`${styles.actionError} ${styles.colFull}`} role="alert">{actionError}</div>
         )}
 
-        {/* ── Overview ─────────────────────────────────────────────────────── */}
-        <Card padding="none" shadow="sm">
+        {/* ── Overview — full width ─────────────────────────────────────────── */}
+        <Card padding="none" shadow="sm" className={styles.colFull}>
           <CardHeader><h2 className={styles.sectionTitle}>Overview</h2></CardHeader>
           <CardBody>
             <div className={styles.badgeRow}>
@@ -229,7 +253,7 @@ export function ProviderDetailPage() {
           </CardBody>
         </Card>
 
-        {/* ── Basic information ────────────────────────────────────────────── */}
+        {/* ── Basic information — left ──────────────────────────────────────── */}
         <Card padding="none" shadow="sm">
           <CardHeader><h2 className={styles.sectionTitle}>Basic Information</h2></CardHeader>
           <CardBody>
@@ -267,7 +291,7 @@ export function ProviderDetailPage() {
           </CardBody>
         </Card>
 
-        {/* ── Specializations ──────────────────────────────────────────────── */}
+        {/* ── Specializations — right ───────────────────────────────────────── */}
         <Card padding="none" shadow="sm">
           <CardHeader><h2 className={styles.sectionTitle}>Specializations</h2></CardHeader>
           <CardBody>
@@ -319,8 +343,8 @@ export function ProviderDetailPage() {
           </CardBody>
         </Card>
 
-        {/* ── Locations ────────────────────────────────────────────────────── */}
-        <Card padding="none" shadow="sm">
+        {/* ── Locations — full width ────────────────────────────────────────── */}
+        <Card padding="none" shadow="sm" className={styles.colFull}>
           <CardHeader>
             <div className={styles.cardHeaderRow}>
               <h2 className={styles.sectionTitle}>Locations</h2>
@@ -444,12 +468,19 @@ export function ProviderDetailPage() {
           </CardBody>
         </Card>
 
-        {/* ── Photos ───────────────────────────────────────────────────────── */}
-        <Card padding="none" shadow="sm">
+        {/* ── Photos — full width ───────────────────────────────────────────── */}
+        <Card padding="none" shadow="sm" className={styles.colFull}>
           <CardHeader>
             <div className={styles.cardHeaderRow}>
               <h2 className={styles.sectionTitle}>Photos</h2>
-              <Button variant="outline" size="sm" onClick={() => setPhotoFormOpen((o) => !o)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (photoFormOpen) resetPhotoForm();
+                  setPhotoFormOpen((o) => !o);
+                }}
+              >
                 {photoFormOpen ? 'Cancel' : '＋ Add photo'}
               </Button>
             </div>
@@ -460,87 +491,118 @@ export function ProviderDetailPage() {
                 className={styles.inlineForm}
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (!photoForm.storage_reference.trim()) {
-                    setActionError('Storage reference is required for a photo.');
+                  if (!photoPreview) {
+                    setActionError('Please select an image to upload.');
                     return;
                   }
                   void run(async () => {
                     await createProviderPhoto(p.id, {
-                      storage_reference: photoForm.storage_reference.trim(),
+                      storage_reference: photoPreview,
                       alt_text: photoForm.alt_text.trim() || null,
                       caption: photoForm.caption.trim() || null,
                     });
-                    setPhotoForm(EMPTY_PHOTO_FORM);
+                    resetPhotoForm();
                     setPhotoFormOpen(false);
                   }, 'Failed to add photo.');
                 }}
               >
+                {/* File picker */}
+                <div className={styles.uploadArea}>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className={styles.fileInput}
+                    id="photo-upload"
+                    onChange={handleFileChange}
+                  />
+                  {photoPreview ? (
+                    <div className={styles.previewWrap}>
+                      <img src={photoPreview} alt="Preview" className={styles.previewImg} />
+                      <button
+                        type="button"
+                        className={styles.changePhoto}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        Change photo
+                      </button>
+                    </div>
+                  ) : (
+                    <label htmlFor="photo-upload" className={styles.uploadLabel}>
+                      <span className={styles.uploadIcon}>🖼</span>
+                      <span>Click to select an image</span>
+                      <span className={styles.uploadHint}>PNG, JPG, WebP, GIF</span>
+                    </label>
+                  )}
+                </div>
+
                 <div className={styles.formGrid}>
                   <Input
-                    label="Storage reference"
-                    required
-                    hint="Reference to the stored file (upload integration comes later)."
-                    value={photoForm.storage_reference}
-                    onChange={(e) => setPhotoForm((f) => ({ ...f, storage_reference: e.target.value }))}
-                  />
-                  <Input
                     label="Alt text"
+                    placeholder="Describe the image…"
                     value={photoForm.alt_text}
                     onChange={(e) => setPhotoForm((f) => ({ ...f, alt_text: e.target.value }))}
                   />
                   <Input
                     label="Caption"
+                    placeholder="Optional caption…"
                     value={photoForm.caption}
                     onChange={(e) => setPhotoForm((f) => ({ ...f, caption: e.target.value }))}
                   />
                 </div>
                 <div className={styles.inlineFormFooter}>
-                  <Button type="submit" variant="primary" size="sm" loading={busy}>
-                    Add photo
+                  <Button type="submit" variant="primary" size="sm" loading={busy} disabled={!photoPreview}>
+                    Upload photo
                   </Button>
                 </div>
               </form>
             )}
 
             {p.photos.length === 0 ? (
-              <EmptyState icon="🖼" title="No photos yet" description="Add photo metadata to this provider." />
+              <EmptyState icon="🖼" title="No photos yet" description="Upload photos for this provider." />
             ) : (
               <div className={styles.photoGrid}>
                 {p.photos.map((photo) => (
                   <div key={photo.id} className={styles.photoCard}>
-                    <div className={styles.photoTop}>
-                      <span className={styles.photoRef} title={photo.storage_reference}>
-                        {photo.storage_reference}
-                      </span>
+                    {isImageUrl(photo.storage_reference) ? (
+                      <img
+                        src={photo.storage_reference}
+                        alt={photo.alt_text ?? photo.caption ?? 'Provider photo'}
+                        className={styles.photoImg}
+                      />
+                    ) : (
+                      <div className={styles.photoPlaceholder}>🖼</div>
+                    )}
+                    <div className={styles.photoMeta}>
                       {photo.is_thumbnail && <Badge variant="info" size="sm">Thumbnail</Badge>}
-                    </div>
-                    {photo.caption && <p className={styles.photoCaption}>{photo.caption}</p>}
-                    {photo.alt_text && <p className={styles.photoAlt}>Alt: {photo.alt_text}</p>}
-                    <div className={styles.photoActions}>
-                      {!photo.is_thumbnail && (
-                        <Button
-                          variant="outline"
-                          size="sm"
+                      {photo.caption && <p className={styles.photoCaption}>{photo.caption}</p>}
+                      {photo.alt_text && <p className={styles.photoAlt}>Alt: {photo.alt_text}</p>}
+                      <div className={styles.photoActions}>
+                        {!photo.is_thumbnail && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() =>
+                              run(() => setProviderThumbnail(p.id, photo.id), 'Failed to set thumbnail.')
+                            }
+                          >
+                            Set thumbnail
+                          </Button>
+                        )}
+                        <button
+                          type="button"
+                          className={styles.removeBtn}
                           disabled={busy}
-                          onClick={() =>
-                            run(() => setProviderThumbnail(p.id, photo.id), 'Failed to set thumbnail.')
-                          }
+                          onClick={() => {
+                            if (confirm('Remove this photo?')) {
+                              void run(() => deleteProviderPhoto(p.id, photo.id), 'Failed to remove photo.');
+                            }
+                          }}
                         >
-                          Set as thumbnail
-                        </Button>
-                      )}
-                      <button
-                        type="button"
-                        className={styles.removeBtn}
-                        disabled={busy}
-                        onClick={() => {
-                          if (confirm('Remove this photo?')) {
-                            void run(() => deleteProviderPhoto(p.id, photo.id), 'Failed to remove photo.');
-                          }
-                        }}
-                      >
-                        🗑 Remove
-                      </button>
+                          🗑 Remove
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}

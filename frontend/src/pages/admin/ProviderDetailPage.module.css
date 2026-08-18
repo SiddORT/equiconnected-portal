@@ -7,13 +7,16 @@
 
 .body {
   padding: var(--space-8);
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: var(--space-6);
+  align-items: start;
   flex: 1;
-  max-width: 1080px;
-  width: 100%;
-  margin: 0 auto;
+}
+
+/* Cards that span both columns */
+.colFull {
+  grid-column: 1 / -1;
 }
 
 .centeredPage {
@@ -38,7 +41,6 @@
   font-weight: var(--font-semibold);
   color: var(--text-primary);
   margin: 0;
-  /* Visual weight via a left accent border */
   padding-left: var(--space-3);
   border-left: 3px solid var(--color-primary, #4f46e5);
 }
@@ -65,9 +67,10 @@
   line-height: 1.6;
 }
 
+/* ── Info grid (key-value pairs) ─────────────────────────────────────────── */
 .infoGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 0;
   margin: 0;
 }
@@ -138,10 +141,11 @@
 }
 
 .addSelect {
-  min-width: 240px;
+  min-width: 200px;
+  flex: 1;
 }
 
-/* ── Lists (locations) ───────────────────────────────────────────────────── */
+/* ── Location list ───────────────────────────────────────────────────────── */
 .itemList {
   list-style: none;
   margin: 0;
@@ -240,37 +244,121 @@
   justify-content: flex-end;
 }
 
-/* ── Photos ──────────────────────────────────────────────────────────────── */
+/* ── Photo upload ────────────────────────────────────────────────────────── */
+.uploadArea {
+  border: 2px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  overflow: hidden;
+  transition: border-color var(--transition-fast);
+}
+.uploadArea:hover {
+  border-color: var(--color-primary-400, #a78bfa);
+}
+
+.fileInput {
+  display: none;
+}
+
+.uploadLabel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-4);
+  cursor: pointer;
+  text-align: center;
+}
+
+.uploadIcon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.uploadLabel span:not(.uploadIcon):not(.uploadHint) {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--text-primary);
+}
+
+.uploadHint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.previewWrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.previewImg {
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+
+.changePhoto {
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.changePhoto:hover {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+/* ── Photo grid ──────────────────────────────────────────────────────────── */
 .photoGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: var(--space-4);
 }
 
 .photoCard {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   background: var(--bg-surface);
+  overflow: hidden;
 }
 
-.photoTop {
+.photoImg {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  display: block;
+  background: var(--bg-subtle);
+}
+
+.photoPlaceholder {
+  width: 100%;
+  height: 160px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+  justify-content: center;
+  font-size: 2.5rem;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
 }
 
-.photoRef {
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.photoMeta {
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
 }
 
 .photoCaption {
@@ -290,9 +378,16 @@
   align-items: center;
   gap: var(--space-2);
   margin-top: auto;
+  padding-top: var(--space-2);
   flex-wrap: wrap;
 }
 
-@media (max-width: 768px) {
-  .body { padding: var(--space-5); }
+@media (max-width: 900px) {
+  .body {
+    grid-template-columns: 1fr;
+    padding: var(--space-5);
+  }
+  .colFull {
+    grid-column: 1;
+  }
 }
