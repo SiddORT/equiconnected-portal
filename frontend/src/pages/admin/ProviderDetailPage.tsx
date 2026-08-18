@@ -234,8 +234,25 @@ export function ProviderDetailPage() {
           <CardHeader><h2 className={styles.sectionTitle}>Basic Information</h2></CardHeader>
           <CardBody>
             <dl className={styles.infoGrid}>
-              <div><dt>Email</dt><dd>{p.email ?? '—'}</dd></div>
-              <div><dt>Phone</dt><dd>{p.phone ?? '—'}</dd></div>
+              <div>
+                <dt>Email</dt>
+                <dd>
+                  {p.emails.length > 0
+                    ? (p.emails.find((e) => e.is_primary) ?? p.emails[0]).email
+                    : p.email ?? '—'}
+                </dd>
+              </div>
+              <div>
+                <dt>Phone</dt>
+                <dd>
+                  {p.phones.length > 0
+                    ? (() => {
+                        const ph = p.phones.find((x) => x.is_primary) ?? p.phones[0];
+                        return `${ph.country_code} ${ph.number}`;
+                      })()
+                    : p.phone ?? '—'}
+                </dd>
+              </div>
               <div>
                 <dt>Website</dt>
                 <dd>

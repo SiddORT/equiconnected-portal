@@ -106,6 +106,65 @@ class PhotoResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ── Phone ─────────────────────────────────────────────────────────────────────
+
+class PhoneCreate(BaseModel):
+    country_code: str = Field(..., min_length=1, max_length=10)
+    number: str = Field(..., min_length=1, max_length=50)
+    is_primary: bool = False
+
+    _strip_phone = field_validator("country_code", "number", mode="before")(_strip)
+
+
+class PhoneUpdate(BaseModel):
+    """PATCH body — all fields optional; only provided fields are updated."""
+    country_code: str | None = Field(None, min_length=1, max_length=10)
+    number: str | None = Field(None, min_length=1, max_length=50)
+    is_primary: bool | None = None
+
+    _strip_phone = field_validator("country_code", "number", mode="before")(_strip)
+
+
+class PhoneResponse(BaseModel):
+    id: UUID
+    provider_id: UUID
+    country_code: str
+    number: str
+    is_primary: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ── Email ─────────────────────────────────────────────────────────────────────
+
+class EmailCreate(BaseModel):
+    email: str = Field(..., min_length=1, max_length=254)
+    is_primary: bool = False
+
+    _strip_email = field_validator("email", mode="before")(_strip)
+
+
+class EmailUpdate(BaseModel):
+    """PATCH body — all fields optional; only provided fields are updated."""
+    email: str | None = Field(None, min_length=1, max_length=254)
+    is_primary: bool | None = None
+
+    _strip_email = field_validator("email", mode="before")(_strip)
+
+
+class EmailResponse(BaseModel):
+    id: UUID
+    provider_id: UUID
+    email: str
+    is_primary: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ── Provider ──────────────────────────────────────────────────────────────────
 
 class ProviderCreate(BaseModel):
@@ -120,6 +179,8 @@ class ProviderCreate(BaseModel):
     publication_status: PublicationStatus = PublicationStatus.UNPUBLISHED
     specialization_ids: list[UUID] = Field(default_factory=list)
     primary_location: LocationCreate | None = None
+    phones: list[PhoneCreate] = Field(default_factory=list)
+    emails: list[EmailCreate] = Field(default_factory=list)
 
     _strip_name = field_validator("name", mode="before")(_strip)
 
@@ -171,6 +232,31 @@ class ProviderListItem(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @classmethod
+    def from_provider_row(cls, provider) -> "ProviderListItem":
+        """Build a list item, preferring the primary phone/email entries over
+        the legacy single-value columns (which are null going forward)."""
+        primary_email = next(
+            (e.email for e in provider.emails if e.is_primary),
+            next((e.email for e in provider.emails), None),
+        )
+        primary_phone = next(
+            (f"{p.country_code} {p.number}" for p in provider.phones if p.is_primary),
+            next((f"{p.country_code} {p.number}" for p in provider.phones), None),
+        )
+        return cls(
+            id=provider.id,
+            provider_type=provider.provider_type,
+            name=provider.name,
+            email=primary_email or provider.email,
+            phone=primary_phone or provider.phone,
+            visit_stability=provider.visit_stability,
+            status=provider.status,
+            publication_status=provider.publication_status,
+            created_at=provider.created_at,
+            updated_at=provider.updated_at,
+        )
+
 
 class ProviderResponse(ProviderListItem):
     description: str | None
@@ -178,6 +264,8 @@ class ProviderResponse(ProviderListItem):
     specializations: list[ProviderSpecializationBrief] = []
     locations: list[LocationResponse] = []
     photos: list[PhotoResponse] = []
+    phones: list[PhoneResponse] = []
+    emails: list[EmailResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -206,5 +294,13 @@ class ProviderResponse(ProviderListItem):
             photos=[
                 PhotoResponse.model_validate(p)
                 for p in sorted(provider.photos, key=lambda p: (p.display_order, p.created_at))
+            ],
+            phones=[
+                PhoneResponse.model_validate(ph)
+                for ph in sorted(provider.phones, key=lambda ph: (not ph.is_primary, ph.created_at))
+            ],
+            emails=[
+                EmailResponse.model_validate(em)
+                for em in sorted(provider.emails, key=lambda em: (not em.is_primary, em.created_at))
             ],
         )

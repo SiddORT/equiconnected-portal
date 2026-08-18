@@ -73,6 +73,12 @@ class Provider(TimestampMixin, Base):
     provider_specializations: Mapped[list["ProviderSpecialization"]] = relationship(
         back_populates="provider", cascade="all, delete-orphan"
     )
+    phones: Mapped[list["ProviderPhone"]] = relationship(
+        back_populates="provider", cascade="all, delete-orphan"
+    )
+    emails: Mapped[list["ProviderEmail"]] = relationship(
+        back_populates="provider", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("ix_providers_name", "name"),
@@ -80,6 +86,73 @@ class Provider(TimestampMixin, Base):
 
     def __repr__(self) -> str:
         return f"<Provider id={self.id} type={self.provider_type} name={self.name!r}>"
+
+
+class ProviderPhone(TimestampMixin, Base):
+    __tablename__ = "provider_phones"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("providers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    country_code: Mapped[str] = mapped_column(String(10), nullable=False)
+    number: Mapped[str] = mapped_column(String(50), nullable=False)
+    is_primary: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
+    provider: Mapped["Provider"] = relationship(back_populates="phones")
+
+    __table_args__ = (
+        Index("ix_provider_phones_provider_id", "provider_id"),
+        # Only one primary phone per provider — enforced by the database itself.
+        Index(
+            "uq_provider_phones_one_primary",
+            "provider_id",
+            unique=True,
+            postgresql_where=(is_primary.is_(True)),
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ProviderPhone id={self.id} provider_id={self.provider_id} number={self.country_code}{self.number}>"
+
+
+class ProviderEmail(TimestampMixin, Base):
+    __tablename__ = "provider_emails"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("providers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    email: Mapped[str] = mapped_column(String(254), nullable=False)
+    is_primary: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
+    provider: Mapped["Provider"] = relationship(back_populates="emails")
+
+    __table_args__ = (
+        Index("ix_provider_emails_provider_id", "provider_id"),
+        # Only one primary email per provider — enforced by the database itself.
+        Index(
+            "uq_provider_emails_one_primary",
+            "provider_id",
+            unique=True,
+            postgresql_where=(is_primary.is_(True)),
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ProviderEmail id={self.id} provider_id={self.provider_id} email={self.email!r}>"
 
 
 class ProviderLocation(TimestampMixin, Base):

@@ -79,3 +79,10 @@ A service class with a method named `list` (or `dict`, etc.) breaks later annota
 `list[UUID]` in the same class body ("'function' object is not subscriptable").
 **How to apply:** add `from __future__ import annotations` to any module whose classes define
 methods that shadow builtins used in type annotations.
+
+## Migrating single-value columns to multi-entry tables
+When a scalar column (e.g. a single email/phone) is replaced by a child table, the Alembic
+migration must also backfill existing values into the new table (as primary) and null the legacy
+column — otherwise the edit form shows empty lists for pre-existing rows.
+**Why:** completion review rejected a contact-list feature for exactly this regression.
+**How to apply:** any future scalar→list schema change: backfill + legacy fallback in read paths.

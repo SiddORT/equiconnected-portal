@@ -35,7 +35,11 @@ from app.models.enums import (
 from app.repositories.provider_repository import ProviderRepository
 from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.schemas.provider import (
+    EmailCreate,
+    EmailResponse,
     LocationCreate,
+    PhoneCreate,
+    PhoneResponse,
     LocationResponse,
     LocationUpdate,
     PhotoCreate,
@@ -51,7 +55,9 @@ from app.schemas.provider import (
 )
 from app.services.provider_service import (
     DuplicateSpecializationError,
+    EmailNotFoundError,
     LocationNotFoundError,
+    PhoneNotFoundError,
     PhotoNotFoundError,
     ProviderNotFoundError,
     ProviderService,
@@ -112,7 +118,7 @@ def list_providers(
     )
     total_pages = max(1, ceil(total / page_size))
     return PaginatedResponse(
-        data=[ProviderListItem.model_validate(p) for p in items],
+        data=[ProviderListItem.from_provider_row(p) for p in items],
         meta=PaginationMeta(
             page=page, page_size=page_size, total=total, total_pages=total_pages
         ),
@@ -123,7 +129,9 @@ def list_providers(
 
 @router.post("", response_model=ProviderResponse, status_code=status.HTTP_201_CREATED)
 def create_provider(body: ProviderCreate, svc: _Svc):
-    core = body.model_dump(exclude={"specialization_ids", "primary_location"})
+    core = body.model_dump(
+        exclude={"specialization_ids", "primary_location", "phones", "emails"}
+    )
     try:
         provider = svc.create(
             core_fields=core,
@@ -131,6 +139,8 @@ def create_provider(body: ProviderCreate, svc: _Svc):
             primary_location=(
                 body.primary_location.model_dump() if body.primary_location else None
             ),
+            phones=[p.model_dump() for p in body.phones],
+            emails=[e.model_dump() for e in body.emails],
         )
         return ProviderResponse.from_provider(provider)
     except SpecializationNotFoundError as exc:
@@ -251,6 +261,58 @@ def delete_provider_location(id: UUID, loc_id: UUID, svc: _Svc):
         raise _404("provider_not_found", "Provider not found")
     except LocationNotFoundError:
         raise _404("location_not_found", "Location not found")
+
+
+# ── Phones ────────────────────────────────────────────────────────────────────
+
+@router.post(
+    "/{id}/phones",
+    response_model=PhoneResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_provider_phone(id: UUID, body: PhoneCreate, svc: _Svc):
+    try:
+        return PhoneResponse.model_validate(
+            svc.add_provider_phone(id, fields=body.model_dump())
+        )
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+
+
+@router.delete("/{id}/phones/{phone_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_provider_phone(id: UUID, phone_id: UUID, svc: _Svc):
+    try:
+        svc.remove_provider_phone(id, phone_id)
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+    except PhoneNotFoundError:
+        raise _404("phone_not_found", "Phone not found")
+
+
+# ── Emails ────────────────────────────────────────────────────────────────────
+
+@router.post(
+    "/{id}/emails",
+    response_model=EmailResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_provider_email(id: UUID, body: EmailCreate, svc: _Svc):
+    try:
+        return EmailResponse.model_validate(
+            svc.add_provider_email(id, fields=body.model_dump())
+        )
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+
+
+@router.delete("/{id}/emails/{email_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_provider_email(id: UUID, email_id: UUID, svc: _Svc):
+    try:
+        svc.remove_provider_email(id, email_id)
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+    except EmailNotFoundError:
+        raise _404("email_not_found", "Email not found")
 
 
 # ── Photos ────────────────────────────────────────────────────────────────────

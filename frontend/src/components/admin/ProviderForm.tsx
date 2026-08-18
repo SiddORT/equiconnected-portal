@@ -9,9 +9,13 @@
 import { useEffect, useState } from 'react';
 import { extractErrorMessage } from '@/api/client';
 import {
+  addProviderEmail,
+  addProviderPhone,
   addProviderSpecialization,
   createProvider,
   getProvider,
+  removeProviderEmail,
+  removeProviderPhone,
   removeProviderSpecialization,
   updateProvider,
   updateProviderPublication,
@@ -23,6 +27,8 @@ import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { MultiEmailField, type EmailEntry } from './MultiEmailField';
+import { MultiPhoneField, type PhoneEntry } from './MultiPhoneField';
 import type {
   Provider,
   ProviderCreate,
@@ -83,9 +89,45 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
   const [providerType, setProviderType] = useState<string>(initialData?.provider_type ?? '');
   const [name, setName] = useState(initialData?.name ?? '');
   const [description, setDescription] = useState(initialData?.description ?? '');
-  const [email, setEmail] = useState(initialData?.email ?? '');
-  const [phone, setPhone] = useState(initialData?.phone ?? '');
   const [website, setWebsite] = useState(initialData?.website ?? '');
+  const [phoneEntries, setPhoneEntries] = useState<PhoneEntry[]>(() => {
+    if (!initialData) return [];
+    if (initialData.phones.length > 0) {
+      return initialData.phones.map((p) => ({
+        id: p.id,
+        country_code: p.country_code,
+        number: p.number,
+        is_primary: p.is_primary,
+      }));
+    }
+    // Legacy fallback: providers saved before the multi-phone migration.
+    if (initialData.phone) {
+      const m = initialData.phone.trim().match(/^(\+\d{1,4})[\s.-]+(.+)$/);
+      return [
+        m
+          ? { country_code: m[1], number: m[2], is_primary: true }
+          : { country_code: '+1', number: initialData.phone.trim(), is_primary: true },
+      ];
+    }
+    return [];
+  });
+  const [emailEntries, setEmailEntries] = useState<EmailEntry[]>(() => {
+    if (!initialData) return [];
+    if (initialData.emails.length > 0) {
+      return initialData.emails.map((e) => ({
+        id: e.id,
+        email: e.email,
+        is_primary: e.is_primary,
+      }));
+    }
+    // Legacy fallback: providers saved before the multi-email migration.
+    if (initialData.email) {
+      return [{ email: initialData.email.trim(), is_primary: true }];
+    }
+    return [];
+  });
+  const [phoneErrors, setPhoneErrors] = useState<Record<number, string>>({});
+  const [emailErrors, setEmailErrors] = useState<Record<number, string>>({});
   const [visitStability, setVisitStability] = useState<string>(initialData?.visit_stability ?? '');
   const [status, setStatus] = useState<string>(initialData?.status ?? 'ACTIVE');
   const [publication, setPublication] = useState<string>(
@@ -142,8 +184,23 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
     if (!isEdit && location.city.trim() && !location.address_line_1.trim()) {
       errors.address_line_1 = 'Address line 1 is required when a city is provided.';
     }
+    // Contact rows are optional, but existing rows must be non-empty.
+    const phErrors: Record<number, string> = {};
+    phoneEntries.forEach((p, i) => {
+      if (!p.number.trim()) phErrors[i] = 'Enter a number or remove this row.';
+    });
+    const emErrors: Record<number, string> = {};
+    emailEntries.forEach((e, i) => {
+      if (!e.email.trim()) emErrors[i] = 'Enter an email or remove this row.';
+    });
+    setPhoneErrors(phErrors);
+    setEmailErrors(emErrors);
     setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
+    return (
+      Object.keys(errors).length === 0 &&
+      Object.keys(phErrors).length === 0 &&
+      Object.keys(emErrors).length === 0
+    );
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -159,8 +216,6 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
           provider_type: providerType as ProviderType,
           name: name.trim(),
           description: description.trim() || null,
-          email: email.trim() || null,
-          phone: phone.trim() || null,
           website: website.trim() || null,
           visit_stability: visitStability as VisitStability,
         });
@@ -184,7 +239,69 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
         for (const specId of toRemove) {
           saved = await removeProviderSpecialization(initialData.id, specId);
         }
-        if (toAdd.length || toRemove.length || status !== initialData.status || publication !== initialData.publication_status) {
+        // Phones: diff against the saved list. Changed rows are re-created
+        // (the API exposes add/remove, not update).
+        const keptPhoneIds = new Set<string>();
+        const phonesToAdd: PhoneEntry[] = [];
+        for (const entry of phoneEntries) {
+          const original = entry.id
+            ? initialData.phones.find((p) => p.id === entry.id)
+            : undefined;
+          const unchanged =
+            original &&
+            original.country_code === entry.country_code &&
+            original.number === entry.number.trim() &&
+            original.is_primary === entry.is_primary;
+          if (unchanged && entry.id) {
+            keptPhoneIds.add(entry.id);
+          } else {
+            phonesToAdd.push(entry);
+          }
+        }
+        const phonesToRemove = initialData.phones.filter((p) => !keptPhoneIds.has(p.id));
+        for (const p of phonesToRemove) {
+          await removeProviderPhone(initialData.id, p.id);
+        }
+        for (const entry of phonesToAdd) {
+          await addProviderPhone(initialData.id, {
+            country_code: entry.country_code,
+            number: entry.number.trim(),
+            is_primary: entry.is_primary,
+          });
+        }
+        // Emails: same diff approach.
+        const keptEmailIds = new Set<string>();
+        const emailsToAdd: EmailEntry[] = [];
+        for (const entry of emailEntries) {
+          const original = entry.id
+            ? initialData.emails.find((e) => e.id === entry.id)
+            : undefined;
+          const unchanged =
+            original &&
+            original.email === entry.email.trim() &&
+            original.is_primary === entry.is_primary;
+          if (unchanged && entry.id) {
+            keptEmailIds.add(entry.id);
+          } else {
+            emailsToAdd.push(entry);
+          }
+        }
+        const emailsToRemove = initialData.emails.filter((e) => !keptEmailIds.has(e.id));
+        for (const e of emailsToRemove) {
+          await removeProviderEmail(initialData.id, e.id);
+        }
+        for (const entry of emailsToAdd) {
+          await addProviderEmail(initialData.id, {
+            email: entry.email.trim(),
+            is_primary: entry.is_primary,
+          });
+        }
+        if (
+          toAdd.length || toRemove.length ||
+          phonesToAdd.length || phonesToRemove.length ||
+          emailsToAdd.length || emailsToRemove.length ||
+          status !== initialData.status || publication !== initialData.publication_status
+        ) {
           saved = await getProvider(initialData.id);
         }
       } else {
@@ -205,13 +322,20 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
           name: name.trim(),
           visit_stability: visitStability as VisitStability,
           description: description.trim() || null,
-          email: email.trim() || null,
-          phone: phone.trim() || null,
           website: website.trim() || null,
           status: status as ProviderStatus,
           publication_status: publication as PublicationStatus,
           specialization_ids: selectedSpecIds,
           primary_location,
+          phones: phoneEntries.map((p) => ({
+            country_code: p.country_code,
+            number: p.number.trim(),
+            is_primary: p.is_primary,
+          })),
+          emails: emailEntries.map((e) => ({
+            email: e.email.trim(),
+            is_primary: e.is_primary,
+          })),
         };
         saved = await createProvider(body);
       }
@@ -267,20 +391,6 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
 
           <div className={styles.grid}>
             <Input
-              label="Email"
-              type="email"
-              placeholder="contact@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <Input
-              label="Phone"
-              type="tel"
-              placeholder="+1 555 000 0000"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
-            <Input
               label="Website"
               type="url"
               placeholder="https://example.com"
@@ -288,6 +398,25 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
               onChange={(e) => setWebsite(e.target.value)}
             />
           </div>
+        </section>
+      </Card>
+
+      {/* ── Contact ───────────────────────────────────────────────────────── */}
+      <Card padding="lg" shadow="sm">
+        <section className={styles.section}>
+          <h3 className={styles.sectionTitle}>Contact <span className={styles.optionalTag}>— optional</span></h3>
+          <MultiPhoneField
+            entries={phoneEntries}
+            onChange={(next) => { setPhoneEntries(next); setPhoneErrors({}); }}
+            errors={phoneErrors}
+            disabled={submitting}
+          />
+          <MultiEmailField
+            entries={emailEntries}
+            onChange={(next) => { setEmailEntries(next); setEmailErrors({}); }}
+            errors={emailErrors}
+            disabled={submitting}
+          />
         </section>
       </Card>
 

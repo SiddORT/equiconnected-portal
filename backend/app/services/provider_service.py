@@ -13,7 +13,13 @@ from app.models.enums import (
     PublicationStatus,
     VisitStability,
 )
-from app.models.provider import Provider, ProviderLocation, ProviderPhoto
+from app.models.provider import (
+    Provider,
+    ProviderEmail,
+    ProviderLocation,
+    ProviderPhone,
+    ProviderPhoto,
+)
 from app.repositories.provider_repository import ProviderRepository
 
 
@@ -37,6 +43,14 @@ class LocationNotFoundError(Exception):
 
 class PhotoNotFoundError(Exception):
     """Raised when a photo does not exist for the provider."""
+
+
+class PhoneNotFoundError(Exception):
+    """Raised when a phone does not exist for the provider."""
+
+
+class EmailNotFoundError(Exception):
+    """Raised when an email does not exist for the provider."""
 
 
 # ── Service ───────────────────────────────────────────────────────────────────
@@ -80,6 +94,8 @@ class ProviderService:
         core_fields: dict,
         specialization_ids: list[UUID],
         primary_location: dict | None,
+        phones: list[dict] | None = None,
+        emails: list[dict] | None = None,
     ) -> Provider:
         # Validate specialization IDs before touching the DB rows.
         for spec_id in specialization_ids:
@@ -94,6 +110,21 @@ class ProviderService:
             if primary_location is not None:
                 primary_location["is_primary"] = True
                 self._repo.add_location(provider.id, **primary_location)
+            # Bulk-insert phones/emails; keep at most one primary of each.
+            seen_primary_phone = False
+            for phone_fields in phones or []:
+                if phone_fields.get("is_primary"):
+                    if seen_primary_phone:
+                        phone_fields["is_primary"] = False
+                    seen_primary_phone = True
+                self._repo.add_phone(provider.id, **phone_fields)
+            seen_primary_email = False
+            for email_fields in emails or []:
+                if email_fields.get("is_primary"):
+                    if seen_primary_email:
+                        email_fields["is_primary"] = False
+                    seen_primary_email = True
+                self._repo.add_email(provider.id, **email_fields)
             self._repo.commit()
         except IntegrityError:
             self._repo.rollback()
@@ -182,6 +213,42 @@ class ProviderService:
         if loc is None:
             raise LocationNotFoundError(str(loc_id))
         self._repo.delete_location(loc)
+        self._repo.commit()
+
+    # ── Phones ────────────────────────────────────────────────────────────────
+
+    def add_provider_phone(self, provider_id: UUID, *, fields: dict) -> ProviderPhone:
+        self.get(provider_id)
+        if fields.get("is_primary"):
+            self._repo.clear_primary_phone(provider_id)
+        phone = self._repo.add_phone(provider_id, **fields)
+        self._repo.commit()
+        return phone
+
+    def remove_provider_phone(self, provider_id: UUID, phone_id: UUID) -> None:
+        self.get(provider_id)
+        phone = self._repo.get_phone(provider_id, phone_id)
+        if phone is None:
+            raise PhoneNotFoundError(str(phone_id))
+        self._repo.delete_phone(phone)
+        self._repo.commit()
+
+    # ── Emails ────────────────────────────────────────────────────────────────
+
+    def add_provider_email(self, provider_id: UUID, *, fields: dict) -> ProviderEmail:
+        self.get(provider_id)
+        if fields.get("is_primary"):
+            self._repo.clear_primary_email(provider_id)
+        email = self._repo.add_email(provider_id, **fields)
+        self._repo.commit()
+        return email
+
+    def remove_provider_email(self, provider_id: UUID, email_id: UUID) -> None:
+        self.get(provider_id)
+        email = self._repo.get_email(provider_id, email_id)
+        if email is None:
+            raise EmailNotFoundError(str(email_id))
+        self._repo.delete_email(email)
         self._repo.commit()
 
     # ── Photos ────────────────────────────────────────────────────────────────

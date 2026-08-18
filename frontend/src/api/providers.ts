@@ -7,8 +7,12 @@ import type {
   Provider,
   ProviderCreate,
   ProviderListItem,
+  ProviderEmail,
+  ProviderEmailCreate,
   ProviderListParams,
   ProviderLocation,
+  ProviderPhone,
+  ProviderPhoneCreate,
   ProviderLocationCreate,
   ProviderLocationUpdate,
   ProviderPhoto,
@@ -104,6 +108,34 @@ export async function updateProviderLocation(
 
 export async function deleteProviderLocation(id: string, locId: string): Promise<void> {
   await apiClient.delete(`/admin/providers/${id}/locations/${locId}`);
+}
+
+// ── Phones sub-resource ───────────────────────────────────────────────────────
+
+export async function addProviderPhone(
+  id: string,
+  body: ProviderPhoneCreate
+): Promise<ProviderPhone> {
+  const { data } = await apiClient.post<ProviderPhone>(`/admin/providers/${id}/phones`, body);
+  return data;
+}
+
+export async function removeProviderPhone(id: string, phoneId: string): Promise<void> {
+  await apiClient.delete(`/admin/providers/${id}/phones/${phoneId}`);
+}
+
+// ── Emails sub-resource ───────────────────────────────────────────────────────
+
+export async function addProviderEmail(
+  id: string,
+  body: ProviderEmailCreate
+): Promise<ProviderEmail> {
+  const { data } = await apiClient.post<ProviderEmail>(`/admin/providers/${id}/emails`, body);
+  return data;
+}
+
+export async function removeProviderEmail(id: string, emailId: string): Promise<void> {
+  await apiClient.delete(`/admin/providers/${id}/emails/${emailId}`);
 }
 
 // ── Photos sub-resource ───────────────────────────────────────────────────────

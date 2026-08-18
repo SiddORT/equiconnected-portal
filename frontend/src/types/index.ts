@@ -182,12 +182,44 @@ export interface ProviderPhoto {
   updated_at: string;
 }
 
+export interface ProviderPhone {
+  id: string;
+  provider_id: string;
+  country_code: string;
+  number: string;
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProviderPhoneCreate {
+  country_code: string;
+  number: string;
+  is_primary?: boolean;
+}
+
+export interface ProviderEmail {
+  id: string;
+  provider_id: string;
+  email: string;
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProviderEmailCreate {
+  email: string;
+  is_primary?: boolean;
+}
+
 export interface Provider extends ProviderListItem {
   description: string | null;
   website: string | null;
   specializations: ProviderSpecializationBrief[];
   locations: ProviderLocation[];
   photos: ProviderPhoto[];
+  phones: ProviderPhone[];
+  emails: ProviderEmail[];
 }
 
 export interface ProviderLocationCreate {
@@ -216,6 +248,8 @@ export interface ProviderCreate {
   publication_status?: PublicationStatus;
   specialization_ids?: string[];
   primary_location?: ProviderLocationCreate | null;
+  phones?: ProviderPhoneCreate[];
+  emails?: ProviderEmailCreate[];
 }
 
 export interface ProviderUpdate {

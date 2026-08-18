@@ -734,3 +734,159 @@ class TestPhotos:
             f"{BASE}/{provider['id']}/photos", json={"caption": "no ref"}, headers=_auth(admin_token)
         )
         assert resp.status_code == 422
+
+
+# ── Phones & Emails (multi-contact) ──────────────────────────────────────────
+
+class TestProviderPhonesEmails:
+    def test_create_with_phones_and_emails(self, client: TestClient, admin_token: str):
+        p = _create_provider(
+            client, admin_token, "Contact Rich",
+            phones=[
+                {"country_code": "+1", "number": "555 000 1111", "is_primary": True},
+                {"country_code": "+44", "number": "7700 900123"},
+            ],
+            emails=[
+                {"email": "primary@x.com", "is_primary": True},
+                {"email": "second@x.com"},
+            ],
+        )
+        assert len(p["phones"]) == 2
+        assert len(p["emails"]) == 2
+        # Primary entries are sorted first.
+        assert p["phones"][0]["is_primary"] is True
+        assert p["phones"][0]["number"] == "555 000 1111"
+        assert p["emails"][0]["email"] == "primary@x.com"
+        assert sum(ph["is_primary"] for ph in p["phones"]) == 1
+        assert sum(em["is_primary"] for em in p["emails"]) == 1
+
+    def test_create_with_two_primaries_keeps_only_one(self, client: TestClient, admin_token: str):
+        p = _create_provider(
+            client, admin_token, "Two Primaries",
+            phones=[
+                {"country_code": "+1", "number": "1", "is_primary": True},
+                {"country_code": "+1", "number": "2", "is_primary": True},
+            ],
+            emails=[
+                {"email": "a@x.com", "is_primary": True},
+                {"email": "b@x.com", "is_primary": True},
+            ],
+        )
+        assert sum(ph["is_primary"] for ph in p["phones"]) == 1
+        assert sum(em["is_primary"] for em in p["emails"]) == 1
+
+    def test_add_primary_phone_demotes_existing(self, client: TestClient, admin_token: str):
+        p = _create_provider(
+            client, admin_token, "Demote Phone",
+            phones=[{"country_code": "+1", "number": "111", "is_primary": True}],
+        )
+        resp = client.post(
+            f"{BASE}/{p['id']}/phones",
+            json={"country_code": "+91", "number": "222", "is_primary": True},
+            headers=_auth(admin_token),
+        )
+        assert resp.status_code == 201, resp.text
+        detail = client.get(f"{BASE}/{p['id']}", headers=_auth(admin_token)).json()
+        primaries = [ph for ph in detail["phones"] if ph["is_primary"]]
+        assert len(primaries) == 1
+        assert primaries[0]["number"] == "222"
+
+    def test_add_primary_email_demotes_existing(self, client: TestClient, admin_token: str):
+        p = _create_provider(
+            client, admin_token, "Demote Email",
+            emails=[{"email": "old@x.com", "is_primary": True}],
+        )
+        resp = client.post(
+            f"{BASE}/{p['id']}/emails",
+            json={"email": "new@x.com", "is_primary": True},
+            headers=_auth(admin_token),
+        )
+        assert resp.status_code == 201, resp.text
+        detail = client.get(f"{BASE}/{p['id']}", headers=_auth(admin_token)).json()
+        primaries = [em for em in detail["emails"] if em["is_primary"]]
+        assert len(primaries) == 1
+        assert primaries[0]["email"] == "new@x.com"
+
+    def test_delete_phone_and_email(self, client: TestClient, admin_token: str):
+        p = _create_provider(
+            client, admin_token, "Delete Contact",
+            phones=[{"country_code": "+1", "number": "111"}],
+            emails=[{"email": "a@x.com"}],
+        )
+        phone_id = p["phones"][0]["id"]
+        email_id = p["emails"][0]["id"]
+        assert client.delete(
+            f"{BASE}/{p['id']}/phones/{phone_id}", headers=_auth(admin_token)
+        ).status_code == 204
+        assert client.delete(
+            f"{BASE}/{p['id']}/emails/{email_id}", headers=_auth(admin_token)
+        ).status_code == 204
+        detail = client.get(f"{BASE}/{p['id']}", headers=_auth(admin_token)).json()
+        assert detail["phones"] == []
+        assert detail["emails"] == []
+
+    def test_404s_for_unknown_ids(self, client: TestClient, admin_token: str):
+        p = _create_provider(client, admin_token, "404 Contact")
+        missing = uuid.uuid4()
+        assert client.delete(
+            f"{BASE}/{p['id']}/phones/{missing}", headers=_auth(admin_token)
+        ).status_code == 404
+        assert client.delete(
+            f"{BASE}/{p['id']}/emails/{missing}", headers=_auth(admin_token)
+        ).status_code == 404
+        assert client.post(
+            f"{BASE}/{missing}/phones",
+            json={"country_code": "+1", "number": "1"},
+            headers=_auth(admin_token),
+        ).status_code == 404
+        assert client.post(
+            f"{BASE}/{missing}/emails",
+            json={"email": "x@x.com"},
+            headers=_auth(admin_token),
+        ).status_code == 404
+
+    def test_blank_entries_rejected(self, client: TestClient, admin_token: str):
+        p = _create_provider(client, admin_token, "Blank Contact")
+        assert client.post(
+            f"{BASE}/{p['id']}/phones",
+            json={"country_code": "+1", "number": "   "},
+            headers=_auth(admin_token),
+        ).status_code == 422
+        assert client.post(
+            f"{BASE}/{p['id']}/emails",
+            json={"email": ""},
+            headers=_auth(admin_token),
+        ).status_code == 422
+
+    def test_list_shows_primary_contact(self, client: TestClient, admin_token: str):
+        _create_provider(
+            client, admin_token, "Primary In List",
+            phones=[
+                {"country_code": "+44", "number": "20 1234", "is_primary": True},
+                {"country_code": "+1", "number": "999"},
+            ],
+            emails=[
+                {"email": "second@list.com"},
+                {"email": "first@list.com", "is_primary": True},
+            ],
+        )
+        resp = client.get(BASE, params={"search": "Primary In List"}, headers=_auth(admin_token))
+        item = resp.json()["data"][0]
+        assert item["email"] == "first@list.com"
+        assert item["phone"] == "+44 20 1234"
+
+    def test_legacy_provider_without_entries_falls_back(self, client: TestClient, admin_token: str):
+        # Simulate a provider from before the migration: legacy columns set,
+        # no phone/email entries.
+        p = _create_provider(
+            client, admin_token, "Legacy Fallback",
+            email="legacy@x.com", phone="+1 555 legacy",
+        )
+        detail = client.get(f"{BASE}/{p['id']}", headers=_auth(admin_token)).json()
+        assert detail["phones"] == []
+        assert detail["emails"] == []
+        assert detail["email"] == "legacy@x.com"
+        resp = client.get(BASE, params={"search": "Legacy Fallback"}, headers=_auth(admin_token))
+        item = resp.json()["data"][0]
+        assert item["email"] == "legacy@x.com"
+        assert item["phone"] == "+1 555 legacy"

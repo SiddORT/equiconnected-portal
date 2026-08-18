@@ -15,7 +15,9 @@ from app.models.enums import (
 )
 from app.models.provider import (
     Provider,
+    ProviderEmail,
     ProviderLocation,
+    ProviderPhone,
     ProviderPhoto,
     ProviderSpecialization,
 )
@@ -35,6 +37,8 @@ class ProviderRepository:
             .options(
                 selectinload(Provider.locations),
                 selectinload(Provider.photos),
+                selectinload(Provider.phones),
+                selectinload(Provider.emails),
                 selectinload(Provider.provider_specializations).selectinload(
                     ProviderSpecialization.specialization
                 ),
@@ -53,7 +57,10 @@ class ProviderRepository:
         page_size: int = 20,
     ) -> tuple[list[Provider], int]:
         """Return (items, total_count) for the requested page — all filters at the DB level."""
-        stmt = select(Provider)
+        stmt = select(Provider).options(
+            selectinload(Provider.phones),
+            selectinload(Provider.emails),
+        )
         count_stmt = select(func.count()).select_from(Provider)
 
         conditions = []
@@ -180,6 +187,68 @@ class ProviderRepository:
             )
         ):
             photo.is_thumbnail = False
+        self._db.flush()
+
+    # ── Phone sub-operations ──────────────────────────────────────────────────
+
+    def get_phone(self, provider_id: UUID, phone_id: UUID) -> ProviderPhone | None:
+        return self._db.scalar(
+            select(ProviderPhone).where(
+                ProviderPhone.id == phone_id,
+                ProviderPhone.provider_id == provider_id,
+            )
+        )
+
+    def add_phone(self, provider_id: UUID, **fields) -> ProviderPhone:
+        phone = ProviderPhone(provider_id=provider_id, **fields)
+        self._db.add(phone)
+        self._db.flush()
+        return phone
+
+    def delete_phone(self, phone: ProviderPhone) -> None:
+        self._db.delete(phone)
+        self._db.flush()
+
+    def clear_primary_phone(self, provider_id: UUID) -> None:
+        """Clear the is_primary flag on every phone of the provider."""
+        for phone in self._db.scalars(
+            select(ProviderPhone).where(
+                ProviderPhone.provider_id == provider_id,
+                ProviderPhone.is_primary.is_(True),
+            )
+        ):
+            phone.is_primary = False
+        self._db.flush()
+
+    # ── Email sub-operations ──────────────────────────────────────────────────
+
+    def get_email(self, provider_id: UUID, email_id: UUID) -> ProviderEmail | None:
+        return self._db.scalar(
+            select(ProviderEmail).where(
+                ProviderEmail.id == email_id,
+                ProviderEmail.provider_id == provider_id,
+            )
+        )
+
+    def add_email(self, provider_id: UUID, **fields) -> ProviderEmail:
+        email = ProviderEmail(provider_id=provider_id, **fields)
+        self._db.add(email)
+        self._db.flush()
+        return email
+
+    def delete_email(self, email: ProviderEmail) -> None:
+        self._db.delete(email)
+        self._db.flush()
+
+    def clear_primary_email(self, provider_id: UUID) -> None:
+        """Clear the is_primary flag on every email of the provider."""
+        for email in self._db.scalars(
+            select(ProviderEmail).where(
+                ProviderEmail.provider_id == provider_id,
+                ProviderEmail.is_primary.is_(True),
+            )
+        ):
+            email.is_primary = False
         self._db.flush()
 
     # ── Transaction helpers ───────────────────────────────────────────────────

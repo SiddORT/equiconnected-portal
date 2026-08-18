@@ -13,7 +13,9 @@ from app.models.audit_log import AuditLog  # noqa: F401, E402
 from app.models.specialization import Specialization  # noqa: F401, E402
 from app.models.provider import (  # noqa: F401, E402
     Provider,
+    ProviderEmail,
     ProviderLocation,
+    ProviderPhone,
     ProviderPhoto,
     ProviderSpecialization,
 )
