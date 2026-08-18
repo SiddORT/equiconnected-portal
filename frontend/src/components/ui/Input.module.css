@@ -20,11 +20,12 @@
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 .inputWrapper:hover {
-  border-color: var(--color-primary-400);
+  border-color: var(--color-primary-600);
+  box-shadow: 0 0 0 2px rgba(139, 99, 64, 0.12);
 }
 .inputWrapper:focus-within {
-  border-color: var(--color-primary-600);
-  box-shadow: 0 0 0 3px rgba(139, 99, 64, 0.18), inset 0 1px 3px rgba(139, 99, 64, 0.08);
+  border-color: var(--color-primary-700);
+  box-shadow: 0 0 0 3px rgba(107, 76, 42, 0.22), inset 0 1px 3px rgba(107, 76, 42, 0.08);
 }
 .inputWrapper--error {
   border-color: var(--border-error);
