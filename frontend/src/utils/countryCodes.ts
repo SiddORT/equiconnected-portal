@@ -145,3 +145,8 @@ export const DEFAULT_COUNTRY = COMMON[0];
 export function findByDialCode(dialCode: string): CountryCode | undefined {
   return COUNTRY_CODES.find((c) => c.dialCode === dialCode);
 }
+
+/** Find a country entry by its ISO 3166-1 alpha-2 code (e.g. "CA"). */
+export function findByIsoCode(isoCode: string): CountryCode | undefined {
+  return COUNTRY_CODES.find((c) => c.code === isoCode);
+}

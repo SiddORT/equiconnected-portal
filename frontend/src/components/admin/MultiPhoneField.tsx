@@ -10,13 +10,22 @@ import styles from './MultiContactField.module.css';
 export interface PhoneEntry {
   /** Set for entries persisted on the server (edit mode). */
   id?: string;
+  /** Dial code, e.g. "+1". Kept for API compatibility. */
   country_code: string;
+  /** ISO 3166-1 alpha-2 code, e.g. "CA". Stored alongside country_code so
+   *  the correct flag is shown for countries that share a dial code. */
+  iso_code?: string;
   number: string;
   is_primary: boolean;
 }
 
 export function emptyPhoneEntry(isPrimary = false): PhoneEntry {
-  return { country_code: DEFAULT_COUNTRY.dialCode, number: '', is_primary: isPrimary };
+  return {
+    country_code: DEFAULT_COUNTRY.dialCode,
+    iso_code: DEFAULT_COUNTRY.code,
+    number: '',
+    is_primary: isPrimary,
+  };
 }
 
 interface MultiPhoneFieldProps {
@@ -51,8 +60,9 @@ export function MultiPhoneField({ entries, onChange, errors, disabled }: MultiPh
         <div key={entry.id ?? `new-${i}`} className={styles.row}>
           <PhoneInput
             countryCode={entry.country_code}
+            isoCode={entry.iso_code}
             number={entry.number}
-            onCountryCodeChange={(code) => updateEntry(i, { country_code: code })}
+            onCountryChange={(dialCode, isoCode) => updateEntry(i, { country_code: dialCode, iso_code: isoCode })}
             onNumberChange={(num) => updateEntry(i, { number: num })}
             error={errors?.[i]}
             disabled={disabled}
