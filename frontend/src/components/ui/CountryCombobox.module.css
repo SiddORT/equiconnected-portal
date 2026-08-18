@@ -8,7 +8,9 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  height: 40px;
+  /* 44 px meets the WCAG / iOS/Android minimum touch-target guideline */
+  height: 44px;
+  min-width: 44px;
   padding: 0 var(--space-2) 0 var(--space-3);
   font-size: var(--text-sm);
   color: var(--text-primary);
@@ -18,6 +20,8 @@
   cursor: pointer;
   white-space: nowrap;
   user-select: none;
+  /* Remove tap highlight flash on iOS */
+  -webkit-tap-highlight-color: transparent;
 }
 .trigger:disabled {
   cursor: not-allowed;
@@ -112,9 +116,13 @@
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-3);
+  /* 44 px minimum touch target */
+  min-height: 44px;
   font-size: var(--text-sm);
   cursor: pointer;
   transition: background-color 0.08s;
+  /* Remove tap highlight flash on iOS */
+  -webkit-tap-highlight-color: transparent;
 }
 .option:hover,
 .optionActive {
@@ -159,4 +167,43 @@
   font-size: var(--text-sm);
   color: var(--text-muted);
   text-align: center;
+}
+
+/* ── Touch / mobile adjustments ────────────────────────────────────── */
+/*
+ * On coarse-pointer (touch) screens the panel is repositioned to fixed
+ * so the on-screen keyboard can't push it off the viewport.  The search
+ * wrapper becomes sticky inside the fixed panel so it stays visible
+ * while the list scrolls.
+ */
+@media (pointer: coarse) {
+  .panel {
+    position: fixed;
+    /* Anchor to the top of the viewport with a safe gap so the panel
+       doesn't overlap the status bar on notched phones. */
+    top: max(env(safe-area-inset-top, 0px) + 8px, 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(320px, calc(100vw - 32px));
+    /* Cap height so it stays above the keyboard (rough 50 vh budget). */
+    max-height: min(480px, 50vh);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 9999;
+  }
+
+  .searchWrapper {
+    /* Sticky so it stays visible while the list scrolls */
+    position: sticky;
+    top: 0;
+    background: var(--bg-surface);
+    z-index: 1;
+    flex-shrink: 0;
+  }
+
+  .list {
+    flex: 1;
+    max-height: none; /* parent max-height governs */
+  }
 }

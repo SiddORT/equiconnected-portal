@@ -23,6 +23,11 @@ export function CountryCombobox({ value, onChange, disabled }: CountryComboboxPr
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
+  // Track touch start position so we can distinguish a tap from a scroll drag.
+  // touchstart fires once per gesture; touchend fires after scrolling too, so
+  // we only treat touchend as a selection when the finger barely moved (< 10 px).
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+
   // Derive filtered list
   const filteredCountries = React.useMemo<CountryCode[]>(() => {
     const term = search.trim().toLowerCase();
@@ -40,10 +45,14 @@ export function CountryCombobox({ value, onChange, disabled }: CountryComboboxPr
     setActiveIndex(0);
   }, [filteredCountries]);
 
-  // Auto-focus search when opened
+  // Auto-focus search when opened — skip on touch devices to avoid the
+  // on-screen keyboard covering the just-opened panel before it has settled.
   useEffect(() => {
     if (open) {
-      setTimeout(() => searchRef.current?.focus(), 0);
+      const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+      if (!isTouchDevice) {
+        setTimeout(() => searchRef.current?.focus(), 0);
+      }
     } else {
       setSearch('');
     }
@@ -56,16 +65,21 @@ export function CountryCombobox({ value, onChange, disabled }: CountryComboboxPr
     item?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex]);
 
-  // Click-outside → close
+  // Click-outside / tap-outside → close
   useEffect(() => {
     if (!open) return;
-    function handleMouseDown(e: MouseEvent) {
+    function handleOutside(e: MouseEvent | TouchEvent) {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
-    document.addEventListener('mousedown', handleMouseDown);
-    return () => document.removeEventListener('mousedown', handleMouseDown);
+    document.addEventListener('mousedown', handleOutside);
+    // touchstart fires before mousedown; using capture so it wins
+    document.addEventListener('touchstart', handleOutside, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside, { capture: true });
+    };
   }, [open]);
 
   const handleTriggerClick = useCallback(() => {
@@ -172,6 +186,24 @@ export function CountryCombobox({ value, onChange, disabled }: CountryComboboxPr
                     onMouseDown={(e) => {
                       e.preventDefault(); // prevent blur of search input
                       handleSelect(country);
+                    }}
+                    onTouchStart={(e) => {
+                      const t = e.touches[0];
+                      touchStartPos.current = { x: t.clientX, y: t.clientY };
+                    }}
+                    onTouchEnd={(e) => {
+                      if (touchStartPos.current) {
+                        const t = e.changedTouches[0];
+                        const dx = t.clientX - touchStartPos.current.x;
+                        const dy = t.clientY - touchStartPos.current.y;
+                        const moved = Math.sqrt(dx * dx + dy * dy);
+                        touchStartPos.current = null;
+                        // Only treat as a tap when finger moved < 10 px
+                        if (moved < 10) {
+                          e.preventDefault(); // prevent ghost mouse click
+                          handleSelect(country);
+                        }
+                      }
                     }}
                     onMouseEnter={() => setActiveIndex(idx)}
                   >
