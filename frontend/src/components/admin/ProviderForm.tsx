@@ -354,7 +354,7 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
       )}
 
       {/* ── Basic information ─────────────────────────────────────────────── */}
-      <Card padding="lg" shadow="sm">
+      <Card padding="lg" shadow="sm" className={styles.cardFull}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>Basic information</h3>
           <div className={styles.grid}>
@@ -451,7 +451,7 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
       </Card>
 
       {/* ── Specializations ───────────────────────────────────────────────── */}
-      <Card padding="lg" shadow="sm">
+      <Card padding="lg" shadow="sm" className={styles.cardFull}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>
             Specializations
@@ -510,7 +510,7 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
 
       {/* ── Primary location (create mode only) ───────────────────────────── */}
       {!isEdit && (
-        <Card padding="lg" shadow="sm">
+        <Card padding="lg" shadow="sm" className={styles.cardFull}>
           <section className={styles.section}>
             <h3 className={styles.sectionTitle}>Primary location <span className={styles.optionalTag}>— optional</span></h3>
             <div className={styles.grid}>
@@ -551,7 +551,7 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
         </Card>
       )}
 
-      <footer className={styles.footer}>
+      <footer className={`${styles.footer} ${styles.cardFull}`}>
         <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
           Cancel
         </Button>

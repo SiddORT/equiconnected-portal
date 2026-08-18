@@ -1,7 +1,22 @@
 .form {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: var(--space-6);
+  align-items: start;
+}
+
+/* Cards that should span both columns */
+.cardFull {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 900px) {
+  .form {
+    grid-template-columns: 1fr;
+  }
+  .cardFull {
+    grid-column: 1;
+  }
 }
 
 .apiError {
