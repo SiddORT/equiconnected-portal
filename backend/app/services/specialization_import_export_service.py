@@ -20,7 +20,7 @@ from app.models.specialization import Specialization
 
 MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
 REQUIRED_HEADERS = ["Name", "Description", "Status"]
-EXPORT_HEADERS = ["Name", "Description", "Status", "Created At", "Updated At"]
+EXPORT_HEADERS = ["ID", "Name", "Description", "Status", "Created At", "Updated At"]
 VALID_STATUSES = {"ACTIVE", "INACTIVE"}
 MAX_NAME_LENGTH = 200
 MAX_DESCRIPTION_LENGTH = 2000
@@ -117,9 +117,10 @@ def export_csv(
     buf.seek(0)
     buf.truncate(0)
 
-    for spec in db.scalars(stmt):
+    for row_num, spec in enumerate(db.scalars(stmt), start=1):
         writer.writerow(
             [
+                row_num,
                 _sanitize_cell(spec.name),
                 _sanitize_cell(spec.description or ""),
                 "Active" if spec.is_active else "Inactive",
