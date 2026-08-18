@@ -42,6 +42,15 @@ class TokenPair:
     expires_in: int  # access token lifetime in seconds
 
 
+@dataclass
+class LoginResult:
+    """Full result of a successful login — includes both tokens and the user profile."""
+    access_token: str
+    refresh_token: str
+    expires_in: int
+    user_profile: "UserProfile"
+
+
 class AuthService:
     def __init__(self, db: Session) -> None:
         self._db = db
@@ -57,7 +66,7 @@ class AuthService:
         password: str,
         ip_address: str | None = None,
         user_agent: str | None = None,
-    ) -> LoginResponse:
+    ) -> "LoginResult":
         from app.core.config import get_settings
         settings = get_settings()
 
@@ -111,11 +120,11 @@ class AuthService:
             role=user.role.name,
             is_active=user.is_active,
         )
-        return LoginResponse(
+        return LoginResult(
             access_token=pair.access_token,
-            token_type="bearer",
+            refresh_token=pair.refresh_token,
             expires_in=pair.expires_in,
-            user=profile,
+            user_profile=profile,
         )
 
     # ── Refresh ──────────────────────────────────────────────────────────────

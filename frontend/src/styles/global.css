@@ -54,20 +54,10 @@ a:hover {
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bg-subtle);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--color-neutral-300);
-  border-radius: var(--radius-full);
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-neutral-400);
-}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-subtle); }
+::-webkit-scrollbar-thumb { background: var(--color-neutral-300); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-neutral-400); }
 
 /* ── Typography helpers ──────────────────────────────────────────────────── */
 .text-display {
@@ -82,7 +72,7 @@ a:hover {
   padding-inline: var(--space-6);
 }
 
-/* ── Utility: visually hidden (screen-reader accessible) ─────────────────── */
+/* ── Screen-reader only ──────────────────────────────────────────────────── */
 .sr-only {
   position: absolute;
   width: 1px;

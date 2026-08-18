@@ -5,6 +5,7 @@ POST /api/v1/auth/refresh
 POST /api/v1/auth/logout
 GET  /api/v1/auth/me
 """
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import CurrentUser
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.core.security import decode_token
 from app.db.session import get_db
 from app.schemas.auth import LoginRequest, LoginResponse, UserProfile
 from app.schemas.common import MessageResponse
@@ -21,6 +23,7 @@ from app.services.auth_service import (
     AuthenticationError,
     InactiveUserError,
     InvalidTokenError,
+    LoginResult,
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -58,7 +61,7 @@ def login(
     ua = request.headers.get("user-agent")
 
     try:
-        result = AuthService(db).login(
+        result: LoginResult = AuthService(db).login(
             email=body.email,
             password=body.password,
             ip_address=ip,
@@ -70,18 +73,15 @@ def login(
             detail={"code": "invalid_credentials", "message": str(exc)},
         )
 
-    # Issue refresh token as httpOnly cookie; access token in body
-    refresh_svc = AuthService(db)
-    pair = refresh_svc._issue_token_pair(result.user.id)
-    # Undo the extra token issued above — use the one from login
-    # (login already issued + stored; just set the cookie from the body result)
-    # Re-login to get refresh token in one shot
-    from app.services.auth_service import AuthService as _AS
-    svc = _AS(db)
-    raw_pair = svc._issue_token_pair(result.user.id)
-    _set_refresh_cookie(response, raw_pair.refresh_token)
+    # Refresh token goes in httpOnly cookie; access token in body
+    _set_refresh_cookie(response, result.refresh_token)
 
-    return result
+    return LoginResponse(
+        access_token=result.access_token,
+        token_type="bearer",
+        expires_in=result.expires_in,
+        user=result.user_profile,
+    )
 
 
 @router.post("/refresh", response_model=LoginResponse)
@@ -99,9 +99,7 @@ def refresh(
         )
 
     try:
-        from app.core.security import decode_token
         payload = decode_token(refresh_token)
-        import uuid
         user_id = uuid.UUID(payload["sub"])
 
         svc = AuthService(db)
@@ -110,6 +108,9 @@ def refresh(
 
         from app.repositories.user_repository import UserRepository
         user = UserRepository(db).get_by_id(user_id)
+        if user is None:
+            raise InvalidTokenError("User not found")
+
         profile = UserProfile(
             id=user.id,
             email=user.email,
@@ -119,8 +120,7 @@ def refresh(
             role=user.role.name,
             is_active=user.is_active,
         )
-        from app.schemas.auth import LoginResponse as LR
-        return LR(
+        return LoginResponse(
             access_token=pair.access_token,
             token_type="bearer",
             expires_in=pair.expires_in,
@@ -131,6 +131,12 @@ def refresh(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"code": "invalid_refresh_token", "message": str(exc)},
+        )
+    except Exception:
+        _clear_refresh_cookie(response)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "invalid_refresh_token", "message": "Token is invalid or expired"},
         )
 
 

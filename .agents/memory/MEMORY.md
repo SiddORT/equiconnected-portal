@@ -1,0 +1,1 @@
+- [EquiConnected Portal architecture](equiconnected-arch.md) — FastAPI + React + PostgreSQL; key decisions, known pitfalls, and conventions.

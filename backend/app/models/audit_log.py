@@ -9,7 +9,7 @@ from sqlalchemy import ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base
+from app.db.base_class import Base
 from app.models.base import TimestampMixin
 
 

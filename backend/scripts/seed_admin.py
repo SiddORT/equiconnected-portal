@@ -19,9 +19,9 @@ import sys
 # Allow running from the backend/ directory
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.core.config import get_settings  # noqa: E402
 from app.core.logging import configure_logging, get_logger  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
+import app.db.base  # noqa: F401, E402 — registers all models in the mapper registry
 from app.db.session import SessionLocal  # noqa: E402
 from app.repositories.user_repository import UserRepository  # noqa: E402
 

@@ -1,15 +1,11 @@
 """
-SQLAlchemy declarative base.
-Import all models here so Alembic autogenerate picks them up.
+Alembic aggregator — imports all models so autogenerate picks them up.
+Do NOT import this file from application code. Models and sessions
+should import from app.db.base_class and app.db.session respectively.
 """
-from sqlalchemy.orm import DeclarativeBase
+from app.db.base_class import Base  # noqa: F401
 
-
-class Base(DeclarativeBase):
-    pass
-
-
-# Alembic autogenerate imports — add new models here as they are created
+# Register all models for Alembic autogenerate
 from app.models.role import Role  # noqa: F401, E402
 from app.models.user import User  # noqa: F401, E402
 from app.models.refresh_token import RefreshToken  # noqa: F401, E402
