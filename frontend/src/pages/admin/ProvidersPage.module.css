@@ -140,21 +140,20 @@
 /* ── Collapsible filter panel ─────────────────────────────────────────── */
 
 .filterPanel {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 220ms ease;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 220ms ease;
 }
 .filterPanel--open {
-  grid-template-rows: 1fr;
+  max-height: 200px;
 }
 
 .filterPanelInner {
-  min-height: 0;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding-bottom: var(--space-1);
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-2);
 }
 
 .clearAll {
