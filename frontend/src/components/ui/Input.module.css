@@ -19,15 +19,21 @@
   background-color: var(--bg-surface);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
+.inputWrapper:hover {
+  border-color: var(--color-primary-400);
+}
 .inputWrapper:focus-within {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  border-color: var(--color-primary-600);
+  box-shadow: 0 0 0 3px rgba(139, 99, 64, 0.18), inset 0 1px 3px rgba(139, 99, 64, 0.08);
 }
 .inputWrapper--error {
   border-color: var(--border-error);
 }
+.inputWrapper--error:hover {
+  border-color: var(--color-error-dark);
+}
 .inputWrapper--error:focus-within {
-  border-color: var(--border-error);
+  border-color: var(--color-error);
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
 }
 

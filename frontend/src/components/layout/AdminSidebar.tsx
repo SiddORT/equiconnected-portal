@@ -30,7 +30,7 @@ export function AdminSidebar() {
   return (
     <aside className={styles.sidebar} aria-label="Admin navigation">
       <div className={styles.brand}>
-        <span className={styles.logoMark}>EC</span>
+        <img src="/logo.png" alt="EquiConnected logo" className={styles.logoMark} />
         <div className={styles.brandText}>
           <span className={styles.brandName}>EquiConnected</span>
           <span className={styles.brandRole}>Admin Portal</span>

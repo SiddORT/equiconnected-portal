@@ -28,7 +28,9 @@ export function PublicPage() {
       <main className={styles.main} id="main-content">
         {/* ── Logo ─────────────────────────────────────────────── */}
         <header className={styles.header}>
-          <div className={styles.logoMark} aria-hidden="true">EC</div>
+          <div className={styles.logoMark} aria-hidden="true">
+            <img src="/logo.png" alt="" />
+          </div>
           <div className={styles.logoText}>
             <span className={styles.logoName}>equiconnected</span>
             <span className={styles.logoTagline}>CONNECTING HORSES WITH THE RIGHT CARE</span>

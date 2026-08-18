@@ -91,7 +91,7 @@ export function LoginPage() {
     <div className={styles.page}>
       <div className={styles.leftPanel} aria-hidden="true">
         <div className={styles.leftContent}>
-          <div className={styles.logoMark}>EC</div>
+          <img src="/logo.png" alt="" className={styles.logoMark} aria-hidden="true" />
           <h1 className={`text-display ${styles.leftTitle}`}>EquiConnected</h1>
           <p className={styles.leftSubtitle}>
             Secure healthcare coordination for the modern era.

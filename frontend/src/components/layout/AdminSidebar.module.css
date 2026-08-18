@@ -21,18 +21,12 @@
 }
 
 .logoMark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500));
-  color: white;
-  font-family: var(--font-display);
-  font-weight: var(--font-bold);
-  font-size: var(--text-sm);
-  border-radius: var(--radius-md);
+  object-fit: contain;
   flex-shrink: 0;
+  filter: brightness(0) invert(1);  /* keeps it white on the dark sidebar */
 }
 
 .brandText {
