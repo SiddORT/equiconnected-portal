@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import CurrentUser
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.core.rate_limit import check_login_rate_limit
 from app.core.security import decode_token
 from app.db.session import get_db
 from app.schemas.auth import LoginRequest, LoginResponse, UserProfile
@@ -49,7 +50,7 @@ def _clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(key=REFRESH_COOKIE, path="/api/v1/auth")
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post("/login", response_model=LoginResponse, dependencies=[Depends(check_login_rate_limit)])
 def login(
     body: LoginRequest,
     request: Request,

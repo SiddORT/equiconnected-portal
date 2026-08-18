@@ -10,11 +10,18 @@ SQLAlchemy models must import `Base` from `app.db.base_class`, NOT `app.db.base`
 `app.db.base` is the Alembic-only aggregator (imports all models) — importing it from models causes circular imports.
 **How to apply:** Any new model file: `from app.db.base_class import Base`
 
+## Refresh Token Uniqueness — `jti` Claim Required
+`create_refresh_token()` uses integer-second `iat`/`exp` precision. Two tokens created within the
+same second for the same user produce identical JWTs → same SHA-256 hash → `UniqueViolation` on
+`refresh_tokens_token_hash_key`.  **Fix already applied:** `create_refresh_token()` now includes a
+`jti: uuid4()` claim so every token is unique regardless of when it is created.
+**Why:** Login and the subsequent token rotation in `/auth/refresh` can both call `_issue_token_pair`
+within the same second during fast test execution.
+
 ## Login Flow — Token Issuance
 `AuthService.login()` returns a `LoginResult` dataclass containing both `access_token` and `refresh_token`.
 The endpoint must NOT call `_issue_token_pair` again — doing so causes a unique constraint violation
-(same-second JWT → same SHA-256 hash stored twice).
-**Why:** JWT `iat` granularity is seconds; within the same second the hash is identical.
+(see "Refresh Token Uniqueness" above).
 
 ## ALLOWED_ORIGINS Env Var
 Must be stored as a JSON array string for pydantic-settings list parsing:

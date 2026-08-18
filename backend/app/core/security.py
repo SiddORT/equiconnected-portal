@@ -66,7 +66,13 @@ def create_access_token(
 def create_refresh_token(
     subject: str | UUID,
 ) -> str:
-    """Create a long-lived JWT refresh token (stored hashed in DB)."""
+    """Create a long-lived JWT refresh token (stored hashed in DB).
+
+    Includes a ``jti`` (JWT ID) claim so that two tokens issued in the same
+    second for the same user produce different JWTs and therefore different
+    SHA-256 hashes, preventing UniqueViolation on the token_hash column.
+    """
+    import uuid as _uuid
     settings = get_settings()
     now = datetime.now(timezone.utc)
     expire = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
@@ -76,6 +82,7 @@ def create_refresh_token(
         "iat": now,
         "exp": expire,
         "type": "refresh",
+        "jti": str(_uuid.uuid4()),  # unique per token — prevents same-second hash collisions
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
