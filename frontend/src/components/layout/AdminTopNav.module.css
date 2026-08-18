@@ -1,0 +1,233 @@
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--topnav-height, 60px);
+  background: var(--color-primary-900);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 0 var(--space-6);
+  z-index: var(--z-sticky);
+}
+
+/* ── Brand ──────────────────────────────────────────────────────────────── */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.logoMark {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+}
+
+.brandName {
+  font-family: var(--font-display);
+  font-weight: var(--font-bold);
+  font-size: var(--text-sm);
+  color: var(--color-neutral-50);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.brandRole {
+  font-size: var(--text-xs);
+  color: var(--color-accent-400);
+  font-weight: var(--font-medium);
+  line-height: 1.2;
+}
+
+/* ── Nav links ──────────────────────────────────────────────────────────── */
+.links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 1;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-neutral-400);
+  text-decoration: none;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+}
+
+.link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-neutral-100);
+}
+
+.link--active {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--color-neutral-50);
+}
+
+.linkIcon {
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+/* ── Profile area ───────────────────────────────────────────────────────── */
+.profileArea {
+  position: relative;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.avatarBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.avatarBtn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-primary-600);
+  color: white;
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chevron {
+  font-size: 0.55rem;
+  color: var(--color-neutral-400);
+}
+
+/* ── Dropdown ───────────────────────────────────────────────────────────── */
+.dropdown {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  min-width: 220px;
+  background: var(--color-neutral-0);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  animation: dropIn 140ms ease;
+}
+
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.dropdownHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg-subtle);
+}
+
+.dropdownAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-primary-600);
+  color: white;
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dropdownUserInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dropdownName {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdownEmail {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdownDivider {
+  height: 1px;
+  background: var(--border-default);
+}
+
+.dropdownItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: none;
+  border: none;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color var(--transition-fast);
+}
+
+.dropdownItem:hover {
+  background: var(--bg-subtle);
+}
+
+.dropdownItem--danger {
+  color: var(--color-error);
+}
+
+.dropdownItem--danger:hover {
+  background: var(--color-error-light);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .brandRole { display: none; }
+  .nav { padding: 0 var(--space-4); gap: var(--space-3); }
+}

@@ -7,6 +7,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;500;600;700&family=Lato:wght@300;400;700&display=swap');
 
 :root {
+  /* ── Layout ──────────────────────────────────────────────────────── */
+  --topnav-height: 60px;
+
   /* ── Brand Colors — Warm Brown / Equestrian ────────────────────────── */
   --color-primary-50:  #FAF7F2;
   --color-primary-100: #F5EDE0;

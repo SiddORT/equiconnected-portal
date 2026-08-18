@@ -11,7 +11,6 @@ import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { AdminSidebar } from '@/components/layout/AdminSidebar';
 import { PageHeader } from '@/components/layout/PageHeader';
 import type { DashboardStats, LoadingState } from '@/types';
 import styles from './DashboardPage.module.css';
@@ -41,16 +40,13 @@ export function DashboardPage() {
 
   return (
     <div className={styles.shell}>
-      <AdminSidebar />
+      <PageHeader
+        title="Dashboard"
+        subtitle={`Welcome back, ${user?.full_name ?? 'Admin'}`}
+        breadcrumbs={[{ label: 'Admin' }, { label: 'Dashboard' }]}
+      />
 
-      <div className={styles.content}>
-        <PageHeader
-          title="Dashboard"
-          subtitle={`Welcome back, ${user?.full_name ?? 'Admin'}`}
-          breadcrumbs={[{ label: 'Admin' }, { label: 'Dashboard' }]}
-        />
-
-        <div className={styles.body}>
+      <div className={styles.body}>
           {loadState === 'loading' && (
             <div className={styles.centered}>
               <LoadingSpinner size="lg" label="Loading dashboard…" />
@@ -167,7 +163,6 @@ export function DashboardPage() {
               </section>
             </>
           )}
-        </div>
       </div>
     </div>
   );
