@@ -1,0 +1,894 @@
+EQUICONNECTED PORTAL — PHASE 4
+HEALTHCARE PROVIDER MANAGEMENT FOUNDATION
+
+Implement ONLY the Healthcare Provider Management foundation.
+
+Do not implement:
+
+- Hospital invitations
+- Hospital self-registration
+- Website provider registration
+- Hospital login
+- Hospital portal
+- Visitor login
+- Reviews
+- Notifications
+- Email workflows
+
+Those will be implemented in later phases.
+
+This phase establishes the core Provider data model, Admin Provider management, reusable listing/table UI, reusable forms, and the relationships needed for future modules.
+
+==================================================
+1. CORE CONCEPT
+==================================================
+
+EquiConnected needs a common Healthcare Provider concept.
+
+Provider types:
+
+- Hospital
+- Clinic
+- Doctor
+
+Do not build three disconnected CRUD systems.
+
+Create a shared provider foundation while allowing type-specific information to be added later.
+
+The provider type must be stored as a proper database enum/type or controlled relational value, not arbitrary frontend text.
+
+Example:
+
+provider_type:
+- HOSPITAL
+- CLINIC
+- DOCTOR
+
+==================================================
+2. IMPORTANT DATA MODEL DECISION
+==================================================
+
+Keep the distinction between:
+
+Healthcare Provider
+and
+User/Account.
+
+A provider is a healthcare entity/listing.
+
+A user is a person who may eventually manage or access a provider.
+
+DO NOT put login credentials on the provider table.
+
+Future relationships will allow:
+
+Hospital → Hospital Users
+Clinic → Clinic Users
+Doctor → Doctor User, if required later
+
+Do not implement those account relationships in this phase.
+
+==================================================
+3. PROVIDER CORE TABLE
+==================================================
+
+Create the normalized PostgreSQL provider foundation.
+
+The core provider record should support information such as:
+
+- id
+- provider_type
+- name
+- description
+- email
+- phone
+- website
+- visit_stability
+- status
+- publication_status
+- created_at
+- updated_at
+
+Use appropriate PostgreSQL data types.
+
+Do not create one giant JSON field for provider information.
+
+Do not store arrays of specializations, photos, locations, etc. as JSON.
+
+Use proper relational tables and foreign keys.
+
+==================================================
+4. VISIT STABILITY
+==================================================
+
+Every provider must support a Visit Stability classification.
+
+Values:
+
+- STABLE_VISIT
+- NOT_STABLE_VISIT
+
+Use a proper enum/controlled value.
+
+Do NOT use an ambiguous boolean such as:
+
+stable = true/false
+
+The field represents a provider/business classification and is NOT patient medical information.
+
+The Admin provider form must allow the Admin to select:
+
+Visit Stability:
+- Stable Visit
+- Not Stable Visit
+
+Display this value clearly in the Provider list and Provider detail page.
+
+Prepare the design so the public website can display/filter this information later.
+
+==================================================
+5. PROVIDER STATUS
+==================================================
+
+Create a provider lifecycle/status foundation.
+
+At minimum support:
+
+- ACTIVE
+- INACTIVE
+
+Also create a separate publication status:
+
+- UNPUBLISHED
+- PUBLISHED
+
+Do NOT combine operational status and publication status into one field.
+
+Example:
+
+status = ACTIVE
+publication_status = UNPUBLISHED
+
+This allows a provider to be active internally without being publicly visible.
+
+Do not implement the full approval workflow yet.
+
+The future onboarding/approval workflow will be added later.
+
+==================================================
+6. SPECIALIZATION RELATIONSHIP
+==================================================
+
+Use the Specialization Master created in Phase 3.
+
+A provider can have multiple specializations.
+
+Create a proper many-to-many relationship:
+
+providers
+specializations
+provider_specializations
+
+provider_specializations should contain:
+
+- provider_id
+- specialization_id
+- created_at
+
+Use foreign keys.
+
+Prevent duplicate provider/specialization combinations using an appropriate unique constraint.
+
+Do NOT store:
+
+specializations: ["Cardiology", "Neurology"]
+
+inside the provider table.
+
+When selecting specializations in the Admin form:
+
+- Only active specializations should normally be selectable.
+- Existing relationships must not be silently destroyed when a provider is edited.
+
+==================================================
+7. LOCATION MODEL
+==================================================
+
+Create a proper provider location table.
+
+A provider should be able to have multiple locations.
+
+Relationship:
+
+provider
+  |
+  ├── location
+  ├── location
+  └── location
+
+Location should support:
+
+- id
+- provider_id
+- address_line_1
+- address_line_2
+- city
+- state/province
+- country
+- postal_code
+- latitude
+- longitude
+- is_primary
+- created_at
+- updated_at
+
+Use proper PostgreSQL data types.
+
+Do NOT store the entire address as a JSON object.
+
+Do NOT assume every provider has only one location.
+
+Enforce appropriate rules around the primary location so the data remains consistent.
+
+The UI may initially allow one location, but the database must support multiple locations.
+
+==================================================
+8. PROVIDER PHOTOS
+==================================================
+
+Create a provider photo metadata model.
+
+A provider can have multiple photos.
+
+Relationship:
+
+provider
+  |
+  ├── photo
+  ├── photo
+  └── photo
+
+Photo metadata should support:
+
+- id
+- provider_id
+- storage_reference
+- alt_text
+- caption
+- display_order
+- is_thumbnail
+- created_at
+- updated_at
+
+IMPORTANT:
+
+Do NOT store image binary data as JSON.
+
+Do NOT store images as base64 strings in PostgreSQL.
+
+Do NOT use Replit Blob Storage.
+
+The database should store metadata and a storage reference.
+
+Keep the storage abstraction clean so an appropriate production storage mechanism can be introduced without redesigning the Provider model.
+
+==================================================
+9. THUMBNAIL RULE
+==================================================
+
+A provider can have multiple photos but only ONE photo should be the thumbnail.
+
+Implement the business rule:
+
+One provider → maximum one thumbnail.
+
+When an Admin marks a photo as thumbnail:
+
+- The previous thumbnail should automatically become non-thumbnail.
+- The newly selected photo becomes the thumbnail.
+
+This must be handled safely on the backend/database side.
+
+Do not rely only on React state to enforce this.
+
+==================================================
+10. ADMIN PROVIDER LIST
+==================================================
+
+Create:
+
+/admin/providers
+
+This must be a proper production-style data listing.
+
+DO NOT build the list using a collection of cards when the data is fundamentally tabular.
+
+Use a reusable DataTable component.
+
+The DataTable must be designed as a reusable shared component that can later be used for:
+
+- Specializations
+- Providers
+- Doctors
+- Reviews
+- Users
+- Invitations
+- Other Admin modules
+
+Do NOT create a one-off ProviderTable that duplicates generic table functionality.
+
+==================================================
+11. REUSABLE DATATABLE
+==================================================
+
+Create or reuse a centralized DataTable component.
+
+The DataTable should support a configuration-driven approach for:
+
+- Columns
+- Column labels
+- Cell rendering
+- Sorting
+- Row actions
+- Pagination
+- Loading state
+- Empty state
+- Error state
+- Responsive behavior
+- Optional selectable rows
+- Optional bulk actions for future use
+
+Do not hard-code Provider-specific behavior into the generic DataTable.
+
+Provider-specific configuration should define:
+
+- Columns
+- Formatting
+- Actions
+
+The same DataTable component must be reusable by future Admin modules.
+
+==================================================
+12. PROVIDER LIST COLUMNS
+==================================================
+
+Initially use appropriate columns such as:
+
+- Provider
+- Type
+- Visit Stability
+- Specializations
+- Location
+- Status
+- Publication
+- Created
+- Actions
+
+Do not overload the table with unnecessary information.
+
+Use appropriate formatting/truncation for long content.
+
+Provider type should be visually clear.
+
+Visit Stability should use the existing reusable Badge/status component.
+
+Status should use reusable status components.
+
+Actions should use the existing reusable action/menu component where appropriate.
+
+==================================================
+13. SERVER-SIDE DATA OPERATIONS
+==================================================
+
+Do NOT fetch the entire provider dataset into React and perform all filtering/sorting/pagination in JavaScript.
+
+The backend/API must support:
+
+- Search
+- Provider type filtering
+- Status filtering
+- Publication status filtering
+- Visit stability filtering
+- Pagination
+- Sorting where appropriate
+
+Use database-level queries.
+
+Return pagination metadata from the API.
+
+Example response structure conceptually:
+
+{
+  data: [...],
+  pagination: {
+    page,
+    page_size,
+    total,
+    total_pages
+  }
+}
+
+This example is only an API response structure.
+
+Do NOT store this structure as JSON in PostgreSQL.
+
+==================================================
+14. PROVIDER SEARCH
+==================================================
+
+Admin should be able to search by provider name.
+
+Search must be performed by the backend/database.
+
+Do not perform the main search only in the browser.
+
+Prepare the API so additional searchable fields can be added later.
+
+==================================================
+15. FILTERS
+==================================================
+
+Provider list should support:
+
+Provider Type:
+
+- All
+- Hospital
+- Clinic
+- Doctor
+
+Visit Stability:
+
+- All
+- Stable Visit
+- Not Stable Visit
+
+Status:
+
+- All
+- Active
+- Inactive
+
+Publication:
+
+- All
+- Published
+- Unpublished
+
+Use reusable Filter components.
+
+Do not create a different filter implementation for every future module.
+
+==================================================
+16. PAGINATION
+==================================================
+
+Use backend pagination.
+
+The UI should provide:
+
+- Current page
+- Page size
+- Total records
+- Next/previous
+- Appropriate page navigation
+
+The reusable DataTable should support pagination configuration.
+
+Do not load thousands of provider records into the browser.
+
+==================================================
+17. ADD PROVIDER
+==================================================
+
+Create:
+
+/admin/providers/new
+
+Admin should be able to create a provider.
+
+Form fields initially:
+
+- Provider Type
+- Provider Name
+- Description
+- Email
+- Phone
+- Website
+- Visit Stability
+- Status
+- Publication Status
+- Specializations
+- Primary Location
+
+Use reusable form components.
+
+Do not create separate duplicated forms for Hospital, Clinic and Doctor unless type-specific fields actually require them.
+
+Provider Type should determine any future type-specific fields.
+
+==================================================
+18. EDIT PROVIDER
+==================================================
+
+Create:
+
+/admin/providers/:id/edit
+
+Use the same reusable provider form component for:
+
+- Create
+- Edit
+
+Do not duplicate the entire form.
+
+Handle:
+
+- Loading
+- Validation
+- API errors
+- Save state
+- Success
+- Cancel
+
+When editing:
+
+- Preserve existing relationships unless explicitly changed.
+- Do not accidentally remove specializations.
+- Do not accidentally remove locations.
+- Do not accidentally remove photos.
+
+==================================================
+19. PROVIDER DETAIL
+==================================================
+
+Create:
+
+/admin/providers/:id
+
+Create a reusable Provider Detail layout.
+
+Initially include sections:
+
+- Overview
+- Basic Information
+- Visit Stability
+- Specializations
+- Locations
+- Photos
+- Status
+- Publication
+
+Do not implement:
+
+- Reviews
+- Invitations
+- Hospital accounts
+- Visitor interactions
+
+yet.
+
+Those will be added later.
+
+==================================================
+20. PROVIDER PHOTOS UI
+==================================================
+
+On the provider detail/edit area, create the foundation for:
+
+- View photos
+- Add photo metadata/storage reference
+- Set thumbnail
+- Change thumbnail
+- Reorder photos
+- Remove photo metadata
+
+Do not implement a storage provider or upload infrastructure unless the existing project already has one that is explicitly approved.
+
+For now, keep storage access behind a clean abstraction.
+
+==================================================
+21. DATABASE INTEGRITY
+==================================================
+
+Use:
+
+- Primary keys
+- Foreign keys
+- Unique constraints
+- NOT NULL constraints
+- Check constraints where appropriate
+- Indexes
+- Proper timestamps
+
+Important constraints should be enforced at the database level where possible.
+
+Examples:
+
+- Unique provider/specialization relationship
+- Valid provider type
+- Valid visit stability
+- Valid status
+- Valid publication status
+
+Do not rely entirely on frontend validation.
+
+==================================================
+22. API ARCHITECTURE
+==================================================
+
+Create clean FastAPI endpoints.
+
+Examples:
+
+GET    /api/admin/providers
+POST   /api/admin/providers
+GET    /api/admin/providers/{id}
+PATCH  /api/admin/providers/{id}
+DELETE /api/admin/providers/{id}    [only if truly required]
+PATCH  /api/admin/providers/{id}/status
+PATCH  /api/admin/providers/{id}/publication
+
+Additional relationship endpoints can be introduced as needed for:
+
+- Specializations
+- Locations
+- Photos
+
+All Admin endpoints must require authenticated Admin authorization.
+
+Do not expose internal database models directly as API response objects.
+
+Use Pydantic schemas.
+
+Keep route handlers thin.
+
+Use service/repository architecture consistent with the existing project.
+
+==================================================
+23. SOFT DELETE / DELETION
+==================================================
+
+Do not permanently delete providers as the default Admin action.
+
+Prefer status-based deactivation.
+
+If a delete operation is necessary, discuss the implications before implementing it.
+
+We need to preserve relationships and auditability for future platform functionality.
+
+==================================================
+24. REUSABLE UI REQUIREMENT
+==================================================
+
+IMPORTANT:
+
+Reuse the same UI components throughout the Admin Portal.
+
+Do not create:
+
+ProviderTable
+ProviderFilter
+ProviderStatusBadge
+ProviderPagination
+
+as separate duplicated implementations if equivalent shared components already exist.
+
+Instead create/reuse:
+
+DataTable
+FilterBar
+StatusBadge
+Pagination
+SearchInput
+FormField
+Select
+MultiSelect
+Modal/Dialog
+ConfirmDialog
+PageHeader
+EmptyState
+LoadingState
+ErrorState
+ActionMenu
+
+Provider-specific behavior should be configuration/data-driven.
+
+This same UI architecture must later support:
+
+- Hospitals
+- Clinics
+- Doctors
+- Reviews
+- Invitations
+- Visitors
+- Users
+- Specializations
+
+==================================================
+25. DESIGN CONSISTENCY
+==================================================
+
+Use the existing EquiConnected design system.
+
+Do not introduce random colors, spacing, typography, button styles, or table styles.
+
+Admin pages must visually belong to the same product.
+
+Reuse:
+
+- Colors
+- Typography
+- Buttons
+- Inputs
+- Badges
+- Cards
+- Tables
+- Modals
+- Navigation
+- Spacing
+- Responsive behavior
+
+==================================================
+26. NO HARDCODED BUSINESS DATA
+==================================================
+
+Do not hard-code:
+
+- Hospitals
+- Clinics
+- Doctors
+- Specializations
+- Provider locations
+- Provider statuses
+- Provider records
+
+Application data must come from PostgreSQL through FastAPI.
+
+Static UI labels are fine.
+
+==================================================
+27. TESTING
+==================================================
+
+Add backend and frontend tests covering:
+
+Provider:
+
+- Create
+- Read
+- Update
+- Status change
+- Publication change
+- Search
+- Type filtering
+- Visit stability filtering
+- Status filtering
+- Publication filtering
+- Pagination
+
+Relationships:
+
+- Multiple specializations
+- Duplicate specialization prevention
+- Multiple locations
+- Primary location behavior
+- Multiple photos
+- Thumbnail uniqueness
+
+Security:
+
+- Unauthenticated access denied
+- Non-admin access denied
+- Admin access allowed
+
+Validation:
+
+- Required provider name
+- Valid provider type
+- Valid visit stability
+- Invalid data rejected
+- Duplicate relationships rejected
+
+==================================================
+28. MIGRATION
+==================================================
+
+Create Alembic migrations for all new tables/enums/constraints.
+
+Do not manually modify production schema.
+
+Do not change the existing Specialization Master migration incorrectly.
+
+Verify the migration works on a clean database and on an existing database containing the Phase 3 schema.
+
+==================================================
+29. DOCUMENTATION
+==================================================
+
+Update documentation with:
+
+- Provider architecture
+- Database relationships
+- Provider types
+- Visit stability
+- Status vs publication status
+- Photo/thumbnail design
+- Location design
+- Specialization relationship
+- API endpoints
+- DataTable architecture
+- Reusable UI architecture
+- Migration instructions
+- Test instructions
+
+==================================================
+30. IMPORTANT FUTURE ARCHITECTURE
+==================================================
+
+The following will be implemented later:
+
+1. Provider invitation
+2. Provider self-registration through website
+3. Provider approval workflow
+4. Hospital/Clinic accounts
+5. Hospital/Clinic portal
+6. Doctors and provider relationships
+7. Reviews
+8. Visitor accounts
+9. Public provider discovery
+
+Do not implement these now.
+
+However, design the current provider model so these future features can be added without replacing the core provider tables.
+
+==================================================
+31. COMPLETION CRITERIA
+==================================================
+
+Phase 4 is complete only when:
+
+1. /admin/providers works
+2. Admin can create a Hospital
+3. Admin can create a Clinic
+4. Admin can create a Doctor
+5. Provider Type works
+6. Stable Visit / Not Stable Visit works
+7. Specializations can be assigned
+8. Provider list uses the reusable DataTable
+9. Search works server-side
+10. Filters work server-side
+11. Pagination works server-side
+12. Provider detail works
+13. Provider edit works
+14. Locations work
+15. Multiple photos are supported through metadata/storage abstraction
+16. One thumbnail per provider is enforced
+17. Status works
+18. Publication status works
+19. Database relationships are normalized
+20. No JSON blob storage is used for relational entities
+21. No hard-coded provider/business data exists
+22. Existing Admin authentication still works
+23. Existing Specialization Master still works
+24. Tests pass
+25. Migration succeeds
+
+At completion, report:
+
+1. Files/modules created or changed
+2. Database tables created
+3. Enums created
+4. Relationships created
+5. Migrations created
+6. API endpoints
+7. Frontend routes
+8. Reusable components created
+9. Existing components reused
+10. Tests completed
+11. Migration/test commands
+12. Any architectural decisions requiring approval
+
+STOP after Phase 4.
+
+Do not start Invitations, Website Registration, Approval, Reviews, Hospital Portal, or Visitor Portal automatically.
