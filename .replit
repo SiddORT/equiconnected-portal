@@ -1,0 +1,60 @@
+modules = ["python-base-3.13", "nodejs-24", "postgresql-16"]
+
+[nix]
+channel = "stable-25_05"
+packages = ["libxcrypt"]
+
+[userenv]
+
+[userenv.shared]
+ACCESS_TOKEN_EXPIRE_MINUTES = "15"
+ALLOWED_ORIGINS = "[\"http://localhost:5000\",\"http://127.0.0.1:5000\"]"
+COOKIE_SAMESITE = "lax"
+COOKIE_SECURE = "false"
+DEBUG = "false"
+ENVIRONMENT = "development"
+REFRESH_TOKEN_EXPIRE_DAYS = "7"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Frontend"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Backend API"
+
+[[workflows.workflow]]
+name = "Frontend"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd frontend && npm run dev"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow]]
+name = "Backend API"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd backend && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+waitForPort = 8000
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[ports]]
+localPort = 5000
+externalPort = 80

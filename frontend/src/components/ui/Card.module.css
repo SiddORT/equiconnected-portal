@@ -1,0 +1,35 @@
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+.card--pad-none { padding: 0; }
+.card--pad-sm   { padding: var(--space-4); }
+.card--pad-md   { padding: var(--space-6); }
+.card--pad-lg   { padding: var(--space-8); }
+
+.card--shadow-none { box-shadow: none; }
+.card--shadow-sm   { box-shadow: var(--shadow-sm); }
+.card--shadow-md   { box-shadow: var(--shadow-md); }
+.card--shadow-lg   { box-shadow: var(--shadow-lg); }
+
+.cardHeader {
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: var(--space-4);
+}
+
+.cardBody {
+  /* Use for explicit body padding when Card has padding="none" */
+}
+
+.cardFooter {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-default);
+  margin-top: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}

@@ -1,0 +1,683 @@
+EQUICONNECTED PORTAL — BASE FOUNDATION PROMPT
+
+We are starting a completely NEW EquiConnected Portal application.
+
+IMPORTANT:
+This is a separate project from the existing EquiConnected Coming Soon website.
+
+The existing public/Coming Soon application uses React + Node/Express.
+DO NOT modify, import, replace, or depend on that application's runtime, code, deployment, or dependencies.
+
+This new application will be the foundation for the future EquiConnected platform.
+
+==================================================
+1. TECHNOLOGY STACK
+==================================================
+
+Frontend:
+- React
+- TypeScript
+- Modern component-based architecture
+- Responsive/mobile-first UI
+
+Backend:
+- Python
+- FastAPI
+- REST API
+- Pydantic for request/response validation
+
+Database:
+- PostgreSQL
+- SQLAlchemy ORM
+- Alembic migrations
+
+Authentication:
+- Secure authentication architecture
+- Password hashing using a strong password hashing algorithm such as Argon2id
+- Secure authentication/session or token strategy
+- Protected routes
+- Role-based access control foundation
+
+Do NOT use JSON files, SQLite, browser local storage, or in-memory storage as the application database.
+
+==================================================
+2. ROUTING FOUNDATION
+==================================================
+
+Keep the routing structure simple and extensible.
+
+Public website:
+
+/
+  Public EquiConnected website
+
+Admin:
+
+/admin
+/admin/login
+/admin/dashboard
+
+Do NOT create hospital or visitor routes yet.
+
+When those modules are introduced later, we will add them deliberately, for example:
+
+/hospital
+/visitor
+
+Do not prematurely build these modules.
+
+==================================================
+3. PUBLIC WEBSITE
+==================================================
+
+Create the foundation for the public EquiConnected website at:
+
+/
+
+The website should be creative, premium, modern, trustworthy, and healthcare/platform oriented.
+
+Do NOT create generic placeholder sections just to fill space.
+
+Create reusable frontend components that can later be reused throughout the portal.
+
+Examples:
+
+- Header
+- Navigation
+- Footer
+- Button
+- Input
+- Form
+- Card
+- Modal
+- Dialog
+- Badge
+- Alert
+- Table
+- Pagination
+- Loading state
+- Empty state
+- Error state
+- Confirmation dialog
+- Sidebar
+- Page header
+- Breadcrumbs
+
+Components must be reusable and composable.
+
+Do not duplicate nearly identical components in different files.
+
+==================================================
+4. DESIGN SYSTEM
+==================================================
+
+Establish a centralized EquiConnected design system from the beginning.
+
+Define:
+
+- Primary colors
+- Secondary colors
+- Accent colors
+- Background colors
+- Text colors
+- Border colors
+- Typography
+- Font sizes
+- Font weights
+- Spacing scale
+- Border radius
+- Shadows
+- Button variants
+- Form states
+- Status colors
+
+Do NOT scatter arbitrary colors throughout components.
+
+Do NOT hard-code individual colors repeatedly.
+
+Use centralized theme/design tokens.
+
+The visual language should be consistent across:
+
+- Public website
+- Admin login
+- Admin dashboard
+- Future hospital portal
+- Future visitor portal
+
+The design should feel like one coherent EquiConnected product.
+
+==================================================
+5. ADMIN FOUNDATION
+==================================================
+
+The first actual portal feature is Admin Authentication.
+
+Create:
+
+/admin/login
+
+and:
+
+/admin/dashboard
+
+Admin login must include:
+
+- Email
+- Password
+- Validation
+- Loading state
+- Error state
+- Logout
+- Protected dashboard route
+- Authentication persistence according to the chosen secure auth architecture
+
+There must be NO public admin registration.
+
+The initial admin account should be created through a secure seed/setup mechanism, not hard-coded into the frontend.
+
+Never put admin credentials in source code.
+
+==================================================
+6. DATABASE ARCHITECTURE
+==================================================
+
+PostgreSQL is the source of truth.
+
+Design a normalized relational schema.
+
+DO NOT store application entities as large JSON blobs.
+
+DO NOT store relational data inside JSON strings.
+
+DO NOT create a generic table such as:
+
+data:
+{
+  "hospital": ...,
+  "user": ...,
+  "visitor": ...
+}
+
+Instead use proper relational tables with:
+
+- Primary keys
+- Foreign keys
+- Unique constraints
+- NOT NULL constraints where appropriate
+- Indexes
+- Proper data types
+- Created/updated timestamps
+- Referential integrity
+
+Use normalized relational design.
+
+If an entity has a one-to-many relationship, create the appropriate related table.
+
+If an entity has a many-to-many relationship, create a proper junction/association table.
+
+Use PostgreSQL relationships and foreign keys rather than duplicating data.
+
+Future entities will include concepts such as:
+
+- Users
+- Roles
+- Hospitals
+- Hospital users
+- Visitors
+- Invitations
+- Sessions/authentication records
+- Audit logs
+
+But ONLY implement the tables actually required for the current foundation.
+
+Do not prematurely create large amounts of unused schema.
+
+==================================================
+7. DATA SECURITY
+==================================================
+
+Security is a core requirement.
+
+Passwords:
+- NEVER encrypt passwords for storage.
+- Hash passwords using Argon2id or another modern, strong password hashing algorithm.
+- Passwords must never be stored in plaintext.
+- Passwords must never be logged.
+
+Sensitive recoverable data:
+- Encrypt sensitive personal data at rest where appropriate.
+- Encryption keys must come from environment/secret management.
+- NEVER hard-code encryption keys.
+- NEVER commit secrets to Git.
+- Never expose encryption keys to the React frontend.
+
+Secrets:
+- Database credentials come from environment variables/secrets.
+- API secrets come from environment variables/secrets.
+- Encryption keys come from environment variables/secrets.
+- No credentials or secrets in source code.
+
+API:
+- Validate all input on the backend.
+- Never trust frontend validation alone.
+- Use appropriate authentication and authorization checks.
+- Never return passwords or password hashes through API responses.
+- Avoid exposing unnecessary personal/sensitive information.
+
+==================================================
+8. NO HARDCODED APPLICATION DATA
+==================================================
+
+Do NOT hard-code application data into React components.
+
+Bad:
+
+const hospitals = [
+  { name: "Hospital A" },
+  { name: "Hospital B" }
+];
+
+Good:
+
+React → FastAPI → PostgreSQL
+
+Static UI configuration is acceptable.
+
+Application/business data must come from the backend/database.
+
+This applies to:
+
+- Users
+- Hospitals
+- Visitors
+- Invitations
+- Dashboard metrics
+- Roles
+- Statuses
+- Records
+- Lists
+- Search results
+
+==================================================
+9. API ARCHITECTURE
+==================================================
+
+Create a clean FastAPI architecture.
+
+Organize code into logical modules such as:
+
+backend/
+  app/
+    main.py
+    core/
+    api/
+    models/
+    schemas/
+    services/
+    repositories/
+    db/
+    auth/
+
+Keep responsibilities separated.
+
+Routes/controllers should not contain large amounts of business logic.
+
+Use service-layer functions for business logic.
+
+Use repository/data-access patterns where appropriate.
+
+Use Pydantic schemas for API boundaries.
+
+Keep database models separate from API response schemas.
+
+==================================================
+10. FRONTEND ARCHITECTURE
+==================================================
+
+Use a scalable React architecture.
+
+Organize frontend code logically, for example:
+
+src/
+  app/
+  components/
+  layouts/
+  pages/
+  features/
+  hooks/
+  services/
+  api/
+  types/
+  utils/
+  styles/
+
+Use feature-based organization where it improves maintainability.
+
+Avoid one giant App.tsx.
+
+Avoid giant components.
+
+Keep components small and reusable.
+
+Do not duplicate API calls or business logic across pages.
+
+Create shared API/client utilities.
+
+Centralize authentication state.
+
+==================================================
+11. ERROR / LOADING / EMPTY STATES
+==================================================
+
+Every data-driven screen should account for:
+
+- Loading
+- Success
+- Empty
+- Error
+- Unauthorized
+- Forbidden
+
+Do not leave blank screens when an API request fails.
+
+Display useful user-friendly messages.
+
+Do not expose raw backend stack traces to users.
+
+Log technical errors on the backend appropriately.
+
+==================================================
+12. VALIDATION
+==================================================
+
+Frontend validation:
+- Good UX
+- Immediate feedback where appropriate
+
+Backend validation:
+- ALWAYS required
+- Pydantic schemas
+- Validate all incoming data
+
+Never rely solely on React/frontend validation.
+
+Database constraints must also protect data integrity.
+
+==================================================
+13. AUDITABILITY
+==================================================
+
+Design the foundation so important future actions can be audited.
+
+Eventually we will need audit records for actions such as:
+
+- Admin login
+- Admin logout
+- Hospital invitation
+- User creation
+- User changes
+- Permission changes
+- Important data modifications
+
+For now, establish the architecture but only implement what is needed for the current Admin Authentication phase.
+
+==================================================
+14. LOGGING
+==================================================
+
+Use structured backend logging.
+
+Do NOT log:
+
+- Passwords
+- Authentication tokens
+- Session secrets
+- Encryption keys
+- Database passwords
+- Sensitive personal information unnecessarily
+
+Errors should contain enough context for debugging without leaking secrets.
+
+==================================================
+15. ENVIRONMENT CONFIGURATION
+==================================================
+
+Support separate environments:
+
+- Development
+- UAT/staging
+- Production
+
+Use environment variables/secrets.
+
+Example categories:
+
+DATABASE_URL
+SECRET_KEY
+AUTH configuration
+ENCRYPTION_KEY
+CORS configuration
+ENVIRONMENT
+
+Never commit actual secrets.
+
+Provide a safe .env.example containing variable names only.
+
+==================================================
+16. DATABASE MIGRATIONS
+==================================================
+
+All schema changes must use migrations.
+
+Do NOT manually modify production database tables as part of normal development.
+
+Use Alembic migrations.
+
+Migration workflow:
+
+Model change
+→ migration
+→ review
+→ apply
+
+The database must be reproducible from migrations.
+
+==================================================
+17. API DOCUMENTATION
+==================================================
+
+Use FastAPI's automatic OpenAPI documentation.
+
+Keep API endpoints consistently named and structured.
+
+Use proper HTTP methods and status codes.
+
+Examples:
+
+GET
+POST
+PUT/PATCH
+DELETE
+
+Use consistent error response structures.
+
+==================================================
+18. CORS / SECURITY
+==================================================
+
+Configure CORS through environment/configuration.
+
+Do not use unrestricted CORS in production unless there is a specific reason.
+
+Prepare the application for deployment behind Nginx/reverse proxy.
+
+Do not assume the frontend and backend must run on the same port.
+
+==================================================
+19. FILE STORAGE
+==================================================
+
+DO NOT use Replit Blob Storage.
+
+Do not introduce blob/object storage at this stage.
+
+If file uploads are needed in the future, we will design a proper storage architecture separately.
+
+Do not store files as database blobs unless explicitly required.
+
+==================================================
+20. PERFORMANCE
+==================================================
+
+Use database indexes where appropriate.
+
+Avoid N+1 queries.
+
+Do not fetch unnecessary columns/data.
+
+Use pagination for potentially large datasets.
+
+Do not load entire tables into memory.
+
+Keep frontend bundles/components reasonably optimized.
+
+==================================================
+21. ACCESSIBILITY
+==================================================
+
+Build the UI with accessibility in mind.
+
+Include:
+
+- Semantic HTML
+- Keyboard navigation
+- Proper labels
+- Focus states
+- Accessible forms
+- Appropriate ARIA where required
+- Sufficient contrast
+
+==================================================
+22. SEO
+==================================================
+
+The public website must have a strong SEO foundation.
+
+Include:
+
+- Proper page titles
+- Meta descriptions
+- Semantic HTML
+- Open Graph metadata
+- Canonical URLs where appropriate
+- robots configuration
+- Sitemap foundation
+- Proper heading hierarchy
+
+The authenticated admin portal does NOT need to be indexed.
+
+==================================================
+23. TESTING
+==================================================
+
+Create a testing foundation.
+
+Backend:
+- API tests
+- Authentication tests
+- Authorization tests
+- Database-related tests where appropriate
+
+Frontend:
+- Component tests where appropriate
+- Authentication flow tests
+- Form validation tests
+
+At minimum, ensure the Admin login flow can be tested reliably.
+
+==================================================
+24. GIT / CODE QUALITY
+==================================================
+
+Keep the codebase clean and production-ready.
+
+Use:
+
+- TypeScript strictness
+- Python type hints
+- Linting
+- Formatting
+- Consistent naming
+- Environment configuration
+- Clear README
+- Migration documentation
+
+Do not leave large amounts of commented-out code.
+
+Do not create unnecessary files.
+
+Do not introduce dependencies without a reason.
+
+==================================================
+25. IMPORTANT DEVELOPMENT RULE
+==================================================
+
+DO NOT build the entire EquiConnected platform immediately.
+
+We are establishing the foundation first.
+
+PHASE 1:
+
+1. Project structure
+2. React frontend
+3. FastAPI backend
+4. PostgreSQL connection
+5. Alembic migrations
+6. Design system
+7. Public website foundation at /
+8. Admin login at /admin/login
+9. Protected admin dashboard at /admin/dashboard
+10. Secure admin user creation/seed mechanism
+11. Authentication/authorization foundation
+12. Error/loading/empty states
+13. Basic tests
+14. Documentation
+
+DO NOT build yet:
+
+- Hospital portal
+- Hospital invitations
+- Visitor portal
+- Visitor registration
+- Patient functionality
+- Messaging
+- Payments
+- Documents
+- Notifications
+- Other business modules
+
+Those will be introduced incrementally after the foundation is stable.
+
+==================================================
+26. CRITICAL REQUIREMENT
+==================================================
+
+Before writing substantial code:
+
+1. Inspect the new project.
+2. Propose the folder structure.
+3. Propose the initial PostgreSQL schema.
+4. Explain the authentication approach.
+5. Explain how React communicates with FastAPI.
+6. Explain how the application will remain extensible for Admin/Hospital/Visitor roles.
+7. Confirm that no JSON blob storage is being used for relational entities.
+8. Confirm that no Replit Blob Storage is being used.
+9. Confirm that no hard-coded application data or credentials will be used.
+10. Confirm that reusable components and centralized design tokens will be used.
+
+Then implement Phase 1.
+
+Do not make architectural shortcuts simply to get a demo working.
+
+Build the foundation as if this will become a long-term production healthcare platform.

@@ -1,0 +1,174 @@
+.page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+/* ── Left panel ───────────────────────────────────────────────────────────── */
+.leftPanel {
+  background: linear-gradient(160deg, var(--color-primary-900) 0%, var(--color-primary-700) 60%, var(--color-accent-700) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-16) var(--space-12);
+  position: relative;
+  overflow: hidden;
+}
+
+.leftPanel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+.leftContent {
+  position: relative;
+  max-width: 380px;
+}
+
+.logoMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  background: rgba(255,255,255,0.15);
+  color: white;
+  font-family: var(--font-display);
+  font-weight: var(--font-bold);
+  font-size: var(--text-xl);
+  border-radius: var(--radius-xl);
+  margin-bottom: var(--space-6);
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+.leftTitle {
+  font-size: var(--text-4xl);
+  font-weight: var(--font-extrabold);
+  color: white;
+  letter-spacing: -0.03em;
+  line-height: var(--leading-tight);
+  margin-bottom: var(--space-4);
+}
+
+.leftSubtitle {
+  font-size: var(--text-base);
+  color: rgba(255,255,255,0.7);
+  line-height: var(--leading-relaxed);
+  margin-bottom: var(--space-8);
+}
+
+.leftFeatures {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.leftFeature {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: rgba(255,255,255,0.8);
+  font-weight: var(--font-medium);
+}
+
+.leftCheck {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-accent-500);
+  color: white;
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  flex-shrink: 0;
+}
+
+/* ── Right panel ──────────────────────────────────────────────────────────── */
+.rightPanel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-12);
+  background: var(--bg-base);
+}
+
+.formCard {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.formHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.backLink {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+  transition: color var(--transition-fast);
+}
+.backLink:hover { color: var(--color-primary-700); }
+
+.formIcon {
+  font-size: 2rem;
+}
+
+.formTitle {
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.formSubtitle {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.showHide {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  pointer-events: all;
+}
+
+.noRegister {
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: var(--leading-relaxed);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-default);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .page { grid-template-columns: 1fr; }
+  .leftPanel { display: none; }
+  .rightPanel { padding: var(--space-8) var(--space-5); align-items: flex-start; padding-top: var(--space-12); }
+}
