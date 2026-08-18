@@ -37,20 +37,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ── Restore session on mount ───────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
-    authApi
-      .refreshToken()
-      .then((res) => {
-        if (!cancelled) {
-          setAccessToken(res.access_token);
-          setState({ user: res.user, isAuthenticated: true, isLoading: false });
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAccessToken(null);
-          setState({ user: null, isAuthenticated: false, isLoading: false });
-        }
-      });
+
+    // Show the loader for at least 1500 ms so the horse animation is visible.
+    const MIN_DISPLAY_MS = 1500;
+    const minDelay = new Promise<void>((resolve) =>
+      setTimeout(resolve, MIN_DISPLAY_MS)
+    );
+
+    Promise.allSettled([authApi.refreshToken(), minDelay]).then(([result]) => {
+      if (cancelled) return;
+      if (result.status === 'fulfilled') {
+        setAccessToken(result.value.access_token);
+        setState({ user: result.value.user, isAuthenticated: true, isLoading: false });
+      } else {
+        setAccessToken(null);
+        setState({ user: null, isAuthenticated: false, isLoading: false });
+      }
+    });
+
     return () => {
       cancelled = true;
     };
