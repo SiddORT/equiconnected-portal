@@ -2,7 +2,7 @@
  * Admin Providers page — /admin/providers
  * Server-side search / filters / pagination via query params.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
 import {
@@ -52,6 +52,8 @@ export function ProvidersPage() {
   const [pageSize, setPageSize] = useState(10);
 
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterPanelRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     setLoadState('loading');
@@ -212,12 +214,77 @@ export function ProvidersPage() {
   ];
 
   const meta = result?.meta;
+  const hasData = (meta?.total ?? 0) > 0;
+
   const hasFilters =
     Boolean(search) ||
     typeFilter !== 'all' ||
     stabilityFilter !== 'all' ||
     statusFilter !== 'all' ||
     publicationFilter !== 'all';
+
+  // Active filter chips shown in toolbar when filter panel is collapsed.
+  const activeChips: { label: string; onClear: () => void }[] = [];
+  if (typeFilter !== 'all') {
+    const label = { HOSPITAL: 'Hospitals', CLINIC: 'Clinics', DOCTOR: 'Doctors' }[typeFilter] ?? typeFilter;
+    activeChips.push({ label: `Type: ${label}`, onClear: () => { setTypeFilter('all'); setPage(1); } });
+  }
+  if (stabilityFilter !== 'all') {
+    const label = stabilityFilter === 'STABLE_VISIT' ? 'Stable' : 'Not stable';
+    activeChips.push({ label: `Visits: ${label}`, onClear: () => { setStabilityFilter('all'); setPage(1); } });
+  }
+  if (statusFilter !== 'all') {
+    const label = statusFilter === 'ACTIVE' ? 'Active' : 'Inactive';
+    activeChips.push({ label: `Status: ${label}`, onClear: () => { setStatusFilter('all'); setPage(1); } });
+  }
+  if (publicationFilter !== 'all') {
+    const label = publicationFilter === 'PUBLISHED' ? 'Published' : 'Unpublished';
+    activeChips.push({ label: `Publication: ${label}`, onClear: () => { setPublicationFilter('all'); setPage(1); } });
+  }
+
+  const filterGroups = [
+    {
+      label: 'Provider type',
+      options: [
+        { value: 'all', label: 'All types' },
+        { value: 'HOSPITAL', label: 'Hospitals' },
+        { value: 'CLINIC', label: 'Clinics' },
+        { value: 'DOCTOR', label: 'Doctors' },
+      ],
+      value: typeFilter,
+      onChange: resetAnd(setTypeFilter),
+    },
+    {
+      label: 'Visit stability',
+      options: [
+        { value: 'all', label: 'All visits' },
+        { value: 'STABLE_VISIT', label: 'Stable' },
+        { value: 'NOT_STABLE_VISIT', label: 'Not stable' },
+      ],
+      value: stabilityFilter,
+      onChange: resetAnd(setStabilityFilter),
+    },
+    {
+      label: 'Status',
+      options: [
+        { value: 'all', label: 'All statuses' },
+        { value: 'ACTIVE', label: 'Active' },
+        { value: 'INACTIVE', label: 'Inactive' },
+      ],
+      value: statusFilter,
+      onChange: resetAnd(setStatusFilter),
+    },
+    {
+      label: 'Publication',
+      options: [
+        { value: 'all', label: 'All publication' },
+        { value: 'PUBLISHED', label: 'Published' },
+        { value: 'UNPUBLISHED', label: 'Unpublished' },
+      ],
+      value: publicationFilter,
+      onChange: resetAnd(setPublicationFilter),
+    },
+  ];
 
   return (
     <div className={styles.shell}>
@@ -233,6 +300,7 @@ export function ProvidersPage() {
       />
 
       <div className={styles.body}>
+        {/* ── Toolbar: search + filter toggle ─────────────────────────────── */}
         <div className={styles.toolbar}>
           <SearchInput
             placeholder="Search by name…"
@@ -240,54 +308,67 @@ export function ProvidersPage() {
             onChange={(v) => { setSearch(v); setPage(1); }}
             containerClassName={styles.searchInput}
           />
+
+          <button
+            type="button"
+            className={`${styles.filterToggle} ${filtersOpen ? styles['filterToggle--open'] : ''} ${activeChips.length > 0 && !filtersOpen ? styles['filterToggle--active'] : ''}`}
+            onClick={() => setFiltersOpen((o) => !o)}
+            aria-expanded={filtersOpen}
+          >
+            <span className={styles.filterToggleIcon}>⊟</span>
+            Filters
+            {activeChips.length > 0 && (
+              <span className={styles.filterCount}>{activeChips.length}</span>
+            )}
+            <span className={`${styles.chevron} ${filtersOpen ? styles['chevron--up'] : ''}`}>▾</span>
+          </button>
+
+          {/* Active filter chips — visible only when panel is collapsed */}
+          {!filtersOpen && activeChips.length > 0 && (
+            <div className={styles.activeChips} aria-label="Active filters">
+              {activeChips.map((chip) => (
+                <button
+                  key={chip.label}
+                  type="button"
+                  className={styles.chip}
+                  onClick={chip.onClear}
+                  title={`Remove filter: ${chip.label}`}
+                >
+                  {chip.label}
+                  <span className={styles.chipClose} aria-hidden="true">✕</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        <FilterBar
-          groups={[
-            {
-              label: 'Provider type',
-              options: [
-                { value: 'all', label: 'All types' },
-                { value: 'HOSPITAL', label: 'Hospitals' },
-                { value: 'CLINIC', label: 'Clinics' },
-                { value: 'DOCTOR', label: 'Doctors' },
-              ],
-              value: typeFilter,
-              onChange: resetAnd(setTypeFilter),
-            },
-            {
-              label: 'Visit stability',
-              options: [
-                { value: 'all', label: 'All visits' },
-                { value: 'STABLE_VISIT', label: 'Stable' },
-                { value: 'NOT_STABLE_VISIT', label: 'Not stable' },
-              ],
-              value: stabilityFilter,
-              onChange: resetAnd(setStabilityFilter),
-            },
-            {
-              label: 'Status',
-              options: [
-                { value: 'all', label: 'All statuses' },
-                { value: 'ACTIVE', label: 'Active' },
-                { value: 'INACTIVE', label: 'Inactive' },
-              ],
-              value: statusFilter,
-              onChange: resetAnd(setStatusFilter),
-            },
-            {
-              label: 'Publication',
-              options: [
-                { value: 'all', label: 'All publication' },
-                { value: 'PUBLISHED', label: 'Published' },
-                { value: 'UNPUBLISHED', label: 'Unpublished' },
-              ],
-              value: publicationFilter,
-              onChange: resetAnd(setPublicationFilter),
-            },
-          ]}
-        />
+        {/* ── Collapsible filter panel ─────────────────────────────────────── */}
+        <div
+          ref={filterPanelRef}
+          className={`${styles.filterPanel} ${filtersOpen ? styles['filterPanel--open'] : ''}`}
+          aria-hidden={!filtersOpen}
+        >
+          <div className={styles.filterPanelInner}>
+            <FilterBar groups={filterGroups} />
+            {hasFilters && (
+              <button
+                type="button"
+                className={styles.clearAll}
+                onClick={() => {
+                  setTypeFilter('all');
+                  setStabilityFilter('all');
+                  setStatusFilter('all');
+                  setPublicationFilter('all');
+                  setPage(1);
+                }}
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+        </div>
 
+        {/* ── Data table ──────────────────────────────────────────────────── */}
         <DataTable
           ariaLabel="Providers"
           columns={columns}
@@ -316,7 +397,8 @@ export function ProvidersPage() {
           }}
         />
 
-        {loadState === 'success' && meta && (
+        {/* ── Pagination — only when records exist ────────────────────────── */}
+        {loadState === 'success' && meta && hasData && (
           <Pagination
             page={page}
             pageSize={pageSize}
