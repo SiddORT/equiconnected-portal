@@ -1,0 +1,140 @@
+/**
+ * Provider API client functions — mirror backend /admin/providers endpoints.
+ */
+import { apiClient } from './client';
+import type {
+  PaginatedResponse,
+  Provider,
+  ProviderCreate,
+  ProviderListItem,
+  ProviderListParams,
+  ProviderLocation,
+  ProviderLocationCreate,
+  ProviderLocationUpdate,
+  ProviderPhoto,
+  ProviderPhotoCreate,
+  ProviderPhotoUpdate,
+  ProviderStatus,
+  ProviderUpdate,
+  PublicationStatus,
+} from '@/types';
+
+export async function listProviders(
+  params?: ProviderListParams
+): Promise<PaginatedResponse<ProviderListItem>> {
+  const { data } = await apiClient.get<PaginatedResponse<ProviderListItem>>('/admin/providers', {
+    params,
+  });
+  return data;
+}
+
+export async function getProvider(id: string): Promise<Provider> {
+  const { data } = await apiClient.get<Provider>(`/admin/providers/${id}`);
+  return data;
+}
+
+export async function createProvider(body: ProviderCreate): Promise<Provider> {
+  const { data } = await apiClient.post<Provider>('/admin/providers', body);
+  return data;
+}
+
+export async function updateProvider(id: string, body: ProviderUpdate): Promise<Provider> {
+  const { data } = await apiClient.patch<Provider>(`/admin/providers/${id}`, body);
+  return data;
+}
+
+export async function updateProviderStatus(id: string, status: ProviderStatus): Promise<Provider> {
+  const { data } = await apiClient.patch<Provider>(`/admin/providers/${id}/status`, { status });
+  return data;
+}
+
+export async function updateProviderPublication(
+  id: string,
+  publication_status: PublicationStatus
+): Promise<Provider> {
+  const { data } = await apiClient.patch<Provider>(`/admin/providers/${id}/publication`, {
+    publication_status,
+  });
+  return data;
+}
+
+// ── Specializations sub-resource ──────────────────────────────────────────────
+
+export async function addProviderSpecialization(
+  id: string,
+  specializationId: string
+): Promise<Provider> {
+  const { data } = await apiClient.post<Provider>(`/admin/providers/${id}/specializations`, {
+    specialization_id: specializationId,
+  });
+  return data;
+}
+
+export async function removeProviderSpecialization(
+  id: string,
+  specId: string
+): Promise<Provider> {
+  const { data } = await apiClient.delete<Provider>(
+    `/admin/providers/${id}/specializations/${specId}`
+  );
+  return data;
+}
+
+// ── Locations sub-resource ────────────────────────────────────────────────────
+
+export async function createProviderLocation(
+  id: string,
+  body: ProviderLocationCreate
+): Promise<ProviderLocation> {
+  const { data } = await apiClient.post<ProviderLocation>(`/admin/providers/${id}/locations`, body);
+  return data;
+}
+
+export async function updateProviderLocation(
+  id: string,
+  locId: string,
+  body: ProviderLocationUpdate
+): Promise<ProviderLocation> {
+  const { data } = await apiClient.patch<ProviderLocation>(
+    `/admin/providers/${id}/locations/${locId}`,
+    body
+  );
+  return data;
+}
+
+export async function deleteProviderLocation(id: string, locId: string): Promise<void> {
+  await apiClient.delete(`/admin/providers/${id}/locations/${locId}`);
+}
+
+// ── Photos sub-resource ───────────────────────────────────────────────────────
+
+export async function createProviderPhoto(
+  id: string,
+  body: ProviderPhotoCreate
+): Promise<ProviderPhoto> {
+  const { data } = await apiClient.post<ProviderPhoto>(`/admin/providers/${id}/photos`, body);
+  return data;
+}
+
+export async function updateProviderPhoto(
+  id: string,
+  photoId: string,
+  body: ProviderPhotoUpdate
+): Promise<ProviderPhoto> {
+  const { data } = await apiClient.patch<ProviderPhoto>(
+    `/admin/providers/${id}/photos/${photoId}`,
+    body
+  );
+  return data;
+}
+
+export async function deleteProviderPhoto(id: string, photoId: string): Promise<void> {
+  await apiClient.delete(`/admin/providers/${id}/photos/${photoId}`);
+}
+
+export async function setProviderThumbnail(id: string, photoId: string): Promise<ProviderPhoto> {
+  const { data } = await apiClient.patch<ProviderPhoto>(
+    `/admin/providers/${id}/photos/${photoId}/thumbnail`
+  );
+  return data;
+}

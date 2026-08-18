@@ -117,10 +117,10 @@ def export_csv(
     buf.seek(0)
     buf.truncate(0)
 
-    for row_num, spec in enumerate(db.scalars(stmt), start=1):
+    for spec in db.scalars(stmt):
         writer.writerow(
             [
-                row_num,
+                str(spec.id),
                 _sanitize_cell(spec.name),
                 _sanitize_cell(spec.description or ""),
                 "Active" if spec.is_active else "Inactive",

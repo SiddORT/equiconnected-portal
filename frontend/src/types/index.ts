@@ -127,3 +127,128 @@ export interface ImportResult {
   errors: number;
   row_details: ImportRowPreview[];
 }
+
+// ── Providers ─────────────────────────────────────────────────────────────────
+
+export type ProviderType = 'HOSPITAL' | 'CLINIC' | 'DOCTOR';
+export type VisitStability = 'STABLE_VISIT' | 'NOT_STABLE_VISIT';
+export type ProviderStatus = 'ACTIVE' | 'INACTIVE';
+export type PublicationStatus = 'UNPUBLISHED' | 'PUBLISHED';
+
+export interface ProviderListItem {
+  id: string;
+  provider_type: ProviderType;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  visit_stability: VisitStability;
+  status: ProviderStatus;
+  publication_status: PublicationStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProviderSpecializationBrief {
+  id: string;
+  name: string;
+  is_active: boolean;
+}
+
+export interface ProviderLocation {
+  id: string;
+  provider_id: string;
+  address_line_1: string;
+  address_line_2: string | null;
+  city: string;
+  state_province: string | null;
+  country: string | null;
+  postal_code: string | null;
+  latitude: string | number | null;
+  longitude: string | number | null;
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProviderPhoto {
+  id: string;
+  provider_id: string;
+  storage_reference: string;
+  alt_text: string | null;
+  caption: string | null;
+  display_order: number;
+  is_thumbnail: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Provider extends ProviderListItem {
+  description: string | null;
+  website: string | null;
+  specializations: ProviderSpecializationBrief[];
+  locations: ProviderLocation[];
+  photos: ProviderPhoto[];
+}
+
+export interface ProviderLocationCreate {
+  address_line_1: string;
+  address_line_2?: string | null;
+  city: string;
+  state_province?: string | null;
+  country?: string | null;
+  postal_code?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  is_primary?: boolean;
+}
+
+export type ProviderLocationUpdate = Partial<ProviderLocationCreate>;
+
+export interface ProviderCreate {
+  provider_type: ProviderType;
+  name: string;
+  visit_stability: VisitStability;
+  description?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  status?: ProviderStatus;
+  publication_status?: PublicationStatus;
+  specialization_ids?: string[];
+  primary_location?: ProviderLocationCreate | null;
+}
+
+export interface ProviderUpdate {
+  provider_type?: ProviderType;
+  name?: string;
+  description?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  visit_stability?: VisitStability;
+}
+
+export interface ProviderPhotoCreate {
+  storage_reference: string;
+  alt_text?: string | null;
+  caption?: string | null;
+  display_order?: number;
+  is_thumbnail?: boolean;
+}
+
+export interface ProviderPhotoUpdate {
+  storage_reference?: string;
+  alt_text?: string | null;
+  caption?: string | null;
+  display_order?: number;
+}
+
+export interface ProviderListParams {
+  search?: string;
+  provider_type?: ProviderType;
+  visit_stability?: VisitStability;
+  status?: ProviderStatus;
+  publication_status?: PublicationStatus;
+  page?: number;
+  page_size?: number;
+}

@@ -3,8 +3,10 @@
  *
  * Features: list, search, active/inactive filter, pagination,
  *           create (modal form), edit (modal form), activate/deactivate.
+ *
+ * Uses the shared DataTable / FilterBar / Pagination / SearchInput components.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { extractErrorMessage } from '@/api/client';
 import {
   confirmImport,
@@ -17,17 +19,14 @@ import {
 import { CsvImportDialog } from '@/components/admin/CsvImportDialog';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { ErrorState } from '@/components/ui/ErrorState';
-import { Input } from '@/components/ui/Input';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
+import { FilterBar } from '@/components/ui/FilterBar';
+import { Pagination } from '@/components/ui/Pagination';
+import { SearchInput } from '@/components/ui/SearchInput';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { SpecializationForm } from '@/components/admin/SpecializationForm';
 import type { LoadingState, PaginatedResponse, Specialization } from '@/types';
 import styles from './SpecializationsPage.module.css';
-
-const PAGE_SIZE_OPTIONS = [10, 25, 100] as const;
 
 type FilterStatus = 'all' | 'active' | 'inactive';
 
@@ -37,7 +36,7 @@ export function SpecializationsPage() {
   const [loadState, setLoadState] = useState<LoadingState>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -49,19 +48,6 @@ export function SpecializationsPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
-
-  // Debounce search
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-
-  useEffect(() => {
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
-    }, 300);
-    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
-  }, [search]);
 
   // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -75,10 +61,9 @@ export function SpecializationsPage() {
 
       const data = await listSpecializations(params as Parameters<typeof listSpecializations>[0]);
 
-      // Defensive guard: if the current page is beyond the last page (e.g. a
-      // filter narrowed the result set), snap back to page 1 and let the
-      // effect re-fire.  This makes the component self-healing regardless of
-      // which code path changed the filters.
+      // Page-out-of-range guard: if the current page is beyond the last page
+      // (e.g. a filter narrowed the result set), snap back to page 1 and let
+      // the effect re-fire.
       if (page > 1 && data.meta.total_pages > 0 && page > data.meta.total_pages) {
         setPage(1);
         return;
@@ -104,8 +89,8 @@ export function SpecializationsPage() {
     void load();
   }
 
-  function handlePageSizeChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    setPageSize(Number(e.target.value));
+  function handleSearchChange(value: string) {
+    setDebouncedSearch(value);
     setPage(1);
   }
 
@@ -137,12 +122,65 @@ export function SpecializationsPage() {
     }
   }
 
-  // ── Derived ───────────────────────────────────────────────────────────────
-  const totalPages = result?.meta.total_pages ?? 1;
-  const meta = result?.meta;
+  // ── Table config ──────────────────────────────────────────────────────────
+  const columns: DataTableColumn<Specialization>[] = [
+    {
+      key: 'name',
+      label: 'Name',
+      width: '1.5fr',
+      render: (spec) => <span className={styles.nameCell}>{spec.name}</span>,
+    },
+    {
+      key: 'description',
+      label: 'Description',
+      width: '2fr',
+      hideOnMobile: true,
+      render: (spec) => (
+        <span className={styles.descCell}>
+          {spec.description ?? <span className={styles.muted}>—</span>}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      width: '120px',
+      render: (spec) => (
+        <Badge variant={spec.is_active ? 'success' : 'neutral'} size="sm">
+          {spec.is_active ? 'Active' : 'Inactive'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      width: '200px',
+      align: 'right',
+      render: (spec) => (
+        <span className={styles.actionBtns}>
+          <button
+            type="button"
+            className={styles.actionBtn}
+            onClick={() => openEdit(spec)}
+            aria-label={`Edit ${spec.name}`}
+          >
+            ✏️ Edit
+          </button>
+          <button
+            type="button"
+            className={`${styles.actionBtn} ${spec.is_active ? styles['actionBtn--deactivate'] : styles['actionBtn--activate']}`}
+            onClick={() => handleToggleStatus(spec)}
+            disabled={togglingId === spec.id}
+            aria-label={spec.is_active ? `Deactivate ${spec.name}` : `Activate ${spec.name}`}
+          >
+            {togglingId === spec.id ? '…' : spec.is_active ? '⊘ Deactivate' : '✓ Activate'}
+          </button>
+        </span>
+      ),
+    },
+  ];
 
-  const paginationFrom = meta ? (page - 1) * pageSize + 1 : 0;
-  const paginationTo = meta ? Math.min(page * pageSize, meta.total) : 0;
+  const meta = result?.meta;
 
   return (
     <div className={styles.shell}>
@@ -177,162 +215,71 @@ export function SpecializationsPage() {
 
         {/* ── Toolbar ─────────────────────────────────────────────────────── */}
         <div className={styles.toolbar}>
-          <Input
+          <SearchInput
             placeholder="Search by name…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            leftAdornment={<span aria-hidden="true">🔍</span>}
+            value={debouncedSearch}
+            onChange={handleSearchChange}
+            delay={300}
             containerClassName={styles.searchInput}
           />
 
-          <div className={styles.filterTabs} role="group" aria-label="Filter by status">
-            {(['all', 'active', 'inactive'] as FilterStatus[]).map((f) => (
-              <button
-                key={f}
-                type="button"
-                className={`${styles.filterTab} ${filterStatus === f ? styles['filterTab--active'] : ''}`}
-                onClick={() => { setFilterStatus(f); setPage(1); }}
-              >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
-              </button>
-            ))}
-          </div>
-
-          <label className={styles.pageSizeLabel}>
-            Show entries:
-            <select
-              className={styles.pageSizeSelect}
-              value={pageSize}
-              onChange={handlePageSizeChange}
-              aria-label="Rows per page"
-            >
-              {PAGE_SIZE_OPTIONS.map((n) => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          </label>
+          <FilterBar
+            groups={[
+              {
+                label: 'Filter by status',
+                options: [
+                  { value: 'all', label: 'All' },
+                  { value: 'active', label: 'Active' },
+                  { value: 'inactive', label: 'Inactive' },
+                ],
+                value: filterStatus,
+                onChange: (v) => { setFilterStatus(v as FilterStatus); setPage(1); },
+              },
+            ]}
+          />
         </div>
 
         {/* ── Content ─────────────────────────────────────────────────────── */}
-        {loadState === 'loading' && (
-          <div className={styles.centered}>
-            <LoadingSpinner size="lg" label="Loading specializations…" />
-          </div>
-        )}
-
-        {loadState === 'error' && (
-          <ErrorState
-            title="Failed to load specializations"
-            message={errorMessage ?? undefined}
-            onRetry={load}
-          />
-        )}
-
-        {loadState === 'success' && result && (
-          <>
-            {result.data.length === 0 ? (
-              <EmptyState
-                icon="🩺"
-                title={debouncedSearch || filterStatus !== 'all' ? 'No results found' : 'No specializations yet'}
-                description={
-                  debouncedSearch || filterStatus !== 'all'
-                    ? 'Try adjusting your search or filter.'
-                    : 'Add your first specialization to get started.'
+        <DataTable
+          ariaLabel="Specializations"
+          columns={columns}
+          data={result?.data ?? []}
+          page={page}
+          pageSize={pageSize}
+          rowKey={(spec) => spec.id}
+          loading={loadState === 'loading'}
+          loadingLabel="Loading specializations…"
+          error={
+            loadState === 'error'
+              ? {
+                  title: 'Failed to load specializations',
+                  message: errorMessage ?? undefined,
+                  onRetry: load,
                 }
-              />
-            ) : (
-              <Card padding="none" shadow="sm">
-                <div role="table" aria-label="Specializations" className={styles.table}>
-                  {/* Header */}
-                  <div role="rowgroup">
-                    <div role="row" className={`${styles.row} ${styles.headerRow}`}>
-                      <span role="columnheader" className={styles.srNoCol}>Sr. No.</span>
-                      <span role="columnheader">Name</span>
-                      <span role="columnheader">Description</span>
-                      <span role="columnheader">Status</span>
-                      <span role="columnheader" className={styles.actionsCol}>Actions</span>
-                    </div>
-                  </div>
+              : null
+          }
+          empty={{
+            icon: '🩺',
+            title: debouncedSearch || filterStatus !== 'all' ? 'No results found' : 'No specializations yet',
+            description:
+              debouncedSearch || filterStatus !== 'all'
+                ? 'Try adjusting your search or filter.'
+                : 'Add your first specialization to get started.',
+          }}
+        />
 
-                  {/* Rows */}
-                  <div role="rowgroup">
-                    {result.data.map((spec, index) => (
-                      <div key={spec.id} role="row" className={styles.row}>
-                        <span role="cell" className={`${styles.srNoCol} ${styles.srNoCell}`}>
-                          {(page - 1) * pageSize + index + 1}
-                        </span>
-                        <span role="cell" className={styles.nameCell}>
-                          {spec.name}
-                        </span>
-                        <span role="cell" className={styles.descCell}>
-                          {spec.description ?? <span className={styles.muted}>—</span>}
-                        </span>
-                        <span role="cell">
-                          <Badge variant={spec.is_active ? 'success' : 'neutral'} size="sm">
-                            {spec.is_active ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </span>
-                        <span role="cell" className={`${styles.actionsCol} ${styles.actionBtns}`}>
-                          <button
-                            type="button"
-                            className={styles.actionBtn}
-                            onClick={() => openEdit(spec)}
-                            aria-label={`Edit ${spec.name}`}
-                          >
-                            ✏️ Edit
-                          </button>
-                          <button
-                            type="button"
-                            className={`${styles.actionBtn} ${spec.is_active ? styles['actionBtn--deactivate'] : styles['actionBtn--activate']}`}
-                            onClick={() => handleToggleStatus(spec)}
-                            disabled={togglingId === spec.id}
-                            aria-label={spec.is_active ? `Deactivate ${spec.name}` : `Activate ${spec.name}`}
-                          >
-                            {togglingId === spec.id
-                              ? '…'
-                              : spec.is_active
-                              ? '⊘ Deactivate'
-                              : '✓ Activate'}
-                          </button>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            )}
-
-            {/* ── Pagination ─────────────────────────────────────────────── */}
-            {meta && (
-              <div className={styles.pagination} aria-label="Pagination">
-                <span className={styles.paginationInfo}>
-                  Showing {paginationFrom} to {paginationTo} of {meta.total} entries
-                </span>
-                <div className={styles.paginationBtns}>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                  >
-                    ← Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page >= totalPages}
-                  >
-                    Next →
-                  </Button>
-                </div>
-              </div>
-            )}
-          </>
+        {/* ── Pagination ──────────────────────────────────────────────────── */}
+        {loadState === 'success' && meta && (
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={meta.total}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+          />
         )}
       </div>
 
-      {/* ── Modal form ──────────────────────────────────────────────────────── */}
       {/* ── CSV import wizard ──────────────────────────────────────────────── */}
       {importOpen && (
         <CsvImportDialog
@@ -345,6 +292,7 @@ export function SpecializationsPage() {
         />
       )}
 
+      {/* ── Modal form ─────────────────────────────────────────────────────── */}
       {formOpen && (
         <SpecializationForm
           initialValues={editTarget ?? undefined}

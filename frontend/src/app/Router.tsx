@@ -9,6 +9,10 @@ import { PublicPage } from '@/pages/PublicPage';
 import { LoginPage } from '@/pages/admin/LoginPage';
 import { DashboardPage } from '@/pages/admin/DashboardPage';
 import { SpecializationsPage } from '@/pages/admin/SpecializationsPage';
+import { ProvidersPage } from '@/pages/admin/ProvidersPage';
+import { ProviderNewPage } from '@/pages/admin/ProviderNewPage';
+import { ProviderDetailPage } from '@/pages/admin/ProviderDetailPage';
+import { ProviderEditPage } from '@/pages/admin/ProviderEditPage';
 
 export function AppRouter() {
   return (
@@ -26,6 +30,10 @@ export function AppRouter() {
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/dashboard" element={<DashboardPage />} />
             <Route path="/admin/specializations" element={<SpecializationsPage />} />
+            <Route path="/admin/providers" element={<ProvidersPage />} />
+            <Route path="/admin/providers/new" element={<ProviderNewPage />} />
+            <Route path="/admin/providers/:id" element={<ProviderDetailPage />} />
+            <Route path="/admin/providers/:id/edit" element={<ProviderEditPage />} />
           </Route>
         </Route>
 

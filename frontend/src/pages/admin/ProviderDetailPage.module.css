@@ -1,0 +1,282 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.body {
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  flex: 1;
+  max-width: 1080px;
+  width: 100%;
+}
+
+.centeredPage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  flex: 1;
+}
+
+.actionError {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.sectionTitle {
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.cardHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.badgeRow {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.description {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+}
+.infoGrid dt {
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: var(--space-1);
+}
+.infoGrid dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+/* ── Specializations ─────────────────────────────────────────────────────── */
+.pillList {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: 0;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full, 999px);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.pillRemove {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+.pillRemove:hover:not(:disabled) { color: var(--color-error); }
+.pillRemove:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.addRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.addSelect {
+  min-width: 240px;
+}
+
+/* ── Lists (locations) ───────────────────────────────────────────────────── */
+.itemList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-default);
+  flex-wrap: wrap;
+}
+.item:last-child { border-bottom: none; }
+
+.itemMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.itemTitle {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--text-primary);
+}
+
+.itemSub {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.itemActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.removeBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+}
+.removeBtn:hover:not(:disabled) {
+  background: var(--color-error-light, #fef2f2);
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+.removeBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Inline forms ────────────────────────────────────────────────────────── */
+.inlineForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  margin-bottom: var(--space-5);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.inlineFormFooter {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ── Photos ──────────────────────────────────────────────────────────────── */
+.photoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
+
+.photoCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.photoTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.photoRef {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photoCaption {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.photoAlt {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.photoActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: auto;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .body { padding: var(--space-5); }
+}
