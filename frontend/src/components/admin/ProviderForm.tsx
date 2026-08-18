@@ -460,36 +460,6 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
         </section>
       </Card>
 
-      {/* ── Classification ────────────────────────────────────────────────── */}
-      <Card padding="lg" shadow="sm">
-        <section className={styles.section}>
-          <h3 className={styles.sectionTitle}>Classification</h3>
-          <div className={styles.grid}>
-            <Select
-              label="Visit stability"
-              options={VISIT_STABILITY_OPTIONS}
-              placeholder="Select…"
-              value={visitStability}
-              onChange={(e) => setVisitStability(e.target.value)}
-              error={fieldErrors.visit_stability}
-              required
-            />
-            <Select
-              label="Status"
-              options={STATUS_OPTIONS}
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-            />
-            <Select
-              label="Publication status"
-              options={PUBLICATION_OPTIONS}
-              value={publication}
-              onChange={(e) => setPublication(e.target.value)}
-            />
-          </div>
-        </section>
-      </Card>
-
       {/* ── Specializations ───────────────────────────────────────────────── */}
       <Card padding="lg" shadow="sm" className={styles.cardFull}>
         <section className={styles.section}>
@@ -544,6 +514,36 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
                   </button>
                 );
               })}
+          </div>
+        </section>
+      </Card>
+
+      {/* ── Classification ────────────────────────────────────────────────── */}
+      <Card padding="lg" shadow="sm">
+        <section className={styles.section}>
+          <h3 className={styles.sectionTitle}>Classification</h3>
+          <div className={styles.grid}>
+            <Select
+              label="Visit stability"
+              options={VISIT_STABILITY_OPTIONS}
+              placeholder="Select…"
+              value={visitStability}
+              onChange={(e) => setVisitStability(e.target.value)}
+              error={fieldErrors.visit_stability}
+              required
+            />
+            <Select
+              label="Status"
+              options={STATUS_OPTIONS}
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            />
+            <Select
+              label="Publication status"
+              options={PUBLICATION_OPTIONS}
+              value={publication}
+              onChange={(e) => setPublication(e.target.value)}
+            />
           </div>
         </section>
       </Card>
