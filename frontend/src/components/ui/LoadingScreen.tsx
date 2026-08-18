@@ -1,5 +1,5 @@
 import styles from './LoadingScreen.module.css';
-import { LoadingSpinner } from './LoadingSpinner';
+import { HorseLoader } from './HorseLoader';
 
 interface LoadingScreenProps {
   message?: string;
@@ -8,7 +8,7 @@ interface LoadingScreenProps {
 export function LoadingScreen({ message = 'Loading…' }: LoadingScreenProps) {
   return (
     <div className={styles.screen} role="status" aria-live="polite">
-      <LoadingSpinner size="lg" />
+      <HorseLoader size={96} label={message} />
       <p className={styles.message}>{message}</p>
     </div>
   );
