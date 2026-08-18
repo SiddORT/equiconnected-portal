@@ -343,6 +343,19 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
               onChange={(e) => setSpecFilter(e.target.value)}
             />
           )}
+          {(() => {
+            if (!specFilter) return null;
+            const hiddenSelected = selectedSpecIds.filter(
+              (id) => !specializations
+                .filter((s) => s.name.toLowerCase().includes(specFilter.toLowerCase()))
+                .some((s) => s.id === id)
+            ).length;
+            return hiddenSelected > 0 ? (
+              <p className={styles.specHiddenHint}>
+                {hiddenSelected} selected not shown — clear filter to see {hiddenSelected === 1 ? 'it' : 'them'}
+              </p>
+            ) : null;
+          })()}
           <div className={styles.specChipGrid}>
             {specializations
               .filter((spec) =>
