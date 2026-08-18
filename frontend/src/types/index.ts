@@ -77,3 +77,25 @@ export interface PaginatedResponse<T> {
 // ── Common ────────────────────────────────────────────────────────────────────
 
 export type LoadingState = 'idle' | 'loading' | 'success' | 'error';
+
+// ── Specializations ───────────────────────────────────────────────────────────
+
+export interface Specialization {
+  id: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SpecializationCreate {
+  name: string;
+  description?: string | null;
+  is_active?: boolean;
+}
+
+export interface SpecializationUpdate {
+  name?: string;
+  description?: string | null;
+}

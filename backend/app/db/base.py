@@ -10,3 +10,4 @@ from app.models.role import Role  # noqa: F401, E402
 from app.models.user import User  # noqa: F401, E402
 from app.models.refresh_token import RefreshToken  # noqa: F401, E402
 from app.models.audit_log import AuditLog  # noqa: F401, E402
+from app.models.specialization import Specialization  # noqa: F401, E402

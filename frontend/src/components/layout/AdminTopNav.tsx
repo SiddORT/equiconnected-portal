@@ -6,7 +6,7 @@ import styles from './AdminTopNav.module.css';
 interface NavItem { label: string; to: string; icon: string; }
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: '⊞' },
-  // Add more nav items here as modules are built
+  { label: 'Specializations', to: '/admin/specializations', icon: '🩺' },
 ];
 
 export function AdminTopNav() {

@@ -50,6 +50,13 @@ Admin dependency: `Depends(require_role("admin"))`. Future roles: `hospital_admi
 `@/` maps to `src/` via `vite.config.ts` + `tsconfig.json` paths. All imports should use `@/`.
 
 ## Alembic
-Initial migration file exists at `backend/alembic/versions/c4c2e0b50e3d_initial_schema.py`.
-Tables were also created directly via `Base.metadata.create_all()` for development convenience.
-Future schema changes: `alembic revision --autogenerate -m "description"` then `alembic upgrade head`.
+Migrations live in `backend/alembic/versions/`. Always use `alembic revision --autogenerate` after
+model changes; never hand-edit the schema. The Alembic aggregator is `app.db.base` — new models
+must be imported there so autogenerate sees them.
+
+## Specialization master-data pattern (reusable for future masters)
+Layers: model → repository (flush, commit, rollback) → service (catches IntegrityError, raises domain
+exceptions) → router (maps domain exceptions to HTTP status codes). PATCH uses `body.model_dump(exclude_unset=True)`
+so only provided fields are updated. Deactivation = set `is_active=False`; never DELETE master records.
+The `SpecializationRepository.list()` returns `(items, total)` for server-side search/filter/pagination.
+Apply this same pattern to future masters (Facilities, Services, Provider types).

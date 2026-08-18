@@ -36,7 +36,7 @@ TEST_SCHEMA = "test_equiconnected"
 
 # ── Tables that need truncation in FK-safe reverse order ─────────────────────
 # Leaf tables first so FK constraints are satisfied.
-_CLEANUP_TABLES = ["refresh_tokens", "audit_logs", "users", "roles"]
+_CLEANUP_TABLES = ["refresh_tokens", "audit_logs", "users", "roles", "specializations"]
 
 
 # ── Engine with search_path pinned to the test schema ────────────────────────

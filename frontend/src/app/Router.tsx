@@ -8,6 +8,7 @@ import { AdminLayout } from '@/components/layout/AdminLayout';
 import { PublicPage } from '@/pages/PublicPage';
 import { LoginPage } from '@/pages/admin/LoginPage';
 import { DashboardPage } from '@/pages/admin/DashboardPage';
+import { SpecializationsPage } from '@/pages/admin/SpecializationsPage';
 
 export function AppRouter() {
   return (
@@ -24,6 +25,7 @@ export function AppRouter() {
           <Route element={<AdminLayout />}>
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/dashboard" element={<DashboardPage />} />
+            <Route path="/admin/specializations" element={<SpecializationsPage />} />
           </Route>
         </Route>
 
