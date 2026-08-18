@@ -22,7 +22,7 @@ import { SpecializationForm } from '@/components/admin/SpecializationForm';
 import type { LoadingState, PaginatedResponse, Specialization } from '@/types';
 import styles from './SpecializationsPage.module.css';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [10, 25, 100] as const;
 
 type FilterStatus = 'all' | 'active' | 'inactive';
 
@@ -35,6 +35,7 @@ export function SpecializationsPage() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Specialization | null>(null);
@@ -59,7 +60,7 @@ export function SpecializationsPage() {
     setLoadState('loading');
     setErrorMessage(null);
     try {
-      const params: Record<string, unknown> = { page, page_size: PAGE_SIZE };
+      const params: Record<string, unknown> = { page, page_size: pageSize };
       if (debouncedSearch) params.search = debouncedSearch;
       if (filterStatus === 'active') params.is_active = true;
       if (filterStatus === 'inactive') params.is_active = false;
@@ -71,7 +72,7 @@ export function SpecializationsPage() {
       setErrorMessage(extractErrorMessage(err, 'Failed to load specializations.'));
       setLoadState('error');
     }
-  }, [page, debouncedSearch, filterStatus]);
+  }, [page, pageSize, debouncedSearch, filterStatus]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -83,6 +84,11 @@ export function SpecializationsPage() {
   function handleFormSuccess() {
     closeForm();
     void load();
+  }
+
+  function handlePageSizeChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    setPageSize(Number(e.target.value));
+    setPage(1);
   }
 
   async function handleToggleStatus(spec: Specialization) {
@@ -100,6 +106,9 @@ export function SpecializationsPage() {
   // ── Derived ───────────────────────────────────────────────────────────────
   const totalPages = result?.meta.total_pages ?? 1;
   const meta = result?.meta;
+
+  const paginationFrom = meta ? (page - 1) * pageSize + 1 : 0;
+  const paginationTo = meta ? Math.min(page * pageSize, meta.total) : 0;
 
   return (
     <div className={styles.shell}>
@@ -137,6 +146,20 @@ export function SpecializationsPage() {
               </button>
             ))}
           </div>
+
+          <label className={styles.pageSizeLabel}>
+            Show entries:
+            <select
+              className={styles.pageSizeSelect}
+              value={pageSize}
+              onChange={handlePageSizeChange}
+              aria-label="Rows per page"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </label>
         </div>
 
         {/* ── Content ─────────────────────────────────────────────────────── */}
@@ -172,6 +195,7 @@ export function SpecializationsPage() {
                   {/* Header */}
                   <div role="rowgroup">
                     <div role="row" className={`${styles.row} ${styles.headerRow}`}>
+                      <span role="columnheader" className={styles.srNoCol}>Sr. No.</span>
                       <span role="columnheader">Name</span>
                       <span role="columnheader">Description</span>
                       <span role="columnheader">Status</span>
@@ -181,8 +205,11 @@ export function SpecializationsPage() {
 
                   {/* Rows */}
                   <div role="rowgroup">
-                    {result.data.map((spec) => (
+                    {result.data.map((spec, index) => (
                       <div key={spec.id} role="row" className={styles.row}>
+                        <span role="cell" className={`${styles.srNoCol} ${styles.srNoCell}`}>
+                          {(page - 1) * pageSize + index + 1}
+                        </span>
                         <span role="cell" className={styles.nameCell}>
                           {spec.name}
                         </span>
@@ -225,10 +252,10 @@ export function SpecializationsPage() {
             )}
 
             {/* ── Pagination ─────────────────────────────────────────────── */}
-            {meta && meta.total > PAGE_SIZE && (
+            {meta && (
               <div className={styles.pagination} aria-label="Pagination">
                 <span className={styles.paginationInfo}>
-                  {meta.total} total · page {meta.page} of {meta.total_pages}
+                  Showing {paginationFrom} to {paginationTo} of {meta.total} entries
                 </span>
                 <div className={styles.paginationBtns}>
                   <Button
