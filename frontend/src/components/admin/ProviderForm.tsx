@@ -13,11 +13,13 @@ import {
   addProviderPhone,
   addProviderSpecialization,
   createProvider,
+  createProviderLocation,
   getProvider,
   removeProviderEmail,
   removeProviderPhone,
   removeProviderSpecialization,
   updateProvider,
+  updateProviderLocation,
   updateProviderPublication,
   updateProviderStatus,
 } from '@/api/providers';
@@ -136,7 +138,22 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
   const [selectedSpecIds, setSelectedSpecIds] = useState<string[]>(
     initialData?.specializations.map((s) => s.id) ?? []
   );
-  const [location, setLocation] = useState<LocationValues>(EMPTY_LOCATION);
+
+  // Location — pre-populate from the existing primary location in edit mode.
+  const [location, setLocation] = useState<LocationValues>(() => {
+    if (!initialData) return EMPTY_LOCATION;
+    const primary =
+      initialData.locations.find((l) => l.is_primary) ?? initialData.locations[0];
+    if (!primary) return EMPTY_LOCATION;
+    return {
+      address_line_1: primary.address_line_1,
+      address_line_2: primary.address_line_2 ?? '',
+      city: primary.city,
+      state_province: primary.state_province ?? '',
+      country: primary.country ?? '',
+      postal_code: primary.postal_code ?? '',
+    };
+  });
 
   const [specializations, setSpecializations] = useState<Specialization[]>([]);
   const [specsError, setSpecsError] = useState<string | null>(null);
@@ -178,10 +195,10 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
     if (!providerType) errors.provider_type = 'Provider type is required.';
     if (!name.trim()) errors.name = 'Name is required.';
     if (!visitStability) errors.visit_stability = 'Visit stability is required.';
-    if (!isEdit && location.address_line_1.trim() && !location.city.trim()) {
+    if (location.address_line_1.trim() && !location.city.trim()) {
       errors.city = 'City is required when an address is provided.';
     }
-    if (!isEdit && location.city.trim() && !location.address_line_1.trim()) {
+    if (location.city.trim() && !location.address_line_1.trim()) {
       errors.address_line_1 = 'Address line 1 is required when a city is provided.';
     }
     // Contact rows are optional, but existing rows must be non-empty.
@@ -239,8 +256,7 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
         for (const specId of toRemove) {
           saved = await removeProviderSpecialization(initialData.id, specId);
         }
-        // Phones: diff against the saved list. Changed rows are re-created
-        // (the API exposes add/remove, not update).
+        // Phones: diff against the saved list. Changed rows are re-created.
         const keptPhoneIds = new Set<string>();
         const phonesToAdd: PhoneEntry[] = [];
         for (const entry of phoneEntries) {
@@ -296,11 +312,37 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
             is_primary: entry.is_primary,
           });
         }
+
+        // Location: PATCH existing primary, or POST a new one when filled.
+        const locationFilled =
+          location.address_line_1.trim() && location.city.trim();
+        if (locationFilled) {
+          const primaryLoc =
+            initialData.locations.find((l) => l.is_primary) ??
+            initialData.locations[0];
+          const locBody = {
+            address_line_1: location.address_line_1.trim(),
+            address_line_2: location.address_line_2.trim() || null,
+            city: location.city.trim(),
+            state_province: location.state_province.trim() || null,
+            country: location.country.trim() || null,
+            postal_code: location.postal_code.trim() || null,
+            is_primary: true,
+          };
+          if (primaryLoc) {
+            await updateProviderLocation(initialData.id, primaryLoc.id, locBody);
+          } else {
+            await createProviderLocation(initialData.id, locBody);
+          }
+        }
+
         if (
           toAdd.length || toRemove.length ||
           phonesToAdd.length || phonesToRemove.length ||
           emailsToAdd.length || emailsToRemove.length ||
-          status !== initialData.status || publication !== initialData.publication_status
+          status !== initialData.status ||
+          publication !== initialData.publication_status ||
+          locationFilled
         ) {
           saved = await getProvider(initialData.id);
         }
@@ -389,15 +431,13 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
             />
           </FormField>
 
-          <div className={styles.grid}>
-            <Input
-              label="Website"
-              type="url"
-              placeholder="https://example.com"
-              value={website}
-              onChange={(e) => setWebsite(e.target.value)}
-            />
-          </div>
+          <Input
+            label="Website"
+            type="url"
+            placeholder="https://example.com"
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
+          />
         </section>
       </Card>
 
@@ -508,48 +548,48 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
         </section>
       </Card>
 
-      {/* ── Primary location (create mode only) ───────────────────────────── */}
-      {!isEdit && (
-        <Card padding="lg" shadow="sm" className={styles.cardFull}>
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>Primary location <span className={styles.optionalTag}>— optional</span></h3>
-            <div className={styles.grid}>
-              <Input
-                label="Address line 1"
-                value={location.address_line_1}
-                onChange={(e) => setLocation((l) => ({ ...l, address_line_1: e.target.value }))}
-                error={fieldErrors.address_line_1}
-              />
-              <Input
-                label="Address line 2"
-                value={location.address_line_2}
-                onChange={(e) => setLocation((l) => ({ ...l, address_line_2: e.target.value }))}
-              />
-              <Input
-                label="City"
-                value={location.city}
-                onChange={(e) => setLocation((l) => ({ ...l, city: e.target.value }))}
-                error={fieldErrors.city}
-              />
-              <Input
-                label="State / Province"
-                value={location.state_province}
-                onChange={(e) => setLocation((l) => ({ ...l, state_province: e.target.value }))}
-              />
-              <Input
-                label="Country"
-                value={location.country}
-                onChange={(e) => setLocation((l) => ({ ...l, country: e.target.value }))}
-              />
-              <Input
-                label="Postal code"
-                value={location.postal_code}
-                onChange={(e) => setLocation((l) => ({ ...l, postal_code: e.target.value }))}
-              />
-            </div>
-          </section>
-        </Card>
-      )}
+      {/* ── Primary location — shown in both Add and Edit ─────────────────── */}
+      <Card padding="lg" shadow="sm" className={styles.cardFull}>
+        <section className={styles.section}>
+          <h3 className={styles.sectionTitle}>
+            Primary location <span className={styles.optionalTag}>— optional</span>
+          </h3>
+          <div className={styles.grid}>
+            <Input
+              label="Address line 1"
+              value={location.address_line_1}
+              onChange={(e) => setLocation((l) => ({ ...l, address_line_1: e.target.value }))}
+              error={fieldErrors.address_line_1}
+            />
+            <Input
+              label="Address line 2"
+              value={location.address_line_2}
+              onChange={(e) => setLocation((l) => ({ ...l, address_line_2: e.target.value }))}
+            />
+            <Input
+              label="City"
+              value={location.city}
+              onChange={(e) => setLocation((l) => ({ ...l, city: e.target.value }))}
+              error={fieldErrors.city}
+            />
+            <Input
+              label="State / Province"
+              value={location.state_province}
+              onChange={(e) => setLocation((l) => ({ ...l, state_province: e.target.value }))}
+            />
+            <Input
+              label="Country"
+              value={location.country}
+              onChange={(e) => setLocation((l) => ({ ...l, country: e.target.value }))}
+            />
+            <Input
+              label="Postal code"
+              value={location.postal_code}
+              onChange={(e) => setLocation((l) => ({ ...l, postal_code: e.target.value }))}
+            />
+          </div>
+        </section>
+      </Card>
 
       <footer className={`${styles.footer} ${styles.cardFull}`}>
         <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
