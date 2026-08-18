@@ -13,6 +13,7 @@
   flex: 1;
   max-width: 1080px;
   width: 100%;
+  margin: 0 auto;
 }
 
 .centeredPage {
@@ -37,6 +38,9 @@
   font-weight: var(--font-semibold);
   color: var(--text-primary);
   margin: 0;
+  /* Visual weight via a left accent border */
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--color-primary, #4f46e5);
 }
 
 .cardHeaderRow {
@@ -49,8 +53,9 @@
 
 .badgeRow {
   display: flex;
-  gap: var(--space-2);
+  gap: var(--space-3);
   flex-wrap: wrap;
+  margin-bottom: var(--space-2);
 }
 
 .description {
@@ -63,8 +68,15 @@
 .infoGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--space-4);
+  gap: 0;
   margin: 0;
+}
+.infoGrid > div {
+  padding: var(--space-4) var(--space-4) var(--space-4) 0;
+  border-bottom: 1px solid var(--border-default);
+}
+.infoGrid > div:last-child {
+  border-bottom: none;
 }
 .infoGrid dt {
   font-size: var(--text-xs);
@@ -79,6 +91,7 @@
   font-size: var(--text-sm);
   color: var(--text-primary);
   word-break: break-word;
+  font-weight: var(--font-medium);
 }
 
 /* ── Specializations ─────────────────────────────────────────────────────── */
@@ -120,6 +133,8 @@
   align-items: flex-end;
   gap: var(--space-2);
   margin-top: var(--space-4);
+  border-top: 1px solid var(--border-default);
+  padding-top: var(--space-4);
 }
 
 .addSelect {
@@ -140,10 +155,11 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-3) 0;
+  padding: var(--space-4) 0;
   border-bottom: 1px solid var(--border-default);
   flex-wrap: wrap;
 }
+.item:first-child { padding-top: var(--space-2); }
 .item:last-child { border-bottom: none; }
 
 .itemMain {

@@ -16,13 +16,12 @@
 .card--shadow-lg   { box-shadow: var(--shadow-lg); }
 
 .cardHeader {
-  padding-bottom: var(--space-4);
+  padding: var(--space-4) var(--space-6) var(--space-4);
   border-bottom: 1px solid var(--border-default);
-  margin-bottom: var(--space-4);
 }
 
 .cardBody {
-  /* Use for explicit body padding when Card has padding="none" */
+  padding: var(--space-5) var(--space-6);
 }
 
 .cardFooter {
