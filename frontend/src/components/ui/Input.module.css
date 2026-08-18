@@ -17,15 +17,16 @@
   border: 1.5px solid var(--border-default);
   border-radius: var(--radius-md);
   background-color: var(--bg-surface);
+  outline: none;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 .inputWrapper:hover {
   border-color: var(--color-primary-600);
-  box-shadow: 0 0 0 2px rgba(139, 99, 64, 0.12);
+  box-shadow: 0 0 0 2px rgba(139, 99, 64, 0.14);
 }
 .inputWrapper:focus-within {
   border-color: var(--color-primary-700);
-  box-shadow: 0 0 0 3px rgba(107, 76, 42, 0.22), inset 0 1px 3px rgba(107, 76, 42, 0.08);
+  box-shadow: 0 0 0 3px rgba(107, 76, 42, 0.24), inset 0 1px 3px rgba(107, 76, 42, 0.08);
 }
 .inputWrapper--error {
   border-color: var(--border-error);
@@ -46,7 +47,7 @@
   color: var(--text-primary);
   background: transparent;
   border: none;
-  outline: none;
+  outline: none !important;
   min-width: 0;
 }
 .input::placeholder {
@@ -74,6 +75,14 @@
 .adornment--right {
   padding-left: 0;
   padding-right: var(--space-3);
+}
+
+/* Kill any focus ring on elements inside the wrapper —
+   the wrapper itself provides the only visible focus indicator. */
+.inputWrapper *:focus,
+.inputWrapper *:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .hint {

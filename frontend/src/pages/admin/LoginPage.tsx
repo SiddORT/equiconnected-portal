@@ -115,10 +115,7 @@ export function LoginPage() {
       <main className={styles.rightPanel}>
         <div className={styles.formCard}>
           <div className={styles.formHeader}>
-            <Link to="/" className={styles.backLink} aria-label="Back to EquiConnected home">
-              ← Back to site
-            </Link>
-            <div className={styles.formIcon} aria-hidden="true">🔐</div>
+<div className={styles.formIcon} aria-hidden="true">🔐</div>
             <h2 className={`text-display ${styles.formTitle}`}>Admin sign in</h2>
             <p className={styles.formSubtitle}>
               Enter your administrator credentials to access the portal.
