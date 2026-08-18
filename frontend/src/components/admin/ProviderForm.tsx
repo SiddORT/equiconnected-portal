@@ -396,7 +396,7 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
       )}
 
       {/* ── Basic information ─────────────────────────────────────────────── */}
-      <Card padding="lg" shadow="sm" className={styles.cardFull}>
+      <Card padding="lg" shadow="sm">
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>Basic information</h3>
           <div className={styles.grid}>
@@ -549,7 +549,7 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
       </Card>
 
       {/* ── Primary location — shown in both Add and Edit ─────────────────── */}
-      <Card padding="lg" shadow="sm" className={styles.cardFull}>
+      <Card padding="lg" shadow="sm">
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>
             Primary location <span className={styles.optionalTag}>— optional</span>
