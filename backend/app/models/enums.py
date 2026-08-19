@@ -41,3 +41,9 @@ class InvitationStatus(str, enum.Enum):
     EXPIRED = "EXPIRED"
     CANCELLED = "CANCELLED"
     COMPLETED = "COMPLETED"
+
+
+class OrganizationRequestStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"

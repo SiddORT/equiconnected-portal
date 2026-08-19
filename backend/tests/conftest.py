@@ -40,6 +40,7 @@ _CLEANUP_TABLES = [
     "refresh_tokens",
     "audit_logs",
     "provider_invitations",
+    "organization_requests",
     "doctor_organizations",
     "doctor_qualifications",
     "doctor_profiles",

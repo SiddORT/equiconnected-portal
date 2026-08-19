@@ -22,6 +22,12 @@ from app.services.invitation_service import (
     ProviderTypeMismatchError,
 )
 from app.services.provider_service import ProviderNotFoundError
+from app.repositories.organization_request_repository import OrganizationRequestRepository
+from app.schemas.organization_request import OrgAssociateRequest, OrgRequestCreate, OrgRequestResponse
+from app.services.organization_request_service import (
+    DuplicateOrganizationRelationshipError, DuplicateOrganizationSuggestionsError,
+    InvalidOrganizationTypeError, OrganizationRequestService,
+)
 
 admin_router = APIRouter(prefix="/admin/invitations", tags=["Invitations"], dependencies=[Depends(require_role("admin"))])
 public_router = APIRouter(
@@ -34,6 +40,10 @@ _DB = Annotated[Session, Depends(get_db)]
 def _svc(db: _DB) -> InvitationService:
     return InvitationService(InvitationRepository(db), ProviderRepository(db))
 _Svc = Annotated[InvitationService, Depends(_svc)]
+
+def _organization_svc(db: _DB) -> OrganizationRequestService:
+    return OrganizationRequestService(OrganizationRequestRepository(db))
+_OrganizationSvc = Annotated[OrganizationRequestService, Depends(_organization_svc)]
 
 def _error(code: int, key: str, message: str) -> HTTPException:
     return HTTPException(status_code=code, detail={"code": key, "message": message})
@@ -90,3 +100,44 @@ def submit_invitation(token: str, body: SubmitRequest, svc: _Svc):
     except InvitationExpiredError: raise _error(410, "invitation_expired", "Invitation link has expired.")
     except (InvitationCompletedError, InvitationCancelledError) as exc: raise _error(409, "invitation_unavailable", str(exc) or "Invitation link is no longer available.")
     except (InvalidInvitationStateError, InvalidProviderDataError) as exc: raise _error(422, "provider_validation_failed", str(exc))
+
+
+def _doctor_invitation(token: str, svc: InvitationService):
+    invitation = svc.validate_token(token)
+    if invitation.provider_type != ProviderType.DOCTOR or invitation.provider_id is None:
+        raise _error(422, "doctor_invitation_required", "This action requires a Doctor invitation.")
+    return invitation
+
+
+@public_router.post("/{token}/organizations", status_code=status.HTTP_201_CREATED)
+def associate_organization(
+    token: str, body: OrgAssociateRequest, svc: _Svc, organization_svc: _OrganizationSvc,
+):
+    try:
+        invitation = _doctor_invitation(token, svc)
+        relationship = organization_svc.associate_existing(invitation.provider_id, body.organization_id)
+        return {"id": relationship.id, "status": relationship.status}
+    except InvitationNotFoundError: raise _error(404, "invitation_not_found", "Invitation link is invalid.")
+    except InvitationExpiredError: raise _error(410, "invitation_expired", "Invitation link has expired.")
+    except (InvitationCompletedError, InvitationCancelledError): raise _error(409, "invitation_unavailable", "Invitation link is no longer available.")
+    except InvalidOrganizationTypeError as exc: raise _error(422, "invalid_organization", str(exc))
+    except DuplicateOrganizationRelationshipError: raise _error(409, "duplicate_organization_relationship", "This organization is already associated.")
+
+
+@public_router.post("/{token}/organization-requests", response_model=OrgRequestResponse, status_code=status.HTTP_201_CREATED)
+def create_organization_request(
+    token: str, body: OrgRequestCreate, svc: _Svc, organization_svc: _OrganizationSvc,
+):
+    try:
+        invitation = _doctor_invitation(token, svc)
+        return organization_svc.create_request(invitation.provider_id, body.model_dump())
+    except InvitationNotFoundError: raise _error(404, "invitation_not_found", "Invitation link is invalid.")
+    except InvitationExpiredError: raise _error(410, "invitation_expired", "Invitation link has expired.")
+    except (InvitationCompletedError, InvitationCancelledError): raise _error(409, "invitation_unavailable", "Invitation link is no longer available.")
+    except InvalidOrganizationTypeError as exc: raise _error(422, "invalid_organization", str(exc))
+    except DuplicateOrganizationSuggestionsError as exc:
+        raise HTTPException(status_code=409, detail={
+            "code": "organization_suggestions",
+            "message": "Similar organizations already exist.",
+            "suggestions": [{"id": str(item.id), "name": item.name, "type": item.provider_type.value} for item in exc.suggestions],
+        })
