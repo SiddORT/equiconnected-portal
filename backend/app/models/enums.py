@@ -24,3 +24,8 @@ class ProviderStatus(str, enum.Enum):
 class PublicationStatus(str, enum.Enum):
     UNPUBLISHED = "UNPUBLISHED"
     PUBLISHED = "PUBLISHED"
+
+
+class DoctorOrganizationStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"

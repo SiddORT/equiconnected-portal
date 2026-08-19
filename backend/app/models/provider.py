@@ -80,6 +80,34 @@ class Provider(TimestampMixin, Base):
         back_populates="provider", cascade="all, delete-orphan"
     )
 
+    # ── Doctor extensions (populated only when provider_type == DOCTOR) ────────
+    doctor_profile: Mapped["app.models.doctor.DoctorProfile | None"] = relationship(  # type: ignore[name-defined]
+        "DoctorProfile",
+        back_populates="provider",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+    qualifications: Mapped[list["app.models.doctor.DoctorQualification"]] = relationship(  # type: ignore[name-defined]
+        "DoctorQualification",
+        back_populates="provider",
+        cascade="all, delete-orphan",
+        order_by="DoctorQualification.display_order, DoctorQualification.created_at",
+    )
+    # Relationships where this provider is the DOCTOR side
+    doctor_organizations: Mapped[list["app.models.doctor.DoctorOrganization"]] = relationship(  # type: ignore[name-defined]
+        "DoctorOrganization",
+        foreign_keys="DoctorOrganization.doctor_id",
+        back_populates="doctor",
+        cascade="all, delete-orphan",
+    )
+    # Relationships where this provider is the ORGANIZATION side
+    organization_doctors: Mapped[list["app.models.doctor.DoctorOrganization"]] = relationship(  # type: ignore[name-defined]
+        "DoctorOrganization",
+        foreign_keys="DoctorOrganization.organization_id",
+        back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+
     __table_args__ = (
         Index("ix_providers_name", "name"),
     )

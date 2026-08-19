@@ -1,0 +1,1134 @@
+EQUICONNECTED PORTAL — PHASE 7
+PROVIDER INVITATION + DOCTOR ORGANIZATION MAPPING
+
+Implement the Provider Invitation workflow and Doctor ↔ Hospital/Clinic mapping foundation.
+
+IMPORTANT:
+
+Prompts 3, 4, 5 and 6 are already implemented or are being implemented in parallel.
+
+Before making changes:
+
+1. Inspect the existing Provider schema.
+2. Inspect Hospital, Clinic and Doctor provider types.
+3. Inspect Doctor ↔ Hospital/Clinic relationships.
+4. Inspect Specialization relationships.
+5. Inspect existing authentication architecture.
+6. Inspect existing reusable DataTable/forms/components.
+7. Extend the existing architecture.
+
+DO NOT create duplicate:
+
+- Provider tables
+- Doctor tables
+- Hospital tables
+- Clinic tables
+- Authentication systems
+- Specialization systems
+- DataTable components
+- Photo systems
+- Location systems
+
+Do not redesign working Prompt 3/4/5/6 functionality.
+
+==================================================
+1. PURPOSE
+==================================================
+
+Admin must be able to invite:
+
+- Hospital
+- Clinic
+- Doctor
+
+to complete their provider information.
+
+The recipient receives an email containing a secure invitation link.
+
+The recipient opens the form, completes the required information, and submits it.
+
+The submitted provider must then be available to Admin for review.
+
+The provider must NOT automatically become publicly visible.
+
+Only after Admin approval should the provider become eligible for publication and appear in the public Providers listing.
+
+==================================================
+2. HIGH-LEVEL FLOW
+==================================================
+
+ADMIN INVITATION:
+
+Admin
+  ↓
+Create Invitation
+  ↓
+Select Provider Type
+  ├── Hospital
+  ├── Clinic
+  └── Doctor
+  ↓
+Enter recipient email
+  ↓
+Send invitation
+  ↓
+Recipient receives email
+  ↓
+Secure invitation link
+  ↓
+Provider form
+  ↓
+Complete information
+  ↓
+Submit
+  ↓
+UNDER_REVIEW
+  ↓
+Admin review
+  ↓
+Later Prompt 8:
+Approve / Reject / Request Changes
+  ↓
+Publish
+  ↓
+Public Providers listing
+
+IMPORTANT:
+
+Prompt 7 should establish the invitation and submission foundation.
+
+Do NOT implement the full Prompt 8 approval system unless existing architecture requires minimal status support.
+
+==================================================
+3. INVITATION VS PROVIDER VS USER
+==================================================
+
+Keep these concepts separate.
+
+Invitation:
+
+Represents an invitation sent to a person/email.
+
+Provider:
+
+Represents the Hospital, Clinic or Doctor.
+
+User/Account:
+
+Represents an authenticated person who may eventually manage a Provider.
+
+Do NOT store login credentials on the Provider table.
+
+Do NOT use the invitation as a user account.
+
+Do NOT automatically create permanent user authentication credentials when sending an invitation.
+
+==================================================
+4. INVITATION TABLE
+==================================================
+
+Create a normalized invitation table using PostgreSQL.
+
+It should support information such as:
+
+- id
+- provider_id where applicable
+- provider_type
+- recipient_email
+- invitation token/hash
+- status
+- expires_at
+- sent_at
+- accepted_at
+- completed_at
+- created_by
+- created_at
+- updated_at
+
+Use proper PostgreSQL types.
+
+Do not store invitation information as JSON.
+
+Do not store raw invitation tokens if a secure hash-based token approach is appropriate.
+
+==================================================
+5. INVITATION STATUS
+==================================================
+
+Use controlled statuses.
+
+At minimum:
+
+- PENDING
+- ACCEPTED
+- EXPIRED
+- CANCELLED
+- COMPLETED
+
+The provider's lifecycle/status is separate.
+
+Example:
+
+Invitation:
+COMPLETED
+
+Provider:
+UNDER_REVIEW
+
+Publication:
+UNPUBLISHED
+
+Do NOT equate invitation completion with provider approval.
+
+==================================================
+6. SECURE INVITATION TOKEN
+==================================================
+
+Invitation links must use cryptographically secure random tokens.
+
+Requirements:
+
+- High entropy
+- Single use
+- Expiration
+- Server-side validation
+- Invalidated after completion
+- Cannot be reused
+- Cannot expose database passwords/secrets
+- Cannot contain sensitive provider information
+
+Do not use predictable IDs as invitation tokens.
+
+Do not put passwords in invitation URLs.
+
+==================================================
+7. INVITATION URL
+==================================================
+
+Create a public invitation route such as:
+
+/provider/invite/:token
+
+The actual route may follow the existing frontend architecture.
+
+The link should open the appropriate provider form.
+
+The server must validate the token before exposing sensitive invitation information.
+
+==================================================
+8. ADMIN INVITATION UI
+==================================================
+
+Create an Admin invitation interface.
+
+Suggested route:
+
+/admin/invitations
+
+Use the existing reusable DataTable.
+
+Columns:
+
+- Recipient
+- Provider Type
+- Provider
+- Status
+- Sent
+- Expires
+- Actions
+
+Actions:
+
+- View
+- Resend
+- Cancel
+- Copy invitation link where appropriate
+
+Use reusable:
+
+- DataTable
+- Search
+- FilterBar
+- StatusBadge
+- ActionMenu
+- Pagination
+- Dialog
+- ConfirmationDialog
+
+Do not create a separate invitation table component if the shared DataTable already exists.
+
+==================================================
+9. CREATE INVITATION
+==================================================
+
+Admin can create an invitation.
+
+Fields:
+
+Provider Type:
+
+- Hospital
+- Clinic
+- Doctor
+
+Recipient Email
+
+Optional existing Provider selection.
+
+The system should support:
+
+A. Invite an existing Provider
+
+B. Invite a new Provider
+
+==================================================
+10. EXISTING PROVIDER INVITATION
+==================================================
+
+If Admin selects an existing Provider:
+
+Example:
+
+Existing Hospital:
+ABC Hospital
+
+Admin:
+Send invitation to hospital-admin@example.com
+
+The invitation must be linked to the existing Provider.
+
+Do NOT create another Hospital.
+
+The recipient completes/updates the existing Provider information.
+
+==================================================
+11. NEW PROVIDER INVITATION
+==================================================
+
+If the provider does not already exist:
+
+The system may create a Provider draft associated with the invitation.
+
+Example:
+
+Invitation:
+
+Provider Type:
+HOSPITAL
+
+Provider:
+Draft Hospital
+
+Status:
+DRAFT
+
+The recipient then completes the information.
+
+After submission:
+
+Provider:
+UNDER_REVIEW
+
+Publication:
+UNPUBLISHED
+
+Do not publish automatically.
+
+==================================================
+12. PROVIDER TYPE VALIDATION
+==================================================
+
+The invitation can target only:
+
+- HOSPITAL
+- CLINIC
+- DOCTOR
+
+Do not allow:
+
+Doctor → Doctor invitation relationships.
+
+Do not accept arbitrary provider types from the frontend.
+
+Validate provider type on the backend.
+
+==================================================
+13. INVITATION FORM — HOSPITAL
+==================================================
+
+When the recipient opens a Hospital invitation, display the appropriate provider form.
+
+Use the existing Provider architecture.
+
+Allow appropriate fields including:
+
+- Hospital name
+- Description
+- Contact information
+- Specializations
+- Locations
+- Photos
+- Visit stability
+- Other existing Hospital fields
+
+Do not duplicate existing Provider forms.
+
+Reuse existing components.
+
+==================================================
+14. INVITATION FORM — CLINIC
+==================================================
+
+Same principle for Clinic.
+
+Use the existing Provider architecture.
+
+Allow:
+
+- Clinic name
+- Description
+- Contact information
+- Specializations
+- Locations
+- Photos
+- Visit stability
+- Other existing Clinic fields
+
+Reuse existing Provider components.
+
+==================================================
+15. INVITATION FORM — DOCTOR
+==================================================
+
+Doctor invitation must use the Doctor architecture from Prompt 6.
+
+Allow appropriate information such as:
+
+- Name
+- Professional title
+- Biography
+- Qualifications
+- Experience
+- Specializations
+- Photos
+- Locations
+- Visit stability
+- Other existing Doctor fields
+
+Do not create a second Doctor model.
+
+==================================================
+16. DOCTOR → EXISTING HOSPITAL/CLINIC MAPPING
+==================================================
+
+IMPORTANT FEATURE:
+
+A Doctor must be able to associate themselves with Hospitals and Clinics that already exist in EquiConnected.
+
+Example:
+
+Doctor:
+Dr. John Smith
+
+Search:
+
+Hospital:
+ABC Hospital
+
+Clinic:
+City Clinic
+
+Doctor selects:
+
+ABC Hospital
+City Clinic
+
+The system creates the appropriate Doctor ↔ Provider relationship.
+
+Do not create duplicate Hospital/Clinic providers.
+
+==================================================
+17. DOCTOR ORGANIZATION SEARCH
+==================================================
+
+When a Doctor wants to associate themselves with an existing Hospital/Clinic:
+
+Provide searchable selection.
+
+Search by:
+
+- Provider name
+- City/location where appropriate
+
+Do NOT load every Hospital/Clinic into a massive frontend dropdown.
+
+Use server-side search.
+
+Only:
+
+- HOSPITAL
+- CLINIC
+
+should be selectable.
+
+A Doctor cannot select another Doctor.
+
+==================================================
+18. DOCTOR → NEW HOSPITAL/CLINIC
+==================================================
+
+IMPORTANT FEATURE:
+
+A Doctor may want to associate themselves with a Hospital or Clinic that does NOT yet exist in EquiConnected.
+
+Provide an option such as:
+
+"Can't find your Hospital/Clinic?"
+
+Then:
+
+Create/Request New Hospital or Clinic
+
+The Doctor can provide basic organization information such as:
+
+- Organization name
+- Type
+- Email/contact
+- Location
+- Other minimal information required to identify the organization
+
+The system should NOT automatically treat this as an approved public provider.
+
+==================================================
+19. NEW ORGANIZATION REQUEST
+==================================================
+
+When a Doctor requests a new Hospital/Clinic:
+
+Create a separate organization/provider request or draft relationship according to the existing Provider architecture.
+
+The system must prevent duplicate organization creation.
+
+Before creating a new organization, perform appropriate matching/search.
+
+Example:
+
+Doctor searches:
+"ABC Medical"
+
+System finds:
+ABC Medical Center
+
+Then suggest:
+
+"Did you mean ABC Medical Center?"
+
+Do not blindly create duplicate Hospital/Clinic records.
+
+==================================================
+20. NEW ORGANIZATION REVIEW
+==================================================
+
+A new Hospital/Clinic requested by a Doctor must go through Admin review.
+
+Flow:
+
+Doctor
+  ↓
+Can't find Hospital/Clinic
+  ↓
+Request new organization
+  ↓
+Admin review
+  ↓
+Approve / Reject
+  ↓
+If approved:
+Organization becomes an actual Provider
+  ↓
+Doctor ↔ Organization relationship created/activated
+  ↓
+Organization can later complete its profile through the appropriate invitation/account workflow
+
+Do NOT automatically publish a newly requested organization.
+
+==================================================
+21. EXISTING ORGANIZATION RELATIONSHIP
+==================================================
+
+When a Doctor selects an existing Hospital/Clinic:
+
+The relationship should be tracked separately from the Provider.
+
+Example:
+
+Doctor:
+Dr. Smith
+
+Organization:
+ABC Hospital
+
+Relationship:
+PENDING / ACTIVE / REJECTED
+
+Use the existing Doctor ↔ Provider relationship architecture from Prompt 6.
+
+Do not duplicate the Doctor profile.
+
+Do not duplicate the Hospital/Clinic provider.
+
+==================================================
+22. RELATIONSHIP APPROVAL
+==================================================
+
+If the business workflow requires Admin confirmation before a Doctor becomes associated with an organization:
+
+Use a relationship status such as:
+
+- PENDING
+- ACTIVE
+- REJECTED
+- INACTIVE
+
+Do not automatically make the relationship ACTIVE if approval is required by the existing architecture.
+
+For Prompt 7, establish the relationship workflow foundation.
+
+The final organization account/permission behavior will be defined in Prompt 10.
+
+==================================================
+23. DOCTOR MULTIPLE ORGANIZATIONS
+==================================================
+
+A Doctor can have multiple organization relationships.
+
+Example:
+
+Dr. Smith
+ ├── ABC Hospital — ACTIVE
+ ├── XYZ Hospital — ACTIVE
+ ├── City Clinic — ACTIVE
+ └── New Medical Center — PENDING
+
+Do not restrict the Doctor to one Hospital/Clinic.
+
+==================================================
+24. PRIMARY ORGANIZATION
+==================================================
+
+Reuse the primary organization concept from Prompt 6 if it exists.
+
+A Doctor may optionally have one primary organization.
+
+Do not force a Doctor to have one.
+
+Do not automatically change the primary organization when adding another relationship.
+
+==================================================
+25. INVITATION ACCEPTANCE
+==================================================
+
+When recipient opens the invitation:
+
+Validate:
+
+- Token
+- Expiry
+- Status
+- Provider relationship
+- Provider type
+
+If valid:
+
+Show the appropriate form.
+
+If expired:
+
+Show a clear expiration message.
+
+If already completed:
+
+Do not allow reuse.
+
+If cancelled:
+
+Do not allow use.
+
+==================================================
+26. SAVE DRAFT
+==================================================
+
+If practical within the existing architecture, allow invited recipients to save progress and return through the same secure invitation.
+
+However:
+
+- The invitation remains secure
+- The token remains valid only until expiration
+- Draft data remains unpublished
+- Draft data is not publicly visible
+
+Do not require permanent account creation in Prompt 7.
+
+==================================================
+27. SUBMISSION
+==================================================
+
+When the recipient submits:
+
+Validate everything server-side.
+
+If valid:
+
+Provider:
+UNDER_REVIEW
+
+Invitation:
+COMPLETED
+
+Publication:
+UNPUBLISHED
+
+The provider must become available to Admin for review.
+
+Do not automatically publish.
+
+==================================================
+28. ADMIN PROVIDER LIST
+==================================================
+
+After submission, the provider should appear in the appropriate Admin provider listing according to the existing status/filter architecture.
+
+For example:
+
+Provider:
+ABC Hospital
+
+Status:
+UNDER_REVIEW
+
+Publication:
+UNPUBLISHED
+
+Admin can later review it in Prompt 8.
+
+Do not make it publicly visible.
+
+==================================================
+29. ADMIN INVITATION LIST
+==================================================
+
+Admin should be able to see:
+
+- Pending invitations
+- Accepted invitations
+- Completed invitations
+- Expired invitations
+- Cancelled invitations
+
+Use the reusable DataTable.
+
+Support:
+
+- Search
+- Status filter
+- Provider type filter
+- Date filtering
+- Pagination
+
+==================================================
+30. RESEND INVITATION
+==================================================
+
+Admin can resend a pending invitation.
+
+When resending:
+
+- Do not create uncontrolled duplicate invitations
+- Apply a clear token/expiration strategy
+- Invalidate the previous token where appropriate
+- Generate a new secure token
+- Update sent_at
+- Update expiry
+
+Prevent invitation abuse.
+
+==================================================
+31. CANCEL INVITATION
+==================================================
+
+Admin can cancel a pending invitation.
+
+Cancelled invitations cannot be used.
+
+Do not delete the historical invitation record.
+
+Use status:
+
+CANCELLED
+
+==================================================
+32. INVITATION EXPIRY
+==================================================
+
+Invitations must expire.
+
+Use a configurable expiration period.
+
+Do not hard-code a business duration if the application already has configuration infrastructure.
+
+Expired invitations cannot be accepted.
+
+Admin may resend a new invitation.
+
+==================================================
+33. EMAIL
+==================================================
+
+Send an email containing:
+
+- EquiConnected branding
+- Recipient greeting
+- Provider type
+- Invitation purpose
+- Secure form link
+- Expiration information
+- Support/contact information where appropriate
+
+Do not put sensitive information in the email.
+
+Do not put passwords in the email.
+
+Use the existing email abstraction if already available.
+
+Do not hard-code email credentials.
+
+==================================================
+34. EMAIL FAILURE
+==================================================
+
+If email delivery fails:
+
+- Do not silently mark the invitation as successfully delivered
+- Show a clear Admin error
+- Preserve the invitation record
+- Allow resend
+
+Do not expose provider secrets or SMTP credentials.
+
+==================================================
+35. DUPLICATE PREVENTION
+==================================================
+
+Prevent:
+
+- Duplicate active invitations to the same provider/email
+- Duplicate Hospital providers
+- Duplicate Clinic providers
+- Duplicate Doctor profiles
+- Duplicate Doctor ↔ Hospital relationships
+- Duplicate Doctor ↔ Clinic relationships
+
+Use both:
+
+- Application-level validation
+- Database constraints where appropriate
+
+==================================================
+36. SECURITY
+==================================================
+
+Invitation endpoints are security-sensitive.
+
+Implement:
+
+- Secure token generation
+- Token expiration
+- Single-use tokens
+- Backend validation
+- Rate limiting where appropriate
+- Input validation
+- Authorization for Admin invitation management
+
+Do not expose internal database IDs unnecessarily.
+
+Do not allow invitation token enumeration.
+
+Do not log raw invitation tokens.
+
+==================================================
+37. DATA PRIVACY
+==================================================
+
+Do not expose unnecessary provider information through invitation endpoints.
+
+Only return the information necessary for completing the invitation.
+
+Do not expose:
+
+- Passwords
+- Authentication secrets
+- Internal security tokens
+- Unnecessary database identifiers
+
+==================================================
+38. REUSABLE UI
+==================================================
+
+Reuse existing:
+
+- DataTable
+- Form components
+- Search
+- FilterBar
+- Pagination
+- Modal/Dialog
+- Confirmation dialog
+- StatusBadge
+- Provider forms
+- Specialization selector
+- Location components
+- Photo components
+- Empty/loading/error states
+
+Do not create duplicate components.
+
+Invitation forms should reuse the existing Provider/Doctor form architecture.
+
+==================================================
+39. API
+==================================================
+
+Use the existing FastAPI architecture.
+
+Create appropriate endpoints such as:
+
+GET
+/api/admin/invitations
+
+POST
+/api/admin/invitations
+
+POST
+/api/admin/invitations/{id}/resend
+
+POST
+/api/admin/invitations/{id}/cancel
+
+GET
+/api/provider/invitations/{token}
+
+POST
+/api/provider/invitations/{token}/save
+
+POST
+/api/provider/invitations/{token}/submit
+
+Additional endpoints may be created for:
+
+Doctor → existing organization search
+
+Doctor → organization request
+
+Use appropriate REST semantics and existing project conventions.
+
+Do not blindly copy these paths if the existing API architecture uses a different established convention.
+
+==================================================
+40. DATABASE
+==================================================
+
+Use proper normalized PostgreSQL structures.
+
+Do not store invitation/provider/relationship data as JSON.
+
+Use:
+
+- Foreign keys
+- Unique constraints
+- Indexes
+- Status enums/controlled values
+- Timestamps
+
+Invitation token lookup must be efficient.
+
+Add appropriate indexes for:
+
+- Token hash
+- Recipient email
+- Provider ID
+- Status
+- Expiry
+
+==================================================
+41. NO ACTIVITY LOGS YET
+==================================================
+
+Do NOT implement the final Activity Log system.
+
+Activity Logs are Prompt 13.
+
+However, structure invitation operations so the future audit system can record:
+
+- Invitation created
+- Invitation sent
+- Invitation resent
+- Invitation accepted
+- Invitation completed
+- Invitation cancelled
+- Invitation expired
+- Doctor organization requested
+- Doctor organization association created
+- Relationship approved/rejected later
+
+Do not create a temporary logging system.
+
+==================================================
+42. NO PUBLIC APPROVAL SYSTEM YET
+==================================================
+
+Prompt 8 will handle:
+
+- Admin review
+- Approve
+- Reject
+- Request changes
+- Publication
+- Website visibility
+
+Prompt 7 should only establish the submission/status foundation needed for Prompt 8.
+
+==================================================
+43. TESTING
+==================================================
+
+Add tests for:
+
+Invitation:
+
+- Create invitation
+- Correct provider type
+- Secure token
+- Token expiration
+- Single-use token
+- Cancel
+- Resend
+- Invalid token
+- Expired token
+- Completed token
+
+Submission:
+
+- Hospital invitation
+- Clinic invitation
+- Doctor invitation
+- Form validation
+- Save draft if implemented
+- Submit
+- Provider becomes UNDER_REVIEW
+- Provider remains UNPUBLISHED
+
+Existing provider:
+
+- Existing Provider invitation does not duplicate Provider
+
+Doctor:
+
+- Search existing Hospital
+- Search existing Clinic
+- Associate with existing Hospital
+- Associate with existing Clinic
+- Multiple organization relationships
+- Duplicate relationship prevention
+- Doctor cannot associate with Doctor
+
+New organization:
+
+- Doctor cannot find Hospital/Clinic
+- Request new organization
+- Duplicate organization prevention
+- Request remains pending for Admin review
+- No automatic public publication
+
+Security:
+
+- Unauthorized Admin endpoints rejected
+- Invalid token rejected
+- Expired token rejected
+- Token cannot be reused
+- Raw token not exposed in logs
+
+Regression:
+
+- Existing Provider functionality continues working
+- Existing Doctor functionality continues working
+- Existing Specialization functionality continues working
+- Existing Location/Photo functionality continues working
+
+==================================================
+44. MIGRATIONS
+==================================================
+
+Inspect existing migrations first.
+
+Create only required new migrations.
+
+Do not modify historical migrations already applied.
+
+Verify migrations work against the existing database.
+
+==================================================
+45. COMPLETION CRITERIA
+==================================================
+
+Phase 7 is complete when:
+
+1. Admin can invite Hospital
+2. Admin can invite Clinic
+3. Admin can invite Doctor
+4. Invitation email is generated/sent through the existing email abstraction
+5. Invitation contains secure form link
+6. Invitation token is secure and expiring
+7. Recipient can open the form
+8. Correct form appears based on provider type
+9. Recipient can complete provider information
+10. Recipient can submit
+11. Submitted provider becomes UNDER_REVIEW
+12. Submitted provider remains UNPUBLISHED
+13. Admin can see submitted provider
+14. Admin can see invitation status
+15. Admin can resend invitation
+16. Admin can cancel invitation
+17. Existing providers are not duplicated
+18. Doctor can search existing Hospitals
+19. Doctor can search existing Clinics
+20. Doctor can associate with existing organizations
+21. Doctor can have multiple organizations
+22. Doctor can request a new Hospital/Clinic if one does not exist
+23. New organization requests do not automatically publish
+24. Duplicate organizations are prevented
+25. Existing reusable UI components are reused
+26. No duplicate architecture is created
+27. No JSON relational storage is introduced
+28. Tests pass
+29. Migrations succeed
+30. Existing Prompt 3–6 functionality continues working
+
+At completion, report:
+
+1. Files created/changed
+2. Database tables/changes
+3. Invitation statuses
+4. Provider status behavior
+5. API endpoints
+6. Frontend routes
+7. Email implementation
+8. Doctor organization mapping implementation
+9. Duplicate prevention strategy
+10. Security measures
+11. Tests and results
+12. Migration commands
+13. Any architectural decisions requiring approval
+
+STOP after Prompt 7.
+
+Do not proceed automatically to Prompt 8.

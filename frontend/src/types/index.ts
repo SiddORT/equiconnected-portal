@@ -289,3 +289,20 @@ export interface ProviderListParams {
   page?: number;
   page_size?: number;
 }
+
+// ── Doctor domain — re-exported for convenient single-import ─────────────────
+export type {
+  DoctorOrganizationStatus,
+  SpecBrief,
+  OrgBrief,
+  QualificationResponse,
+  QualificationCreate,
+  QualificationUpdate,
+  DoctorOrgResponse,
+  DoctorOrganizationCreate,
+  DoctorOrganizationUpdate,
+  DoctorListItem,
+  DoctorResponse,
+  DoctorCreate,
+  DoctorUpdate,
+} from './doctor';
