@@ -20,7 +20,7 @@ import type { DoctorListItem } from '@/types/doctor';
 import styles from './DoctorsPage.module.css';
 
 const STABILITY_OPTS = [
-  { value: 'all', label: 'All stability' },
+  { value: 'all', label: 'All visit statuses' },
   { value: 'STABLE_VISIT', label: 'Stable' },
   { value: 'NOT_STABLE_VISIT', label: 'Not stable' },
 ];
@@ -161,7 +161,7 @@ export function DoctorsPage() {
     },
     {
       key: 'visit_stability',
-      label: 'Visit Stability',
+      label: 'Visit Stable',
       width: '120px',
       hideOnMobile: true,
       render: (d) => (
@@ -257,7 +257,7 @@ export function DoctorsPage() {
             groups={[
               { label: 'Specialization', options: specOpts, value: specFilter, onChange: (v) => { setSpecFilter(v); setPage(1); } },
               { label: 'Organization', options: orgOpts, value: orgFilter, onChange: (v) => { setOrgFilter(v); setPage(1); } },
-              { label: 'Stability', options: STABILITY_OPTS, value: stabilityFilter, onChange: (v) => { setStabilityFilter(v); setPage(1); } },
+              { label: 'Visit Stable', options: STABILITY_OPTS, value: stabilityFilter, onChange: (v) => { setStabilityFilter(v); setPage(1); } },
               { label: 'Status', options: STATUS_OPTS, value: statusFilter, onChange: (v) => { setStatusFilter(v); setPage(1); } },
               { label: 'Publication', options: PUB_OPTS, value: publicationFilter, onChange: (v) => { setPublicationFilter(v); setPage(1); } },
             ]}

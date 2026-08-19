@@ -46,8 +46,8 @@ import type {
 import styles from './DoctorForm.module.css';
 
 const VISIT_STABILITY_OPTIONS = [
-  { value: 'STABLE_VISIT', label: 'Stable visit' },
-  { value: 'NOT_STABLE_VISIT', label: 'Not stable visit' },
+  { value: 'STABLE_VISIT', label: 'Stable' },
+  { value: 'NOT_STABLE_VISIT', label: 'Not stable' },
 ];
 const STATUS_OPTIONS = [
   { value: 'ACTIVE', label: 'Active' },
@@ -189,7 +189,7 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
   function validate(): boolean {
     const errors: Record<string, string> = {};
     if (!name.trim()) errors.name = 'Name is required.';
-    if (!visitStability) errors.visit_stability = 'Visit stability is required.';
+    if (!visitStability) errors.visit_stability = 'Visit Stable is required.';
     const phErrors: Record<number, string> = {};
     phoneEntries.forEach((p, i) => {
       if (!p.number.trim()) phErrors[i] = 'Enter a number or remove this row.';
@@ -502,7 +502,7 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
           <h3 className={styles.sectionTitle}>Classification</h3>
           <div className={styles.grid}>
             <Select
-              label="Visit stability"
+              label="Visit Stable"
               options={VISIT_STABILITY_OPTIONS}
               placeholder="Select…"
               value={visitStability}

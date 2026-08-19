@@ -298,7 +298,7 @@ export function DoctorDetailPage() {
                 {doctor.publication_status === 'PUBLISHED' ? 'Published' : 'Unpublished'}
               </Badge>
               <Badge variant={doctor.visit_stability === 'STABLE_VISIT' ? 'success' : 'warning'}>
-                {doctor.visit_stability === 'STABLE_VISIT' ? 'Stable visit' : 'Not stable visit'}
+                {doctor.visit_stability === 'STABLE_VISIT' ? 'Stable' : 'Not stable'}
               </Badge>
             </div>
             <div className={styles.overviewActions}>

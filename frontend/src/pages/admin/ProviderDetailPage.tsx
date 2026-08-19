@@ -361,7 +361,7 @@ export function ProviderDetailPage() {
                   {p.publication_status === 'PUBLISHED' ? 'Published' : 'Unpublished'}
                 </Badge>
                 <Badge variant={p.visit_stability === 'STABLE_VISIT' ? 'success' : 'warning'}>
-                  {p.visit_stability === 'STABLE_VISIT' ? 'Stable visit' : 'Not stable visit'}
+                  {p.visit_stability === 'STABLE_VISIT' ? 'Stable' : 'Not stable'}
                 </Badge>
               </div>
             </div>

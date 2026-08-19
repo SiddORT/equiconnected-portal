@@ -52,8 +52,8 @@ const PROVIDER_TYPE_OPTIONS = [
   { value: 'DOCTOR', label: 'Doctor' },
 ];
 const VISIT_STABILITY_OPTIONS = [
-  { value: 'STABLE_VISIT', label: 'Stable visit' },
-  { value: 'NOT_STABLE_VISIT', label: 'Not stable visit' },
+  { value: 'STABLE_VISIT', label: 'Stable' },
+  { value: 'NOT_STABLE_VISIT', label: 'Not stable' },
 ];
 const STATUS_OPTIONS = [
   { value: 'ACTIVE', label: 'Active' },
@@ -267,7 +267,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     const errors: Record<string, string> = {};
     if (!providerType) errors.provider_type = 'Provider type is required.';
     if (!name.trim()) errors.name = 'Name is required.';
-    if (!visitStability) errors.visit_stability = 'Visit stability is required.';
+    if (!visitStability) errors.visit_stability = 'Visit Stable is required.';
     if (location.address_line_1.trim() && !location.city.trim()) {
       errors.city = 'City is required when an address is provided.';
     }
@@ -670,7 +670,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           <h3 className={styles.sectionTitle}>Classification</h3>
           <div className={styles.grid}>
             <Select
-              label="Visit stability"
+              label="Visit Stable"
               options={VISIT_STABILITY_OPTIONS}
               placeholder="Select…"
               value={visitStability}

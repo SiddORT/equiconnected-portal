@@ -139,7 +139,7 @@ export function ProvidersPage() {
     },
     {
       key: 'visit_stability',
-      label: 'Visit Stability',
+      label: 'Visit Stable',
       width: '130px',
       hideOnMobile: true,
       render: (p) => (
@@ -263,7 +263,7 @@ export function ProvidersPage() {
       onChange: resetAnd(setTypeFilter),
     },
     {
-      label: 'Visit stability',
+      label: 'Visit Stable',
       options: [
         { value: 'all', label: 'All visits' },
         { value: 'STABLE_VISIT', label: 'Stable' },
