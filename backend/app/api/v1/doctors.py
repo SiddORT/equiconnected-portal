@@ -94,7 +94,7 @@ def list_doctors(
         meta=PaginationMeta(
             page=page,
             page_size=page_size,
-            total_items=total,
+            total=total,
             total_pages=max(1, ceil(total / page_size)),
         ),
     )
