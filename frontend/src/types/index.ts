@@ -146,6 +146,7 @@ export interface ProviderListItem {
   publication_status: PublicationStatus;
   created_at: string;
   updated_at: string;
+  thumbnail_url: string | null;
 }
 
 export interface ProviderSpecializationBrief {

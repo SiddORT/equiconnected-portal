@@ -60,6 +60,7 @@ class ProviderRepository:
         stmt = select(Provider).options(
             selectinload(Provider.phones),
             selectinload(Provider.emails),
+            selectinload(Provider.photos),
         )
         count_stmt = select(func.count()).select_from(Provider)
 

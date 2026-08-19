@@ -122,10 +122,18 @@ export function ProvidersPage() {
       width: '1.8fr',
       render: (p) => (
         <span className={styles.providerCell}>
-          <Link to={`/admin/providers/${p.id}`} className={styles.providerName}>
-            {p.name}
-          </Link>
-          <Badge variant="info" size="sm">{TYPE_LABELS[p.provider_type]}</Badge>
+          <span className={styles.providerAvatar}>
+            {p.thumbnail_url
+              ? <img src={p.thumbnail_url} alt="" className={styles.providerAvatarImg} />
+              : <span className={styles.providerAvatarFallback}>{p.name.charAt(0).toUpperCase()}</span>
+            }
+          </span>
+          <span className={styles.providerInfo}>
+            <Link to={`/admin/providers/${p.id}`} className={styles.providerName}>
+              {p.name}
+            </Link>
+            <Badge variant="info" size="sm">{TYPE_LABELS[p.provider_type]}</Badge>
+          </span>
         </span>
       ),
     },

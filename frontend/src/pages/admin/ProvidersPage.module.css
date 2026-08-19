@@ -177,8 +177,44 @@
 .providerCell {
   display: flex;
   align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.providerAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  background: var(--bg-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.providerAvatarImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.providerAvatarFallback {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--text-muted);
+  line-height: 1;
+  font-family: var(--font-display);
+}
+
+.providerInfo {
+  display: flex;
+  align-items: center;
   gap: var(--space-2);
   min-width: 0;
+  flex: 1;
 }
 
 .providerName {

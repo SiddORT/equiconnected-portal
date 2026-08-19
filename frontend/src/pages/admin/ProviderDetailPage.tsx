@@ -58,12 +58,12 @@ const EMPTY_LOCATION_FORM: LocationFormValues = {
   is_primary: false,
 };
 
-interface PhotoFormValues {
-  alt_text: string;
-  caption: string;
+interface StagedPhoto {
+  id: string;
+  file: File;
+  preview: string;
+  status: 'pending' | 'uploading' | 'done' | 'error';
 }
-
-const EMPTY_PHOTO_FORM: PhotoFormValues = { alt_text: '', caption: '' };
 
 function isImageUrl(ref: string) {
   return (
@@ -107,9 +107,9 @@ export function ProviderDetailPage() {
 
   // Add-photo form
   const [photoFormOpen, setPhotoFormOpen] = useState(false);
-  const [photoForm, setPhotoForm] = useState<PhotoFormValues>(EMPTY_PHOTO_FORM);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string>('');
+  const [stagedPhotos, setStagedPhotos] = useState<StagedPhoto[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -159,22 +159,63 @@ export function ProviderDetailPage() {
     }
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPhotoFile(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setPhotoPreview(ev.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+  function addFiles(files: FileList | File[]) {
+    const arr = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    arr.forEach((file) => {
+      const id = `${Date.now()}-${Math.random()}`;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setStagedPhotos((prev) => [
+          ...prev,
+          { id, file, preview: ev.target?.result as string, status: 'pending' },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  function removeStagedPhoto(id: string) {
+    setStagedPhotos((prev) => prev.filter((p) => p.id !== id));
   }
 
   function resetPhotoForm() {
-    setPhotoForm(EMPTY_PHOTO_FORM);
-    setPhotoFile(null);
-    setPhotoPreview('');
+    setStagedPhotos([]);
+    setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  async function handleUploadAll() {
+    if (stagedPhotos.length === 0) return;
+    setUploading(true);
+    setActionError(null);
+
+    const results = await Promise.allSettled(
+      stagedPhotos.map((sp) =>
+        uploadProviderPhoto(p!.id, sp.file).then(() => {
+          setStagedPhotos((prev) =>
+            prev.map((x) => (x.id === sp.id ? { ...x, status: 'done' } : x))
+          );
+        }).catch(() => {
+          setStagedPhotos((prev) =>
+            prev.map((x) => (x.id === sp.id ? { ...x, status: 'error' } : x))
+          );
+          throw sp.file.name;
+        })
+      )
+    );
+
+    const failed = results.filter((r) => r.status === 'rejected').map((r) => (r as PromiseRejectedResult).reason);
+    await load();
+
+    if (failed.length === 0) {
+      resetPhotoForm();
+      setPhotoFormOpen(false);
+    } else {
+      setActionError(`Failed to upload: ${failed.join(', ')}`);
+      setStagedPhotos((prev) => prev.filter((x) => x.status !== 'done'));
+      setUploading(false);
+    }
   }
 
   if (loadState === 'loading') {
@@ -505,78 +546,91 @@ export function ProviderDetailPage() {
                   setPhotoFormOpen((o) => !o);
                 }}
               >
-                {photoFormOpen ? 'Cancel' : '＋ Add photo'}
+                {photoFormOpen ? 'Cancel' : '＋ Add photos'}
               </Button>
             </div>
           </CardHeader>
           <CardBody>
             {photoFormOpen && (
-              <form
-                className={styles.inlineForm}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!photoFile) {
-                    setActionError('Please select an image to upload.');
-                    return;
-                  }
-                  void run(async () => {
-                    await uploadProviderPhoto(p.id, photoFile, {
-                      alt_text: photoForm.alt_text.trim() || null,
-                      caption: photoForm.caption.trim() || null,
-                    });
-                    resetPhotoForm();
-                    setPhotoFormOpen(false);
-                  }, 'Failed to add photo.');
-                }}
-              >
-                <div className={styles.uploadArea}>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className={styles.fileInput}
-                    id="photo-upload"
-                    onChange={handleFileChange}
-                  />
-                  {photoPreview ? (
-                    <div className={styles.previewWrap}>
-                      <img src={photoPreview} alt="Preview" className={styles.previewImg} />
-                      <button
-                        type="button"
-                        className={styles.changePhoto}
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        Change photo
-                      </button>
-                    </div>
-                  ) : (
-                    <label htmlFor="photo-upload" className={styles.uploadLabel}>
-                      <span className={styles.uploadIcon}>🖼</span>
-                      <span>Click to select an image</span>
-                      <span className={styles.uploadHint}>PNG, JPG, WebP, GIF</span>
-                    </label>
-                  )}
+              <div className={styles.uploadPanel}>
+                {/* Hidden file input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className={styles.fileInput}
+                  onChange={(e) => e.target.files && addFiles(e.target.files)}
+                />
+
+                {/* Drop zone */}
+                <div
+                  className={`${styles.dropZone}${isDragOver ? ` ${styles.dropZoneActive}` : ''}`}
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                  onDragLeave={() => setIsDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragOver(false);
+                    addFiles(e.dataTransfer.files);
+                  }}
+                >
+                  <span className={styles.dropZoneIcon}>🖼</span>
+                  <span className={styles.dropZoneText}>
+                    Drop images here or <span className={styles.dropZoneBrowse}>browse</span>
+                  </span>
+                  <span className={styles.dropZoneHint}>PNG, JPG, WebP, GIF — multiple allowed</span>
                 </div>
-                <div className={styles.formGrid}>
-                  <Input
-                    label="Alt text"
-                    placeholder="Describe the image…"
-                    value={photoForm.alt_text}
-                    onChange={(e) => setPhotoForm((f) => ({ ...f, alt_text: e.target.value }))}
-                  />
-                  <Input
-                    label="Caption"
-                    placeholder="Optional caption…"
-                    value={photoForm.caption}
-                    onChange={(e) => setPhotoForm((f) => ({ ...f, caption: e.target.value }))}
-                  />
-                </div>
+
+                {/* Staged thumbnails */}
+                {stagedPhotos.length > 0 && (
+                  <div className={styles.stagedGrid}>
+                    {stagedPhotos.map((sp) => (
+                      <div key={sp.id} className={styles.stagedThumb}>
+                        <img src={sp.preview} alt={sp.file.name} className={styles.stagedThumbImg} />
+                        {sp.status === 'uploading' && (
+                          <div className={styles.thumbOverlay}>
+                            <span className={styles.thumbSpinner} />
+                          </div>
+                        )}
+                        {sp.status === 'done' && (
+                          <div className={`${styles.thumbOverlay} ${styles.thumbDone}`}>✓</div>
+                        )}
+                        {sp.status === 'error' && (
+                          <div className={`${styles.thumbOverlay} ${styles.thumbError}`}>!</div>
+                        )}
+                        {sp.status === 'pending' && (
+                          <button
+                            type="button"
+                            className={styles.thumbRemove}
+                            onClick={() => removeStagedPhoto(sp.id)}
+                            aria-label={`Remove ${sp.file.name}`}
+                          >
+                            ✕
+                          </button>
+                        )}
+                        <span className={styles.thumbName}>{sp.file.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Footer */}
                 <div className={styles.inlineFormFooter}>
-                  <Button type="submit" variant="primary" size="sm" loading={busy} disabled={!photoPreview}>
-                    Upload photo
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    loading={uploading}
+                    disabled={stagedPhotos.length === 0 || uploading}
+                    onClick={handleUploadAll}
+                  >
+                    {stagedPhotos.length > 1
+                      ? `Upload ${stagedPhotos.length} photos`
+                      : 'Upload photo'}
                   </Button>
                 </div>
-              </form>
+              </div>
             )}
 
             {p.photos.length === 0 ? (

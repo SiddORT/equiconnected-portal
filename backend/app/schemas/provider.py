@@ -229,6 +229,7 @@ class ProviderListItem(BaseModel):
     publication_status: PublicationStatus
     created_at: datetime
     updated_at: datetime
+    thumbnail_url: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -244,6 +245,10 @@ class ProviderListItem(BaseModel):
             (f"{p.country_code} {p.number}" for p in provider.phones if p.is_primary),
             next((f"{p.country_code} {p.number}" for p in provider.phones), None),
         )
+        thumbnail = next(
+            (ph.storage_reference for ph in provider.photos if ph.is_thumbnail),
+            next((ph.storage_reference for ph in provider.photos), None),
+        )
         return cls(
             id=provider.id,
             provider_type=provider.provider_type,
@@ -255,6 +260,7 @@ class ProviderListItem(BaseModel):
             publication_status=provider.publication_status,
             created_at=provider.created_at,
             updated_at=provider.updated_at,
+            thumbnail_url=thumbnail,
         )
 
 
