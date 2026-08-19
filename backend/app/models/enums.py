@@ -17,6 +17,8 @@ class VisitStability(str, enum.Enum):
 
 
 class ProviderStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    UNDER_REVIEW = "UNDER_REVIEW"
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
 
@@ -27,5 +29,15 @@ class PublicationStatus(str, enum.Enum):
 
 
 class DoctorOrganizationStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    REJECTED = "REJECTED"
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
+
+
+class InvitationStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    ACCEPTED = "ACCEPTED"
+    EXPIRED = "EXPIRED"
+    CANCELLED = "CANCELLED"
+    COMPLETED = "COMPLETED"

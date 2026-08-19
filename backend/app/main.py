@@ -4,6 +4,7 @@ EquiConnected Portal — FastAPI application entry point.
 from contextlib import asynccontextmanager
 
 import os
+import re
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +14,15 @@ from fastapi.staticfiles import StaticFiles
 from app.api.v1.router import api_v1_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
+
+
+def _safe_log_path(request: Request) -> str:
+    """Redact security tokens embedded in public invitation paths."""
+    return re.sub(
+        r"(/api/v1/provider/invitations/)[^/]+",
+        r"\1<redacted>",
+        request.url.path,
+    )
 
 
 @asynccontextmanager
@@ -69,7 +79,7 @@ def create_app() -> FastAPI:
         logger = get_logger(__name__)
         logger.error(
             "unhandled_exception",
-            path=str(request.url),
+            path=_safe_log_path(request),
             method=request.method,
             exc=str(exc),
         )

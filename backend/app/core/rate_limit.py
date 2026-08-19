@@ -27,6 +27,7 @@ _MAX_ATTEMPTS: int = 10       # maximum login attempts per window per IP
 _lock = threading.Lock()
 # Maps IP → deque of monotonic timestamps of recent attempts
 _attempts: dict[str, deque[float]] = defaultdict(deque)
+_invitation_attempts: dict[str, deque[float]] = defaultdict(deque)
 
 
 # ── Dependency ────────────────────────────────────────────────────────────────
@@ -59,4 +60,27 @@ def check_login_rate_limit(request: Request) -> None:
                 headers={"Retry-After": str(_WINDOW_SECONDS)},
             )
 
+        q.append(now)
+
+
+def check_invitation_rate_limit(request: Request) -> None:
+    """Limit public invitation-token requests without retaining raw tokens."""
+    ip: str = (request.client.host if request.client else None) or "unknown"
+    now: float = time.monotonic()
+    window_seconds = 300
+    max_attempts = 60
+    cutoff = now - window_seconds
+    with _lock:
+        q = _invitation_attempts[ip]
+        while q and q[0] < cutoff:
+            q.popleft()
+        if len(q) >= max_attempts:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "code": "rate_limited",
+                    "message": "Too many invitation requests. Please try again later.",
+                },
+                headers={"Retry-After": str(window_seconds)},
+            )
         q.append(now)

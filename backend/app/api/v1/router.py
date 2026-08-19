@@ -9,6 +9,7 @@ from app.api.v1.admin import router as admin_router
 from app.api.v1.specializations import router as specializations_router
 from app.api.v1.providers import router as providers_router
 from app.api.v1.doctors import router as doctors_router
+from app.api.v1.invitations import admin_router as invitations_admin_router, public_router as invitations_public_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
@@ -17,3 +18,5 @@ api_v1_router.include_router(admin_router)
 api_v1_router.include_router(specializations_router)
 api_v1_router.include_router(providers_router)
 api_v1_router.include_router(doctors_router)
+api_v1_router.include_router(invitations_admin_router)
+api_v1_router.include_router(invitations_public_router)

@@ -259,3 +259,6 @@ class ProviderRepository:
 
     def rollback(self) -> None:
         self._db.rollback()
+
+    def flush(self) -> None:
+        self._db.flush()

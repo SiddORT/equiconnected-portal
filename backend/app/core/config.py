@@ -47,6 +47,16 @@ class Settings(BaseSettings):
     COOKIE_SECURE: bool = False  # Set True in production (HTTPS)
     COOKIE_SAMESITE: str = "lax"
 
+    # ── Email / invitations ───────────────────────────────────────────────────
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    EMAIL_FROM: str = "no-reply@equiconnected.local"
+    EMAIL_TLS: bool = True
+    PUBLIC_APP_URL: str = "http://localhost:5000"
+    INVITATION_EXPIRE_DAYS: int = 7
+
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT == "production"
