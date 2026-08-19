@@ -35,6 +35,9 @@ import type {
   DoctorCreate,
   DoctorResponse,
   DoctorUpdate,
+  InvitationDraftPayload,
+  InvitationDraftProvider,
+  InvitationSpecialization,
   ProviderStatus,
   PublicationStatus,
   Specialization,
@@ -55,26 +58,48 @@ const PUBLICATION_OPTIONS = [
   { value: 'PUBLISHED', label: 'Published' },
 ];
 
-interface DoctorFormProps {
-  initialData?: DoctorResponse;
-  onSuccess: (doctor: DoctorResponse) => void;
-  onCancel: () => void;
+/**
+ * Invitation mode — the form is driven by a public invitation token instead
+ * of the admin API. Status/publication controls are hidden and save/submit
+ * are delegated to the adapter callbacks.
+ */
+export interface DoctorInvitationFormConfig {
+  initial: InvitationDraftProvider;
+  loadSpecializations: () => Promise<InvitationSpecialization[]>;
+  onSaveDraft: (payload: InvitationDraftPayload) => Promise<void>;
+  onSubmit: (payload: InvitationDraftPayload) => Promise<void>;
+  externalErrors?: Record<string, string>;
 }
 
-export function DoctorForm({ initialData, onSuccess, onCancel }: DoctorFormProps) {
+interface DoctorFormProps {
+  initialData?: DoctorResponse;
+  invitation?: DoctorInvitationFormConfig;
+  onSuccess?: (doctor: DoctorResponse) => void;
+  onCancel?: () => void;
+  /** Extra sections rendered before the footer (e.g. organization association). */
+  children?: React.ReactNode;
+}
+
+export function DoctorForm({ initialData, invitation, onSuccess, onCancel, children }: DoctorFormProps) {
   const isEdit = Boolean(initialData);
+  const inv = invitation;
 
   // ── Core fields ──────────────────────────────────────────────────────────────
-  const [name, setName] = useState(initialData?.name ?? '');
-  const [professionalTitle, setProfessionalTitle] = useState(initialData?.professional_title ?? '');
-  const [website, setWebsite] = useState(initialData?.website ?? '');
-  const [visitStability, setVisitStability] = useState(initialData?.visit_stability ?? '');
-  const [biography, setBiography] = useState(initialData?.biography ?? '');
-  const [yearsExperience, setYearsExperience] = useState(
-    initialData?.years_experience != null ? String(initialData.years_experience) : ''
+  const [name, setName] = useState(inv?.initial.name ?? initialData?.name ?? '');
+  const [professionalTitle, setProfessionalTitle] = useState(
+    inv?.initial.professional_title ?? initialData?.professional_title ?? ''
   );
+  const [website, setWebsite] = useState(inv?.initial.website ?? initialData?.website ?? '');
+  const [visitStability, setVisitStability] = useState(
+    inv?.initial.visit_stability ?? initialData?.visit_stability ?? ''
+  );
+  const [biography, setBiography] = useState(inv?.initial.biography ?? initialData?.biography ?? '');
+  const [yearsExperience, setYearsExperience] = useState(() => {
+    const initial = inv?.initial.years_experience ?? initialData?.years_experience;
+    return initial != null ? String(initial) : '';
+  });
   const [experienceDescription, setExperienceDescription] = useState(
-    initialData?.experience_description ?? ''
+    inv?.initial.experience_description ?? initialData?.experience_description ?? ''
   );
   const [status, setStatus] = useState<ProviderStatus>(initialData?.status ?? 'ACTIVE');
   const [publication, setPublication] = useState<PublicationStatus>(
@@ -83,19 +108,30 @@ export function DoctorForm({ initialData, onSuccess, onCancel }: DoctorFormProps
 
   // ── Contact ──────────────────────────────────────────────────────────────────
   const [phoneEntries, setPhoneEntries] = useState<PhoneEntry[]>(() =>
-    initialData?.phones.map((p) => ({
-      id: p.id,
-      country_code: p.country_code,
-      number: p.number,
-      is_primary: p.is_primary,
-    })) ?? []
+    inv
+      ? inv.initial.phones.map((p) => ({
+          country_code: p.country_code,
+          number: p.number,
+          is_primary: p.is_primary ?? false,
+        }))
+      : initialData?.phones.map((p) => ({
+          id: p.id,
+          country_code: p.country_code,
+          number: p.number,
+          is_primary: p.is_primary,
+        })) ?? []
   );
   const [emailEntries, setEmailEntries] = useState<EmailEntry[]>(() =>
-    initialData?.emails.map((e) => ({
-      id: e.id,
-      email: e.email,
-      is_primary: e.is_primary,
-    })) ?? []
+    inv
+      ? inv.initial.emails.map((e) => ({
+          email: e.email,
+          is_primary: e.is_primary ?? false,
+        }))
+      : initialData?.emails.map((e) => ({
+          id: e.id,
+          email: e.email,
+          is_primary: e.is_primary,
+        })) ?? []
   );
   const [phoneErrors, setPhoneErrors] = useState<Record<number, string>>({});
   const [emailErrors, setEmailErrors] = useState<Record<number, string>>({});
@@ -105,26 +141,35 @@ export function DoctorForm({ initialData, onSuccess, onCancel }: DoctorFormProps
   const [specsError, setSpecsError] = useState<string | null>(null);
   const [specFilter, setSpecFilter] = useState('');
   const [selectedSpecIds, setSelectedSpecIds] = useState<string[]>(
-    initialData?.specializations.map((s) => s.id) ?? []
+    inv?.initial.specialization_ids ?? initialData?.specializations.map((s) => s.id) ?? []
   );
 
   // ── Form state ───────────────────────────────────────────────────────────────
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [apiError, setApiError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
 
   // Load all active specializations
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const all: Specialization[] = [];
-        let page = 1;
-        for (;;) {
-          const res = await listSpecializations({ is_active: true, page, page_size: 100 });
-          all.push(...res.data);
-          if (page >= res.meta.total_pages) break;
-          page += 1;
+        let all: Specialization[];
+        if (inv) {
+          const rows = await inv.loadSpecializations();
+          all = rows.map((r) => ({
+            id: r.id, name: r.name, description: null, is_active: true, created_at: '', updated_at: '',
+          }));
+        } else {
+          all = [];
+          let page = 1;
+          for (;;) {
+            const res = await listSpecializations({ is_active: true, page, page_size: 100 });
+            all.push(...res.data);
+            if (page >= res.meta.total_pages) break;
+            page += 1;
+          }
         }
         if (!cancelled) setSpecializations(all);
       } catch (err) {
@@ -132,6 +177,7 @@ export function DoctorForm({ initialData, onSuccess, onCancel }: DoctorFormProps
       }
     })();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function toggleSpec(id: string) {
@@ -162,10 +208,59 @@ export function DoctorForm({ initialData, onSuccess, onCancel }: DoctorFormProps
     );
   }
 
+  function buildInvitationPayload(): InvitationDraftPayload {
+    const payload: InvitationDraftPayload = {
+      website: website.trim() || null,
+      professional_title: professionalTitle.trim() || null,
+      biography: biography.trim() || null,
+      years_experience: yearsExperience ? Number(yearsExperience) : null,
+      experience_description: experienceDescription.trim() || null,
+      specialization_ids: selectedSpecIds,
+      phones: phoneEntries
+        .filter((p) => p.number.trim())
+        .map((p) => ({
+          country_code: p.country_code,
+          number: p.number.trim(),
+          is_primary: p.is_primary,
+        })),
+      emails: emailEntries
+        .filter((e) => e.email.trim())
+        .map((e) => ({ email: e.email.trim(), is_primary: e.is_primary })),
+    };
+    if (name.trim()) payload.name = name.trim();
+    if (visitStability) payload.visit_stability = visitStability as VisitStability;
+    return payload;
+  }
+
+  async function handleSaveDraft() {
+    if (!inv) return;
+    setApiError(null);
+    setSavingDraft(true);
+    try {
+      await inv.onSaveDraft(buildInvitationPayload());
+    } catch (err) {
+      setApiError(extractErrorMessage(err, 'Failed to save your draft. Please try again.'));
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setApiError(null);
     if (!validate()) return;
+
+    if (inv) {
+      setSubmitting(true);
+      try {
+        await inv.onSubmit(buildInvitationPayload());
+      } catch (err) {
+        setApiError(extractErrorMessage(err, 'Failed to submit. Please check the form and try again.'));
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -296,7 +391,7 @@ export function DoctorForm({ initialData, onSuccess, onCancel }: DoctorFormProps
         saved = await createDoctor(body);
       }
 
-      onSuccess(saved);
+      onSuccess?.(saved);
     } catch (err) {
       setApiError(extractErrorMessage(err, 'Failed to save doctor. Please try again.'));
     } finally {
@@ -306,8 +401,10 @@ export function DoctorForm({ initialData, onSuccess, onCancel }: DoctorFormProps
 
   return (
     <form onSubmit={handleSubmit} noValidate className={styles.form}>
-      {apiError && (
-        <div className={`${styles.apiError} ${styles.cardFull}`} role="alert">{apiError}</div>
+      {(apiError || inv?.externalErrors?._form) && (
+        <div className={`${styles.apiError} ${styles.cardFull}`} role="alert">
+          {apiError ?? inv?.externalErrors?._form}
+        </div>
       )}
 
       {/* ── Basic information ──────────────────────────────────────────────── */}
@@ -320,7 +417,7 @@ export function DoctorForm({ initialData, onSuccess, onCancel }: DoctorFormProps
               placeholder="e.g. Dr. Priya Sharma"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              error={fieldErrors.name}
+              error={fieldErrors.name ?? inv?.externalErrors?.name}
               required
               maxLength={300}
             />
@@ -410,21 +507,25 @@ export function DoctorForm({ initialData, onSuccess, onCancel }: DoctorFormProps
               placeholder="Select…"
               value={visitStability}
               onChange={(e) => setVisitStability(e.target.value)}
-              error={fieldErrors.visit_stability}
+              error={fieldErrors.visit_stability ?? inv?.externalErrors?.visit_stability}
               required
             />
-            <Select
-              label="Status"
-              options={STATUS_OPTIONS}
-              value={status}
-              onChange={(e) => setStatus(e.target.value as ProviderStatus)}
-            />
-            <Select
-              label="Publication status"
-              options={PUBLICATION_OPTIONS}
-              value={publication}
-              onChange={(e) => setPublication(e.target.value as PublicationStatus)}
-            />
+            {!inv && (
+              <>
+                <Select
+                  label="Status"
+                  options={STATUS_OPTIONS}
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as ProviderStatus)}
+                />
+                <Select
+                  label="Publication status"
+                  options={PUBLICATION_OPTIONS}
+                  value={publication}
+                  onChange={(e) => setPublication(e.target.value as PublicationStatus)}
+                />
+              </>
+            )}
           </div>
         </section>
       </Card>
@@ -485,13 +586,34 @@ export function DoctorForm({ initialData, onSuccess, onCancel }: DoctorFormProps
         </section>
       </Card>
 
+      {children}
+
       <footer className={`${styles.footer} ${styles.cardFull}`}>
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
-          Cancel
-        </Button>
-        <Button type="submit" variant="primary" loading={submitting}>
-          {isEdit ? 'Save changes' : 'Create doctor'}
-        </Button>
+        {inv ? (
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleSaveDraft}
+              loading={savingDraft}
+              disabled={submitting}
+            >
+              Save draft
+            </Button>
+            <Button type="submit" variant="primary" loading={submitting} disabled={savingDraft}>
+              Submit for review
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" loading={submitting}>
+              {isEdit ? 'Save changes' : 'Create doctor'}
+            </Button>
+          </>
+        )}
       </footer>
     </form>
   );

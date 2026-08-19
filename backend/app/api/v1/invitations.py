@@ -11,6 +11,7 @@ from app.auth.dependencies import CurrentUser, require_role
 from app.db.session import get_db
 from app.core.rate_limit import check_invitation_rate_limit
 from app.models.enums import InvitationStatus, ProviderType
+from app.models.specialization import Specialization
 from app.repositories.invitation_repository import InvitationRepository
 from app.repositories.provider_repository import ProviderRepository
 from app.schemas.common import PaginatedResponse, PaginationMeta
@@ -48,6 +49,10 @@ _OrganizationSvc = Annotated[OrganizationRequestService, Depends(_organization_s
 def _error(code: int, key: str, message: str) -> HTTPException:
     return HTTPException(status_code=code, detail={"code": key, "message": message})
 
+def _unavailable_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, InvitationCompletedError):
+        return _error(409, "invitation_completed", "This invitation has already been completed.")
+    return _error(409, "invitation_cancelled", "This invitation has been cancelled.")
 @admin_router.get("", response_model=InvitationListResponse)
 def list_invitations(svc: _Svc, search: str | None = None, status_: InvitationStatus | None = Query(None, alias="status"),
                      provider_type: ProviderType | None = None, date_from: datetime | None = None, date_to: datetime | None = None,
@@ -89,22 +94,32 @@ def get_invitation(token: str, svc: _Svc):
     try: return InvitationTokenResponse.model_validate(svc.token_payload(svc.validate_token(token)))
     except InvitationNotFoundError: raise _error(404, "invitation_not_found", "Invitation link is invalid.")
     except InvitationExpiredError: raise _error(410, "invitation_expired", "Invitation link has expired.")
-    except (InvitationCompletedError, InvitationCancelledError): raise _error(409, "invitation_unavailable", "Invitation link is no longer available.")
+    except (InvitationCompletedError, InvitationCancelledError) as exc: raise _unavailable_error(exc)
 
 @public_router.post("/{token}/save", response_model=InvitationTokenResponse)
 def save_invitation(token: str, body: DraftSaveRequest, svc: _Svc):
     try: return InvitationTokenResponse.model_validate(svc.token_payload(svc.save_draft(token, body.model_dump(exclude_unset=True))))
     except InvitationNotFoundError: raise _error(404, "invitation_not_found", "Invitation link is invalid.")
     except InvitationExpiredError: raise _error(410, "invitation_expired", "Invitation link has expired.")
-    except (InvitationCompletedError, InvitationCancelledError): raise _error(409, "invitation_unavailable", "Invitation link is no longer available.")
+    except (InvitationCompletedError, InvitationCancelledError) as exc: raise _unavailable_error(exc)
     except InvalidProviderDataError as exc: raise _error(422, "provider_validation_failed", str(exc))
 
+@public_router.get("/{token}/specializations")
+def invitation_specializations(token: str, svc: _Svc, db: _DB):
+    """Active specializations for the public invitation form (token-gated)."""
+    try:
+        svc.validate_token(token)
+    except InvitationNotFoundError: raise _error(404, "invitation_not_found", "Invitation link is invalid.")
+    except InvitationExpiredError: raise _error(410, "invitation_expired", "Invitation link has expired.")
+    except (InvitationCompletedError, InvitationCancelledError) as exc: raise _unavailable_error(exc)
+    rows = db.query(Specialization).filter(Specialization.is_active.is_(True)).order_by(Specialization.name).all()
+    return {"data": [{"id": str(row.id), "name": row.name} for row in rows]}
 @public_router.post("/{token}/submit", response_model=InvitationTokenResponse)
 def submit_invitation(token: str, body: SubmitRequest, svc: _Svc):
     try: return InvitationTokenResponse.model_validate(svc.token_payload(svc.submit_invitation(token, body.model_dump(exclude_unset=True))))
     except InvitationNotFoundError: raise _error(404, "invitation_not_found", "Invitation link is invalid.")
     except InvitationExpiredError: raise _error(410, "invitation_expired", "Invitation link has expired.")
-    except (InvitationCompletedError, InvitationCancelledError) as exc: raise _error(409, "invitation_unavailable", str(exc) or "Invitation link is no longer available.")
+    except (InvitationCompletedError, InvitationCancelledError) as exc: raise _unavailable_error(exc)
     except (InvalidInvitationStateError, InvalidProviderDataError) as exc: raise _error(422, "provider_validation_failed", str(exc))
 
 
@@ -125,7 +140,7 @@ def associate_organization(
         return {"id": relationship.id, "status": relationship.status}
     except InvitationNotFoundError: raise _error(404, "invitation_not_found", "Invitation link is invalid.")
     except InvitationExpiredError: raise _error(410, "invitation_expired", "Invitation link has expired.")
-    except (InvitationCompletedError, InvitationCancelledError): raise _error(409, "invitation_unavailable", "Invitation link is no longer available.")
+    except (InvitationCompletedError, InvitationCancelledError) as exc: raise _unavailable_error(exc)
     except InvalidOrganizationTypeError as exc: raise _error(422, "invalid_organization", str(exc))
     except DuplicateOrganizationRelationshipError: raise _error(409, "duplicate_organization_relationship", "This organization is already associated.")
 
@@ -139,7 +154,7 @@ def create_organization_request(
         return organization_svc.create_request(invitation.provider_id, body.model_dump())
     except InvitationNotFoundError: raise _error(404, "invitation_not_found", "Invitation link is invalid.")
     except InvitationExpiredError: raise _error(410, "invitation_expired", "Invitation link has expired.")
-    except (InvitationCompletedError, InvitationCancelledError): raise _error(409, "invitation_unavailable", "Invitation link is no longer available.")
+    except (InvitationCompletedError, InvitationCancelledError) as exc: raise _unavailable_error(exc)
     except InvalidOrganizationTypeError as exc: raise _error(422, "invalid_organization", str(exc))
     except DuplicateOrganizationSuggestionsError as exc:
         raise HTTPException(status_code=409, detail={

@@ -209,7 +209,7 @@ export function DoctorsPage() {
           items={[
             { label: 'View', onSelect: () => navigate(`/admin/doctors/${d.id}`) },
             { label: 'Edit', onSelect: () => navigate(`/admin/doctors/${d.id}/edit`) },
-            { label: '—', disabled: true, onSelect: () => undefined },
+            { label: '—', onSelect: () => {}, disabled: true },
             {
               label: d.status === 'ACTIVE' ? 'Mark inactive' : 'Mark active',
               onSelect: () => handleToggleStatus(d),
@@ -283,7 +283,7 @@ export function DoctorsPage() {
             pageSize={PAGE_SIZE}
             total={result.meta.total}
             onPageChange={setPage}
-            onPageSizeChange={() => undefined}
+            onPageSizeChange={() => {}}
           />
         )}
       </div>

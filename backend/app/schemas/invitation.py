@@ -76,3 +76,7 @@ class DraftSaveRequest(BaseModel):
 class SubmitRequest(DraftSaveRequest):
     name: str = Field(..., min_length=1, max_length=300)
     visit_stability: VisitStability
+    # Doctor invitations only: the final set of organizations to associate.
+    # Reconciled atomically with the submit — PENDING relationships are created
+    # (or removed) in the same transaction so nothing persists on a failed submit.
+    organization_ids: list[UUID] | None = None

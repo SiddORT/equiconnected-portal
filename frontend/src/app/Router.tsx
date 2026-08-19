@@ -18,6 +18,8 @@ import { DoctorNewPage } from '@/pages/admin/DoctorNewPage';
 import { DoctorDetailPage } from '@/pages/admin/DoctorDetailPage';
 import { DoctorEditPage } from '@/pages/admin/DoctorEditPage';
 import { InvitationsPage } from '@/pages/admin/InvitationsPage';
+import { InvitationPage } from '@/pages/InvitationPage';
+import { SubmissionSuccessPage } from '@/pages/SubmissionSuccessPage';
 
 export function AppRouter() {
   return (
@@ -25,6 +27,10 @@ export function AppRouter() {
       <Routes>
         {/* ── Public ──────────────────────────────────────────────── */}
         <Route path="/" element={<PublicPage />} />
+        <Route path="/provider/invite/success" element={<SubmissionSuccessPage />} />
+        <Route path="/provider/invite/:token" element={<InvitationPage />} />
+        {/* Emailed links use /provider/invitations/{token} — same page. */}
+        <Route path="/provider/invitations/:token" element={<InvitationPage />} />
 
         {/* ── Admin auth ──────────────────────────────────────────── */}
         <Route path="/admin/login" element={<LoginPage />} />

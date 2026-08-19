@@ -345,3 +345,19 @@ export type {
   DoctorCreate,
   DoctorUpdate,
 } from './doctor';
+
+// ── Public invitation domain — re-exported for convenient single-import ──────
+export type {
+  DraftLocation,
+  DraftPhone,
+  DraftEmail,
+  DraftPhoto,
+  InvitationDraftProvider,
+  InvitationTokenData,
+  InvitationDraftPayload,
+  InvitationSpecialization,
+  OrgSearchResult,
+  OrgSuggestion,
+  OrgRequestCreatePayload,
+  OrgRequestResult,
+} from './invitation';

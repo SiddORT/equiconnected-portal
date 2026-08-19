@@ -37,6 +37,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.security import hash_password
 from app.models.enums import (
+    DoctorOrganizationStatus,
     InvitationStatus,
     ProviderStatus,
     ProviderType,
@@ -1088,3 +1089,126 @@ class TestConcurrentDuplicatePrevention:
             .count()
             == 1
         )
+
+
+# ── Atomic organization association on submit ────────────────────────────────
+
+class TestSubmitOrganizationReconciliation:
+    """organization_ids on submit must be reconciled atomically with the submit."""
+
+    @pytest.fixture()
+    def published_org(self, db) -> Provider:
+        org = Provider(
+            provider_type=ProviderType.HOSPITAL,
+            name="Published Org Hospital",
+            visit_stability=VisitStability.STABLE_VISIT,
+            status=ProviderStatus.ACTIVE,
+            publication_status=PublicationStatus.PUBLISHED,
+        )
+        db.add(org)
+        db.commit()
+        db.refresh(org)
+        return org
+
+    def _doctor_token(self, client, admin_token, captured_email, email):
+        _create_invitation(
+            client, admin_token, recipient_email=email, provider_type="DOCTOR"
+        )
+        return captured_email["token"]
+
+    def _relationships(self, db, doctor_id):
+        from app.models.doctor import DoctorOrganization
+
+        db.expire_all()
+        return db.query(DoctorOrganization).filter_by(doctor_id=doctor_id).all()
+
+    def test_failed_submit_creates_no_relationships(
+        self, client, admin_token, db, captured_email, published_org
+    ):
+        token = self._doctor_token(client, admin_token, captured_email, "orgatomic1@example.com")
+        inv = db.query(ProviderInvitation).filter_by(
+            token_hash=_sha256(token)
+        ).one()
+
+        # Missing required visit_stability → 422; association must not persist.
+        resp = client.post(
+            f"{PUBLIC_BASE}/{token}/submit",
+            json={"name": "Dr. Atomic", "organization_ids": [str(published_org.id)]},
+        )
+        assert resp.status_code == 422
+        assert self._relationships(db, inv.provider_id) == []
+
+    def test_invalid_org_id_fails_submit_without_side_effects(
+        self, client, admin_token, db, captured_email
+    ):
+        token = self._doctor_token(client, admin_token, captured_email, "orgatomic2@example.com")
+        inv = db.query(ProviderInvitation).filter_by(token_hash=_sha256(token)).one()
+
+        resp = client.post(
+            f"{PUBLIC_BASE}/{token}/submit",
+            json={
+                "name": "Dr. Atomic",
+                "visit_stability": "STABLE_VISIT",
+                "organization_ids": [str(uuid.uuid4())],
+            },
+        )
+        assert resp.status_code == 422
+        db.expire_all()
+        invitation = db.get(ProviderInvitation, inv.id)
+        assert invitation.status != InvitationStatus.COMPLETED
+        assert self._relationships(db, inv.provider_id) == []
+
+    def test_successful_submit_creates_pending_relationships(
+        self, client, admin_token, db, captured_email, published_org
+    ):
+        token = self._doctor_token(client, admin_token, captured_email, "orgatomic3@example.com")
+        inv = db.query(ProviderInvitation).filter_by(token_hash=_sha256(token)).one()
+
+        resp = client.post(
+            f"{PUBLIC_BASE}/{token}/submit",
+            json={
+                "name": "Dr. Atomic",
+                "visit_stability": "STABLE_VISIT",
+                "organization_ids": [str(published_org.id)],
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        rels = self._relationships(db, inv.provider_id)
+        assert len(rels) == 1
+        assert rels[0].organization_id == published_org.id
+        assert rels[0].status == DoctorOrganizationStatus.PENDING
+
+    def test_retry_after_failure_respects_chip_removal(
+        self, client, admin_token, db, captured_email, published_org
+    ):
+        """Failed submit with an org, then retry without it → no relationship."""
+        token = self._doctor_token(client, admin_token, captured_email, "orgatomic4@example.com")
+        inv = db.query(ProviderInvitation).filter_by(token_hash=_sha256(token)).one()
+
+        # Pre-existing PENDING relationship from the standalone association
+        # endpoint (older flow / earlier attempt).
+        resp = client.post(
+            f"{PUBLIC_BASE}/{token}/organizations",
+            json={"organization_id": str(published_org.id)},
+        )
+        assert resp.status_code == 201
+
+        # First submit attempt fails validation (org list still includes it).
+        resp = client.post(
+            f"{PUBLIC_BASE}/{token}/submit",
+            json={"name": "Dr. Atomic", "organization_ids": [str(published_org.id)]},
+        )
+        assert resp.status_code == 422
+
+        # User removes the chip and retries — reconciliation must delete the
+        # stale PENDING relationship.
+        resp = client.post(
+            f"{PUBLIC_BASE}/{token}/submit",
+            json={
+                "name": "Dr. Atomic",
+                "visit_stability": "STABLE_VISIT",
+                "organization_ids": [],
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        assert self._relationships(db, inv.provider_id) == []

@@ -32,6 +32,9 @@ import { Select } from '@/components/ui/Select';
 import { MultiEmailField, type EmailEntry } from './MultiEmailField';
 import { MultiPhoneField, type PhoneEntry } from './MultiPhoneField';
 import type {
+  InvitationDraftPayload,
+  InvitationDraftProvider,
+  InvitationSpecialization,
   Provider,
   ProviderCreate,
   ProviderLocationCreate,
@@ -85,20 +88,47 @@ const EMPTY_LOCATION: LocationValues = {
   longitude: '',
 };
 
-interface ProviderFormProps {
-  initialData?: Provider;
-  onSuccess: (provider: Provider) => void;
-  onCancel: () => void;
+/**
+ * Invitation mode — the form is driven by a public invitation token instead
+ * of the admin API. Status/publication controls are hidden, the provider
+ * type is fixed, and save/submit are delegated to the adapter callbacks.
+ */
+export interface InvitationFormConfig {
+  providerType: ProviderType;
+  initial: InvitationDraftProvider;
+  loadSpecializations: () => Promise<InvitationSpecialization[]>;
+  onSaveDraft: (payload: InvitationDraftPayload) => Promise<void>;
+  onSubmit: (payload: InvitationDraftPayload) => Promise<void>;
+  externalErrors?: Record<string, string>;
 }
 
-export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormProps) {
-  const isEdit = Boolean(initialData);
+interface ProviderFormProps {
+  initialData?: Provider;
+  invitation?: InvitationFormConfig;
+  onSuccess?: (provider: Provider) => void;
+  onCancel?: () => void;
+}
 
-  const [providerType, setProviderType] = useState<string>(initialData?.provider_type ?? '');
-  const [name, setName] = useState(initialData?.name ?? '');
-  const [description, setDescription] = useState(initialData?.description ?? '');
-  const [website, setWebsite] = useState(initialData?.website ?? '');
+export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: ProviderFormProps) {
+  const isEdit = Boolean(initialData);
+  const inv = invitation;
+
+  const [providerType, setProviderType] = useState<string>(
+    inv?.providerType ?? initialData?.provider_type ?? ''
+  );
+  const [name, setName] = useState(inv?.initial.name ?? initialData?.name ?? '');
+  const [description, setDescription] = useState(
+    inv?.initial.description ?? initialData?.description ?? ''
+  );
+  const [website, setWebsite] = useState(inv?.initial.website ?? initialData?.website ?? '');
   const [phoneEntries, setPhoneEntries] = useState<PhoneEntry[]>(() => {
+    if (inv) {
+      return inv.initial.phones.map((p) => ({
+        country_code: p.country_code,
+        number: p.number,
+        is_primary: p.is_primary ?? false,
+      }));
+    }
     if (!initialData) return [];
     if (initialData.phones.length > 0) {
       return initialData.phones.map((p) => ({
@@ -120,6 +150,12 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
     return [];
   });
   const [emailEntries, setEmailEntries] = useState<EmailEntry[]>(() => {
+    if (inv) {
+      return inv.initial.emails.map((e) => ({
+        email: e.email,
+        is_primary: e.is_primary ?? false,
+      }));
+    }
     if (!initialData) return [];
     if (initialData.emails.length > 0) {
       return initialData.emails.map((e) => ({
@@ -136,17 +172,35 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
   });
   const [phoneErrors, setPhoneErrors] = useState<Record<number, string>>({});
   const [emailErrors, setEmailErrors] = useState<Record<number, string>>({});
-  const [visitStability, setVisitStability] = useState<string>(initialData?.visit_stability ?? '');
+  const [visitStability, setVisitStability] = useState<string>(
+    inv?.initial.visit_stability ?? initialData?.visit_stability ?? ''
+  );
   const [status, setStatus] = useState<string>(initialData?.status ?? 'ACTIVE');
   const [publication, setPublication] = useState<string>(
     initialData?.publication_status ?? 'UNPUBLISHED'
   );
   const [selectedSpecIds, setSelectedSpecIds] = useState<string[]>(
-    initialData?.specializations.map((s) => s.id) ?? []
+    inv?.initial.specialization_ids ?? initialData?.specializations.map((s) => s.id) ?? []
   );
 
   // Location — pre-populate from the existing primary location in edit mode.
   const [location, setLocation] = useState<LocationValues>(() => {
+    if (inv) {
+      const draftPrimary =
+        inv.initial.locations.find((l) => l.is_primary) ?? inv.initial.locations[0];
+      if (!draftPrimary) return EMPTY_LOCATION;
+      return {
+        name: draftPrimary.name ?? '',
+        address_line_1: draftPrimary.address_line_1,
+        address_line_2: draftPrimary.address_line_2 ?? '',
+        city: draftPrimary.city,
+        state_province: draftPrimary.state_province ?? '',
+        country: draftPrimary.country ?? '',
+        postal_code: draftPrimary.postal_code ?? '',
+        latitude: draftPrimary.latitude != null ? String(draftPrimary.latitude) : '',
+        longitude: draftPrimary.longitude != null ? String(draftPrimary.longitude) : '',
+      };
+    }
     if (!initialData) return EMPTY_LOCATION;
     const primary =
       initialData.locations.find((l) => l.is_primary) ?? initialData.locations[0];
@@ -171,19 +225,28 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [apiError, setApiError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
 
   // Load active specializations for the multi-select (page through all).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const all: Specialization[] = [];
-        let pageNum = 1;
-        for (;;) {
-          const res = await listSpecializations({ is_active: true, page: pageNum, page_size: 100 });
-          all.push(...res.data);
-          if (pageNum >= res.meta.total_pages) break;
-          pageNum += 1;
+        let all: Specialization[];
+        if (inv) {
+          const rows = await inv.loadSpecializations();
+          all = rows.map((r) => ({
+            id: r.id, name: r.name, description: null, is_active: true, created_at: '', updated_at: '',
+          }));
+        } else {
+          all = [];
+          let pageNum = 1;
+          for (;;) {
+            const res = await listSpecializations({ is_active: true, page: pageNum, page_size: 100 });
+            all.push(...res.data);
+            if (pageNum >= res.meta.total_pages) break;
+            pageNum += 1;
+          }
         }
         if (!cancelled) setSpecializations(all);
       } catch (err) {
@@ -191,6 +254,7 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
       }
     })();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function toggleSpec(id: string) {
@@ -229,10 +293,72 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
     );
   }
 
+  function buildInvitationPayload(): InvitationDraftPayload {
+    const payload: InvitationDraftPayload = {
+      description: description.trim() || null,
+      website: website.trim() || null,
+      specialization_ids: selectedSpecIds,
+      phones: phoneEntries
+        .filter((p) => p.number.trim())
+        .map((p) => ({
+          country_code: p.country_code,
+          number: p.number.trim(),
+          is_primary: p.is_primary,
+        })),
+      emails: emailEntries
+        .filter((e) => e.email.trim())
+        .map((e) => ({ email: e.email.trim(), is_primary: e.is_primary })),
+    };
+    if (name.trim()) payload.name = name.trim();
+    if (visitStability) payload.visit_stability = visitStability as VisitStability;
+    if (location.address_line_1.trim() && location.city.trim()) {
+      payload.locations = [
+        {
+          name: location.name.trim() || null,
+          address_line_1: location.address_line_1.trim(),
+          address_line_2: location.address_line_2.trim() || null,
+          city: location.city.trim(),
+          state_province: location.state_province.trim() || null,
+          country: location.country.trim() || null,
+          postal_code: location.postal_code.trim() || null,
+          latitude: location.latitude.trim() ? parseFloat(location.latitude) : null,
+          longitude: location.longitude.trim() ? parseFloat(location.longitude) : null,
+          is_primary: true,
+        },
+      ];
+    }
+    return payload;
+  }
+
+  async function handleSaveDraft() {
+    if (!inv) return;
+    setApiError(null);
+    setSavingDraft(true);
+    try {
+      await inv.onSaveDraft(buildInvitationPayload());
+    } catch (err) {
+      setApiError(extractErrorMessage(err, 'Failed to save your draft. Please try again.'));
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setApiError(null);
     if (!validate()) return;
+
+    if (inv) {
+      setSubmitting(true);
+      try {
+        await inv.onSubmit(buildInvitationPayload());
+      } catch (err) {
+        setApiError(extractErrorMessage(err, 'Failed to submit. Please check the form and try again.'));
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -396,7 +522,7 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
         };
         saved = await createProvider(body);
       }
-      onSuccess(saved);
+      onSuccess?.(saved);
     } catch (err) {
       setApiError(extractErrorMessage(err, 'Failed to save provider. Please try again.'));
     } finally {
@@ -404,10 +530,14 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
     }
   }
 
+  const errs = { ...fieldErrors, ...(inv?.externalErrors ?? {}) };
+
   return (
     <form onSubmit={handleSubmit} noValidate className={styles.form}>
-      {apiError && (
-        <div className={styles.apiError} role="alert">{apiError}</div>
+      {(apiError || errs._form) && (
+        <div className={`${styles.apiError} ${styles.cardFull}`} role="alert">
+          {apiError ?? errs._form}
+        </div>
       )}
 
       {/* ── Basic information ─────────────────────────────────────────────── */}
@@ -421,7 +551,8 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
               placeholder="Select type…"
               value={providerType}
               onChange={(e) => setProviderType(e.target.value)}
-              error={fieldErrors.provider_type}
+              error={errs.provider_type}
+              disabled={Boolean(inv)}
               required
             />
             <Input
@@ -429,7 +560,7 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
               placeholder="e.g. St. Mary's Hospital"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              error={fieldErrors.name}
+              error={errs.name}
               required
               maxLength={300}
             />
@@ -544,21 +675,25 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
               placeholder="Select…"
               value={visitStability}
               onChange={(e) => setVisitStability(e.target.value)}
-              error={fieldErrors.visit_stability}
+              error={errs.visit_stability}
               required
             />
-            <Select
-              label="Status"
-              options={STATUS_OPTIONS}
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-            />
-            <Select
-              label="Publication status"
-              options={PUBLICATION_OPTIONS}
-              value={publication}
-              onChange={(e) => setPublication(e.target.value)}
-            />
+            {!inv && (
+              <>
+                <Select
+                  label="Status"
+                  options={STATUS_OPTIONS}
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                />
+                <Select
+                  label="Publication status"
+                  options={PUBLICATION_OPTIONS}
+                  value={publication}
+                  onChange={(e) => setPublication(e.target.value)}
+                />
+              </>
+            )}
           </div>
         </section>
       </Card>
@@ -580,7 +715,7 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
               label="Address line 1"
               value={location.address_line_1}
               onChange={(e) => setLocation((l) => ({ ...l, address_line_1: e.target.value }))}
-              error={fieldErrors.address_line_1}
+              error={errs.address_line_1}
             />
             <Input
               label="Address line 2"
@@ -591,7 +726,7 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
               label="City"
               value={location.city}
               onChange={(e) => setLocation((l) => ({ ...l, city: e.target.value }))}
-              error={fieldErrors.city}
+              error={errs.city}
             />
             <Input
               label="State / Province"
@@ -627,12 +762,31 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
       </Card>
 
       <footer className={`${styles.footer} ${styles.cardFull}`}>
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
-          Cancel
-        </Button>
-        <Button type="submit" variant="primary" loading={submitting}>
-          {isEdit ? 'Save changes' : 'Create provider'}
-        </Button>
+        {inv ? (
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleSaveDraft}
+              loading={savingDraft}
+              disabled={submitting}
+            >
+              Save draft
+            </Button>
+            <Button type="submit" variant="primary" loading={submitting} disabled={savingDraft}>
+              Submit for review
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" loading={submitting}>
+              {isEdit ? 'Save changes' : 'Create provider'}
+            </Button>
+          </>
+        )}
       </footer>
     </form>
   );

@@ -458,11 +458,53 @@ class InvitationService:
 
     def submit_invitation(self, token: str, fields: dict) -> ProviderInvitation:
         invitation = self.validate_token(token)
+        fields = dict(fields)
+        organization_ids = fields.pop("organization_ids", None)
         provider = self._apply_provider_fields(invitation, fields)
         if not provider or not provider.name.strip() or not provider.visit_stability:
             raise InvalidInvitationStateError("Provider name and visit stability are required.")
+        if organization_ids is not None:
+            self._reconcile_organizations(invitation, organization_ids)
         provider.status, provider.publication_status = ProviderStatus.UNDER_REVIEW, PublicationStatus.UNPUBLISHED
         invitation.status, invitation.completed_at = InvitationStatus.COMPLETED, _now()
         self._repo.commit()
         self._emit_event("provider_invitation.submitted", invitation)
         return invitation
+
+    def _reconcile_organizations(self, invitation: ProviderInvitation, organization_ids: list) -> None:
+        """Sync the doctor's PENDING organization relationships to `organization_ids`.
+
+        Runs in the submit transaction (flush only, no commit) so a failed
+        submit leaves no stray relationships behind. Non-PENDING relationships
+        (e.g. admin-approved) are never touched.
+        """
+        from app.models.doctor import DoctorOrganization
+        from app.models.enums import DoctorOrganizationStatus
+        from app.models.provider import Provider
+
+        if invitation.provider_type != ProviderType.DOCTOR:
+            raise InvalidProviderDataError("Organization associations require a Doctor invitation.")
+        db = self._repo._db  # same session as the rest of the submit
+        wanted = list(dict.fromkeys(UUID(str(oid)) for oid in organization_ids))
+        existing = (
+            db.query(DoctorOrganization)
+            .filter(DoctorOrganization.doctor_id == invitation.provider_id)
+            .all()
+        )
+        existing_by_org = {rel.organization_id: rel for rel in existing}
+        for organization_id in wanted:
+            if organization_id in existing_by_org:
+                continue
+            target = db.get(Provider, organization_id)
+            if not target or target.provider_type not in (ProviderType.HOSPITAL, ProviderType.CLINIC):
+                raise InvalidProviderDataError(f"Organization not found or not a Hospital/Clinic: {organization_id}")
+            db.add(DoctorOrganization(
+                doctor_id=invitation.provider_id,
+                organization_id=organization_id,
+                status=DoctorOrganizationStatus.PENDING,
+            ))
+        wanted_set = set(wanted)
+        for rel in existing:
+            if rel.organization_id not in wanted_set and rel.status == DoctorOrganizationStatus.PENDING:
+                db.delete(rel)
+        db.flush()
