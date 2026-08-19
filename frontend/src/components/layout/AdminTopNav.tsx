@@ -9,6 +9,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Specializations', to: '/admin/specializations', icon: '⚕' },
   { label: 'Providers', to: '/admin/providers', icon: '🏥' },
   { label: 'Doctors', to: '/admin/doctors', icon: '👨‍⚕️' },
+  { label: 'Invitations', to: '/admin/invitations', icon: '✉' },
 ];
 
 export function AdminTopNav() {

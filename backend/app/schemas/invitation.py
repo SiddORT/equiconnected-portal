@@ -26,6 +26,8 @@ class InvitationCreate(BaseModel):
 class InvitationResponse(BaseModel):
     id: UUID
     provider_id: UUID | None
+    provider_name: str | None = None
+    is_new_provider: bool = False
     provider_type: ProviderType
     recipient_email: EmailStr
     status: InvitationStatus
@@ -36,6 +38,9 @@ class InvitationResponse(BaseModel):
     created_by: UUID
     created_at: datetime
     updated_at: datetime
+    # Populated only on create/resend responses, where the raw token is known.
+    # It is never persisted or recoverable from the list endpoint.
+    invitation_url: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
 

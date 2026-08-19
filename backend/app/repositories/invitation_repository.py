@@ -112,8 +112,8 @@ class InvitationRepository:
         self, *, search: str | None = None, status: InvitationStatus | None = None,
         provider_type: ProviderType | None = None, date_from: datetime | None = None,
         date_to: datetime | None = None, page: int = 1, page_size: int = 20,
-    ) -> tuple[list[ProviderInvitation], int]:
-        stmt = select(ProviderInvitation).outerjoin(
+    ) -> tuple[list[tuple[ProviderInvitation, str | None, object]], int]:
+        stmt = select(ProviderInvitation, Provider.name, Provider.status).outerjoin(
             Provider, Provider.id == ProviderInvitation.provider_id
         )
         count_stmt = (
@@ -135,15 +135,18 @@ class InvitationRepository:
         if provider_type:
             conditions.append(ProviderInvitation.provider_type == provider_type)
         if date_from:
-            conditions.append(ProviderInvitation.created_at >= date_from)
+            conditions.append(ProviderInvitation.sent_at >= date_from)
         if date_to:
-            conditions.append(ProviderInvitation.created_at <= date_to)
+            conditions.append(ProviderInvitation.sent_at <= date_to)
         for condition in conditions:
             stmt, count_stmt = stmt.where(condition), count_stmt.where(condition)
         total = self._db.scalar(count_stmt) or 0
-        items = list(self._db.scalars(
-            stmt.order_by(ProviderInvitation.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
-        ))
+        items = [
+            (row[0], row[1], row[2])
+            for row in self._db.execute(
+                stmt.order_by(ProviderInvitation.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+            )
+        ]
         return items, total
 
     def commit(self) -> None:

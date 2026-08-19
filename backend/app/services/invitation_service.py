@@ -158,6 +158,9 @@ class InvitationService:
             self._emit_event("provider_invitation.delivery_failed", invitation)
             raise
         self._emit_event("provider_invitation.delivered", invitation)
+        # Transient, non-persisted convenience for the admin UI: the raw link
+        # is only known here, immediately after generation.
+        invitation.invitation_url = self._url(token)
         return invitation
 
     def list(self, **filters) -> tuple[list[ProviderInvitation], int]:
@@ -198,6 +201,8 @@ class InvitationService:
             self._emit_event("provider_invitation.delivery_failed", invitation)
             raise
         self._emit_event("provider_invitation.delivered", invitation)
+        # Transient, non-persisted convenience for the admin UI (see create).
+        invitation.invitation_url = self._url(token)
         return invitation
 
     def cancel_invitation(self, invitation_id: UUID) -> ProviderInvitation:

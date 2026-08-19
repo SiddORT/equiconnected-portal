@@ -17,6 +17,7 @@ import { DoctorsPage } from '@/pages/admin/DoctorsPage';
 import { DoctorNewPage } from '@/pages/admin/DoctorNewPage';
 import { DoctorDetailPage } from '@/pages/admin/DoctorDetailPage';
 import { DoctorEditPage } from '@/pages/admin/DoctorEditPage';
+import { InvitationsPage } from '@/pages/admin/InvitationsPage';
 
 export function AppRouter() {
   return (
@@ -42,6 +43,7 @@ export function AppRouter() {
             <Route path="/admin/doctors/new" element={<DoctorNewPage />} />
             <Route path="/admin/doctors/:id" element={<DoctorDetailPage />} />
             <Route path="/admin/doctors/:id/edit" element={<DoctorEditPage />} />
+            <Route path="/admin/invitations" element={<InvitationsPage />} />
           </Route>
         </Route>
 

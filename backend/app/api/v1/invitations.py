@@ -52,8 +52,14 @@ def _error(code: int, key: str, message: str) -> HTTPException:
 def list_invitations(svc: _Svc, search: str | None = None, status_: InvitationStatus | None = Query(None, alias="status"),
                      provider_type: ProviderType | None = None, date_from: datetime | None = None, date_to: datetime | None = None,
                      page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100)):
-    items, total = svc.list(search=search, status=status_, provider_type=provider_type, date_from=date_from, date_to=date_to, page=page, page_size=page_size)
-    return PaginatedResponse(data=[InvitationResponse.model_validate(item) for item in items],
+    rows, total = svc.list(search=search, status=status_, provider_type=provider_type, date_from=date_from, date_to=date_to, page=page, page_size=page_size)
+    data = []
+    for invitation, provider_name, provider_status in rows:
+        item = InvitationResponse.model_validate(invitation)
+        item.provider_name = provider_name
+        item.is_new_provider = getattr(provider_status, "value", provider_status) == "DRAFT"
+        data.append(item)
+    return PaginatedResponse(data=data,
                              meta=PaginationMeta(page=page, page_size=page_size, total=total, total_pages=max(1, ceil(total/page_size))))
 
 @admin_router.post("", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)

@@ -290,6 +290,45 @@ export interface ProviderListParams {
   page_size?: number;
 }
 
+// ── Provider invitations ──────────────────────────────────────────────────────
+
+export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'CANCELLED' | 'COMPLETED';
+
+export interface Invitation {
+  id: string;
+  provider_id: string | null;
+  provider_name?: string | null;
+  provider_type: ProviderType;
+  recipient_email: string;
+  status: InvitationStatus;
+  expires_at: string;
+  sent_at: string;
+  accepted_at: string | null;
+  completed_at: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  /** Present only when an API implementation safely elects to expose a link. */
+  is_new_provider?: boolean;
+  invitation_url?: string | null;
+}
+
+export interface InvitationCreate {
+  recipient_email: string;
+  provider_type: ProviderType;
+  provider_id?: string | null;
+}
+
+export interface InvitationListParams {
+  search?: string;
+  status?: InvitationStatus;
+  provider_type?: ProviderType;
+  date_from?: string;
+  date_to?: string;
+  page?: number;
+  page_size?: number;
+}
+
 // ── Doctor domain — re-exported for convenient single-import ─────────────────
 export type {
   DoctorOrganizationStatus,
