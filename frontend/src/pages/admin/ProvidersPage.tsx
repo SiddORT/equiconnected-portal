@@ -297,9 +297,9 @@ export function ProvidersPage() {
   return (
     <div className={styles.shell}>
       <PageHeader
-        title="Director Management"
+        title="Providers"
         subtitle="Manage hospitals, clinics, and doctors — profiles, locations, photos, and publication."
-        breadcrumbs={[{ label: 'Admin' }, { label: 'Director Management' }]}
+        breadcrumbs={[{ label: 'Admin' }, { label: 'Providers' }]}
         actions={
           <Button variant="primary" onClick={() => navigate('/admin/providers/new')} leftIcon="＋">
             Add provider

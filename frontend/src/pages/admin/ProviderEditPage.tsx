@@ -42,7 +42,7 @@ export function ProviderEditPage() {
         subtitle="Update provider details."
         breadcrumbs={[
           { label: 'Admin' },
-          { label: 'Director Management', href: '/admin/providers' },
+          { label: 'Providers', href: '/admin/providers' },
           { label: provider?.name ?? '…', href: id ? `/admin/providers/${id}` : undefined },
           { label: 'Edit' },
         ]}

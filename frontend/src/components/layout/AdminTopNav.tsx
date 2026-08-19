@@ -6,12 +6,12 @@ import styles from './AdminTopNav.module.css';
 interface NavItem { label: string; to: string; icon: string; }
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: '⊞' },
-  { label: 'Director Management', to: '/admin/providers', icon: '🏥' },
   { label: 'Doctors', to: '/admin/doctors', icon: '👨‍⚕️' },
 ];
 
 const DIRECTORY_ITEMS: NavItem[] = [
   { label: 'Specializations', to: '/admin/specializations', icon: '⚕' },
+  { label: 'Providers', to: '/admin/providers', icon: '🏥' },
   { label: 'Invitations', to: '/admin/invitations', icon: '✉' },
 ];
 
@@ -100,22 +100,22 @@ export function AdminTopNav() {
             ].filter(Boolean).join(' ')}
             aria-haspopup="menu"
             aria-expanded={directoryOpen}
-            aria-label="Directory"
-            title="Directory"
+            aria-label="Directory Management"
+            title="Directory Management"
             onClick={() => {
               setDirectoryOpen((open) => !open);
               setMenuOpen(false);
             }}
           >
             <span className={styles.linkIcon} aria-hidden="true">📂</span>
-            <span className={styles.linkLabel}>Directory</span>
+            <span className={styles.linkLabel}>Directory Management</span>
             <span className={styles.directoryChevron} aria-hidden="true">
               {directoryOpen ? '▲' : '▼'}
             </span>
           </button>
 
           {directoryOpen && (
-            <div className={`${styles.dropdown} ${styles.directoryDropdown}`} role="menu" aria-label="Directory">
+            <div className={`${styles.dropdown} ${styles.directoryDropdown}`} role="menu" aria-label="Directory Management">
               {DIRECTORY_ITEMS.map((item) => (
                 <NavLink
                   key={item.to}

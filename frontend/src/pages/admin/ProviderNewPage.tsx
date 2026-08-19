@@ -16,7 +16,7 @@ export function ProviderNewPage() {
         subtitle="Create a new hospital, clinic, or doctor profile."
         breadcrumbs={[
           { label: 'Admin' },
-          { label: 'Director Management', href: '/admin/providers' },
+          { label: 'Providers', href: '/admin/providers' },
           { label: 'New' },
         ]}
       />
