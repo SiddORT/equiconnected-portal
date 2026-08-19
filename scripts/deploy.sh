@@ -22,7 +22,7 @@ echo "==> Installing backend dependencies"
 cd "$APP_DIR"
 source "$APP_DIR/.venv/bin/activate"
 
-pip install \
+python -m pip install \
   "alembic>=1.19.1" \
   "argon2-cffi>=25.1.0" \
   "fastapi>=0.141.1" \
