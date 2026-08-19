@@ -21,7 +21,7 @@ npm run build
 echo "==> Installing backend dependencies"
 cd "$APP_DIR"
 source "$APP_DIR/.venv/bin/activate"
-pip install -e .
+uv sync --locked --no-install-project
 
 echo "==> Running database migrations"
 cd "$APP_DIR/backend"
