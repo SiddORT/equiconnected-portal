@@ -86,6 +86,57 @@
   flex-shrink: 0;
 }
 
+.linkLabel {
+  white-space: nowrap;
+}
+
+/* ── Directory menu ──────────────────────────────────────────────────────── */
+.directoryMenu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.directoryTrigger {
+  font-family: inherit;
+  border: 0;
+  cursor: pointer;
+}
+
+.directoryChevron {
+  margin-left: var(--space-1);
+  font-size: 0.55rem;
+  color: var(--color-neutral-400);
+}
+
+.directoryDropdown {
+  left: 0;
+  right: auto;
+  min-width: 210px;
+}
+
+.dropdownNavItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  text-decoration: none;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.dropdownNavItem:hover,
+.dropdownNavItem--active {
+  background: var(--bg-subtle);
+}
+
+.dropdownNavItem--active {
+  color: var(--color-primary-700);
+}
+
 /* ── Profile area ───────────────────────────────────────────────────────── */
 .profileArea {
   position: relative;
@@ -228,6 +279,37 @@
 
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .brandRole { display: none; }
-  .nav { padding: 0 var(--space-4); gap: var(--space-3); }
+  .nav {
+    padding: 0 var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .brand {
+    gap: 0;
+  }
+
+  .brandText,
+  .linkLabel,
+  .directoryChevron {
+    display: none;
+  }
+
+  .links {
+    justify-content: space-between;
+    min-width: 0;
+  }
+
+  .link {
+    gap: 0;
+    padding: var(--space-2);
+  }
+
+  .linkIcon {
+    font-size: 1rem;
+  }
+
+  .directoryDropdown {
+    left: auto;
+    right: 0;
+  }
 }
