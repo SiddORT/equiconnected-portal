@@ -22,6 +22,7 @@ import { ActionMenu } from '@/components/ui/ActionMenu';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
@@ -89,6 +90,20 @@ export function ProviderDetailPage() {
   // Add-location form
   const [locationFormOpen, setLocationFormOpen] = useState(false);
   const [locationForm, setLocationForm] = useState<LocationFormValues>(EMPTY_LOCATION_FORM);
+
+  // Confirm dialog
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmProps, setConfirmProps] = useState<{
+    title: string;
+    message?: string;
+    danger?: boolean;
+    onConfirm: () => void;
+  }>({ title: '', onConfirm: () => {} });
+
+  function openConfirm(title: string, message: string, onConfirm: () => void, danger = true) {
+    setConfirmProps({ title, message, danger, onConfirm });
+    setConfirmOpen(true);
+  }
 
   // Add-photo form
   const [photoFormOpen, setPhotoFormOpen] = useState(false);
@@ -462,9 +477,11 @@ export function ProviderDetailPage() {
                         aria-label="Remove location"
                         disabled={busy}
                         onClick={() => {
-                          if (confirm('Remove this location?')) {
-                            void run(() => deleteProviderLocation(p.id, loc.id), 'Failed to remove location.');
-                          }
+                          openConfirm(
+                            'Remove location?',
+                            'This location will be permanently removed from the provider.',
+                            () => run(() => deleteProviderLocation(p.id, loc.id), 'Failed to remove location.')
+                          );
                         }}
                       >
                         🗑 Remove
@@ -601,9 +618,11 @@ export function ProviderDetailPage() {
                           className={styles.removeBtn}
                           disabled={busy}
                           onClick={() => {
-                            if (confirm('Remove this photo?')) {
-                              void run(() => deleteProviderPhoto(p.id, photo.id), 'Failed to remove photo.');
-                            }
+                          openConfirm(
+                            'Remove photo?',
+                            'This photo will be permanently deleted.',
+                            () => run(() => deleteProviderPhoto(p.id, photo.id), 'Failed to remove photo.')
+                          );
                           }}
                         >
                           🗑 Remove
@@ -617,6 +636,19 @@ export function ProviderDetailPage() {
           </CardBody>
         </Card>
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title={confirmProps.title}
+        message={confirmProps.message}
+        confirmLabel="Remove"
+        danger={confirmProps.danger}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          confirmProps.onConfirm();
+        }}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }
