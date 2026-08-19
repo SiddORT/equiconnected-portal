@@ -10,7 +10,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-6);
-  align-items: start;
+  align-items: stretch;
   flex: 1;
 }
 
@@ -54,6 +54,14 @@
   width: 100%;
 }
 
+/* Overview card — flat single block, no internal divider */
+.overviewCard {
+  padding: var(--space-4) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
 /* Overview header: title left, badges right — all on one line */
 .overviewHeader {
   display: flex;
@@ -61,6 +69,7 @@
   gap: var(--space-4);
   width: 100%;
   flex-wrap: wrap;
+  padding-bottom: var(--space-3);
 }
 
 .badgeRow {
@@ -84,6 +93,15 @@
   margin: 0;
   border-top: 1px solid var(--border-default);
   flex-wrap: wrap;
+}
+
+.overviewDescription {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-default);
 }
 
 .infoStrip > div {

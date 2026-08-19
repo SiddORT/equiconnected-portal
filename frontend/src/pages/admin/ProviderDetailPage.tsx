@@ -267,7 +267,7 @@ export function ProviderDetailPage() {
 
         {/* ── Overview + Basic Info — full width ─────────────────────────────── */}
         <Card padding="none" shadow="sm" className={styles.colFull}>
-          <CardHeader>
+          <div className={styles.overviewCard}>
             <div className={styles.overviewHeader}>
               <h2 className={styles.sectionTitle}>Overview</h2>
               <div className={styles.badgeRow}>
@@ -283,8 +283,6 @@ export function ProviderDetailPage() {
                 </Badge>
               </div>
             </div>
-          </CardHeader>
-          <CardBody>
             <dl className={styles.infoStrip}>
               <div>
                 <dt>Email</dt>
@@ -311,8 +309,8 @@ export function ProviderDetailPage() {
                 <dd>{new Date(p.updated_at).toLocaleString()}</dd>
               </div>
             </dl>
-            {p.description && <p className={styles.description}>{p.description}</p>}
-          </CardBody>
+            {p.description && <p className={styles.overviewDescription}>{p.description}</p>}
+          </div>
         </Card>
 
         {/* ── Specializations — left ────────────────────────────────────────── */}
