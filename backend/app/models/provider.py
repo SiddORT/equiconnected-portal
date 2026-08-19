@@ -166,6 +166,7 @@ class ProviderLocation(TimestampMixin, Base):
         ForeignKey("providers.id", ondelete="CASCADE"),
         nullable=False,
     )
+    name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     address_line_1: Mapped[str] = mapped_column(String(300), nullable=False)
     address_line_2: Mapped[str | None] = mapped_column(String(300), nullable=True)
     city: Mapped[str] = mapped_column(String(150), nullable=False)

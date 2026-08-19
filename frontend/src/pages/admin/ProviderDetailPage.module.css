@@ -248,9 +248,23 @@
   color: var(--text-primary);
 }
 
+.itemLabel {
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .itemSub {
   font-size: var(--text-sm);
   color: var(--text-secondary);
+}
+
+.itemCoords {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono, monospace);
 }
 
 .itemActions {
@@ -372,40 +386,85 @@
   color: var(--text-muted);
 }
 
-/* Staged thumbnail grid */
-.stagedGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+/* Staged photo list — horizontal cards */
+.stagedList {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-3);
 }
 
-.stagedThumb {
-  position: relative;
+.stagedCard {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-3);
+  align-items: flex-start;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
-  overflow: visible;
+  padding: var(--space-3);
+}
+
+.stagedThumbWrap {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-default);
 }
 
 .stagedThumbImg {
   width: 100%;
-  aspect-ratio: 1;
+  height: 100%;
   object-fit: cover;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-default);
   display: block;
 }
 
-.thumbName {
+/* Metadata column */
+.stagedMeta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.stagedFileName {
   font-size: var(--text-xs);
   color: var(--text-muted);
-  text-align: center;
-  width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.stagedLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: var(--text-secondary);
+}
+
+.stagedInput {
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color var(--transition-fast);
+  font-family: inherit;
+}
+.stagedInput:focus {
+  border-color: var(--color-primary-500);
+  background: var(--bg-surface);
+}
+.stagedInput:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Remove button — top-right corner */

@@ -39,22 +39,28 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 interface LocationFormValues {
+  name: string;
   address_line_1: string;
   address_line_2: string;
   city: string;
   state_province: string;
   country: string;
   postal_code: string;
+  latitude: string;
+  longitude: string;
   is_primary: boolean;
 }
 
 const EMPTY_LOCATION_FORM: LocationFormValues = {
+  name: '',
   address_line_1: '',
   address_line_2: '',
   city: '',
   state_province: '',
   country: '',
   postal_code: '',
+  latitude: '',
+  longitude: '',
   is_primary: false,
 };
 
@@ -63,6 +69,8 @@ interface StagedPhoto {
   file: File;
   preview: string;
   status: 'pending' | 'uploading' | 'done' | 'error';
+  alt_text: string;
+  caption: string;
 }
 
 function isImageUrl(ref: string) {
@@ -167,12 +175,16 @@ export function ProviderDetailPage() {
       reader.onload = (ev) => {
         setStagedPhotos((prev) => [
           ...prev,
-          { id, file, preview: ev.target?.result as string, status: 'pending' },
+          { id, file, preview: ev.target?.result as string, status: 'pending', alt_text: '', caption: '' },
         ]);
       };
       reader.readAsDataURL(file);
     });
     if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  function updateStagedMeta(id: string, patch: { alt_text?: string; caption?: string }) {
+    setStagedPhotos((prev) => prev.map((sp) => sp.id === id ? { ...sp, ...patch } : sp));
   }
 
   function removeStagedPhoto(id: string) {
@@ -192,7 +204,10 @@ export function ProviderDetailPage() {
 
     const results = await Promise.allSettled(
       stagedPhotos.map((sp) =>
-        uploadProviderPhoto(p!.id, sp.file).then(() => {
+        uploadProviderPhoto(p!.id, sp.file, {
+          alt_text: sp.alt_text.trim() || null,
+          caption: sp.caption.trim() || null,
+        }).then(() => {
           setStagedPhotos((prev) =>
             prev.map((x) => (x.id === sp.id ? { ...x, status: 'done' } : x))
           );
@@ -428,12 +443,15 @@ export function ProviderDetailPage() {
                   }
                   void run(async () => {
                     await createProviderLocation(p.id, {
+                      name: locationForm.name.trim() || null,
                       address_line_1: locationForm.address_line_1.trim(),
                       address_line_2: locationForm.address_line_2.trim() || null,
                       city: locationForm.city.trim(),
                       state_province: locationForm.state_province.trim() || null,
                       country: locationForm.country.trim() || null,
                       postal_code: locationForm.postal_code.trim() || null,
+                      latitude: locationForm.latitude.trim() ? parseFloat(locationForm.latitude) : null,
+                      longitude: locationForm.longitude.trim() ? parseFloat(locationForm.longitude) : null,
                       is_primary: locationForm.is_primary,
                     });
                     setLocationForm(EMPTY_LOCATION_FORM);
@@ -442,6 +460,12 @@ export function ProviderDetailPage() {
                 }}
               >
                 <div className={styles.formGrid}>
+                  <Input
+                    label="Location name"
+                    placeholder="e.g. Main Branch, Ward 3…"
+                    value={locationForm.name}
+                    onChange={(e) => setLocationForm((f) => ({ ...f, name: e.target.value }))}
+                  />
                   <Input
                     label="Address line 1"
                     required
@@ -474,6 +498,20 @@ export function ProviderDetailPage() {
                     value={locationForm.postal_code}
                     onChange={(e) => setLocationForm((f) => ({ ...f, postal_code: e.target.value }))}
                   />
+                  <Input
+                    label="Latitude"
+                    type="number"
+                    placeholder="-90 to 90"
+                    value={locationForm.latitude}
+                    onChange={(e) => setLocationForm((f) => ({ ...f, latitude: e.target.value }))}
+                  />
+                  <Input
+                    label="Longitude"
+                    type="number"
+                    placeholder="-180 to 180"
+                    value={locationForm.longitude}
+                    onChange={(e) => setLocationForm((f) => ({ ...f, longitude: e.target.value }))}
+                  />
                 </div>
                 <label className={styles.checkboxRow}>
                   <input
@@ -498,6 +536,9 @@ export function ProviderDetailPage() {
                 {p.locations.map((loc) => (
                   <li key={loc.id} className={styles.item}>
                     <div className={styles.itemMain}>
+                      {loc.name && (
+                        <span className={styles.itemLabel}>{loc.name}</span>
+                      )}
                       <span className={styles.itemTitle}>
                         {loc.address_line_1}
                         {loc.address_line_2 ? `, ${loc.address_line_2}` : ''}
@@ -506,6 +547,11 @@ export function ProviderDetailPage() {
                         {[loc.city, loc.state_province, loc.country, loc.postal_code]
                           .filter(Boolean)
                           .join(', ')}
+                        {(loc.latitude != null && loc.longitude != null) && (
+                          <span className={styles.itemCoords}>
+                            {' · '}{Number(loc.latitude).toFixed(5)}, {Number(loc.longitude).toFixed(5)}
+                          </span>
+                        )}
                       </span>
                     </div>
                     <div className={styles.itemActions}>
@@ -582,34 +628,63 @@ export function ProviderDetailPage() {
                   <span className={styles.dropZoneHint}>PNG, JPG, WebP, GIF — multiple allowed</span>
                 </div>
 
-                {/* Staged thumbnails */}
+                {/* Staged photo cards */}
                 {stagedPhotos.length > 0 && (
-                  <div className={styles.stagedGrid}>
+                  <div className={styles.stagedList}>
                     {stagedPhotos.map((sp) => (
-                      <div key={sp.id} className={styles.stagedThumb}>
-                        <img src={sp.preview} alt={sp.file.name} className={styles.stagedThumbImg} />
-                        {sp.status === 'uploading' && (
-                          <div className={styles.thumbOverlay}>
-                            <span className={styles.thumbSpinner} />
-                          </div>
-                        )}
-                        {sp.status === 'done' && (
-                          <div className={`${styles.thumbOverlay} ${styles.thumbDone}`}>✓</div>
-                        )}
-                        {sp.status === 'error' && (
-                          <div className={`${styles.thumbOverlay} ${styles.thumbError}`}>!</div>
-                        )}
-                        {sp.status === 'pending' && (
-                          <button
-                            type="button"
-                            className={styles.thumbRemove}
-                            onClick={() => removeStagedPhoto(sp.id)}
-                            aria-label={`Remove ${sp.file.name}`}
-                          >
-                            ✕
-                          </button>
-                        )}
-                        <span className={styles.thumbName}>{sp.file.name}</span>
+                      <div key={sp.id} className={styles.stagedCard}>
+                        {/* Thumbnail */}
+                        <div className={styles.stagedThumbWrap}>
+                          <img src={sp.preview} alt={sp.file.name} className={styles.stagedThumbImg} />
+                          {sp.status === 'uploading' && (
+                            <div className={styles.thumbOverlay}>
+                              <span className={styles.thumbSpinner} />
+                            </div>
+                          )}
+                          {sp.status === 'done' && (
+                            <div className={`${styles.thumbOverlay} ${styles.thumbDone}`}>✓</div>
+                          )}
+                          {sp.status === 'error' && (
+                            <div className={`${styles.thumbOverlay} ${styles.thumbError}`}>!</div>
+                          )}
+                          {sp.status === 'pending' && (
+                            <button
+                              type="button"
+                              className={styles.thumbRemove}
+                              onClick={() => removeStagedPhoto(sp.id)}
+                              aria-label={`Remove ${sp.file.name}`}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Metadata fields */}
+                        <div className={styles.stagedMeta}>
+                          <span className={styles.stagedFileName}>{sp.file.name}</span>
+                          <label className={styles.stagedLabel}>
+                            Alt text
+                            <input
+                              type="text"
+                              className={styles.stagedInput}
+                              placeholder="Describe the image for accessibility…"
+                              value={sp.alt_text}
+                              disabled={sp.status !== 'pending'}
+                              onChange={(e) => updateStagedMeta(sp.id, { alt_text: e.target.value })}
+                            />
+                          </label>
+                          <label className={styles.stagedLabel}>
+                            Caption
+                            <input
+                              type="text"
+                              className={styles.stagedInput}
+                              placeholder="Optional caption…"
+                              value={sp.caption}
+                              disabled={sp.status !== 'pending'}
+                              onChange={(e) => updateStagedMeta(sp.id, { caption: e.target.value })}
+                            />
+                          </label>
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -62,21 +62,27 @@ const PUBLICATION_OPTIONS = [
 ];
 
 interface LocationValues {
+  name: string;
   address_line_1: string;
   address_line_2: string;
   city: string;
   state_province: string;
   country: string;
   postal_code: string;
+  latitude: string;
+  longitude: string;
 }
 
 const EMPTY_LOCATION: LocationValues = {
+  name: '',
   address_line_1: '',
   address_line_2: '',
   city: '',
   state_province: '',
   country: '',
   postal_code: '',
+  latitude: '',
+  longitude: '',
 };
 
 interface ProviderFormProps {
@@ -146,12 +152,15 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
       initialData.locations.find((l) => l.is_primary) ?? initialData.locations[0];
     if (!primary) return EMPTY_LOCATION;
     return {
+      name: primary.name ?? '',
       address_line_1: primary.address_line_1,
       address_line_2: primary.address_line_2 ?? '',
       city: primary.city,
       state_province: primary.state_province ?? '',
       country: primary.country ?? '',
       postal_code: primary.postal_code ?? '',
+      latitude: primary.latitude != null ? String(primary.latitude) : '',
+      longitude: primary.longitude != null ? String(primary.longitude) : '',
     };
   });
 
@@ -321,12 +330,15 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
             initialData.locations.find((l) => l.is_primary) ??
             initialData.locations[0];
           const locBody = {
+            name: location.name.trim() || null,
             address_line_1: location.address_line_1.trim(),
             address_line_2: location.address_line_2.trim() || null,
             city: location.city.trim(),
             state_province: location.state_province.trim() || null,
             country: location.country.trim() || null,
             postal_code: location.postal_code.trim() || null,
+            latitude: location.latitude.trim() ? parseFloat(location.latitude) : null,
+            longitude: location.longitude.trim() ? parseFloat(location.longitude) : null,
             is_primary: true,
           };
           if (primaryLoc) {
@@ -350,12 +362,15 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
         let primary_location: ProviderLocationCreate | null = null;
         if (location.address_line_1.trim() && location.city.trim()) {
           primary_location = {
+            name: location.name.trim() || null,
             address_line_1: location.address_line_1.trim(),
             address_line_2: location.address_line_2.trim() || null,
             city: location.city.trim(),
             state_province: location.state_province.trim() || null,
             country: location.country.trim() || null,
             postal_code: location.postal_code.trim() || null,
+            latitude: location.latitude.trim() ? parseFloat(location.latitude) : null,
+            longitude: location.longitude.trim() ? parseFloat(location.longitude) : null,
             is_primary: true,
           };
         }
@@ -556,6 +571,12 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
           </h3>
           <div className={styles.grid}>
             <Input
+              label="Location name"
+              placeholder="e.g. Main Branch, Ward 3…"
+              value={location.name}
+              onChange={(e) => setLocation((l) => ({ ...l, name: e.target.value }))}
+            />
+            <Input
               label="Address line 1"
               value={location.address_line_1}
               onChange={(e) => setLocation((l) => ({ ...l, address_line_1: e.target.value }))}
@@ -586,6 +607,20 @@ export function ProviderForm({ initialData, onSuccess, onCancel }: ProviderFormP
               label="Postal code"
               value={location.postal_code}
               onChange={(e) => setLocation((l) => ({ ...l, postal_code: e.target.value }))}
+            />
+            <Input
+              label="Latitude"
+              type="number"
+              placeholder="-90 to 90"
+              value={location.latitude}
+              onChange={(e) => setLocation((l) => ({ ...l, latitude: e.target.value }))}
+            />
+            <Input
+              label="Longitude"
+              type="number"
+              placeholder="-180 to 180"
+              value={location.longitude}
+              onChange={(e) => setLocation((l) => ({ ...l, longitude: e.target.value }))}
             />
           </div>
         </section>

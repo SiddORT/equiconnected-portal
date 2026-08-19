@@ -24,6 +24,7 @@ def _strip(v: object) -> object:
 # ── Location ──────────────────────────────────────────────────────────────────
 
 class LocationCreate(BaseModel):
+    name: str | None = Field(None, max_length=200)
     address_line_1: str = Field(..., min_length=1, max_length=300)
     address_line_2: str | None = Field(None, max_length=300)
     city: str = Field(..., min_length=1, max_length=150)
@@ -39,6 +40,7 @@ class LocationCreate(BaseModel):
 
 class LocationUpdate(BaseModel):
     """PATCH body — all fields optional; only provided fields are updated."""
+    name: str | None = Field(None, max_length=200)
     address_line_1: str | None = Field(None, min_length=1, max_length=300)
     address_line_2: str | None = Field(None, max_length=300)
     city: str | None = Field(None, min_length=1, max_length=150)
@@ -55,6 +57,7 @@ class LocationUpdate(BaseModel):
 class LocationResponse(BaseModel):
     id: UUID
     provider_id: UUID
+    name: str | None
     address_line_1: str
     address_line_2: str | None
     city: str

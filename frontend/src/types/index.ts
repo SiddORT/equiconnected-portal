@@ -158,6 +158,7 @@ export interface ProviderSpecializationBrief {
 export interface ProviderLocation {
   id: string;
   provider_id: string;
+  name: string | null;
   address_line_1: string;
   address_line_2: string | null;
   city: string;
@@ -224,6 +225,7 @@ export interface Provider extends ProviderListItem {
 }
 
 export interface ProviderLocationCreate {
+  name?: string | null;
   address_line_1: string;
   address_line_2?: string | null;
   city: string;
