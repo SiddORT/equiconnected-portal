@@ -31,7 +31,15 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { MultiEmailField, type EmailEntry } from './MultiEmailField';
 import { MultiPhoneField, type PhoneEntry } from './MultiPhoneField';
-import type { DoctorCreate, DoctorResponse, DoctorUpdate, Specialization, VisitStability } from '@/types';
+import type {
+  DoctorCreate,
+  DoctorResponse,
+  DoctorUpdate,
+  ProviderStatus,
+  PublicationStatus,
+  Specialization,
+  VisitStability,
+} from '@/types';
 import styles from './DoctorForm.module.css';
 
 const VISIT_STABILITY_OPTIONS = [
@@ -68,8 +76,10 @@ export function DoctorForm({ initialData, onSuccess, onCancel }: DoctorFormProps
   const [experienceDescription, setExperienceDescription] = useState(
     initialData?.experience_description ?? ''
   );
-  const [status, setStatus] = useState(initialData?.status ?? 'ACTIVE');
-  const [publication, setPublication] = useState(initialData?.publication_status ?? 'UNPUBLISHED');
+  const [status, setStatus] = useState<ProviderStatus>(initialData?.status ?? 'ACTIVE');
+  const [publication, setPublication] = useState<PublicationStatus>(
+    initialData?.publication_status ?? 'UNPUBLISHED'
+  );
 
   // ── Contact ──────────────────────────────────────────────────────────────────
   const [phoneEntries, setPhoneEntries] = useState<PhoneEntry[]>(() =>
@@ -176,12 +186,12 @@ export function DoctorForm({ initialData, onSuccess, onCancel }: DoctorFormProps
 
         // Status / publication via dedicated endpoints when changed
         if (status !== initialData.status) {
-          saved = await updateDoctorStatus(initialData.id, status as 'ACTIVE' | 'INACTIVE');
+          saved = await updateDoctorStatus(initialData.id, status);
         }
         if (publication !== initialData.publication_status) {
           saved = await updateDoctorPublication(
             initialData.id,
-            publication as 'PUBLISHED' | 'UNPUBLISHED'
+            publication
           );
         }
 
@@ -270,8 +280,8 @@ export function DoctorForm({ initialData, onSuccess, onCancel }: DoctorFormProps
           biography: biography.trim() || null,
           years_experience: yearsExperience ? Number(yearsExperience) : null,
           experience_description: experienceDescription.trim() || null,
-          status: status as 'ACTIVE' | 'INACTIVE',
-          publication_status: publication as 'PUBLISHED' | 'UNPUBLISHED',
+          status,
+          publication_status: publication,
           specialization_ids: selectedSpecIds,
           phones: phoneEntries.map((p) => ({
             country_code: p.country_code,
@@ -407,13 +417,13 @@ export function DoctorForm({ initialData, onSuccess, onCancel }: DoctorFormProps
               label="Status"
               options={STATUS_OPTIONS}
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
+              onChange={(e) => setStatus(e.target.value as ProviderStatus)}
             />
             <Select
               label="Publication status"
               options={PUBLICATION_OPTIONS}
               value={publication}
-              onChange={(e) => setPublication(e.target.value)}
+              onChange={(e) => setPublication(e.target.value as PublicationStatus)}
             />
           </div>
         </section>

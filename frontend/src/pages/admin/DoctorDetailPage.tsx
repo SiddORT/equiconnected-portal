@@ -294,7 +294,7 @@ export function DoctorDetailPage() {
               <Badge variant={doctor.status === 'ACTIVE' ? 'success' : 'neutral'}>
                 {doctor.status === 'ACTIVE' ? 'Active' : 'Inactive'}
               </Badge>
-              <Badge variant={doctor.publication_status === 'PUBLISHED' ? 'primary' : 'neutral'}>
+              <Badge variant={doctor.publication_status === 'PUBLISHED' ? 'info' : 'neutral'}>
                 {doctor.publication_status === 'PUBLISHED' ? 'Published' : 'Unpublished'}
               </Badge>
               <Badge variant={doctor.visit_stability === 'STABLE_VISIT' ? 'success' : 'warning'}>
@@ -461,7 +461,7 @@ export function DoctorDetailPage() {
                       {rel.organization.name}
                     </Link>
                     <span className={styles.orgType}>{rel.organization.provider_type}</span>
-                    {rel.is_primary && <Badge variant="primary" size="sm">Primary</Badge>}
+                    {rel.is_primary && <Badge variant="info" size="sm">Primary</Badge>}
                     <Badge variant={rel.status === 'ACTIVE' ? 'success' : 'neutral'} size="sm">
                       {rel.status}
                     </Badge>
@@ -571,10 +571,11 @@ export function DoctorDetailPage() {
       {/* Confirm dialog */}
       {confirm && (
         <ConfirmDialog
+          open
           title={confirm.title}
-          description={confirm.description}
+          message={confirm.description}
           confirmLabel="Confirm"
-          variant={confirm.variant}
+          danger={confirm.variant === 'danger'}
           onConfirm={() => { confirm.onConfirm(); setConfirm(null); }}
           onCancel={() => setConfirm(null)}
         />

@@ -186,7 +186,7 @@ export function DoctorsPage() {
       width: '120px',
       hideOnMobile: true,
       render: (d) => (
-        <Badge variant={d.publication_status === 'PUBLISHED' ? 'primary' : 'neutral'} size="sm">
+        <Badge variant={d.publication_status === 'PUBLISHED' ? 'info' : 'neutral'} size="sm">
           {d.publication_status === 'PUBLISHED' ? 'Published' : 'Unpublished'}
         </Badge>
       ),
@@ -207,16 +207,16 @@ export function DoctorsPage() {
         <ActionMenu
           ariaLabel={`Actions for ${d.name}`}
           items={[
-            { label: 'View', onClick: () => navigate(`/admin/doctors/${d.id}`) },
-            { label: 'Edit', onClick: () => navigate(`/admin/doctors/${d.id}/edit`) },
-            { label: '—', disabled: true },
+            { label: 'View', onSelect: () => navigate(`/admin/doctors/${d.id}`) },
+            { label: 'Edit', onSelect: () => navigate(`/admin/doctors/${d.id}/edit`) },
+            { label: '—', disabled: true, onSelect: () => undefined },
             {
               label: d.status === 'ACTIVE' ? 'Mark inactive' : 'Mark active',
-              onClick: () => handleToggleStatus(d),
+              onSelect: () => handleToggleStatus(d),
             },
             {
               label: d.publication_status === 'PUBLISHED' ? 'Unpublish' : 'Publish',
-              onClick: () => handleTogglePublication(d),
+              onSelect: () => handleTogglePublication(d),
             },
           ]}
         />
@@ -280,10 +280,10 @@ export function DoctorsPage() {
         {result && (
           <Pagination
             page={page}
-            totalPages={result.meta.total_pages}
             pageSize={PAGE_SIZE}
-            totalItems={result.meta.total_items}
+            total={result.meta.total}
             onPageChange={setPage}
+            onPageSizeChange={() => undefined}
           />
         )}
       </div>
