@@ -1,6 +1,6 @@
 /**
  * Provider Detail page — /admin/providers/:id
- * Sections: Overview, Basic Information, Specializations, Locations, Photos.
+ * Compact layout: Overview+Info (full) | Specializations+Locations (split) | Photos (full)
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -183,6 +183,19 @@ export function ProviderDetailPage() {
     (s) => !p.specializations.some((assigned) => assigned.id === s.id)
   );
 
+  const primaryEmail =
+    p.emails.length > 0
+      ? (p.emails.find((e) => e.is_primary) ?? p.emails[0]).email
+      : (p.email ?? null);
+
+  const primaryPhone =
+    p.phones.length > 0
+      ? (() => {
+          const ph = p.phones.find((x) => x.is_primary) ?? p.phones[0];
+          return `${ph.country_code} ${ph.number}`;
+        })()
+      : (p.phone ?? null);
+
   return (
     <div className={styles.shell}>
       <PageHeader
@@ -237,65 +250,57 @@ export function ProviderDetailPage() {
           <div className={`${styles.actionError} ${styles.colFull}`} role="alert">{actionError}</div>
         )}
 
-        {/* ── Overview — full width ─────────────────────────────────────────── */}
+        {/* ── Overview + Basic Info — full width ─────────────────────────────── */}
         <Card padding="none" shadow="sm" className={styles.colFull}>
-          <CardHeader><h2 className={styles.sectionTitle}>Overview</h2></CardHeader>
-          <CardBody>
-            <div className={styles.badgeRow}>
-              <Badge variant="info">{TYPE_LABELS[p.provider_type] ?? p.provider_type}</Badge>
-              <Badge variant={p.status === 'ACTIVE' ? 'success' : 'neutral'}>
-                {p.status === 'ACTIVE' ? 'Active' : 'Inactive'}
-              </Badge>
-              <Badge variant={p.publication_status === 'PUBLISHED' ? 'info' : 'neutral'}>
-                {p.publication_status === 'PUBLISHED' ? 'Published' : 'Unpublished'}
-              </Badge>
-              <Badge variant={p.visit_stability === 'STABLE_VISIT' ? 'success' : 'warning'}>
-                {p.visit_stability === 'STABLE_VISIT' ? 'Stable visit' : 'Not stable visit'}
-              </Badge>
+          <CardHeader>
+            <div className={styles.overviewHeader}>
+              <h2 className={styles.sectionTitle}>Overview</h2>
+              <div className={styles.badgeRow}>
+                <Badge variant="info">{TYPE_LABELS[p.provider_type] ?? p.provider_type}</Badge>
+                <Badge variant={p.status === 'ACTIVE' ? 'success' : 'neutral'}>
+                  {p.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                </Badge>
+                <Badge variant={p.publication_status === 'PUBLISHED' ? 'info' : 'neutral'}>
+                  {p.publication_status === 'PUBLISHED' ? 'Published' : 'Unpublished'}
+                </Badge>
+                <Badge variant={p.visit_stability === 'STABLE_VISIT' ? 'success' : 'warning'}>
+                  {p.visit_stability === 'STABLE_VISIT' ? 'Stable visit' : 'Not stable visit'}
+                </Badge>
+              </div>
             </div>
-            {p.description && <p className={styles.description}>{p.description}</p>}
-          </CardBody>
-        </Card>
-
-        {/* ── Basic information — left ──────────────────────────────────────── */}
-        <Card padding="none" shadow="sm">
-          <CardHeader><h2 className={styles.sectionTitle}>Basic Information</h2></CardHeader>
+          </CardHeader>
           <CardBody>
-            <dl className={styles.infoGrid}>
+            <dl className={styles.infoStrip}>
               <div>
                 <dt>Email</dt>
-                <dd>
-                  {p.emails.length > 0
-                    ? (p.emails.find((e) => e.is_primary) ?? p.emails[0]).email
-                    : p.email ?? '—'}
-                </dd>
+                <dd>{primaryEmail ?? '—'}</dd>
               </div>
               <div>
                 <dt>Phone</dt>
-                <dd>
-                  {p.phones.length > 0
-                    ? (() => {
-                        const ph = p.phones.find((x) => x.is_primary) ?? p.phones[0];
-                        return `${ph.country_code} ${ph.number}`;
-                      })()
-                    : p.phone ?? '—'}
-                </dd>
+                <dd>{primaryPhone ?? '—'}</dd>
               </div>
               <div>
                 <dt>Website</dt>
                 <dd>
-                  {p.website ? (
-                    <a href={p.website} target="_blank" rel="noreferrer">{p.website}</a>
-                  ) : '—'}
+                  {p.website
+                    ? <a href={p.website} target="_blank" rel="noreferrer">{p.website}</a>
+                    : '—'}
                 </dd>
               </div>
-              <div><dt>Created</dt><dd>{new Date(p.created_at).toLocaleString()}</dd></div>
-              <div><dt>Updated</dt><dd>{new Date(p.updated_at).toLocaleString()}</dd></div>
+              <div>
+                <dt>Created</dt>
+                <dd>{new Date(p.created_at).toLocaleString()}</dd>
+              </div>
+              <div>
+                <dt>Updated</dt>
+                <dd>{new Date(p.updated_at).toLocaleString()}</dd>
+              </div>
             </dl>
+            {p.description && <p className={styles.description}>{p.description}</p>}
           </CardBody>
         </Card>
 
-        {/* ── Specializations — right ───────────────────────────────────────── */}
+        {/* ── Specializations — left ────────────────────────────────────────── */}
         <Card padding="none" shadow="sm">
           <CardHeader><h2 className={styles.sectionTitle}>Specializations</h2></CardHeader>
           <CardBody>
@@ -347,8 +352,8 @@ export function ProviderDetailPage() {
           </CardBody>
         </Card>
 
-        {/* ── Locations — full width ────────────────────────────────────────── */}
-        <Card padding="none" shadow="sm" className={styles.colFull}>
+        {/* ── Locations — right ────────────────────────────────────────────── */}
+        <Card padding="none" shadow="sm">
           <CardHeader>
             <div className={styles.cardHeaderRow}>
               <h2 className={styles.sectionTitle}>Locations</h2>
@@ -509,7 +514,6 @@ export function ProviderDetailPage() {
                   }, 'Failed to add photo.');
                 }}
               >
-                {/* File picker */}
                 <div className={styles.uploadArea}>
                   <input
                     ref={fileInputRef}
@@ -538,7 +542,6 @@ export function ProviderDetailPage() {
                     </label>
                   )}
                 </div>
-
                 <div className={styles.formGrid}>
                   <Input
                     label="Alt text"
