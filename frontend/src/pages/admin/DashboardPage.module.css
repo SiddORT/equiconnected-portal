@@ -106,37 +106,6 @@
   font-style: italic;
 }
 
-/* ── Modules ─────────────────────────────────────────────────────────────── */
-.modulesGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--space-4);
-}
-
-.moduleCard {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.moduleIcon {
-  font-size: 1.5rem;
-  margin-bottom: var(--space-1);
-}
-
-.moduleTitle {
-  font-size: var(--text-base);
-  font-weight: var(--font-semibold);
-  color: var(--text-primary);
-}
-
-.moduleDesc {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  line-height: var(--leading-relaxed);
-  flex: 1;
-}
-
 @media (max-width: 768px) {
   .body { padding: var(--space-5); }
   .auditRow { grid-template-columns: 1fr 1fr; }

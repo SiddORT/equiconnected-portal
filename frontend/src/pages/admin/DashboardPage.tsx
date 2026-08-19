@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { DashboardMap } from '@/components/dashboard/DashboardMap';
 import type { DashboardStats, LoadingState } from '@/types';
 import styles from './DashboardPage.module.css';
 
@@ -64,35 +65,34 @@ export function DashboardPage() {
 
           {loadState === 'success' && stats && (
             <>
-              {/* ── Summary cards ─────────────────────────────────────── */}
+              {/* ── Provider inventory counters ───────────────────────── */}
               <section aria-labelledby="stats-heading">
-                <h2 id="stats-heading" className={styles.sectionTitle}>Overview</h2>
+                <h2 id="stats-heading" className={styles.sectionTitle}>Provider Inventory</h2>
                 <div className={styles.statsGrid}>
                   <StatCard
-                    label="Total Users"
-                    value={String(stats.total_users)}
-                    icon="👤"
-                    badge={{ label: 'Admins', variant: 'info' }}
+                    label="Hospitals"
+                    value={String(stats.provider_counts.hospitals)}
+                    icon="🏥"
                   />
                   <StatCard
-                    label="Platform Status"
-                    value="Operational"
-                    icon="✓"
-                    badge={{ label: 'Online', variant: 'success' }}
+                    label="Clinics"
+                    value={String(stats.provider_counts.clinics)}
+                    icon="🩺"
                   />
                   <StatCard
-                    label="Auth Method"
-                    value="JWT + Argon2id"
-                    icon="🔐"
-                    badge={{ label: 'Secure', variant: 'success' }}
-                  />
-                  <StatCard
-                    label="Database"
-                    value="PostgreSQL"
-                    icon="🗄"
-                    badge={{ label: 'Connected', variant: 'success' }}
+                    label="Doctors"
+                    value={String(stats.provider_counts.doctors)}
+                    icon="👨‍⚕️"
                   />
                 </div>
+              </section>
+
+              {/* ── Provider locations map ────────────────────────────── */}
+              <section aria-labelledby="map-heading">
+                <h2 id="map-heading" className={styles.sectionTitle}>Provider Locations</h2>
+                <Card padding="md" shadow="sm">
+                  <DashboardMap markers={stats.location_markers} />
+                </Card>
               </section>
 
               {/* ── Recent audit events ───────────────────────────────── */}
@@ -143,24 +143,6 @@ export function DashboardPage() {
                 </Card>
               </section>
 
-              {/* ── Phase 2 modules placeholder ───────────────────────── */}
-              <section aria-labelledby="modules-heading">
-                <h2 id="modules-heading" className={styles.sectionTitle}>Upcoming Modules</h2>
-                <div className={styles.modulesGrid}>
-                  {[
-                    { icon: '🏥', title: 'Hospital Management', desc: 'Invite and manage hospital accounts.' },
-                    { icon: '👥', title: 'User Administration', desc: 'Manage all platform users and roles.' },
-                    { icon: '📩', title: 'Invitations', desc: 'Send and track hospital invitations.' },
-                  ].map((m) => (
-                    <Card key={m.title} padding="md" shadow="sm" className={styles.moduleCard}>
-                      <div className={styles.moduleIcon}>{m.icon}</div>
-                      <h3 className={styles.moduleTitle}>{m.title}</h3>
-                      <p className={styles.moduleDesc}>{m.desc}</p>
-                      <Badge variant="neutral" size="sm">Coming soon</Badge>
-                    </Card>
-                  ))}
-                </div>
-              </section>
             </>
           )}
       </div>

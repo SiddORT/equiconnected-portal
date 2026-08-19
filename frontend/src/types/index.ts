@@ -55,8 +55,29 @@ export interface AuditEvent {
   created_at: string;
 }
 
+export interface ProviderCounts {
+  hospitals: number;
+  clinics: number;
+  doctors: number;
+}
+
+export interface LocationMarker {
+  location_id: string;
+  provider_id: string;
+  provider_name: string;
+  provider_type: 'HOSPITAL' | 'CLINIC' | 'DOCTOR';
+  location_name: string | null;
+  address: string;
+  city: string;
+  latitude: number;
+  longitude: number;
+  is_primary: boolean;
+}
+
 export interface DashboardStats {
   total_users: number;
+  provider_counts: ProviderCounts;
+  location_markers: LocationMarker[];
   recent_audit_events: AuditEvent[];
 }
 

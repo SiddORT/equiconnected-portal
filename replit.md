@@ -39,6 +39,13 @@ cd backend
 python scripts/seed_admin.py
 ```
 
+## Seeding demo data (development)
+
+```bash
+cd backend
+python scripts/seed_demo_data.py   # rerunnable; creates specializations + geocoded hospitals/clinics/doctors
+```
+
 ## API routes
 
 | Prefix | Description |
@@ -47,7 +54,7 @@ python scripts/seed_admin.py
 | `POST /api/v1/auth/refresh` | Rotate access token using httpOnly cookie |
 | `POST /api/v1/auth/logout` | Revoke refresh token |
 | `GET  /api/v1/auth/me` | Current user profile |
-| `GET  /api/v1/admin/dashboard/stats` | Dashboard statistics |
+| `GET  /api/v1/admin/dashboard/stats` | Dashboard stats: user total, provider counts, map markers, audit |
 | `GET/POST /api/v1/admin/specializations` | List / create specializations |
 | `GET/PATCH /api/v1/admin/specializations/{id}` | Get / update specialization |
 | `PATCH /api/v1/admin/specializations/{id}/status` | Activate / deactivate |
