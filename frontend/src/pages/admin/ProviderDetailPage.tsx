@@ -13,6 +13,7 @@ import {
   getProvider,
   removeProviderSpecialization,
   setProviderThumbnail,
+  updateProviderLocation,
   updateProviderPublication,
   updateProviderStatus,
   uploadProviderPhoto,
@@ -98,6 +99,31 @@ export function ProviderDetailPage() {
   // Add-location form
   const [locationFormOpen, setLocationFormOpen] = useState(false);
   const [locationForm, setLocationForm] = useState<LocationFormValues>(EMPTY_LOCATION_FORM);
+
+  // Edit-location form
+  const [editingLocationId, setEditingLocationId] = useState<string | null>(null);
+  const [editLocationForm, setEditLocationForm] = useState<LocationFormValues>(EMPTY_LOCATION_FORM);
+
+  function openEditLocation(loc: import('@/types').ProviderLocation) {
+    setEditingLocationId(loc.id);
+    setEditLocationForm({
+      name: loc.name ?? '',
+      address_line_1: loc.address_line_1,
+      address_line_2: loc.address_line_2 ?? '',
+      city: loc.city,
+      state_province: loc.state_province ?? '',
+      country: loc.country ?? '',
+      postal_code: loc.postal_code ?? '',
+      latitude: loc.latitude != null ? String(loc.latitude) : '',
+      longitude: loc.longitude != null ? String(loc.longitude) : '',
+      is_primary: loc.is_primary,
+    });
+  }
+
+  function closeEditLocation() {
+    setEditingLocationId(null);
+    setEditLocationForm(EMPTY_LOCATION_FORM);
+  }
 
   // Confirm dialog
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -535,43 +561,159 @@ export function ProviderDetailPage() {
               <ul className={styles.itemList}>
                 {p.locations.map((loc) => (
                   <li key={loc.id} className={styles.item}>
-                    <div className={styles.itemMain}>
-                      {loc.name && (
-                        <span className={styles.itemLabel}>{loc.name}</span>
-                      )}
-                      <span className={styles.itemTitle}>
-                        {loc.address_line_1}
-                        {loc.address_line_2 ? `, ${loc.address_line_2}` : ''}
-                      </span>
-                      <span className={styles.itemSub}>
-                        {[loc.city, loc.state_province, loc.country, loc.postal_code]
-                          .filter(Boolean)
-                          .join(', ')}
-                        {(loc.latitude != null && loc.longitude != null) && (
-                          <span className={styles.itemCoords}>
-                            {' · '}{Number(loc.latitude).toFixed(5)}, {Number(loc.longitude).toFixed(5)}
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                    <div className={styles.itemActions}>
-                      {loc.is_primary && <Badge variant="info" size="sm">Primary</Badge>}
-                      <button
-                        type="button"
-                        className={styles.removeBtn}
-                        aria-label="Remove location"
-                        disabled={busy}
-                        onClick={() => {
-                          openConfirm(
-                            'Remove location?',
-                            'This location will be permanently removed from the provider.',
-                            () => run(() => deleteProviderLocation(p.id, loc.id), 'Failed to remove location.')
-                          );
+                    {editingLocationId === loc.id ? (
+                      <form
+                        className={styles.inlineForm}
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          if (!editLocationForm.address_line_1.trim() || !editLocationForm.city.trim()) {
+                            setActionError('Address line 1 and city are required.');
+                            return;
+                          }
+                          void run(async () => {
+                            await updateProviderLocation(p.id, loc.id, {
+                              name: editLocationForm.name.trim() || null,
+                              address_line_1: editLocationForm.address_line_1.trim(),
+                              address_line_2: editLocationForm.address_line_2.trim() || null,
+                              city: editLocationForm.city.trim(),
+                              state_province: editLocationForm.state_province.trim() || null,
+                              country: editLocationForm.country.trim() || null,
+                              postal_code: editLocationForm.postal_code.trim() || null,
+                              latitude: editLocationForm.latitude.trim() ? parseFloat(editLocationForm.latitude) : null,
+                              longitude: editLocationForm.longitude.trim() ? parseFloat(editLocationForm.longitude) : null,
+                              is_primary: editLocationForm.is_primary,
+                            });
+                            closeEditLocation();
+                          }, 'Failed to update location.');
                         }}
                       >
-                        🗑 Remove
-                      </button>
-                    </div>
+                        <div className={styles.formGrid}>
+                          <Input
+                            label="Location name"
+                            placeholder="e.g. Main Branch, Ward 3…"
+                            value={editLocationForm.name}
+                            onChange={(e) => setEditLocationForm((f) => ({ ...f, name: e.target.value }))}
+                          />
+                          <Input
+                            label="Address line 1"
+                            required
+                            value={editLocationForm.address_line_1}
+                            onChange={(e) => setEditLocationForm((f) => ({ ...f, address_line_1: e.target.value }))}
+                          />
+                          <Input
+                            label="Address line 2"
+                            value={editLocationForm.address_line_2}
+                            onChange={(e) => setEditLocationForm((f) => ({ ...f, address_line_2: e.target.value }))}
+                          />
+                          <Input
+                            label="City"
+                            required
+                            value={editLocationForm.city}
+                            onChange={(e) => setEditLocationForm((f) => ({ ...f, city: e.target.value }))}
+                          />
+                          <Input
+                            label="State / Province"
+                            value={editLocationForm.state_province}
+                            onChange={(e) => setEditLocationForm((f) => ({ ...f, state_province: e.target.value }))}
+                          />
+                          <Input
+                            label="Country"
+                            value={editLocationForm.country}
+                            onChange={(e) => setEditLocationForm((f) => ({ ...f, country: e.target.value }))}
+                          />
+                          <Input
+                            label="Postal code"
+                            value={editLocationForm.postal_code}
+                            onChange={(e) => setEditLocationForm((f) => ({ ...f, postal_code: e.target.value }))}
+                          />
+                          <Input
+                            label="Latitude"
+                            type="number"
+                            placeholder="-90 to 90"
+                            value={editLocationForm.latitude}
+                            onChange={(e) => setEditLocationForm((f) => ({ ...f, latitude: e.target.value }))}
+                          />
+                          <Input
+                            label="Longitude"
+                            type="number"
+                            placeholder="-180 to 180"
+                            value={editLocationForm.longitude}
+                            onChange={(e) => setEditLocationForm((f) => ({ ...f, longitude: e.target.value }))}
+                          />
+                        </div>
+                        <label className={styles.checkboxRow}>
+                          <input
+                            type="checkbox"
+                            checked={editLocationForm.is_primary}
+                            onChange={(e) => setEditLocationForm((f) => ({ ...f, is_primary: e.target.checked }))}
+                          />
+                          <span>Set as primary location</span>
+                        </label>
+                        <div className={styles.inlineFormFooter}>
+                          <Button type="submit" variant="primary" size="sm" loading={busy}>
+                            Save changes
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={busy}
+                            onClick={closeEditLocation}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </form>
+                    ) : (
+                      <>
+                        <div className={styles.itemMain}>
+                          {loc.name && (
+                            <span className={styles.itemLabel}>{loc.name}</span>
+                          )}
+                          <span className={styles.itemTitle}>
+                            {loc.address_line_1}
+                            {loc.address_line_2 ? `, ${loc.address_line_2}` : ''}
+                          </span>
+                          <span className={styles.itemSub}>
+                            {[loc.city, loc.state_province, loc.country, loc.postal_code]
+                              .filter(Boolean)
+                              .join(', ')}
+                            {(loc.latitude != null && loc.longitude != null) && (
+                              <span className={styles.itemCoords}>
+                                {' · '}{Number(loc.latitude).toFixed(5)}, {Number(loc.longitude).toFixed(5)}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <div className={styles.itemActions}>
+                          {loc.is_primary && <Badge variant="info" size="sm">Primary</Badge>}
+                          <button
+                            type="button"
+                            className={styles.editBtn}
+                            aria-label="Edit location"
+                            disabled={busy}
+                            onClick={() => openEditLocation(loc)}
+                          >
+                            ✏ Edit
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.removeBtn}
+                            aria-label="Remove location"
+                            disabled={busy}
+                            onClick={() => {
+                              openConfirm(
+                                'Remove location?',
+                                'This location will be permanently removed from the provider.',
+                                () => run(() => deleteProviderLocation(p.id, loc.id), 'Failed to remove location.')
+                              );
+                            }}
+                          >
+                            🗑 Remove
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </li>
                 ))}
               </ul>
