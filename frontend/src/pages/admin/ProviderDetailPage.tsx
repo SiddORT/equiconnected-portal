@@ -300,7 +300,7 @@ export function ProviderDetailPage() {
         subtitle={`${TYPE_LABELS[p.provider_type] ?? p.provider_type} profile`}
         breadcrumbs={[
           { label: 'Admin' },
-          { label: 'Providers', href: '/admin/providers' },
+          { label: 'Director Management', href: '/admin/providers' },
           { label: p.name },
         ]}
         actions={

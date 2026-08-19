@@ -7,7 +7,7 @@ interface NavItem { label: string; to: string; icon: string; }
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: '⊞' },
   { label: 'Specializations', to: '/admin/specializations', icon: '⚕' },
-  { label: 'Providers', to: '/admin/providers', icon: '🏥' },
+  { label: 'Director Management', to: '/admin/providers', icon: '🏥' },
   { label: 'Doctors', to: '/admin/doctors', icon: '👨‍⚕️' },
   { label: 'Invitations', to: '/admin/invitations', icon: '✉' },
 ];
