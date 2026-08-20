@@ -242,8 +242,8 @@ export function ProvidersPage() {
     activeChips.push({ label: `Type: ${label}`, onClear: () => { setTypeFilter('all'); setPage(1); } });
   }
   if (stabilityFilter !== 'all') {
-    const label = stabilityFilter === 'STABLE_VISIT' ? 'Stable' : 'Not stable';
-    activeChips.push({ label: `Visits: ${label}`, onClear: () => { setStabilityFilter('all'); setPage(1); } });
+    const label = stabilityFilter === 'STABLE_VISIT' ? 'Yes' : 'No';
+    activeChips.push({ label: `Stable visit: ${label}`, onClear: () => { setStabilityFilter('all'); setPage(1); } });
   }
   if (statusFilter !== 'all') {
     const label = statusFilter === 'ACTIVE' ? 'Active' : 'Inactive';
@@ -267,11 +267,11 @@ export function ProvidersPage() {
       onChange: resetAnd(setTypeFilter),
     },
     {
-      label: 'Visit Stable',
+      label: 'Stable visit',
       options: [
         { value: 'all', label: 'All visits' },
-        { value: 'STABLE_VISIT', label: 'Stable' },
-        { value: 'NOT_STABLE_VISIT', label: 'Not stable' },
+        { value: 'STABLE_VISIT', label: 'Yes' },
+        { value: 'NOT_STABLE_VISIT', label: 'No' },
       ],
       value: stabilityFilter,
       onChange: resetAnd(setStabilityFilter),
