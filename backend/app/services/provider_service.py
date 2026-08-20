@@ -96,6 +96,7 @@ class ProviderService:
         primary_location: dict | None,
         phones: list[dict] | None = None,
         emails: list[dict] | None = None,
+        doctor_profile: dict | None = None,
     ) -> Provider:
         # Validate specialization IDs before touching the DB rows.
         for spec_id in specialization_ids:
@@ -125,17 +126,31 @@ class ProviderService:
                         email_fields["is_primary"] = False
                     seen_primary_email = True
                 self._repo.add_email(provider.id, **email_fields)
+            # Doctor-only professional profile — never applied to other types.
+            if (
+                provider.provider_type == ProviderType.DOCTOR
+                and doctor_profile
+                and any(v is not None for v in doctor_profile.values())
+            ):
+                self._repo.upsert_doctor_profile(provider.id, doctor_profile)
             self._repo.commit()
         except IntegrityError:
             self._repo.rollback()
             raise DuplicateSpecializationError("Duplicate specialization assignment.")
         return self.get(provider.id)
 
-    def update(self, id: UUID, *, update_fields: dict) -> Provider:
+    def update(
+        self, id: UUID, *, update_fields: dict, doctor_profile: dict | None = None
+    ) -> Provider:
         provider = self.get(id)
         if "name" in update_fields and update_fields["name"] is not None:
             update_fields["name"] = update_fields["name"].strip()
         self._repo.update(provider, update_fields)
+        # Apply doctor profile only when the provider is (now) a doctor.
+        if doctor_profile and provider.provider_type == ProviderType.DOCTOR:
+            has_values = any(v is not None for v in doctor_profile.values())
+            if has_values or self._repo.get_doctor_profile(provider.id) is not None:
+                self._repo.upsert_doctor_profile(provider.id, doctor_profile)
         self._repo.commit()
         return self.get(id)
 

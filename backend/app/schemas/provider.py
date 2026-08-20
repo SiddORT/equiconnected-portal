@@ -168,6 +168,27 @@ class EmailResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ── Doctor professional info (1:1 DoctorProfile extension) ───────────────────
+
+class DoctorProfileFields(BaseModel):
+    """Shared limits with the doctor-module profile schemas."""
+    professional_title: str | None = Field(None, max_length=200)
+    biography: str | None = Field(None, max_length=10000)
+    years_experience: int | None = Field(None, ge=0, le=100)
+    experience_description: str | None = Field(None, max_length=5000)
+
+    _strip_title = field_validator("professional_title", mode="before")(_strip)
+
+
+class DoctorProfileOut(BaseModel):
+    professional_title: str | None
+    biography: str | None
+    years_experience: int | None
+    experience_description: str | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ── Provider ──────────────────────────────────────────────────────────────────
 
 class ProviderCreate(BaseModel):
@@ -184,8 +205,14 @@ class ProviderCreate(BaseModel):
     primary_location: LocationCreate | None = None
     phones: list[PhoneCreate] = Field(default_factory=list)
     emails: list[EmailCreate] = Field(default_factory=list)
+    # Doctor-only professional profile fields (ignored for other types).
+    professional_title: str | None = Field(None, max_length=200)
+    biography: str | None = Field(None, max_length=10000)
+    years_experience: int | None = Field(None, ge=0, le=100)
+    experience_description: str | None = Field(None, max_length=5000)
 
     _strip_name = field_validator("name", mode="before")(_strip)
+    _strip_title = field_validator("professional_title", mode="before")(_strip)
 
 
 class ProviderUpdate(BaseModel):
@@ -197,8 +224,14 @@ class ProviderUpdate(BaseModel):
     phone: str | None = Field(None, max_length=50)
     website: str | None = Field(None, max_length=500)
     visit_stability: VisitStability | None = None
+    # Doctor-only professional profile fields (ignored for other types).
+    professional_title: str | None = Field(None, max_length=200)
+    biography: str | None = Field(None, max_length=10000)
+    years_experience: int | None = Field(None, ge=0, le=100)
+    experience_description: str | None = Field(None, max_length=5000)
 
     _strip_name = field_validator("name", mode="before")(_strip)
+    _strip_title = field_validator("professional_title", mode="before")(_strip)
 
 
 class ProviderStatusUpdate(BaseModel):
@@ -275,12 +308,18 @@ class ProviderResponse(ProviderListItem):
     photos: list[PhotoResponse] = []
     phones: list[PhoneResponse] = []
     emails: list[EmailResponse] = []
+    doctor_profile: DoctorProfileOut | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
     def from_provider(cls, provider) -> "ProviderResponse":
         return cls(
+            doctor_profile=(
+                DoctorProfileOut.model_validate(provider.doctor_profile)
+                if getattr(provider, "doctor_profile", None) is not None
+                else None
+            ),
             id=provider.id,
             provider_type=provider.provider_type,
             name=provider.name,

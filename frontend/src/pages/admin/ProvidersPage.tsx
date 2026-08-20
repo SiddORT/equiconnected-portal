@@ -3,7 +3,7 @@
  * Server-side search / filters / pagination via query params.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
 import {
   listProviders,
@@ -38,13 +38,17 @@ const TYPE_LABELS: Record<ProviderType, string> = {
 
 export function ProvidersPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialType = searchParams.get('provider_type');
 
   const [result, setResult] = useState<PaginatedResponse<ProviderListItem> | null>(null);
   const [loadState, setLoadState] = useState<LoadingState>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState(
+    initialType && initialType in TYPE_LABELS ? initialType : 'all'
+  );
   const [stabilityFilter, setStabilityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [publicationFilter, setPublicationFilter] = useState('all');

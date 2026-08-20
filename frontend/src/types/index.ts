@@ -235,7 +235,14 @@ export interface ProviderEmailCreate {
   is_primary?: boolean;
 }
 
+export interface DoctorProfileInfo {
+  professional_title: string | null;
+  biography: string | null;
+  years_experience: number | null;
+  experience_description: string | null;
+}
 export interface Provider extends ProviderListItem {
+  doctor_profile: DoctorProfileInfo | null;
   description: string | null;
   website: string | null;
   specializations: ProviderSpecializationBrief[];
@@ -274,6 +281,10 @@ export interface ProviderCreate {
   primary_location?: ProviderLocationCreate | null;
   phones?: ProviderPhoneCreate[];
   emails?: ProviderEmailCreate[];
+  professional_title?: string | null;
+  biography?: string | null;
+  years_experience?: number | null;
+  experience_description?: string | null;
 }
 
 export interface ProviderUpdate {
@@ -284,6 +295,10 @@ export interface ProviderUpdate {
   phone?: string | null;
   website?: string | null;
   visit_stability?: VisitStability;
+  professional_title?: string | null;
+  biography?: string | null;
+  years_experience?: number | null;
+  experience_description?: string | null;
 }
 
 export interface ProviderPhotoCreate {

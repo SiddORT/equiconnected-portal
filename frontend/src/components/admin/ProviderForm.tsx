@@ -179,6 +179,19 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const [publication, setPublication] = useState<string>(
     initialData?.publication_status ?? 'UNPUBLISHED'
   );
+  // Doctor-only professional info (shown only when providerType === 'DOCTOR')
+  const [professionalTitle, setProfessionalTitle] = useState(
+    initialData?.doctor_profile?.professional_title ?? ''
+  );
+  const [yearsExperience, setYearsExperience] = useState(
+    initialData?.doctor_profile?.years_experience != null
+      ? String(initialData.doctor_profile.years_experience)
+      : ''
+  );
+  const [biography, setBiography] = useState(initialData?.doctor_profile?.biography ?? '');
+  const [experienceDescription, setExperienceDescription] = useState(
+    initialData?.doctor_profile?.experience_description ?? ''
+  );
   const [selectedSpecIds, setSelectedSpecIds] = useState<string[]>(
     inv?.initial.specialization_ids ?? initialData?.specializations.map((s) => s.id) ?? []
   );
@@ -268,6 +281,12 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     if (!providerType) errors.provider_type = 'Provider type is required.';
     if (!name.trim()) errors.name = 'Name is required.';
     if (!visitStability) errors.visit_stability = 'Visit Stable is required.';
+    if (providerType === 'DOCTOR' && yearsExperience.trim()) {
+      const n = Number(yearsExperience);
+      if (!Number.isInteger(n) || n < 0 || n > 100) {
+        errors.years_experience = 'Years of experience must be a whole number between 0 and 100.';
+      }
+    }
     if (location.address_line_1.trim() && !location.city.trim()) {
       errors.city = 'City is required when an address is provided.';
     }
@@ -370,6 +389,14 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           description: description.trim() || null,
           website: website.trim() || null,
           visit_stability: visitStability as VisitStability,
+          ...(providerType === 'DOCTOR'
+            ? {
+                professional_title: professionalTitle.trim() || null,
+                years_experience: yearsExperience.trim() ? Number(yearsExperience) : null,
+                biography: biography.trim() || null,
+                experience_description: experienceDescription.trim() || null,
+              }
+            : {}),
         });
         // Status / publication use dedicated endpoints — only when changed.
         if (status !== initialData.status) {
@@ -519,6 +546,14 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             email: e.email.trim(),
             is_primary: e.is_primary,
           })),
+          ...(providerType === 'DOCTOR'
+            ? {
+                professional_title: professionalTitle.trim() || null,
+                years_experience: yearsExperience.trim() ? Number(yearsExperience) : null,
+                biography: biography.trim() || null,
+                experience_description: experienceDescription.trim() || null,
+              }
+            : {}),
         };
         saved = await createProvider(body);
       }
@@ -586,6 +621,58 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           />
         </section>
       </Card>
+
+      {/* ── Professional info — doctors only ─────────────────────────────── */}
+      {!inv && providerType === 'DOCTOR' && (
+        <Card padding="lg" shadow="sm" className={styles.cardFull}>
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>
+              Professional info <span className={styles.optionalTag}>— optional</span>
+            </h3>
+            <div className={styles.grid}>
+              <Input
+                label="Professional title"
+                placeholder="e.g. Consultant Cardiologist"
+                value={professionalTitle}
+                onChange={(e) => setProfessionalTitle(e.target.value)}
+                maxLength={200}
+              />
+              <Input
+                label="Years of experience"
+                type="number"
+                min={0}
+                max={100}
+                placeholder="0 to 100"
+                value={yearsExperience}
+                onChange={(e) => setYearsExperience(e.target.value)}
+                error={errs.years_experience}
+              />
+            </div>
+            <FormField label="Biography" optional htmlFor="doctor-biography">
+              <textarea
+                id="doctor-biography"
+                className={styles.textarea}
+                placeholder="Professional background, education, achievements…"
+                rows={4}
+                maxLength={10000}
+                value={biography}
+                onChange={(e) => setBiography(e.target.value)}
+              />
+            </FormField>
+            <FormField label="Experience notes" optional htmlFor="doctor-experience">
+              <textarea
+                id="doctor-experience"
+                className={styles.textarea}
+                placeholder="Notable experience, previous positions…"
+                rows={3}
+                maxLength={5000}
+                value={experienceDescription}
+                onChange={(e) => setExperienceDescription(e.target.value)}
+              />
+            </FormField>
+          </section>
+        </Card>
+      )}
 
       {/* ── Contact ───────────────────────────────────────────────────────── */}
       <Card padding="lg" shadow="sm">

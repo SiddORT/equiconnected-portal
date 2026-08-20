@@ -19,6 +19,7 @@ import {
   uploadProviderPhoto,
 } from '@/api/providers';
 import { listSpecializations } from '@/api/specializations';
+import { DoctorProfessionalSections } from '@/components/admin/DoctorProfessionalSections';
 import { ActionMenu } from '@/components/ui/ActionMenu';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -394,6 +395,48 @@ export function ProviderDetailPage() {
             {p.description && <p className={styles.overviewDescription}>{p.description}</p>}
           </div>
         </Card>
+
+        {/* ── Professional info — doctors only ─────────────────────────────── */}
+        {p.provider_type === 'DOCTOR' && (
+          <Card padding="none" shadow="sm" className={styles.colFull}>
+            <CardHeader><h2 className={styles.sectionTitle}>Professional info</h2></CardHeader>
+            <CardBody>
+              {p.doctor_profile &&
+              (p.doctor_profile.professional_title ||
+                p.doctor_profile.biography ||
+                p.doctor_profile.years_experience != null ||
+                p.doctor_profile.experience_description) ? (
+                <dl className={styles.infoStrip}>
+                  <div>
+                    <dt>Professional title</dt>
+                    <dd>{p.doctor_profile.professional_title ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Years of experience</dt>
+                    <dd>{p.doctor_profile.years_experience ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Biography</dt>
+                    <dd>{p.doctor_profile.biography ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Experience notes</dt>
+                    <dd>{p.doctor_profile.experience_description ?? '—'}</dd>
+                  </div>
+                </dl>
+              ) : (
+                <EmptyState
+                  icon="👨‍⚕️"
+                  title="No professional info yet"
+                  description="Edit this provider to add title, experience, and biography."
+                />
+              )}
+            </CardBody>
+          </Card>
+        )}
+
+        {/* ── Qualifications & affiliations — doctors only ─────────────────── */}
+        {p.provider_type === 'DOCTOR' && <DoctorProfessionalSections providerId={p.id} />}
 
         {/* ── Specializations — left ────────────────────────────────────────── */}
         <Card padding="none" shadow="sm">

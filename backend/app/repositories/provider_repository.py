@@ -13,6 +13,7 @@ from app.models.enums import (
     PublicationStatus,
     VisitStability,
 )
+from app.models.doctor import DoctorProfile
 from app.models.provider import (
     Provider,
     ProviderEmail,
@@ -35,6 +36,7 @@ class ProviderRepository:
             select(Provider)
             .where(Provider.id == id)
             .options(
+                selectinload(Provider.doctor_profile),
                 selectinload(Provider.locations),
                 selectinload(Provider.photos),
                 selectinload(Provider.phones),
@@ -103,6 +105,23 @@ class ProviderRepository:
             setattr(provider, key, value)
         self._db.flush()
         return provider
+
+    # ── Doctor profile sub-operations ─────────────────────────────────────────
+
+    def get_doctor_profile(self, provider_id: UUID) -> DoctorProfile | None:
+        return self._db.get(DoctorProfile, provider_id)
+
+    def upsert_doctor_profile(self, provider_id: UUID, fields: dict) -> DoctorProfile:
+        """Create or update the 1:1 DoctorProfile row for a provider."""
+        profile = self.get_doctor_profile(provider_id)
+        if profile is None:
+            profile = DoctorProfile(provider_id=provider_id, **fields)
+            self._db.add(profile)
+        else:
+            for key, value in fields.items():
+                setattr(profile, key, value)
+        self._db.flush()
+        return profile
 
     # ── Specialization sub-operations ─────────────────────────────────────────
 

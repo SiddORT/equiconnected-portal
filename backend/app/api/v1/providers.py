@@ -24,7 +24,9 @@ from uuid import UUID
 import os
 import uuid as _uuid
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require_role
@@ -132,8 +134,12 @@ def list_providers(
 
 @router.post("", response_model=ProviderResponse, status_code=status.HTTP_201_CREATED)
 def create_provider(body: ProviderCreate, svc: _Svc):
+    _PROFILE_FIELDS = {
+        "professional_title", "biography", "years_experience", "experience_description"
+    }
     core = body.model_dump(
         exclude={"specialization_ids", "primary_location", "phones", "emails"}
+        | _PROFILE_FIELDS
     )
     try:
         provider = svc.create(
@@ -144,6 +150,7 @@ def create_provider(body: ProviderCreate, svc: _Svc):
             ),
             phones=[p.model_dump() for p in body.phones],
             emails=[e.model_dump() for e in body.emails],
+            doctor_profile=body.model_dump(include=_PROFILE_FIELDS),
         )
         return ProviderResponse.from_provider(provider)
     except SpecializationNotFoundError as exc:
@@ -166,8 +173,13 @@ def get_provider(id: UUID, svc: _Svc):
 
 @router.patch("/{id}", response_model=ProviderResponse)
 def update_provider(id: UUID, body: ProviderUpdate, svc: _Svc):
+    _PROFILE_FIELDS = {
+        "professional_title", "biography", "years_experience", "experience_description"
+    }
+    fields = body.model_dump(exclude_unset=True)
+    doctor_profile = {k: fields.pop(k) for k in list(fields) if k in _PROFILE_FIELDS}
     try:
-        provider = svc.update(id, update_fields=body.model_dump(exclude_unset=True))
+        provider = svc.update(id, update_fields=fields, doctor_profile=doctor_profile)
         return ProviderResponse.from_provider(provider)
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
@@ -338,16 +350,46 @@ _ALLOWED_IMAGE_TYPES: dict[str, str] = {
     response_model=PhotoResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def add_provider_photo(
-    id: UUID,
-    svc: _Svc,
-    file: UploadFile = File(...),
-    alt_text: str | None = Form(None),
-    caption: str | None = Form(None),
-    display_order: int = Form(0),
-    is_thumbnail: bool = Form(False),
-):
-    """Upload an image file and create a photo record for this provider."""
+async def add_provider_photo(id: UUID, request: Request, svc: _Svc):
+    """Create a photo record from JSON metadata or upload a multipart image.
+
+    JSON metadata is retained for existing integrations that store an externally
+    hosted asset reference. Multipart requests save an uploaded image locally.
+    """
+    content_type = request.headers.get("content-type", "")
+    if content_type.startswith("application/json"):
+        try:
+            fields = PhotoCreate.model_validate(await request.json()).model_dump()
+        except ValidationError as exc:
+            raise RequestValidationError(exc.errors()) from exc
+        try:
+            return PhotoResponse.model_validate(svc.add_photo(id, fields=fields))
+        except ProviderNotFoundError:
+            raise _404("provider_not_found", "Provider not found")
+
+    form = await request.form()
+    file = form.get("file")
+    if file is None or not hasattr(file, "filename") or not hasattr(file, "read"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "file_required",
+                "message": "An image file is required.",
+            },
+        )
+
+    try:
+        metadata = PhotoCreate.model_validate({
+            # Reuse the established metadata validation rules for uploads too.
+            "storage_reference": "upload",
+            "alt_text": form.get("alt_text"),
+            "caption": form.get("caption"),
+            "display_order": form.get("display_order", 0),
+            "is_thumbnail": form.get("is_thumbnail", False),
+        })
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors()) from exc
+
     # Validate MIME type
     content_type = file.content_type or ""
     ext = _ALLOWED_IMAGE_TYPES.get(content_type)
@@ -368,9 +410,9 @@ def add_provider_photo(
 
     # Write file to disk
     try:
-        contents = file.file.read()
+        contents = await file.read()
     finally:
-        file.file.close()
+        await file.close()
 
     with open(dest_path, "wb") as fh:
         fh.write(contents)
@@ -382,10 +424,10 @@ def add_provider_photo(
         return PhotoResponse.model_validate(
             svc.add_photo(id, fields={
                 "storage_reference": storage_reference,
-                "alt_text": alt_text,
-                "caption": caption,
-                "display_order": display_order,
-                "is_thumbnail": is_thumbnail,
+                "alt_text": metadata.alt_text,
+                "caption": metadata.caption,
+                "display_order": metadata.display_order,
+                "is_thumbnail": metadata.is_thumbnail,
             })
         )
     except ProviderNotFoundError:

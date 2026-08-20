@@ -621,6 +621,28 @@ class TestLocations:
 # ── Photos ────────────────────────────────────────────────────────────────────
 
 class TestPhotos:
+    def test_upload_photo_with_multipart_file(self, client: TestClient, admin_token: str):
+        """Multipart uploads coexist with the legacy JSON metadata contract."""
+        provider = _create_provider(client, admin_token)
+        resp = client.post(
+            f"{BASE}/{provider['id']}/photos",
+            files={"file": ("entrance.png", b"not-a-real-png", "image/png")},
+            data={
+                "alt_text": "Main entrance",
+                "caption": "South-facing entrance",
+                "display_order": "2",
+                "is_thumbnail": "true",
+            },
+            headers=_auth(admin_token),
+        )
+
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+        assert data["storage_reference"].startswith(f"/uploads/providers/{provider['id']}/photos/")
+        assert data["alt_text"] == "Main entrance"
+        assert data["display_order"] == 2
+        assert data["is_thumbnail"] is True
+
     def test_add_multiple_photos(self, client: TestClient, admin_token: str):
         provider = _create_provider(client, admin_token)
         for i in range(3):
@@ -890,3 +912,156 @@ class TestProviderPhonesEmails:
         item = resp.json()["data"][0]
         assert item["email"] == "legacy@x.com"
         assert item["phone"] == "+1 555 legacy"
+
+
+# ── Doctor professional profile via provider endpoints ───────────────────────
+
+class TestDoctorProfessionalFields:
+    PROFILE = {
+        "professional_title": "Consultant Cardiologist",
+        "biography": "20 years in cardiology.",
+        "years_experience": 20,
+        "experience_description": "Formerly at Mercy Hospital.",
+    }
+
+    def test_create_doctor_with_profile(self, client: TestClient, admin_token: str):
+        data = _create_provider(
+            client, admin_token, "Dr. Alice", provider_type="DOCTOR", **self.PROFILE
+        )
+        assert data["doctor_profile"] == self.PROFILE
+
+    def test_profile_persists_on_get(self, client: TestClient, admin_token: str):
+        created = _create_provider(
+            client, admin_token, "Dr. Bob", provider_type="DOCTOR", **self.PROFILE
+        )
+        resp = client.get(f"{BASE}/{created['id']}", headers=_auth(admin_token))
+        assert resp.status_code == 200
+        assert resp.json()["doctor_profile"] == self.PROFILE
+
+    def test_create_doctor_without_profile_fields(self, client: TestClient, admin_token: str):
+        data = _create_provider(client, admin_token, "Dr. Blank", provider_type="DOCTOR")
+        assert data["doctor_profile"] is None
+
+    def test_update_doctor_profile_fields(self, client: TestClient, admin_token: str):
+        created = _create_provider(client, admin_token, "Dr. Carol", provider_type="DOCTOR")
+        resp = client.patch(
+            f"{BASE}/{created['id']}",
+            json={"professional_title": "Surgeon", "years_experience": 5},
+            headers=_auth(admin_token),
+        )
+        assert resp.status_code == 200
+        dp = resp.json()["doctor_profile"]
+        assert dp["professional_title"] == "Surgeon"
+        assert dp["years_experience"] == 5
+        assert dp["biography"] is None
+
+    def test_partial_update_preserves_other_profile_fields(self, client: TestClient, admin_token: str):
+        created = _create_provider(
+            client, admin_token, "Dr. Dan", provider_type="DOCTOR", **self.PROFILE
+        )
+        resp = client.patch(
+            f"{BASE}/{created['id']}",
+            json={"professional_title": "Updated Title"},
+            headers=_auth(admin_token),
+        )
+        dp = resp.json()["doctor_profile"]
+        assert dp["professional_title"] == "Updated Title"
+        assert dp["biography"] == self.PROFILE["biography"]
+        assert dp["years_experience"] == 20
+
+    def test_update_can_clear_profile_field(self, client: TestClient, admin_token: str):
+        created = _create_provider(
+            client, admin_token, "Dr. Eve", provider_type="DOCTOR", **self.PROFILE
+        )
+        resp = client.patch(
+            f"{BASE}/{created['id']}",
+            json={"biography": None},
+            headers=_auth(admin_token),
+        )
+        assert resp.json()["doctor_profile"]["biography"] is None
+
+    def test_profile_fields_ignored_for_hospital(self, client: TestClient, admin_token: str):
+        data = _create_provider(
+            client, admin_token, "Hosp NoProfile", provider_type="HOSPITAL", **self.PROFILE
+        )
+        assert data["doctor_profile"] is None
+        resp = client.patch(
+            f"{BASE}/{data['id']}",
+            json={"professional_title": "Nope"},
+            headers=_auth(admin_token),
+        )
+        assert resp.status_code == 200
+        assert resp.json()["doctor_profile"] is None
+
+    def test_profile_fields_ignored_for_clinic(self, client: TestClient, admin_token: str):
+        data = _create_provider(
+            client, admin_token, "Clinic NoProfile", provider_type="CLINIC", **self.PROFILE
+        )
+        assert data["doctor_profile"] is None
+
+    def test_years_experience_out_of_range_rejected(self, client: TestClient, admin_token: str):
+        resp = client.post(
+            BASE,
+            json=_provider_body("Dr. Bad", provider_type="DOCTOR", years_experience=101),
+            headers=_auth(admin_token),
+        )
+        assert resp.status_code == 422
+
+    def test_professional_title_too_long_rejected(self, client: TestClient, admin_token: str):
+        resp = client.post(
+            BASE,
+            json=_provider_body("Dr. Long", provider_type="DOCTOR", professional_title="x" * 201),
+            headers=_auth(admin_token),
+        )
+        assert resp.status_code == 422
+
+    def test_legacy_doctor_data_visible_via_provider_endpoint(
+        self, client: TestClient, admin_token: str
+    ):
+        """Doctors created through the legacy doctor API keep their profile,
+        qualifications, and affiliations when opened via provider records."""
+        # Create an organization and a doctor through the legacy doctor API.
+        org = _create_provider(client, admin_token, "Affil Hospital", provider_type="HOSPITAL")
+        resp = client.post(
+            "/api/v1/admin/doctors",
+            json={
+                "name": "Dr. Legacy",
+                "visit_stability": "STABLE_VISIT",
+                "professional_title": "Old-School Surgeon",
+                "biography": "Bio via legacy API.",
+                "years_experience": 30,
+                "experience_description": "Long career.",
+                "organization_ids": [org["id"]],
+                "primary_organization_id": org["id"],
+            },
+            headers=_auth(admin_token),
+        )
+        assert resp.status_code == 201, resp.text
+        doctor_id = resp.json()["id"]
+        client.post(
+            f"/api/v1/admin/doctors/{doctor_id}/qualifications",
+            json={"title": "MBBS", "institution": "Old University", "year_obtained": 1996},
+            headers=_auth(admin_token),
+        )
+
+        # The unified provider endpoint returns the professional profile…
+        resp = client.get(f"{BASE}/{doctor_id}", headers=_auth(admin_token))
+        assert resp.status_code == 200
+        dp = resp.json()["doctor_profile"]
+        assert dp["professional_title"] == "Old-School Surgeon"
+        assert dp["years_experience"] == 30
+
+        # …and updating through the provider endpoint keeps quals/affiliations.
+        resp = client.patch(
+            f"{BASE}/{doctor_id}",
+            json={"professional_title": "Modern Surgeon"},
+            headers=_auth(admin_token),
+        )
+        assert resp.status_code == 200
+        assert resp.json()["doctor_profile"]["professional_title"] == "Modern Surgeon"
+
+        resp = client.get(f"/api/v1/admin/doctors/{doctor_id}", headers=_auth(admin_token))
+        data = resp.json()
+        assert [q["title"] for q in data["qualifications"]] == ["MBBS"]
+        assert len(data["organizations"]) == 1
+        assert data["organizations"][0]["is_primary"] is True

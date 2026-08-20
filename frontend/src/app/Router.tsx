@@ -13,10 +13,7 @@ import { ProvidersPage } from '@/pages/admin/ProvidersPage';
 import { ProviderNewPage } from '@/pages/admin/ProviderNewPage';
 import { ProviderDetailPage } from '@/pages/admin/ProviderDetailPage';
 import { ProviderEditPage } from '@/pages/admin/ProviderEditPage';
-import { DoctorsPage } from '@/pages/admin/DoctorsPage';
-import { DoctorNewPage } from '@/pages/admin/DoctorNewPage';
-import { DoctorDetailPage } from '@/pages/admin/DoctorDetailPage';
-import { DoctorEditPage } from '@/pages/admin/DoctorEditPage';
+import { LegacyDoctorRedirect } from '@/pages/admin/LegacyDoctorRedirect';
 import { InvitationsPage } from '@/pages/admin/InvitationsPage';
 import { InvitationPage } from '@/pages/InvitationPage';
 import { SubmissionSuccessPage } from '@/pages/SubmissionSuccessPage';
@@ -45,10 +42,17 @@ export function AppRouter() {
             <Route path="/admin/providers/new" element={<ProviderNewPage />} />
             <Route path="/admin/providers/:id" element={<ProviderDetailPage />} />
             <Route path="/admin/providers/:id/edit" element={<ProviderEditPage />} />
-            <Route path="/admin/doctors" element={<DoctorsPage />} />
-            <Route path="/admin/doctors/new" element={<DoctorNewPage />} />
-            <Route path="/admin/doctors/:id" element={<DoctorDetailPage />} />
-            <Route path="/admin/doctors/:id/edit" element={<DoctorEditPage />} />
+            {/* Legacy doctor routes → unified Provider Management */}
+            <Route
+              path="/admin/doctors"
+              element={<Navigate to="/admin/providers?provider_type=DOCTOR" replace />}
+            />
+            <Route
+              path="/admin/doctors/new"
+              element={<Navigate to="/admin/providers/new" replace />}
+            />
+            <Route path="/admin/doctors/:id" element={<LegacyDoctorRedirect />} />
+            <Route path="/admin/doctors/:id/edit" element={<LegacyDoctorRedirect edit />} />
             <Route path="/admin/invitations" element={<InvitationsPage />} />
           </Route>
         </Route>
