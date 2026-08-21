@@ -22,6 +22,7 @@ from app.models.enums import (
     VisitStability,
 )
 from app.models.provider import Provider, ProviderLocation, ProviderSpecialization
+from app.models.specialization import Specialization
 from app.repositories.user_repository import UserRepository
 
 URL = "/api/v1/admin/dashboard/stats"
@@ -204,6 +205,71 @@ class TestDemoSeed:
             "locations": 0,
             "assignments": 0,
         }
+
+    def test_seeded_inventory_has_intended_specializations_and_primary_locations(self, db):
+        from scripts.seed_demo_data import seed
+
+        expected_inventory = {
+            "Dubai Demo Crescent Harbor Hospital": (
+                ["Cardiology", "Oncology", "Pediatrics"],
+                "Dubai Marina Campus",
+            ),
+            "Dubai Demo Oasis Meridian Hospital": (
+                ["Neurology", "Orthopedics"],
+                "Jumeirah Campus",
+            ),
+            "Dubai Demo Skyline Gate Hospital": (
+                ["Cardiology", "Dermatology", "Pediatrics"],
+                "Mirdif Campus",
+            ),
+            "Dubai Demo Pearl Family Clinic": (
+                ["Dermatology", "Pediatrics"],
+                "Downtown Dubai Suite",
+            ),
+            "Dubai Demo Barsha Horizon Clinic": (
+                ["Dermatology", "Orthopedics"],
+                "Al Barsha Suite",
+            ),
+            "Dubai Demo Creekside Wellness Clinic": (
+                ["Cardiology", "Neurology"],
+                "Deira Wellness Center",
+            ),
+            "Dr. Layla Meridian (Dubai Demo)": (["Cardiology"], "Business Bay Consultation Room"),
+            "Dr. Sami Crescent (Dubai Demo)": (["Neurology"], "Dubai Marina Consultation Room"),
+            "Dr. Hana Bloom (Dubai Demo)": (["Pediatrics"], "Jumeirah Consultation Room"),
+        }
+
+        seed(db)
+        providers = db.query(Provider).all()
+        assert {provider.name for provider in providers} == set(expected_inventory)
+
+        for provider in providers:
+            expected_specializations, expected_location_name = expected_inventory[provider.name]
+            specialization_names = [
+                name
+                for (name,) in (
+                    db.query(Specialization.name)
+                    .join(
+                        ProviderSpecialization,
+                        ProviderSpecialization.specialization_id == Specialization.id,
+                    )
+                    .filter(ProviderSpecialization.provider_id == provider.id)
+                    .order_by(Specialization.name)
+                    .all()
+                )
+            ]
+            locations = (
+                db.query(ProviderLocation)
+                .filter(
+                    ProviderLocation.provider_id == provider.id,
+                    ProviderLocation.is_primary.is_(True),
+                )
+                .all()
+            )
+
+            assert specialization_names == expected_specializations
+            assert len(locations) == 1
+            assert locations[0].name == expected_location_name
 
     def test_seeded_rows_are_active_published_with_dubai_coords(self, db):
         from scripts.seed_demo_data import seed
