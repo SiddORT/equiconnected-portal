@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import * as providersApi from '@/api/providers';
@@ -169,6 +169,39 @@ describe('ProviderAccountPage', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     expect(drawer.hasAttribute('hidden')).toBe(true);
     expect(document.activeElement).toBe(trigger);
+
+    await user.click(trigger);
+    await user.click(screen.getByRole('button', { name: 'Close member feedback' }));
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(drawer.hasAttribute('hidden')).toBe(true);
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('uses structured fields for profile collections instead of JSON payloads', async () => {
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(portalProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(portalProfile);
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await screen.findByRole('heading', { name: 'Your profile' });
+    expect(screen.queryByText(/JSON list/i)).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Add location' }));
+    await user.type(screen.getByLabelText('Address line 1'), '42 Riding Lane');
+    await user.type(screen.getByLabelText('City'), 'Dubai');
+    await user.click(screen.getByRole('button', { name: 'Add photo' }));
+    await user.type(screen.getByLabelText('Image link'), 'https://example.com/clinic.jpg');
+    const form = screen.getByRole('button', { name: 'Save profile' }).closest('form');
+    if (!form) throw new Error('Provider profile form was not rendered.');
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locations: [expect.objectContaining({ address_line_1: '42 Riding Lane', city: 'Dubai', is_primary: true })],
+        photos: [expect.objectContaining({ storage_reference: 'https://example.com/clinic.jpg', is_thumbnail: true })],
+      })
+    ));
   });
 
   it('keeps profile submission working with the full-width workspace', async () => {

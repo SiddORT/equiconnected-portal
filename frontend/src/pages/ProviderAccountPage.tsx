@@ -10,13 +10,40 @@ import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ProviderTopNav } from '@/components/layout/ProviderTopNav';
 import { ReviewCardList } from '@/components/reviews/ReviewCard';
+import {
+  ProviderProfileCollections,
+  type PortalLocation,
+  type PortalPhoto,
+  type PortalQualification,
+} from '@/components/provider/ProviderProfileCollections';
+import type { EmailEntry } from '@/components/admin/MultiEmailField';
+import type { PhoneEntry } from '@/components/admin/MultiPhoneField';
 import type { ProviderPortalProfile, ProviderPortalUpdate, ProviderSpecializationBrief } from '@/types';
 import styles from './ProviderAccountPage.module.css';
 
 type Notice = { variant: 'success' | 'error'; text: string } | null;
 
-function formattedList(value: unknown) {
-  return JSON.stringify(value, null, 2);
+function normalizePrimary<T extends { is_primary?: boolean }>(entries: T[]) {
+  const primaryIndex = entries.findIndex((entry) => entry.is_primary);
+  return entries.map((entry, index) => ({
+    ...entry,
+    is_primary: primaryIndex === -1 ? index === 0 : index === primaryIndex,
+  }));
+}
+
+function normalizePhotos(entries: NonNullable<ProviderPortalUpdate['photos']>): PortalPhoto[] {
+  const thumbnailIndex = entries.findIndex((entry) => entry.is_thumbnail);
+  return entries.map((entry, index) => ({
+    ...entry,
+    display_order: entry.display_order ?? index,
+    is_thumbnail: thumbnailIndex === -1 ? index === 0 : index === thumbnailIndex,
+  }));
+}
+
+function normalizeQualifications(
+  entries: NonNullable<ProviderPortalUpdate['qualifications']>
+): PortalQualification[] {
+  return entries.map((entry, index) => ({ ...entry, display_order: entry.display_order ?? index }));
 }
 
 export function ProviderAccountPage() {
@@ -25,11 +52,11 @@ export function ProviderAccountPage() {
   const [profile, setProfile] = useState<ProviderPortalProfile | null>(null);
   const [specializations, setSpecializations] = useState<ProviderSpecializationBrief[]>([]);
   const [form, setForm] = useState<ProviderPortalUpdate>({});
-  const [locations, setLocations] = useState('[]');
-  const [phones, setPhones] = useState('[]');
-  const [emails, setEmails] = useState('[]');
-  const [photos, setPhotos] = useState('[]');
-  const [qualifications, setQualifications] = useState('[]');
+  const [locations, setLocations] = useState<PortalLocation[]>([]);
+  const [phones, setPhones] = useState<PhoneEntry[]>([]);
+  const [emails, setEmails] = useState<EmailEntry[]>([]);
+  const [photos, setPhotos] = useState<PortalPhoto[]>([]);
+  const [qualifications, setQualifications] = useState<PortalQualification[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
@@ -54,11 +81,11 @@ export function ProviderAccountPage() {
       years_experience: editable.years_experience ?? null,
       experience_description: editable.experience_description ?? null,
     });
-    setLocations(formattedList(editable.locations));
-    setPhones(formattedList(editable.phones));
-    setEmails(formattedList(editable.emails));
-    setPhotos(formattedList(editable.photos));
-    setQualifications(formattedList(editable.qualifications));
+    setLocations(normalizePrimary(editable.locations));
+    setPhones(normalizePrimary(editable.phones));
+    setEmails(normalizePrimary(editable.emails));
+    setPhotos(normalizePhotos(editable.photos));
+    setQualifications(normalizeQualifications(editable.qualifications));
   }
 
   useEffect(() => {
@@ -82,28 +109,22 @@ export function ProviderAccountPage() {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
-  function parseList(label: string, value: string) {
-    try {
-      const parsed: unknown = JSON.parse(value);
-      if (!Array.isArray(parsed)) throw new Error();
-      return parsed;
-    } catch {
-      throw new Error(`${label} must be a valid JSON list.`);
-    }
-  }
-
   async function save(event: React.FormEvent) {
     event.preventDefault();
     try {
       const body: ProviderPortalUpdate = {
         ...form,
-        locations: parseList('Locations', locations) as ProviderPortalUpdate['locations'],
-        phones: parseList('Phone contacts', phones) as ProviderPortalUpdate['phones'],
-        emails: parseList('Email contacts', emails) as ProviderPortalUpdate['emails'],
-        photos: parseList('Photos', photos) as ProviderPortalUpdate['photos'],
+        locations,
+        phones: phones.map(({ country_code, number, is_primary }) => ({
+          country_code,
+          number: number.trim(),
+          is_primary,
+        })),
+        emails: emails.map(({ email, is_primary }) => ({ email: email.trim(), is_primary })),
+        photos,
       };
       if (profile?.doctor_fields_available) {
-        body.qualifications = parseList('Qualifications', qualifications) as ProviderPortalUpdate['qualifications'];
+        body.qualifications = qualifications;
       } else {
         delete body.professional_title;
         delete body.biography;
@@ -284,16 +305,21 @@ export function ProviderAccountPage() {
               <label className={styles.field}>Biography<textarea className={styles.textarea} rows={4} value={form.biography ?? ''} onChange={(e) => update('biography', e.target.value || null)} disabled={saving} /></label>
               <Input label="Years of experience" id="portal-years" type="number" min="0" max="100" value={form.years_experience ?? ''} onChange={(e) => update('years_experience', e.target.value ? Number(e.target.value) : null)} disabled={saving} />
             </>}
-            {([
-              ['Locations', locations, setLocations, 'A JSON list of locations. Each entry needs address_line_1 and city.'],
-              ['Phone contacts', phones, setPhones, 'A JSON list with country_code, number, and optional is_primary.'],
-              ['Email contacts', emails, setEmails, 'A JSON list with email and optional is_primary.'],
-              ['Photos', photos, setPhotos, 'A JSON list with storage_reference, optional alt_text/caption, display_order, and is_thumbnail.'],
-              ...(profile.doctor_fields_available ? [['Qualifications', qualifications, setQualifications, 'A JSON list with title, institution, year_obtained, description, and display_order.']] as const : []),
-            ] as const).map(([label, value, setter, hint]) => <label className={styles.field} key={label}>{label}
-              <textarea className={styles.textarea} rows={5} value={value} onChange={(e) => setter(e.target.value)} disabled={saving} spellCheck={false} />
-              <span className={styles.hint}>{hint}</span>
-            </label>)}
+            <div className={styles.sectionDivider} />
+            <ProviderProfileCollections
+              locations={locations}
+              onLocationsChange={setLocations}
+              phones={phones}
+              onPhonesChange={setPhones}
+              emails={emails}
+              onEmailsChange={setEmails}
+              photos={photos}
+              onPhotosChange={setPhotos}
+              qualifications={qualifications}
+              onQualificationsChange={setQualifications}
+              showQualifications={profile.doctor_fields_available}
+              disabled={saving}
+            />
             <div className={styles.choice}>
               <Button type="submit" loading={saving}>{profile.profile_update?.review_status === 'REJECTED' ? 'Revise and resubmit' : 'Save profile'}</Button>
               {profile.profile_update?.review_status !== 'APPROVED' && profile.profile_update && <Button type="button" variant="secondary" disabled={saving} onClick={() => void discardDraft()}>Discard draft and reload approved listing</Button>}
