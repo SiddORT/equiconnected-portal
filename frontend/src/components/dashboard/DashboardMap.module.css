@@ -4,12 +4,29 @@
   gap: var(--space-3);
 }
 
+.mapArea {
+  position: relative;
+}
+
 .map {
   width: 100%;
   height: 420px;
   border-radius: var(--radius-lg, 8px);
   overflow: hidden;
   z-index: 0;
+}
+
+.emptyOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: var(--radius-lg, 8px);
+  pointer-events: none;
 }
 
 .legend {
@@ -24,6 +41,34 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  min-height: 36px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full, 9999px);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.legendItem:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.legendItem:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--border-focus) 35%, transparent);
+  outline-offset: 2px;
+}
+
+.legendItemSelected {
+  border-color: var(--border-focus);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
 }
 
 .legendDot {
@@ -37,5 +82,14 @@
 @media (max-width: 768px) {
   .map {
     height: 300px;
+  }
+
+  .legend {
+    gap: var(--space-2);
+  }
+
+  .legendItem {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 }
