@@ -1,0 +1,187 @@
+EQUICONNECTED — PROMPT 8C
+PROFILE COMPLETION FORM
+
+Build the authenticated user's profile form after Admin approval.
+
+First inspect and reuse the existing user/authentication, role, UI and form architecture. Do not create duplicate systems.
+
+### 1. Route
+
+Create/extend:
+
+/profile
+
+Only authenticated and Admin-approved users can access it.
+
+### 2. Personal Information
+
+Allow the user to complete/edit:
+
+- First Name
+- Last Name
+- Mobile Number
+- Country
+- State/Province
+- City
+- Address
+- Postal/ZIP Code
+
+Do NOT add:
+
+- Preferred language
+- Timezone
+- Gender
+- DOB
+- Medical information
+
+### 3. Location Lookup
+
+When the user enters Postal/ZIP Code:
+
+- Look up available location information
+- Auto-fill City and State/Province where supported
+- Allow the user to verify/edit the values
+- Reuse any existing location service/architecture
+- Do not hard-code location data
+
+### 4. Stable Manager Profile
+
+Show this section only when the user has:
+
+- STABLE_MANAGER
+- BOTH
+
+Fields:
+
+- Stable Name
+- Stable Description
+- Stable Address
+- Country
+- State/Province
+- City
+- Postal/ZIP Code
+- Stable Contact Information
+
+Use the same postal-code lookup.
+
+Do NOT add stable logo/photo yet.
+
+### 5. Horse Owner Profile
+
+Show the Horse section only when the user has:
+
+- HORSE_OWNER
+- BOTH
+
+Allow the user to add one or more horses.
+
+Required:
+
+- Horse Name
+- Sex
+
+Optional:
+
+- Registered Name
+- Breed
+- Date of Birth
+- Color
+- Primary Discipline
+- Horse Photo
+- Registration Number
+- Microchip Number
+- Description
+
+A user must be able to add multiple horses.
+
+### 6. Horse Data
+
+Use proper PostgreSQL relational tables.
+
+Do not store horses as JSON inside the user record.
+
+Use proper user ↔ horse ownership relationships.
+
+If an existing stable/provider relationship exists, reuse it rather than creating duplicate structures.
+
+### 7. UI
+
+Reuse existing:
+
+- Forms
+- Inputs
+- Selects
+- Checkboxes
+- Buttons
+- Validation
+- Photo components
+- Location components
+- Cards
+- Alerts
+
+Allow sections to be saved independently.
+
+Users should be able to leave and return later without losing saved information.
+
+### 8. Validation
+
+Validate on both frontend and backend.
+
+Required:
+
+- Personal required fields
+- Stable name when Stable Manager profile is being completed
+- Horse name
+- Horse sex
+
+Do not make optional horse fields mandatory.
+
+### 9. Security
+
+Only the authenticated user can edit their own profile and horses.
+
+Enforce authorization on the backend.
+
+Do not trust user IDs supplied by the frontend.
+
+Do not expose other users' profile information through these APIs.
+
+### 10. Do NOT implement
+
+Do not implement yet:
+
+- Profile completion percentage/dashboard
+- Provider browsing
+- Ratings
+- Reviews/comments
+- Visitor/provider permissions
+- Activity logs
+- Analytics
+- Doctor/hospital/clinic workflows
+
+These are later prompts.
+
+### Done when
+
+- Approved user can access /profile
+- User can edit personal information
+- Postal/ZIP lookup works
+- Stable Manager can complete stable information
+- Horse Owner can add/edit multiple horses
+- Both role sees both sections
+- Data is stored relationally in PostgreSQL
+- Saved information persists
+- Existing authentication remains intact
+- Tests and migrations pass
+
+At completion report:
+
+1. Files changed
+2. Database changes
+3. API routes
+4. Frontend routes
+5. Location lookup implementation
+6. Horse/stable data model
+7. Tests/migration result
+
+STOP. Do not implement Prompt 8D.
