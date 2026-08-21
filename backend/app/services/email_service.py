@@ -21,7 +21,7 @@ class EmailService:
             raise EmailDeliveryError("SMTP_HOST is not configured; invitation email was not sent.")
         message = MIMEMultipart("alternative")
         message["Subject"] = "Complete your EquiConnected provider profile"
-        message["From"] = settings.EMAIL_FROM
+        message["From"] = settings.resolved_email_from
         message["To"] = recipient
         expiry = expires_at.strftime("%B %d, %Y at %H:%M UTC")
         plain = (
@@ -42,6 +42,6 @@ class EmailService:
                     smtp.starttls()
                 if settings.SMTP_USER:
                     smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-                smtp.sendmail(settings.EMAIL_FROM, [recipient], message.as_string())
+                smtp.sendmail(settings.resolved_email_from, [recipient], message.as_string())
         except (OSError, smtplib.SMTPException) as exc:
             raise EmailDeliveryError("Unable to deliver invitation email.") from exc

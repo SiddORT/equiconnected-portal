@@ -52,10 +52,16 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
     EMAIL_FROM: str = "no-reply@equiconnected.local"
     EMAIL_TLS: bool = True
     PUBLIC_APP_URL: str = "http://localhost:5000"
     INVITATION_EXPIRE_DAYS: int = 7
+
+    @property
+    def resolved_email_from(self) -> str:
+        """Prefer the SMTP-specific sender secret, with legacy fallback support."""
+        return self.SMTP_FROM_EMAIL or self.EMAIL_FROM
 
     @property
     def is_production(self) -> bool:
