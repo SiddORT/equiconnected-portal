@@ -8,9 +8,9 @@ interface RegistrationRequestsCardProps {
 
 export function RegistrationRequestsCard({ counts }: RegistrationRequestsCardProps) {
   const summary = [
-    `${counts.requests} registration requests`,
-    `${counts.approved} approved`,
-    `${counts.rejected} rejected`,
+    `${counts.registrations} registrations`,
+    `${counts.verified} verified`,
+    `${counts.unverified} unverified`,
     `${counts.horse_owners} horse owners`,
     `${counts.stable_managers} stable managers`,
   ].join(', ');
@@ -19,20 +19,20 @@ export function RegistrationRequestsCard({ counts }: RegistrationRequestsCardPro
     <Card padding="md" shadow="sm" className={styles.card}>
       <div className={styles.header}>
         <div>
-          <h3 className={styles.title}>Registration requests</h3>
+          <h3 className={styles.title}>Member registrations</h3>
           <p className={styles.subtitle}>Public account signups across all time</p>
         </div>
-        <strong className={styles.total}>{counts.requests}</strong>
+        <strong className={styles.total}>{counts.registrations}</strong>
       </div>
 
       <div className={styles.metrics} role="img" aria-label={summary}>
         <div className={styles.metric}>
-          <span>Approved</span>
-          <strong className={styles.approved}>{counts.approved}</strong>
+          <span>Verified</span>
+          <strong className={styles.verified}>{counts.verified}</strong>
         </div>
         <div className={styles.metric}>
-          <span>Rejected</span>
-          <strong className={styles.rejected}>{counts.rejected}</strong>
+          <span>Unverified</span>
+          <strong className={styles.unverified}>{counts.unverified}</strong>
         </div>
       </div>
 
@@ -47,7 +47,7 @@ export function RegistrationRequestsCard({ counts }: RegistrationRequestsCardPro
         </div>
       </div>
 
-      <p className={styles.note}>Approved after email verification.</p>
+      <p className={styles.note}>Email verification unlocks member access.</p>
     </Card>
   );
 }

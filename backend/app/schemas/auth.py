@@ -35,7 +35,6 @@ class UserProfile(BaseModel):
     full_name: str
     role: str
     roles: list[str] = []
-    approval_status: str | None = None
     email_verified_at: datetime | None = None
     is_active: bool
 
@@ -113,3 +112,10 @@ class RegistrationRequest(BaseModel):
 
 class EmailVerificationRequest(BaseModel):
     token: str = Field(min_length=20, max_length=512)
+
+
+class EmailVerificationResponse(BaseModel):
+    """The email is returned only after a verification token is redeemed."""
+
+    message: str
+    email: EmailStr

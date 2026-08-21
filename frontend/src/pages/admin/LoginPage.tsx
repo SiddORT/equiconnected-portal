@@ -2,7 +2,7 @@
  * Admin login page — /admin/login
  * Redirects to dashboard if already authenticated.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
 import { extractErrorMessage } from '@/api/client';
@@ -20,6 +20,12 @@ interface FormState {
 interface FormErrors {
   email?: string;
   password?: string;
+}
+
+interface LoginLocationState {
+  from?: { pathname: string };
+  verifiedEmail?: string;
+  verifiedNotice?: string;
 }
 
 function validate(form: FormState): FormErrors {
@@ -42,14 +48,29 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const memberLogin = location.pathname === '/login';
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname
+  const loginState = location.state as LoginLocationState | null;
+  const from = loginState?.from?.pathname
     ?? (memberLogin ? '/profile' : '/admin/dashboard');
 
-  const [form, setForm] = useState<FormState>({ email: '', password: '' });
+  const [form, setForm] = useState<FormState>(() => ({
+    email: loginState?.verifiedEmail ?? '',
+    password: '',
+  }));
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [successNotice, setSuccessNotice] = useState<string | null>(
+    () => loginState?.verifiedNotice ?? null
+  );
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (loginState?.verifiedEmail || loginState?.verifiedNotice) {
+      // Keep the success notice in component state while removing the
+      // one-time handoff data from browser history.
+      navigate('/login', { replace: true, state: null });
+    }
+  }, [loginState?.verifiedEmail, loginState?.verifiedNotice, navigate]);
 
   // Already authenticated — go straight to dashboard
   if (!isLoading && isAuthenticated) {
@@ -121,10 +142,16 @@ export function LoginPage() {
             <h2 className={`text-display ${styles.formTitle}`}>{memberLogin ? 'Member sign in' : 'Admin sign in'}</h2>
             <p className={styles.formSubtitle}>
               {memberLogin
-                ? 'Enter your approved member credentials to access your profile.'
+                ? 'Sign in with the email and password from your verified member account.'
                 : 'Enter your administrator credentials to access the portal.'}
             </p>
           </div>
+
+          {successNotice && (
+            <Alert variant="success" onDismiss={() => setSuccessNotice(null)}>
+              {successNotice}
+            </Alert>
+          )}
 
           {globalError && (
             <Alert variant="error" onDismiss={() => setGlobalError(null)}>
@@ -183,7 +210,7 @@ export function LoginPage() {
           </form>
 
           <p className={styles.noRegister}>
-            {memberLogin ? 'Need an approved member account?' : 'This portal is for authorised administrators only.'}
+            {memberLogin ? 'Need a verified member account?' : 'This portal is for authorised administrators only.'}
             <br />
             Joining as a horse owner or stable manager?{' '}
             <Link to="/signup" className={styles.signupLink}>Create a public account</Link>

@@ -1,4 +1,4 @@
-"""Contracts for the approved member profile workflow."""
+"""Contracts for the verified member profile workflow."""
 import re
 import uuid
 from datetime import datetime

@@ -23,6 +23,7 @@ from app.core.security import decode_token
 from app.db.session import get_db
 from app.schemas.auth import (
     EmailVerificationRequest,
+    EmailVerificationResponse,
     LoginRequest,
     LoginResponse,
     RegistrationRequest,
@@ -111,16 +112,16 @@ def register(
 
 @router.post(
     "/verify-email",
-    response_model=MessageResponse,
+    response_model=EmailVerificationResponse,
     dependencies=[Depends(check_email_verification_rate_limit)],
 )
 def verify_email(
     body: EmailVerificationRequest,
     db: Annotated[Session, Depends(get_db)],
-) -> MessageResponse:
+) -> EmailVerificationResponse:
     """Verify a public account using the token delivered in its email link."""
     try:
-        AuthService(db).verify_email(body.token)
+        email = AuthService(db).verify_email(body.token)
     except VerificationTokenNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -136,8 +137,9 @@ def verify_email(
             status_code=status.HTTP_410_GONE,
             detail={"code": "verification_link_expired", "message": "Verification link has expired."},
         )
-    return MessageResponse(
-        message="Your email has been verified. Your account is awaiting administrator approval."
+    return EmailVerificationResponse(
+        message="Your email has been verified. You can now sign in.",
+        email=email,
     )
 
 

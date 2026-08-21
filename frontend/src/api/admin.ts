@@ -48,13 +48,3 @@ export async function getAdminUser(id: string): Promise<AdminUser> {
   const { data } = await apiClient.get<AdminUser>(`/admin/users/${id}`);
   return data;
 }
-
-export async function approveUser(id: string): Promise<AdminUser> {
-  const { data } = await apiClient.post<AdminUser>(`/admin/users/${id}/approve`);
-  return data;
-}
-
-export async function rejectUser(id: string): Promise<AdminUser> {
-  const { data } = await apiClient.post<AdminUser>(`/admin/users/${id}/reject`);
-  return data;
-}

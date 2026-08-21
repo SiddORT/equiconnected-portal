@@ -1,4 +1,4 @@
-"""Business rules for approved public member profiles."""
+"""Business rules for verified public member profiles."""
 import uuid
 
 from sqlalchemy.orm import Session

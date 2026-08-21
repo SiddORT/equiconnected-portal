@@ -59,11 +59,11 @@
   font-size: var(--text-base);
 }
 
-.approved {
+.verified {
   color: var(--color-success, #24855b) !important;
 }
 
-.rejected {
+.unverified {
   color: var(--color-error, #bd4b50) !important;
 }
 

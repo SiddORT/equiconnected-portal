@@ -45,7 +45,7 @@ _DISPLAY_SAFE_FIELDS = {
     "display_order", "is_primary", "is_thumbnail", "specialization_id",
     "specialization_name", "organization_id", "organization_name",
     "relationship_status", "result_count", "exported_count", "imported_count",
-    "skipped_count", "error_count", "updated_fields", "field", "approval_status",
+    "skipped_count", "error_count", "updated_fields", "field",
 }
 
 

@@ -21,7 +21,6 @@ from app.core.security import (
     verify_password,
 )
 from app.auth.account_access import PublicAccountAccessIssue, public_account_access_issue
-from app.models.enums import PublicAccountApprovalStatus
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.token_repository import TokenRepository
 from app.repositories.user_repository import UserRepository
@@ -96,7 +95,7 @@ class AuthService:
     # ── Public registration and verification ───────────────────────────────────
 
     def register(self, registration: RegistrationRequest) -> None:
-        """Create a pending public account and deliver its verification link."""
+        """Create a public account and deliver its verification link."""
         from app.core.config import get_settings
 
         email = registration.email.lower().strip()
@@ -135,7 +134,6 @@ class AuthService:
                 terms_accepted_at=now,
                 privacy_accepted_at=now,
                 is_active=True,
-                approval_status=PublicAccountApprovalStatus.PENDING,
             )
 
             raw_token = secrets.token_urlsafe(32)
@@ -167,8 +165,8 @@ class AuthService:
             self._db.rollback()
             raise
 
-    def verify_email(self, raw_token: str) -> None:
-        """Redeem a verification token without changing its approval state."""
+    def verify_email(self, raw_token: str) -> str:
+        """Redeem a single-use verification token and return the verified email."""
         token_hash = self._hash_verification_token(raw_token)
         # Lock the token row while checking and consuming it. Under PostgreSQL's
         # READ COMMITTED isolation, a concurrent redemption waits here and then
@@ -188,7 +186,9 @@ class AuthService:
 
         token.used_at = datetime.now(timezone.utc)
         token.user.email_verified_at = token.used_at
+        email = token.user.email
         self._db.commit()
+        return email
 
 
     # ── Login ────────────────────────────────────────────────────────────────
@@ -376,7 +376,6 @@ class AuthService:
             full_name=user.full_name,
             role=user.role.name,
             roles=sorted({assignment.role.name for assignment in user.role_assignments} or {user.role.name}),
-            approval_status=(user.approval_status.value if user.approval_status else None),
             email_verified_at=user.email_verified_at,
             is_active=user.is_active,
         )

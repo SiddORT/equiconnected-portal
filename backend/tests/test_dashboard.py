@@ -19,7 +19,6 @@ from app.models.enums import (
     ProviderStatus,
     PublicationStatus,
     ProviderType,
-    PublicAccountApprovalStatus,
     VisitStability,
 )
 from app.models.provider import Provider, ProviderLocation, ProviderSpecialization
@@ -92,9 +91,9 @@ class TestDashboard:
         assert data["active_providers"] == 0
         assert data["invitation_counts"] == {"sent": 0, "accepted": 0, "rejected": 0}
         assert data["registration_counts"] == {
-            "requests": 0,
-            "approved": 0,
-            "rejected": 0,
+            "registrations": 0,
+            "verified": 0,
+            "unverified": 0,
             "horse_owners": 0,
             "stable_managers": 0,
         }
@@ -153,7 +152,7 @@ class TestDashboard:
         assert len(visits) == 7
         assert sum(visit["count"] for visit in visits) == 1
 
-    def test_registration_counts_include_status_and_public_roles(
+    def test_registration_counts_include_verification_state_and_public_roles(
         self, client: TestClient, admin_token: str, db
     ):
         repo = UserRepository(db)
@@ -163,29 +162,26 @@ class TestDashboard:
         stable_manager = repo.get_role_by_name("stable_manager") or repo.create_role(
             "stable_manager", "Public stable manager account"
         )
-        approved = repo.create_user(
-            email="approved-owner@example.com",
-            password_hash=hash_password("Approved#2026!ABC"),
+        verified = repo.create_user(
+            email="verified-owner@example.com",
+            password_hash=hash_password("Verified#2026!ABC"),
             role=horse_owner,
             roles=[horse_owner, stable_manager],
         )
-        approved.email_verified_at = datetime.now(timezone.utc)
-        approved.approval_status = PublicAccountApprovalStatus.APPROVED
-        rejected = repo.create_user(
-            email="rejected-owner@example.com",
-            password_hash=hash_password("Rejected#2026!ABC"),
+        verified.email_verified_at = datetime.now(timezone.utc)
+        unverified = repo.create_user(
+            email="unverified-owner@example.com",
+            password_hash=hash_password("Unverified#2026!ABC"),
             role=horse_owner,
             is_active=False,
         )
-        rejected.email_verified_at = datetime.now(timezone.utc)
-        rejected.approval_status = PublicAccountApprovalStatus.REJECTED
         db.commit()
 
         counts = client.get(URL, headers=_auth(admin_token)).json()["registration_counts"]
         assert counts == {
-            "requests": 2,
-            "approved": 1,
-            "rejected": 1,
+            "registrations": 2,
+            "verified": 1,
+            "unverified": 1,
             "horse_owners": 2,
             "stable_managers": 1,
         }

@@ -1,6 +1,6 @@
 /** Public email-verification landing page — /verify-email?token=... */
 import { useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
 import * as authApi from '@/api/auth';
 import styles from './SignupPage.module.css';
@@ -9,6 +9,7 @@ type VerificationState = 'verifying' | 'verified' | 'error';
 
 export function VerifyEmailPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const tokenRef = useRef(new URLSearchParams(location.search).get('token'));
   const verificationStarted = useRef(false);
   const [state, setState] = useState<VerificationState>('verifying');
@@ -31,12 +32,19 @@ export function VerifyEmailPage() {
       .then((response) => {
         setState('verified');
         setMessage(response.message);
+        navigate('/login', {
+          replace: true,
+          state: {
+            verifiedEmail: response.email,
+            verifiedNotice: response.message,
+          },
+        });
       })
       .catch((error) => {
         setState('error');
         setMessage(extractErrorMessage(error, 'We could not verify this email link.'));
       });
-  }, []);
+  }, [navigate]);
 
   return (
     <main className={styles.page}>
@@ -55,9 +63,8 @@ export function VerifyEmailPage() {
             {state === 'verifying' ? 'Verifying your email' : state === 'verified' ? 'Email verified' : 'Unable to verify email'}
           </h1>
           <p>{message}</p>
-          {state === 'verified' && <p className={styles.muted}>You can now sign in when public account access becomes available.</p>}
           {state === 'error' && <p className={styles.muted}>For your security, verification links can only be used once and expire after 24 hours.</p>}
-          <Link className={styles.homeLink} to="/">Return to EquiConnected</Link>
+          {state === 'error' && <Link className={styles.homeLink} to="/">Return to EquiConnected</Link>}
         </section>
       </section>
     </main>

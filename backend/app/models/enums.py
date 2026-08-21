@@ -47,11 +47,3 @@ class OrganizationRequestStatus(str, enum.Enum):
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
-
-
-class PublicAccountApprovalStatus(str, enum.Enum):
-    """An administrator's decision for a public account registration."""
-
-    PENDING = "PENDING"
-    APPROVED = "APPROVED"
-    REJECTED = "REJECTED"

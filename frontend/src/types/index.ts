@@ -13,7 +13,6 @@ export interface UserProfile {
   full_name: string;
   role: string;
   roles: string[];
-  approval_status: string | null;
   email_verified_at: string | null;
   is_active: boolean;
 }
@@ -55,6 +54,10 @@ export interface RegistrationRequest {
 
 export interface MessageResponse {
   message: string;
+}
+
+export interface EmailVerificationResponse extends MessageResponse {
+  email: string;
 }
 
 // ── Member profile ───────────────────────────────────────────────────────────
@@ -178,9 +181,9 @@ export interface InvitationCounts {
 }
 
 export interface RegistrationCounts {
-  requests: number;
-  approved: number;
-  rejected: number;
+  registrations: number;
+  verified: number;
+  unverified: number;
   horse_owners: number;
   stable_managers: number;
 }
@@ -544,8 +547,6 @@ export interface InvitationListParams {
   page_size?: number;
 }
 
-export type RegistrantApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
-
 // ── Public invitation domain — re-exported for convenient single-import ──────
 export type {
   DraftLocation,
@@ -573,15 +574,11 @@ export interface AdminUser {
   city: string | null;
   roles: string[];
   email_verified_at: string | null;
-  approval_status: RegistrantApprovalStatus;
-  approval_decided_at: string | null;
-  approval_decided_by: string | null;
   created_at: string;
 }
 
 export interface AdminUserListParams {
   search?: string;
-  approval_status?: RegistrantApprovalStatus;
   role?: string;
   email_verified?: boolean;
   page?: number;

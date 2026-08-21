@@ -183,7 +183,7 @@ export function ProfilePage() {
   const editingHorseId = editingHorse && typeof editingHorse === 'object' ? editingHorse.id : null;
   return (
     <main className={styles.page}>
-      <header className={styles.header}><div><p className={styles.eyebrow}>Approved member area</p><h1 className="text-display">Your profile</h1><p>Keep your contact, stable, and horse information up to date.</p></div><Link to="/" className={styles.homeLink}>Return home</Link></header>
+      <header className={styles.header}><div><p className={styles.eyebrow}>Verified member area</p><h1 className="text-display">Your profile</h1><p>Keep your contact, stable, and horse information up to date.</p></div><Link to="/" className={styles.homeLink}>Return home</Link></header>
       {notice && <Alert variant={notice.kind === 'info' ? 'info' : notice.kind} onDismiss={() => setNotice(null)}>{notice.text}</Alert>}
       <Card className={styles.section}><div className={styles.sectionHeader}><div><h2>Personal information</h2><p>Required fields are marked with an asterisk.</p></div></div>
         <div className={styles.grid}>

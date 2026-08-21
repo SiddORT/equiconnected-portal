@@ -1,7 +1,6 @@
-"""Approved member profile access, ownership, validation, and persistence tests."""
+"""Verified member profile access, ownership, validation, and persistence tests."""
 from datetime import datetime, timezone
 from app.core.security import create_access_token, hash_password
-from app.models.enums import PublicAccountApprovalStatus
 from app.repositories.user_repository import UserRepository
 from app.api.v1 import profile as profile_router
 
@@ -26,7 +25,6 @@ def _member(db, *, email: str, roles: list[str]):
         mobile_number="+1 555 123 4567",
         country="United States",
         city="Austin",
-        approval_status=PublicAccountApprovalStatus.APPROVED,
     )
     user.email_verified_at = datetime.now(timezone.utc)
     db.commit()
@@ -46,7 +44,7 @@ def _personal():
 
 
 class TestMemberProfile:
-    def test_requires_approved_member_and_returns_only_current_profile(self, client, db, seeded_admin):
+    def test_requires_verified_member_and_returns_only_current_profile(self, client, db, seeded_admin):
         admin, _ = seeded_admin
         assert client.get(BASE).status_code == 401
         assert client.get(f"{BASE}/postal-lookup", params={"country": "United States", "postal_code": "78701"}).status_code == 401

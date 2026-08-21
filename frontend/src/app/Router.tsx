@@ -71,7 +71,7 @@ export function AppRouter() {
           </Route>
         </Route>
 
-        {/* ── Approved member profile ─────────────────────────────── */}
+        {/* ── Verified member profile ─────────────────────────────── */}
         <Route element={<MemberAuthGuard />}>
           <Route path="/profile" element={<ProfilePage />} />
         </Route>

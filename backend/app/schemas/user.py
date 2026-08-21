@@ -6,7 +6,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from app.models.enums import PublicAccountApprovalStatus
 
 
 class UserCreate(BaseModel):
@@ -49,7 +48,4 @@ class PublicRegistrantResponse(BaseModel):
     city: str | None
     roles: list[str]
     email_verified_at: datetime | None
-    approval_status: PublicAccountApprovalStatus
-    approval_decided_at: datetime | None
-    approval_decided_by: uuid.UUID | None
     created_at: datetime

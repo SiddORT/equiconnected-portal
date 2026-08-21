@@ -5,6 +5,7 @@ import { apiClient } from './client';
 import type {
   LoginRequest,
   LoginResponse,
+  EmailVerificationResponse,
   MessageResponse,
   RegistrationRequest,
   UserProfile,
@@ -34,7 +35,7 @@ export async function register(payload: RegistrationRequest): Promise<MessageRes
   return data;
 }
 
-export async function verifyEmail(token: string): Promise<MessageResponse> {
-  const { data } = await apiClient.post<MessageResponse>('/auth/verify-email', { token });
+export async function verifyEmail(token: string): Promise<EmailVerificationResponse> {
+  const { data } = await apiClient.post<EmailVerificationResponse>('/auth/verify-email', { token });
   return data;
 }

@@ -6,7 +6,6 @@ import uuid
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
-from app.models.enums import PublicAccountApprovalStatus
 from app.models.user import PUBLIC_ACCOUNT_ROLE_NAMES, User, UserRole
 from app.models.role import Role
 
@@ -60,11 +59,7 @@ class UserRepository:
         privacy_accepted_at=None,
         is_active: bool = True,
         roles: list[Role] | None = None,
-        approval_status: PublicAccountApprovalStatus | None = None,
     ) -> User:
-        resolved_approval_status = approval_status
-        if resolved_approval_status is None and role.name in PUBLIC_ACCOUNT_ROLE_NAMES:
-            resolved_approval_status = PublicAccountApprovalStatus.PENDING
         user = User(
             email=email.lower().strip(),
             password_hash=password_hash,
@@ -78,7 +73,6 @@ class UserRepository:
             terms_accepted_at=terms_accepted_at,
             privacy_accepted_at=privacy_accepted_at,
             is_active=is_active,
-            approval_status=resolved_approval_status,
         )
         self._db.add(user)
         self._db.flush()
@@ -106,7 +100,6 @@ class UserRepository:
         *,
         search: str | None = None,
         role: str | None = None,
-        approval_status: PublicAccountApprovalStatus | None = None,
         email_verified: bool | None = None,
         page: int = 1,
         page_size: int = 25,
@@ -129,8 +122,6 @@ class UserRepository:
                 .where(Role.name == role)
             )
             filters.append(User.id.in_(matching_role_users))
-        if approval_status is not None:
-            filters.append(User.approval_status == approval_status)
         if email_verified is True:
             filters.append(User.email_verified_at.is_not(None))
         elif email_verified is False:
@@ -160,14 +151,6 @@ class UserRepository:
                 selectinload(User.role_assignments).joinedload(UserRole.role),
             )
             .where(User.id == user_id, self._public_registrant_filter())
-        ).first()
-
-    def get_public_registrant_for_update(self, user_id: uuid.UUID) -> User | None:
-        """Lock a registrant before recording an irreversible decision."""
-        return self._db.scalars(
-            select(User)
-            .where(User.id == user_id, self._public_registrant_filter())
-            .with_for_update()
         ).first()
 
     def commit(self) -> None:

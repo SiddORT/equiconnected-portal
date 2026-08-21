@@ -9,9 +9,9 @@ from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
 from fastapi.testclient import TestClient
 
-from app.models.enums import PublicAccountApprovalStatus
 from app.models.user import EmailVerificationToken, User, UserRole
 from app.models.role import Role
+from app.core.security import create_access_token
 from app.repositories.user_repository import UserRepository
 from app.services.email_service import EmailService
 from app.services.auth_service import AuthService, VerificationTokenUsedError
@@ -204,7 +204,7 @@ class TestPublicRegistration:
         assert response.status_code == 422
         assert db.query(User).count() == 0
 
-    def test_unverified_pending_account_cannot_log_in(
+    def test_unverified_account_cannot_log_in_or_access_member_profile(
         self, client: TestClient, db, monkeypatch
     ):
         _seed_public_roles(db)
@@ -218,10 +218,17 @@ class TestPublicRegistration:
 
         assert response.status_code == 403
         assert response.json()["detail"]["code"] == "email_not_verified"
+        user = db.query(User).filter(User.email == "amina@example.com").one()
+        profile = client.get(
+            "/api/v1/profile",
+            headers={"Authorization": f"Bearer {create_access_token(subject=user.id)}"},
+        )
+        assert profile.status_code == 403
+        assert profile.json()["detail"]["code"] == "email_not_verified"
 
 
 class TestEmailVerification:
-    def test_verification_does_not_approve_account(
+    def test_verification_allows_immediate_member_login_and_returns_verified_email(
         self, client: TestClient, db, monkeypatch
     ):
         _seed_public_roles(db)
@@ -237,14 +244,18 @@ class TestEmailVerification:
         )
 
         assert verified.status_code == 200
+        assert verified.json() == {
+            "message": "Your email has been verified. You can now sign in.",
+            "email": "amina@example.com",
+        }
         assert repeated.status_code == 409
         assert repeated.json()["detail"]["code"] == "verification_link_used"
-        assert login.status_code == 403
-        assert login.json()["detail"]["code"] == "account_pending"
+        assert login.status_code == 200
+        assert login.json()["user"]["email"] == "amina@example.com"
+        assert "approval_status" not in login.json()["user"]
         user = db.query(User).filter(User.email == "amina@example.com").one()
         assert user.is_active is True
         assert user.email_verified_at is not None
-        assert user.approval_status == PublicAccountApprovalStatus.PENDING
         token = db.query(EmailVerificationToken).filter(
             EmailVerificationToken.user_id == user.id
         ).one()

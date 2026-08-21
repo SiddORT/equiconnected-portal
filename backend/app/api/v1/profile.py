@@ -1,4 +1,4 @@
-"""Approved public member profile endpoints."""
+"""Verified public member profile endpoints."""
 import os
 import uuid
 from typing import Annotated
@@ -36,7 +36,7 @@ _UPLOADS_DIR = os.path.join(
 def _forbidden() -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail={"code": "member_profile_forbidden", "message": "This profile area is available to approved members only."},
+        detail={"code": "member_profile_forbidden", "message": "This profile area is available to verified members only."},
     )
 
 
