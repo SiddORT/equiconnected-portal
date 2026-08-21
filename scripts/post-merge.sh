@@ -11,7 +11,7 @@ echo "==> Syncing Python dependencies..."
 uv sync
 
 echo "==> Running database migrations..."
-cd backend && uv run alembic upgrade head
+cd backend && uv run alembic upgrade heads
 cd ..
 
 echo "==> Post-merge setup complete."
