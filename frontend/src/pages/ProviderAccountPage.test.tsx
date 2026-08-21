@@ -237,6 +237,21 @@ describe('ProviderAccountPage', () => {
     expect(screen.getByText(/Photo upload complete/)).toBeTruthy();
   });
 
+  it('opens the file picker from the browse photos drop zone', async () => {
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(portalProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await screen.findByRole('heading', { name: 'Your profile' });
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const clickSpy = vi.spyOn(fileInput, 'click');
+    await user.click(screen.getByRole('button', { name: 'Browse photos' }));
+
+    expect(clickSpy).toHaveBeenCalledOnce();
+  });
+
   it('keeps profile submission working with the full-width workspace', async () => {
     vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(portalProfile);
     vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);

@@ -303,14 +303,27 @@ export function ProviderProfileCollections({
         />
         <div
           className={styles.dropZone}
+          role="button"
+          tabIndex={disabled || uploadingPhotos ? -1 : 0}
+          aria-label="Browse photos"
+          aria-disabled={disabled || uploadingPhotos}
+          onClick={() => {
+            if (!disabled && !uploadingPhotos) fileInputRef.current?.click();
+          }}
+          onKeyDown={(event) => {
+            if ((event.key === 'Enter' || event.key === ' ') && !disabled && !uploadingPhotos) {
+              event.preventDefault();
+              fileInputRef.current?.click();
+            }
+          }}
           onDragOver={(event) => event.preventDefault()}
           onDrop={(event) => {
             event.preventDefault();
-            addPhotos(event.dataTransfer.files);
+            if (!disabled && !uploadingPhotos) addPhotos(event.dataTransfer.files);
           }}
         >
           <span className={styles.dropIcon} aria-hidden="true">🖼</span>
-          <span>Drag photos here or use “Add photos”.</span>
+          <span>Drop images here or <strong>browse photos</strong></span>
           <small>JPEG, PNG, GIF, or WebP · up to 10 MB each</small>
         </div>
         {uploadError && <p className={styles.uploadError} role="alert">{uploadError}</p>}
