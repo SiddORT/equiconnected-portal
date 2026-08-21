@@ -2,3 +2,4 @@
 - [New-provider invitation concurrency](invitation-concurrency.md) — reserve the logical type/email identity before a draft provider ID exists.
 - [Collapsible admin filters](collapsible-admin-filters.md) — hidden filter controls must leave the interactive page structure, not only be visually clipped.
 - [Provider photo upload policy](provider-photo-uploads.md) — allow JPEG, PNG, GIF, and WebP only, with a 10 MB per-photo limit.
+- [Invitation email presentation](invitation-email-presentation.md) — use the dark, warm-gold launch aesthetic while keeping invitation CTA and security details prominent.
