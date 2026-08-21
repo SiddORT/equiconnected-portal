@@ -97,9 +97,44 @@
 }
 
 .directoryTrigger {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
   font-family: inherit;
+  background: transparent;
+  color: var(--color-neutral-400);
   border: 0;
   cursor: pointer;
+  text-align: left;
+}
+
+.directoryTrigger:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-neutral-100);
+}
+
+.directoryTrigger:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-neutral-100);
+}
+
+.directoryTrigger.link--active,
+.directoryTrigger[aria-expanded='true'] {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--color-neutral-50);
+}
+
+.directoryTrigger.link--active:hover,
+.directoryTrigger.link--active:focus-visible,
+.directoryTrigger[aria-expanded='true']:hover,
+.directoryTrigger[aria-expanded='true']:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--color-neutral-50);
+}
+
+.directoryTrigger[aria-expanded='true'] .directoryChevron,
+.directoryTrigger.link--active .directoryChevron {
+  color: var(--color-neutral-100);
 }
 
 .directoryChevron {
