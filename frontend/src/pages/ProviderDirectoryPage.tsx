@@ -123,25 +123,41 @@ export function ProviderDirectoryPage() {
 
   return (
     <main className={styles.page}>
-      <header className={styles.header}>
-        <div>
+      <header className={styles.header} data-testid="member-dashboard-hero" aria-labelledby="dashboard-welcome-heading">
+        <div className={styles.heroCopy}>
           <p className={styles.eyebrow}>Your EquiConnected circle</p>
-          <h1 className="text-display">Welcome back, {firstName}.</h1>
-          <p>Find the care team that keeps every ride, recovery, and routine moving forward.</p>
-          <p className={styles.signInTime}>
-            {hasLastSignIn ? (
-              <>
-                Last successful sign-in:{' '}
-                <time dateTime={user!.last_successful_login_at!}>
-                  {formatTimestamp(user!.last_successful_login_at!)}
-                </time>
-              </>
-            ) : (
-              'Your member session is ready.'
-            )}
-          </p>
+          <h1 id="dashboard-welcome-heading" className="text-display">Welcome back, {firstName}.</h1>
+          <p className={styles.heroMessage}>Find the care team that keeps every ride, recovery, and routine moving forward.</p>
+          <div className={styles.heroDetails}>
+            <span className={styles.sessionMarker} aria-hidden="true" />
+            <p className={styles.signInTime}>
+              {hasLastSignIn ? (
+                <>
+                  Last successful sign-in:{' '}
+                  <time dateTime={user!.last_successful_login_at!}>
+                    {formatTimestamp(user!.last_successful_login_at!)}
+                  </time>
+                </>
+              ) : (
+                'Your member session is ready.'
+              )}
+            </p>
+          </div>
+          <Link to="/profile" className={styles.profileLink}>
+            <span>View your profile</span>
+            <span aria-hidden="true">→</span>
+          </Link>
         </div>
-        <Link to="/profile" className={styles.profileLink}>View profile</Link>
+        <div className={styles.heroArt} aria-hidden="true">
+          <div className={styles.horseImageFrame}>
+            <img src="/horse-panel.jpg" alt="" />
+            <span className={styles.artLabel}>Care, connected</span>
+          </div>
+          <div className={styles.stableImageFrame}>
+            <img src="/stable-panel.jpg" alt="" />
+          </div>
+          <span className={styles.artCaption}>For every chapter of the journey</span>
+        </div>
       </header>
 
       {locationNotice && <Alert variant="info" onDismiss={() => setLocationNotice(null)}>{locationNotice}</Alert>}

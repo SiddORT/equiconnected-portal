@@ -69,9 +69,13 @@ describe('ProviderDirectoryPage', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Welcome back, Amina.' })).toBeTruthy();
+    expect(screen.getByTestId('member-dashboard-hero')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /view your profile/i }).getAttribute('href')).toBe('/profile');
     expect(screen.getByText(/Last successful sign-in:/)).toBeTruthy();
     expect(screen.getByText('System time: 2026-08-21T15:30:00Z')).toBeTruthy();
     expect(document.querySelector('time')?.getAttribute('dateTime')).toBe('2026-08-21T15:30:00Z');
+    expect(screen.getByTestId('member-dashboard-hero').querySelector('img[src="/horse-panel.jpg"]')?.getAttribute('alt')).toBe('');
+    expect(screen.getByTestId('member-dashboard-hero').querySelector('img[src="/stable-panel.jpg"]')?.getAttribute('alt')).toBe('');
     expect(await screen.findByRole('heading', { name: 'Austin Equine Clinic' })).toBeTruthy();
   });
 
