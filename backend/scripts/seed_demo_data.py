@@ -6,10 +6,11 @@ Usage:
     python scripts/seed_demo_data.py
 
 Creates a small set of active specializations plus active, published
-hospitals, clinics, and doctors with primary geocoded locations.
+hospitals, clinics, and doctors with primary geocoded Dubai locations.
 Idempotent: seed identities are matched by (provider_type, name) for
-providers and by name for specializations — reruns create nothing new
-and do not touch unrelated or user-edited records.
+providers, by name for specializations, and by provider/location name for
+locations — reruns create nothing new and do not touch unrelated or
+user-edited records.
 
 No secrets are used or stored by this script.
 """
@@ -48,49 +49,62 @@ SPECIALIZATIONS = [
     "Oncology",
 ]
 
-# name, type, specializations, (location name, address, city, state, country, postal, lat, lon)
+# name, type, specializations,
+# (location name, address, city, state, country, postal, lat, lon)
 PROVIDERS = [
     (
-        "St. Mary's General Hospital", ProviderType.HOSPITAL,
+        "Dubai Demo Crescent Harbor Hospital", ProviderType.HOSPITAL,
         ["Cardiology", "Oncology", "Pediatrics"],
-        ("Main Campus", "450 Stanyan St", "San Francisco", "CA", "USA", "94117",
-         Decimal("37.774900"), Decimal("-122.453500")),
+        ("Dubai Marina Campus", "88 Crescent Harbor Walk", "Dubai", "Dubai",
+         "United Arab Emirates", "00000", Decimal("25.080600"), Decimal("55.142400")),
     ),
     (
-        "Riverside Medical Center", ProviderType.HOSPITAL,
+        "Dubai Demo Oasis Meridian Hospital", ProviderType.HOSPITAL,
         ["Neurology", "Orthopedics"],
-        ("Main Building", "1000 Riverside Dr", "Austin", "TX", "USA", "78704",
-         Decimal("30.244500"), Decimal("-97.748400")),
+        ("Jumeirah Campus", "17 Oasis Meridian Road", "Dubai", "Dubai",
+         "United Arab Emirates", "00000", Decimal("25.204800"), Decimal("55.238800")),
     ),
     (
-        "Downtown Family Clinic", ProviderType.CLINIC,
+        "Dubai Demo Skyline Gate Hospital", ProviderType.HOSPITAL,
+        ["Cardiology", "Pediatrics", "Dermatology"],
+        ("Mirdif Campus", "42 Skyline Gate Avenue", "Dubai", "Dubai",
+         "United Arab Emirates", "00000", Decimal("25.220800"), Decimal("55.420900")),
+    ),
+    (
+        "Dubai Demo Pearl Family Clinic", ProviderType.CLINIC,
         ["Pediatrics", "Dermatology"],
-        ("Suite 200", "88 5th Ave", "New York", "NY", "USA", "10011",
-         Decimal("40.736900"), Decimal("-73.993400")),
+        ("Downtown Dubai Suite", "6 Pearl Family Lane", "Dubai", "Dubai",
+         "United Arab Emirates", "00000", Decimal("25.197200"), Decimal("55.274400")),
     ),
     (
-        "Lakeview Urgent Care", ProviderType.CLINIC,
-        ["Dermatology"],
-        ("Front Office", "3210 N Lake Shore Dr", "Chicago", "IL", "USA", "60657",
-         Decimal("41.940300"), Decimal("-87.639700")),
+        "Dubai Demo Barsha Horizon Clinic", ProviderType.CLINIC,
+        ["Dermatology", "Orthopedics"],
+        ("Al Barsha Suite", "31 Barsha Horizon Street", "Dubai", "Dubai",
+         "United Arab Emirates", "00000", Decimal("25.112400"), Decimal("55.200300")),
     ),
     (
-        "Dr. Amelia Hart", ProviderType.DOCTOR,
+        "Dubai Demo Creekside Wellness Clinic", ProviderType.CLINIC,
+        ["Neurology", "Cardiology"],
+        ("Deira Wellness Center", "9 Creekside Crescent", "Dubai", "Dubai",
+         "United Arab Emirates", "00000", Decimal("25.266700"), Decimal("55.316700")),
+    ),
+    (
+        "Dr. Layla Meridian (Dubai Demo)", ProviderType.DOCTOR,
         ["Cardiology"],
-        ("Private Practice", "200 Peachtree St NW", "Atlanta", "GA", "USA", "30303",
-         Decimal("33.759100"), Decimal("-84.387900")),
+        ("Business Bay Consultation Room", "24 Meridian Quay", "Dubai", "Dubai",
+         "United Arab Emirates", "00000", Decimal("25.185100"), Decimal("55.263200")),
     ),
     (
-        "Dr. Samuel Osei", ProviderType.DOCTOR,
+        "Dr. Sami Crescent (Dubai Demo)", ProviderType.DOCTOR,
         ["Neurology"],
-        ("Neurology Office", "1201 3rd Ave", "Seattle", "WA", "USA", "98101",
-         Decimal("47.606200"), Decimal("-122.335300")),
+        ("Dubai Marina Consultation Room", "12 Crescent Marina Promenade", "Dubai", "Dubai",
+         "United Arab Emirates", "00000", Decimal("25.077200"), Decimal("55.140300")),
     ),
     (
-        "Dr. Priya Raman", ProviderType.DOCTOR,
+        "Dr. Hana Bloom (Dubai Demo)", ProviderType.DOCTOR,
         ["Pediatrics"],
-        ("Children's Suite", "600 Congress Ave", "Austin", "TX", "USA", "78701",
-         Decimal("30.268200"), Decimal("-97.742800")),
+        ("Jumeirah Consultation Room", "28 Bloom Garden Road", "Dubai", "Dubai",
+         "United Arab Emirates", "00000", Decimal("25.206000"), Decimal("55.245000")),
     ),
 ]
 
@@ -150,11 +164,22 @@ def seed(db) -> dict:
             db.query(ProviderLocation)
             .filter(
                 ProviderLocation.provider_id == provider.id,
-                ProviderLocation.address_line_1 == addr,
-                ProviderLocation.city == city,
+                ProviderLocation.name == loc_name,
             )
             .first()
         )
+        # The address/city fallback keeps reruns idempotent for locations
+        # created by an earlier version of this script.
+        if existing_loc is None:
+            existing_loc = (
+                db.query(ProviderLocation)
+                .filter(
+                    ProviderLocation.provider_id == provider.id,
+                    ProviderLocation.address_line_1 == addr,
+                    ProviderLocation.city == city,
+                )
+                .first()
+            )
         if existing_loc is None:
             has_primary = (
                 db.query(ProviderLocation)

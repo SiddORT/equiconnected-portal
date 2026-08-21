@@ -13,6 +13,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.security import hash_password
+from app.models.enums import ProviderStatus, PublicationStatus, ProviderType, VisitStability
+from app.models.provider import Provider, ProviderLocation, ProviderSpecialization
 from app.repositories.user_repository import UserRepository
 
 URL = "/api/v1/admin/dashboard/stats"
@@ -156,10 +158,8 @@ class TestDemoSeed:
             "assignments": 0,
         }
 
-    def test_seeded_rows_are_active_published_with_coords(self, db):
+    def test_seeded_rows_are_active_published_with_dubai_coords(self, db):
         from scripts.seed_demo_data import seed
-        from app.models.enums import ProviderStatus, PublicationStatus
-        from app.models.provider import Provider, ProviderLocation
 
         seed(db)
         providers = db.query(Provider).all()
@@ -167,8 +167,80 @@ class TestDemoSeed:
         for p in providers:
             assert p.status == ProviderStatus.ACTIVE
             assert p.publication_status == PublicationStatus.PUBLISHED
+
         locations = db.query(ProviderLocation).all()
-        assert locations
+        assert len(locations) == len(providers)
+        required_neighborhoods = {
+            "Dubai Marina",
+            "Jumeirah",
+            "Downtown Dubai",
+            "Al Barsha",
+            "Mirdif",
+        }
+        location_names = {loc.name for loc in locations}
+        assert all(
+            any(neighborhood in (name or "") for name in location_names)
+            for neighborhood in required_neighborhoods
+        )
+
         for loc in locations:
             assert loc.latitude is not None and loc.longitude is not None
             assert loc.is_primary is True
+            assert loc.city == "Dubai"
+            assert loc.state_province == "Dubai"
+            assert loc.country == "United Arab Emirates"
+            assert 24.8 <= float(loc.latitude) <= 25.4
+            assert 54.9 <= float(loc.longitude) <= 55.6
+
+    def test_seeded_rows_are_visible_on_dashboard_map(self, client: TestClient, admin_token: str, db):
+        from scripts.seed_demo_data import seed
+
+        seed(db)
+        data = client.get(URL, headers=_auth(admin_token)).json()
+
+        assert data["provider_counts"] == {"hospitals": 3, "clinics": 3, "doctors": 3}
+        assert data["active_providers"] == 9
+        assert len(data["location_markers"]) == 9
+        assert {marker["city"] for marker in data["location_markers"]} == {"Dubai"}
+        assert all(
+            24.8 <= marker["latitude"] <= 25.4
+            and 54.9 <= marker["longitude"] <= 55.6
+            and marker["is_primary"] is True
+            for marker in data["location_markers"]
+        )
+
+    def test_seed_does_not_change_unrelated_rows(self, db):
+        from scripts.seed_demo_data import seed
+
+        unrelated = Provider(
+            provider_type=ProviderType.CLINIC,
+            name="User Entered Clinic",
+            visit_stability=VisitStability.STABLE_VISIT,
+            status=ProviderStatus.INACTIVE,
+            publication_status=PublicationStatus.UNPUBLISHED,
+        )
+        db.add(unrelated)
+        db.flush()
+        unrelated_location = ProviderLocation(
+            provider_id=unrelated.id,
+            name="User Entered Location",
+            address_line_1="1 User Street",
+            city="Abu Dhabi",
+            country="United Arab Emirates",
+            is_primary=True,
+        )
+        db.add(unrelated_location)
+        db.commit()
+        original_provider_id = unrelated.id
+        original_location_id = unrelated_location.id
+
+        seed(db)
+
+        unchanged_provider = db.get(Provider, original_provider_id)
+        unchanged_location = db.get(ProviderLocation, original_location_id)
+        assert unchanged_provider is not None
+        assert unchanged_provider.status == ProviderStatus.INACTIVE
+        assert unchanged_provider.publication_status == PublicationStatus.UNPUBLISHED
+        assert unchanged_location is not None
+        assert unchanged_location.city == "Abu Dhabi"
+        assert db.query(ProviderSpecialization).count() > 0

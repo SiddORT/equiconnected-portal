@@ -72,6 +72,12 @@
   gap: var(--space-4);
 }
 
+.insightsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 680px;
+}
+
 /* ── Audit table ─────────────────────────────────────────────────────────── */
 .auditTable {
   width: 100%;

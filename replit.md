@@ -43,7 +43,7 @@ python scripts/seed_admin.py
 
 ```bash
 cd backend
-python scripts/seed_demo_data.py   # rerunnable; creates specializations + geocoded hospitals/clinics/doctors
+python scripts/seed_demo_data.py   # rerunnable; creates fictional, geocoded Dubai hospitals, clinics, and doctors
 ```
 
 ## API routes
