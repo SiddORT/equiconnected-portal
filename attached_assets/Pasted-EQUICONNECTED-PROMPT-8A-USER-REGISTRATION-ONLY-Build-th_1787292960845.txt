@@ -1,0 +1,150 @@
+EQUICONNECTED — PROMPT 8A
+USER REGISTRATION ONLY
+
+Build the public user signup flow at:
+
+/signup
+
+First inspect and reuse the existing authentication, database, routing, UI and form components. Do not create duplicate auth/user systems.
+
+### 1. Registration fields
+
+Required:
+
+- First Name
+- Last Name
+- Email
+- Mobile Number
+- Country
+- City
+- Password
+- Confirm Password
+
+Role:
+
+- Horse Owner
+- Stable Manager
+- Both
+
+Consent:
+
+- Accept Terms & Conditions
+- Accept Privacy Policy
+
+Do NOT collect yet:
+
+- State/Province
+- Address
+- Postal/ZIP
+- Horse information
+- Stable information
+- Profile photo
+- DOB
+- Gender
+- Language
+- Timezone
+
+### 2. Database
+
+Use PostgreSQL and proper relational tables.
+
+User/account should contain the basic registration information.
+
+Roles must be relational:
+
+users
+→ user_roles
+→ roles
+
+Do not store roles as JSON.
+
+Email must be unique.
+
+Passwords must be securely hashed. Never store or log plaintext passwords.
+
+Store Terms and Privacy acceptance with timestamps.
+
+### 3. Email verification
+
+After signup:
+
+- Send a verification email.
+- Use a secure, random, expiring, single-use verification token.
+- Never expose the token unnecessarily or log it.
+- Do not consider the email verified until the link is successfully used.
+
+### 4. Validation
+
+Validate on both frontend and backend:
+
+- Required fields
+- Email
+- Mobile
+- Password strength
+- Password confirmation
+- Valid role
+- Terms acceptance
+- Privacy acceptance
+- Duplicate email
+
+Only allow:
+
+HORSE_OWNER
+STABLE_MANAGER
+
+A user selecting BOTH receives both roles.
+
+### 5. UI
+
+Reuse existing shared:
+
+- Form
+- Input
+- Password input
+- Select
+- Checkbox
+- Buttons
+- Alerts
+- Validation/error states
+
+Keep the signup page simple, responsive and consistent with the existing EquiConnected design.
+
+### 6. Do NOT implement
+
+Do not implement yet:
+
+- Admin approval
+- Profile completion
+- Profile progress
+- Horse information
+- Stable information
+- Provider browsing
+- Ratings
+- Reviews/comments
+- Visitor/provider permissions
+- Activity logs
+
+These are later prompts.
+
+### 7. Done when
+
+- /signup works
+- User can register
+- Roles are stored relationally
+- Duplicate email is prevented
+- Password is securely hashed
+- Terms/Privacy acceptance is recorded
+- Email verification works
+- Existing Admin authentication still works
+- Existing functionality is not broken
+- Migration and tests pass
+
+At completion, report only:
+1. Files changed
+2. Database changes
+3. API route
+4. Frontend route
+5. Email verification status
+6. Tests/migration result
+
+STOP. Do not implement Prompt 8B.
