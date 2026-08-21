@@ -622,6 +622,25 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         </section>
       </Card>
 
+      {/* ── Contact ───────────────────────────────────────────────────────── */}
+      <Card padding="lg" shadow="sm">
+        <section className={styles.section}>
+          <h3 className={styles.sectionTitle}>Contact <span className={styles.optionalTag}>— optional</span></h3>
+          <MultiPhoneField
+            entries={phoneEntries}
+            onChange={(next) => { setPhoneEntries(next); setPhoneErrors({}); }}
+            errors={phoneErrors}
+            disabled={submitting}
+          />
+          <MultiEmailField
+            entries={emailEntries}
+            onChange={(next) => { setEmailEntries(next); setEmailErrors({}); }}
+            errors={emailErrors}
+            disabled={submitting}
+          />
+        </section>
+      </Card>
+
       {/* ── Professional info — doctors only ─────────────────────────────── */}
       {!inv && providerType === 'DOCTOR' && (
         <Card padding="lg" shadow="sm" className={styles.cardFull}>
@@ -673,25 +692,6 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           </section>
         </Card>
       )}
-
-      {/* ── Contact ───────────────────────────────────────────────────────── */}
-      <Card padding="lg" shadow="sm">
-        <section className={styles.section}>
-          <h3 className={styles.sectionTitle}>Contact <span className={styles.optionalTag}>— optional</span></h3>
-          <MultiPhoneField
-            entries={phoneEntries}
-            onChange={(next) => { setPhoneEntries(next); setPhoneErrors({}); }}
-            errors={phoneErrors}
-            disabled={submitting}
-          />
-          <MultiEmailField
-            entries={emailEntries}
-            onChange={(next) => { setEmailEntries(next); setEmailErrors({}); }}
-            errors={emailErrors}
-            disabled={submitting}
-          />
-        </section>
-      </Card>
 
       {/* ── Specializations ───────────────────────────────────────────────── */}
       <Card padding="lg" shadow="sm" className={styles.cardFull}>
