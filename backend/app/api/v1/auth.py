@@ -36,6 +36,7 @@ from app.services.auth_service import (
     InactiveUserError,
     InvalidTokenError,
     LoginResult,
+    PublicAccountAccessError,
     VerificationTokenExpiredError,
     VerificationTokenNotFoundError,
     VerificationTokenUsedError,
@@ -126,7 +127,9 @@ def verify_email(
             status_code=status.HTTP_410_GONE,
             detail={"code": "verification_link_expired", "message": "Verification link has expired."},
         )
-    return MessageResponse(message="Your email has been verified. You can now sign in.")
+    return MessageResponse(
+        message="Your email has been verified. Your account is awaiting administrator approval."
+    )
 
 
 @router.post("/login", response_model=LoginResponse, dependencies=[Depends(check_login_rate_limit)])
@@ -146,6 +149,11 @@ def login(
             password=body.password,
             ip_address=ip,
             user_agent=ua,
+        )
+    except PublicAccountAccessError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": exc.code, "message": str(exc)},
         )
     except (AuthenticationError, InactiveUserError) as exc:
         raise HTTPException(
@@ -205,6 +213,12 @@ def refresh(
             token_type="bearer",
             expires_in=pair.expires_in,
             user=profile,
+        )
+    except PublicAccountAccessError as exc:
+        _clear_refresh_cookie(response)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": exc.code, "message": str(exc)},
         )
     except InvalidTokenError as exc:
         _clear_refresh_cookie(response)

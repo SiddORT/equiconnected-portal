@@ -5,6 +5,7 @@ from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
 
+from app.models.enums import PublicAccountApprovalStatus
 from app.models.user import EmailVerificationToken, User, UserRole
 from app.repositories.user_repository import UserRepository
 from app.services.email_service import EmailService
@@ -62,19 +63,15 @@ class TestPublicRegistration:
         sent_urls = _capture_verification_email(monkeypatch)
 
         response = client.post(f"{BASE}/register", json=_payload(email=" AMINA@EXAMPLE.COM "))
-
         assert response.status_code == 201
+
         assert "check your email" in response.json()["message"].lower()
+
         user = db.query(User).filter(User.email == "amina@example.com").one()
-        assert user.is_active is False
-        assert user.email_verified_at is None
-        assert user.country == "United Arab Emirates"
-        assert user.state_province == "Dubai"
-        assert user.city == "Dubai"
-        assert user.terms_accepted_at is not None
-        assert user.privacy_accepted_at is not None
+
         assert user.password_hash != "HorseCare2026"
         assert user.password_hash.startswith("$argon2id$")
+
         assigned_roles = {
             assignment.role.name
             for assignment in db.query(UserRole).filter(UserRole.user_id == user.id).all()
@@ -107,7 +104,7 @@ class TestPublicRegistration:
         assert response.status_code == 422
         assert db.query(User).count() == 0
 
-    def test_inactive_account_cannot_log_in_before_verification(
+    def test_unverified_pending_account_cannot_log_in(
         self, client: TestClient, db, monkeypatch
     ):
         _seed_public_roles(db)
@@ -119,11 +116,12 @@ class TestPublicRegistration:
             json={"email": "amina@example.com", "password": "HorseCare2026"},
         )
 
-        assert response.status_code == 401
+        assert response.status_code == 403
+        assert response.json()["detail"]["code"] == "email_not_verified"
 
 
 class TestEmailVerification:
-    def test_token_activates_account_once_and_allows_login(
+    def test_verification_does_not_approve_account(
         self, client: TestClient, db, monkeypatch
     ):
         _seed_public_roles(db)
@@ -141,10 +139,12 @@ class TestEmailVerification:
         assert verified.status_code == 200
         assert repeated.status_code == 409
         assert repeated.json()["detail"]["code"] == "verification_link_used"
-        assert login.status_code == 200
+        assert login.status_code == 403
+        assert login.json()["detail"]["code"] == "account_pending"
         user = db.query(User).filter(User.email == "amina@example.com").one()
         assert user.is_active is True
         assert user.email_verified_at is not None
+        assert user.approval_status == PublicAccountApprovalStatus.PENDING
         token = db.query(EmailVerificationToken).filter(
             EmailVerificationToken.user_id == user.id
         ).one()

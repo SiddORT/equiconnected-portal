@@ -304,6 +304,25 @@ export interface DoctorProfileInfo {
   years_experience: number | null;
   experience_description: string | null;
 }
+
+// Re-export the doctor domain types from the shared type entrypoint. The
+// doctor module imports only types from this file, so this remains type-only.
+export type {
+  DoctorCreate,
+  DoctorListItem,
+  DoctorOrganizationCreate,
+  DoctorOrganizationStatus,
+  DoctorOrganizationUpdate,
+  DoctorOrgResponse,
+  DoctorResponse,
+  DoctorUpdate,
+  OrgBrief,
+  QualificationCreate,
+  QualificationResponse,
+  QualificationUpdate,
+  SpecBrief,
+} from './doctor';
+
 export interface Provider extends ProviderListItem {
   doctor_profile: DoctorProfileInfo | null;
   description: string | null;
@@ -429,22 +448,7 @@ export interface InvitationListParams {
   page_size?: number;
 }
 
-// ── Doctor domain — re-exported for convenient single-import ─────────────────
-export type {
-  DoctorOrganizationStatus,
-  SpecBrief,
-  OrgBrief,
-  QualificationResponse,
-  QualificationCreate,
-  QualificationUpdate,
-  DoctorOrgResponse,
-  DoctorOrganizationCreate,
-  DoctorOrganizationUpdate,
-  DoctorListItem,
-  DoctorResponse,
-  DoctorCreate,
-  DoctorUpdate,
-} from './doctor';
+export type RegistrantApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 // ── Public invitation domain — re-exported for convenient single-import ──────
 export type {
@@ -461,3 +465,29 @@ export type {
   OrgRequestCreatePayload,
   OrgRequestResult,
 } from './invitation';
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  full_name: string;
+  mobile_number: string | null;
+  country: string | null;
+  city: string | null;
+  roles: string[];
+  email_verified_at: string | null;
+  approval_status: RegistrantApprovalStatus;
+  approval_decided_at: string | null;
+  approval_decided_by: string | null;
+  created_at: string;
+}
+
+export interface AdminUserListParams {
+  search?: string;
+  approval_status?: RegistrantApprovalStatus;
+  role?: string;
+  email_verified?: boolean;
+  page?: number;
+  page_size?: number;
+}

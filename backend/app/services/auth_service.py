@@ -20,6 +20,8 @@ from app.core.security import (
     password_needs_rehash,
     verify_password,
 )
+from app.auth.account_access import PublicAccountAccessIssue, public_account_access_issue
+from app.models.enums import PublicAccountApprovalStatus
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.token_repository import TokenRepository
 from app.repositories.user_repository import UserRepository
@@ -37,7 +39,12 @@ class AuthenticationError(Exception):
 class InactiveUserError(Exception):
     """Raised when the user account is disabled."""
 
+class PublicAccountAccessError(Exception):
+    """Raised when a public registration has not met member-access requirements."""
 
+    def __init__(self, issue: PublicAccountAccessIssue) -> None:
+        super().__init__(issue.message)
+        self.code = issue.code
 class InvalidTokenError(Exception):
     """Raised when a refresh token is invalid or expired."""
 
@@ -85,7 +92,7 @@ class AuthService:
     # ── Public registration and verification ───────────────────────────────────
 
     def register(self, registration: RegistrationRequest) -> None:
-        """Create an inactive public account and deliver its verification link."""
+        """Create a pending public account and deliver its verification link."""
         from app.core.config import get_settings
 
         email = registration.email.lower().strip()
@@ -118,7 +125,8 @@ class AuthService:
                 city=registration.city,
                 terms_accepted_at=now,
                 privacy_accepted_at=now,
-                is_active=False,
+                is_active=True,
+                approval_status=PublicAccountApprovalStatus.PENDING,
             )
 
             raw_token = secrets.token_urlsafe(32)
@@ -148,7 +156,7 @@ class AuthService:
             raise
 
     def verify_email(self, raw_token: str) -> None:
-        """Redeem a verification token and activate its account exactly once."""
+        """Redeem a verification token without changing its approval state."""
         token_hash = self._hash_verification_token(raw_token)
         # Lock the token row while checking and consuming it. Under PostgreSQL's
         # READ COMMITTED isolation, a concurrent redemption waits here and then
@@ -168,7 +176,6 @@ class AuthService:
 
         token.used_at = datetime.now(timezone.utc)
         token.user.email_verified_at = token.used_at
-        token.user.is_active = True
         self._db.commit()
 
 
@@ -208,6 +215,7 @@ class AuthService:
         if not user.is_active:
             logger.warning("login.failed.inactive", user_id=str(user.id))
             raise InactiveUserError("Account is disabled")
+        self._require_member_access(user)
 
         # Optional: rehash if Argon2 parameters are outdated
         if password_needs_rehash(user.password_hash):
@@ -264,6 +272,7 @@ class AuthService:
         user = self._users.get_by_id(user_id)
         if user is None or not user.is_active:
             raise InvalidTokenError("User not found or inactive")
+        self._require_member_access(user)
 
         # Rotate: revoke old, issue new
         self._tokens.revoke(record)
@@ -346,6 +355,12 @@ class AuthService:
             refresh_token=refresh_token,
             expires_in=expires_in,
         )
+
+    @staticmethod
+    def _require_member_access(user) -> None:
+        issue = public_account_access_issue(user)
+        if issue is not None:
+            raise PublicAccountAccessError(issue)
 
     @staticmethod
     def _hash_verification_token(raw_token: str) -> str:

@@ -2,7 +2,13 @@
  * Admin API endpoint functions.
  */
 import { apiClient } from './client';
-import type { ActivityLog, DashboardStats, PaginatedResponse } from '@/types';
+import type {
+  ActivityLog,
+  AdminUser,
+  AdminUserListParams,
+  DashboardStats,
+  PaginatedResponse,
+} from '@/types';
 
 export async function getDashboardStats(): Promise<DashboardStats> {
   const { data } = await apiClient.get<DashboardStats>('/admin/dashboard/stats');
@@ -23,5 +29,32 @@ export async function getActivityLogs(
     '/admin/activity-logs',
     { params }
   );
+  return data;
+}
+
+// ── Admin Users ────────────────────────────────────────────────────────────
+
+export async function listAdminUsers(
+  params?: AdminUserListParams
+): Promise<PaginatedResponse<AdminUser>> {
+  const { data } = await apiClient.get<PaginatedResponse<AdminUser>>(
+    '/admin/users',
+    { params }
+  );
+  return data;
+}
+
+export async function getAdminUser(id: string): Promise<AdminUser> {
+  const { data } = await apiClient.get<AdminUser>(`/admin/users/${id}`);
+  return data;
+}
+
+export async function approveUser(id: string): Promise<AdminUser> {
+  const { data } = await apiClient.post<AdminUser>(`/admin/users/${id}/approve`);
+  return data;
+}
+
+export async function rejectUser(id: string): Promise<AdminUser> {
+  const { data } = await apiClient.post<AdminUser>(`/admin/users/${id}/reject`);
   return data;
 }

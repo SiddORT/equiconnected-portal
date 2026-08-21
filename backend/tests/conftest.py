@@ -42,12 +42,14 @@ TEST_SCHEMA = "test_equiconnected"
 # Leaf tables first so FK constraints are satisfied.
 _CLEANUP_TABLES = [
     "refresh_tokens",
+    "email_verification_tokens",
     "audit_logs",
     "provider_invitations",
     "organization_requests",
     "doctor_organizations",
     "doctor_qualifications",
     "doctor_profiles",
+    "user_roles",
     "users",
     "roles",
     "provider_specializations",
@@ -57,6 +59,7 @@ _CLEANUP_TABLES = [
     "provider_locations",
     "providers",
     "specializations",
+    "public_visit_daily",
 ]
 
 
@@ -118,6 +121,10 @@ def _delete_all_rows() -> None:
         for table in _CLEANUP_TABLES:
             conn.execute(text(f"DELETE FROM {table}"))
         conn.commit()
+    # The verification concurrency test creates independent sessions. Dispose
+    # the shared pool after every test so a closed worker connection cannot
+    # outlive its test and interfere with the next isolated session.
+    engine.dispose()
 
 
 @pytest.fixture()

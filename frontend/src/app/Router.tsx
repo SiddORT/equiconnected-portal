@@ -21,6 +21,7 @@ import { SubmissionSuccessPage } from '@/pages/SubmissionSuccessPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { VerifyEmailPage } from '@/pages/VerifyEmailPage';
 import { LegalPage } from '@/pages/LegalPage';
+import { UsersPage } from '@/pages/admin/UsersPage';
 
 export function AppRouter() {
   return (
@@ -62,6 +63,7 @@ export function AppRouter() {
             <Route path="/admin/doctors/:id" element={<LegacyDoctorRedirect />} />
             <Route path="/admin/doctors/:id/edit" element={<LegacyDoctorRedirect edit />} />
             <Route path="/admin/invitations" element={<InvitationsPage />} />
+            <Route path="/admin/users" element={<UsersPage />} />
             <Route path="/admin/activity-logs" element={<ActivityLogsPage />} />
           </Route>
         </Route>

@@ -15,7 +15,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.security import hash_password
-from app.models.enums import ProviderStatus, PublicationStatus, ProviderType, VisitStability
+from app.models.enums import (
+    ProviderStatus,
+    PublicationStatus,
+    ProviderType,
+    PublicAccountApprovalStatus,
+    VisitStability,
+)
 from app.models.provider import Provider, ProviderLocation, ProviderSpecialization
 from app.repositories.user_repository import UserRepository
 
@@ -164,6 +170,7 @@ class TestDashboard:
             roles=[horse_owner, stable_manager],
         )
         approved.email_verified_at = datetime.now(timezone.utc)
+        approved.approval_status = PublicAccountApprovalStatus.APPROVED
         rejected = repo.create_user(
             email="rejected-owner@example.com",
             password_hash=hash_password("Rejected#2026!ABC"),
@@ -171,6 +178,7 @@ class TestDashboard:
             is_active=False,
         )
         rejected.email_verified_at = datetime.now(timezone.utc)
+        rejected.approval_status = PublicAccountApprovalStatus.REJECTED
         db.commit()
 
         counts = client.get(URL, headers=_auth(admin_token)).json()["registration_counts"]

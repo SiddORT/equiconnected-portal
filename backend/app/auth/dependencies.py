@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
 from app.core.security import decode_token
+from app.auth.account_access import public_account_access_issue
 from app.db.session import get_db
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
@@ -59,6 +60,12 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "account_disabled", "message": "Account is disabled"},
+        )
+    issue = public_account_access_issue(user)
+    if issue is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": issue.code, "message": issue.message},
         )
     return user
 

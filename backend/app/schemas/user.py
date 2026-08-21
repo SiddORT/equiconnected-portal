@@ -2,8 +2,11 @@
 User Pydantic schemas.
 """
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
+
+from app.models.enums import PublicAccountApprovalStatus
 
 
 class UserCreate(BaseModel):
@@ -31,3 +34,22 @@ class UserResponse(BaseModel):
     is_active: bool
 
     model_config = {"from_attributes": True}
+
+
+class PublicRegistrantResponse(BaseModel):
+    """Administrator-safe view of a public account registration."""
+
+    id: uuid.UUID
+    first_name: str | None
+    last_name: str | None
+    full_name: str
+    email: str
+    mobile_number: str | None
+    country: str | None
+    city: str | None
+    roles: list[str]
+    email_verified_at: datetime | None
+    approval_status: PublicAccountApprovalStatus
+    approval_decided_at: datetime | None
+    approval_decided_by: uuid.UUID | None
+    created_at: datetime

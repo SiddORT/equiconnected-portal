@@ -214,3 +214,44 @@ class EmailService:
             html=self._verification_html(verification_url, expiry),
         )
         self._deliver(message, recipient)
+
+    def send_account_decision_email(self, recipient: str, *, approved: bool) -> None:
+        """Send the concise result of an administrator's registration decision."""
+        settings = get_settings()
+        if approved:
+            headline = "Your account is<br>approved."
+            body_html = (
+                "Your EquiConnected account has been approved. "
+                "You can now sign in with your verified email address."
+            )
+            plain = (
+                "Your EquiConnected account has been approved.\n\n"
+                "You can now sign in with your verified email address.\n"
+            )
+            subject = "Your EquiConnected account is approved"
+            action_label = "Open EquiConnected"
+        else:
+            headline = "Account update"
+            body_html = (
+                "Thank you for your interest in EquiConnected. "
+                "Your account registration was not approved."
+            )
+            plain = (
+                "Thank you for your interest in EquiConnected.\n\n"
+                "Your account registration was not approved.\n"
+            )
+            subject = "Update on your EquiConnected account"
+            action_label = "Visit EquiConnected"
+        message = self._build_message(
+            recipient=recipient,
+            subject=subject,
+            plain=plain,
+            html=self._branded_html(
+                headline=headline,
+                body_html=body_html,
+                action_label=action_label,
+                action_url=settings.PUBLIC_APP_URL,
+                security_html="If you have questions, please contact the EquiConnected team.",
+            ),
+        )
+        self._deliver(message, recipient)

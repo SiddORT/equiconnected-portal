@@ -1,0 +1,213 @@
+/* ── Shell / body ───────────────────────────────────────────────────────── */
+.shell { display: flex; flex: 1; min-height: 0; flex-direction: column; }
+.body  { display: flex; flex: 1; flex-direction: column; gap: var(--space-6); padding: var(--space-8); }
+
+/* ── Toolbar ────────────────────────────────────────────────────────────── */
+.toolbar { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.search  { flex: 1; min-width: 240px; max-width: 380px; }
+
+/* ── Filter toggle button ───────────────────────────────────────────────── */
+.filterToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast),
+    color var(--transition-fast);
+  white-space: nowrap;
+  user-select: none;
+}
+.filterToggle:hover {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.filterToggle--open {
+  background: var(--color-primary-900);
+  border-color: var(--color-primary-900);
+  color: var(--color-neutral-50);
+}
+.filterToggle--open:hover {
+  background: var(--color-primary-800, #3d2a1a);
+  color: var(--color-neutral-50);
+  border-color: var(--color-primary-800, #3d2a1a);
+}
+.filterToggle--active {
+  border-color: var(--color-primary-700, #5c3d2e);
+  color: var(--text-primary);
+}
+.filterToggleIcon { font-size: 13px; line-height: 1; }
+.filterCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--color-primary-700, #5c3d2e);
+  color: var(--color-neutral-50);
+  font-size: 11px;
+  font-weight: var(--font-semibold);
+  line-height: 1;
+}
+.filterToggle--open .filterCount {
+  background: rgba(255, 255, 255, 0.25);
+  color: var(--color-neutral-50);
+}
+.chevron {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1;
+  transition: transform var(--transition-fast);
+}
+.chevron--up { transform: rotate(-180deg); }
+
+/* ── Active filter chips ────────────────────────────────────────────────── */
+.activeChips {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 3px var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+  white-space: nowrap;
+}
+.chip:hover {
+  background: var(--bg-muted, #ece8e1);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+.chipClose { font-size: 10px; opacity: 0.6; margin-left: 2px; }
+
+/* ── Collapsible filter panel ───────────────────────────────────────────── */
+.filterPanel {
+  max-height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  transition: max-height 220ms ease, visibility 0s linear 220ms;
+}
+.filterPanel--open {
+  max-height: 180px;
+  visibility: visible;
+  transition-delay: 0s;
+}
+.filterPanelInner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-2);
+}
+.clearAll {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color var(--transition-fast);
+}
+.clearAll:hover { color: var(--text-primary); }
+
+/* ── Table cell helpers ─────────────────────────────────────────────────── */
+.nameCell  { display: flex; flex-direction: column; gap: var(--space-1); }
+.emailCell { word-break: break-all; font-size: var(--text-sm); }
+.roleList  { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.muted     { color: var(--text-muted); font-size: var(--text-xs); }
+
+/* ── Detail dialog ──────────────────────────────────────────────────────── */
+.detailBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-sticky) + 10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: rgba(0, 0, 0, 0.45);
+}
+.detailPanel {
+  width: 100%;
+  max-width: 540px;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  background: var(--color-neutral-0);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+}
+.detailHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border-default);
+}
+.detailTitle { margin: 0; font-size: var(--text-lg); }
+.detailClose {
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--text-base);
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast);
+}
+.detailClose:hover { color: var(--text-primary); }
+
+.details {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-6);
+  font-size: var(--text-sm);
+}
+.details dt { color: var(--text-muted); align-self: center; }
+.details dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-weight: var(--font-medium);
+  word-break: break-word;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.detailFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid var(--border-default);
+  background: var(--bg-subtle);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .body   { padding: var(--space-5); }
+  .search { max-width: none; }
+}

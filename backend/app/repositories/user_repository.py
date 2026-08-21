@@ -3,10 +3,11 @@ User data access — all DB queries for users go through here.
 """
 import uuid
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session, joinedload, selectinload
 
-from app.models.user import User, UserRole
+from app.models.enums import PublicAccountApprovalStatus
+from app.models.user import PUBLIC_ACCOUNT_ROLE_NAMES, User, UserRole
 from app.models.role import Role
 
 
@@ -59,7 +60,11 @@ class UserRepository:
         privacy_accepted_at=None,
         is_active: bool = True,
         roles: list[Role] | None = None,
+        approval_status: PublicAccountApprovalStatus | None = None,
     ) -> User:
+        resolved_approval_status = approval_status
+        if resolved_approval_status is None and role.name in PUBLIC_ACCOUNT_ROLE_NAMES:
+            resolved_approval_status = PublicAccountApprovalStatus.PENDING
         user = User(
             email=email.lower().strip(),
             password_hash=password_hash,
@@ -73,6 +78,7 @@ class UserRepository:
             terms_accepted_at=terms_accepted_at,
             privacy_accepted_at=privacy_accepted_at,
             is_active=is_active,
+            approval_status=resolved_approval_status,
         )
         self._db.add(user)
         self._db.flush()
@@ -85,6 +91,84 @@ class UserRepository:
         """Persist a deliberately rotated password hash for an existing user."""
         user.password_hash = password_hash
         self._db.flush()
+
+    def _public_registrant_filter(self):
+        """A reusable EXISTS-style filter which never returns administrator accounts."""
+        public_user_ids = (
+            select(UserRole.user_id)
+            .join(Role, UserRole.role_id == Role.id)
+            .where(Role.name.in_(PUBLIC_ACCOUNT_ROLE_NAMES))
+        )
+        return User.id.in_(public_user_ids)
+
+    def list_public_registrants(
+        self,
+        *,
+        search: str | None = None,
+        role: str | None = None,
+        approval_status: PublicAccountApprovalStatus | None = None,
+        email_verified: bool | None = None,
+        page: int = 1,
+        page_size: int = 25,
+    ) -> tuple[list[User], int]:
+        """List only accounts made through the public registration role flow."""
+        filters = [self._public_registrant_filter()]
+        if search:
+            pattern = f"%{search.strip().lower()}%"
+            filters.append(
+                or_(
+                    func.lower(User.first_name).like(pattern),
+                    func.lower(User.last_name).like(pattern),
+                    func.lower(User.email).like(pattern),
+                )
+            )
+        if role:
+            matching_role_users = (
+                select(UserRole.user_id)
+                .join(Role, UserRole.role_id == Role.id)
+                .where(Role.name == role)
+            )
+            filters.append(User.id.in_(matching_role_users))
+        if approval_status is not None:
+            filters.append(User.approval_status == approval_status)
+        if email_verified is True:
+            filters.append(User.email_verified_at.is_not(None))
+        elif email_verified is False:
+            filters.append(User.email_verified_at.is_(None))
+
+        total = self._db.scalar(
+            select(func.count()).select_from(User).where(*filters)
+        ) or 0
+        items = self._db.scalars(
+            select(User)
+            .options(
+                joinedload(User.role),
+                selectinload(User.role_assignments).joinedload(UserRole.role),
+            )
+            .where(*filters)
+            .order_by(User.created_at.desc(), User.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        ).all()
+        return list(items), total
+
+    def get_public_registrant(self, user_id: uuid.UUID) -> User | None:
+        return self._db.scalars(
+            select(User)
+            .options(
+                joinedload(User.role),
+                selectinload(User.role_assignments).joinedload(UserRole.role),
+            )
+            .where(User.id == user_id, self._public_registrant_filter())
+        ).first()
+
+    def get_public_registrant_for_update(self, user_id: uuid.UUID) -> User | None:
+        """Lock a registrant before recording an irreversible decision."""
+        return self._db.scalars(
+            select(User)
+            .where(User.id == user_id, self._public_registrant_filter())
+            .with_for_update()
+        ).first()
 
     def commit(self) -> None:
         self._db.commit()

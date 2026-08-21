@@ -5,22 +5,35 @@ GET /api/v1/admin/dashboard/stats
 from datetime import date, datetime, timedelta, timezone
 from math import ceil
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require_role, CurrentUser
 from app.db.session import get_db
-from app.models.enums import InvitationStatus, ProviderStatus, ProviderType
+from app.models.enums import (
+    InvitationStatus,
+    ProviderStatus,
+    ProviderType,
+    PublicAccountApprovalStatus,
+)
 from app.models.invitation import ProviderInvitation
 from app.models.public_visit import PublicVisitDaily
 from app.models.provider import Provider, ProviderLocation
 from app.models.role import Role
-from app.models.user import User, UserRole
-from app.repositories.audit_repository import AuditRepository
+from app.models.user import PUBLIC_ACCOUNT_ROLE_NAMES, User, UserRole
+from app.repositories.audit_repository import AuditRepository, context_from_request
 from app.schemas.audit_log import AuditActor, AuditChange, AuditLogListResponse, AuditLogResponse
-from app.schemas.common import PaginationMeta
+from app.schemas.common import PaginatedResponse, PaginationMeta
+from app.schemas.user import PublicRegistrantResponse
+from app.repositories.user_repository import UserRepository
+from app.services.public_account_service import (
+    PublicAccountAlreadyDecidedError,
+    PublicAccountService,
+    PublicRegistrantNotFoundError,
+)
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -91,25 +104,21 @@ def dashboard_stats(
     public_user_id_select = select(public_user_ids.c.user_id)
     registration_counts = {
         "requests": db.scalar(select(func.count()).select_from(public_user_ids)) or 0,
-        # Public accounts become approved when their email is verified and activated.
         "approved": db.scalar(
             select(func.count())
             .select_from(User)
             .where(
                 User.id.in_(public_user_id_select),
-                User.is_active.is_(True),
-                User.email_verified_at.is_not(None),
+                User.approval_status == PublicAccountApprovalStatus.APPROVED,
             )
         )
         or 0,
-        # A verified account is only considered rejected once an administrator deactivates it.
         "rejected": db.scalar(
             select(func.count())
             .select_from(User)
             .where(
                 User.id.in_(public_user_id_select),
-                User.is_active.is_(False),
-                User.email_verified_at.is_not(None),
+                User.approval_status == PublicAccountApprovalStatus.REJECTED,
             )
         )
         or 0,
@@ -173,6 +182,160 @@ def dashboard_stats(
         "visitor_visits": visitor_visits,
         "location_markers": location_markers,
     }
+
+
+def _public_registrant_response(user: User) -> PublicRegistrantResponse:
+    """Serialize the list/detail payload without leaking credentials or tokens."""
+    roles = sorted(
+        {
+            assignment.role.name
+            for assignment in user.role_assignments
+            if assignment.role.name in PUBLIC_ACCOUNT_ROLE_NAMES
+        }
+    )
+    return PublicRegistrantResponse(
+        id=user.id,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        full_name=user.full_name,
+        email=user.email,
+        mobile_number=user.mobile_number,
+        country=user.country,
+        city=user.city,
+        roles=roles,
+        email_verified_at=user.email_verified_at,
+        approval_status=user.approval_status or PublicAccountApprovalStatus.PENDING,
+        approval_decided_at=user.approval_decided_at,
+        approval_decided_by=user.approval_decided_by,
+        created_at=user.created_at,
+    )
+
+
+@router.get(
+    "/users",
+    response_model=PaginatedResponse[PublicRegistrantResponse],
+    dependencies=[Depends(require_role("admin"))],
+)
+def list_public_registrants(
+    db: Annotated[Session, Depends(get_db)],
+    search: str | None = Query(None, max_length=100),
+    role: str | None = Query(None),
+    approval_status: PublicAccountApprovalStatus | None = Query(None),
+    email_verified: bool | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+) -> PaginatedResponse[PublicRegistrantResponse]:
+    """Search and filter only public registrations; administrator accounts are excluded."""
+    if role and role not in PUBLIC_ACCOUNT_ROLE_NAMES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "invalid_role_filter", "message": "Invalid public-account role."},
+        )
+    users, total = UserRepository(db).list_public_registrants(
+        search=search,
+        role=role,
+        approval_status=approval_status,
+        email_verified=email_verified,
+        page=page,
+        page_size=page_size,
+    )
+    return PaginatedResponse(
+        data=[_public_registrant_response(user) for user in users],
+        meta=PaginationMeta(
+            page=page,
+            page_size=page_size,
+            total=total,
+            total_pages=max(1, ceil(total / page_size)),
+        ),
+    )
+
+
+@router.get(
+    "/users/{user_id}",
+    response_model=PublicRegistrantResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+def get_public_registrant(
+    user_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> PublicRegistrantResponse:
+    user = UserRepository(db).get_public_registrant(user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "registrant_not_found", "message": "Public registrant not found."},
+        )
+    return _public_registrant_response(user)
+
+
+def _record_decision(
+    *,
+    user_id: UUID,
+    decision: PublicAccountApprovalStatus,
+    request: Request,
+    current_user: CurrentUser,
+    db: Session,
+) -> PublicRegistrantResponse:
+    try:
+        user = PublicAccountService(db).decide(
+            user_id=user_id,
+            administrator_id=current_user.id,
+            decision=decision,
+            audit_context=context_from_request(request, user_id=current_user.id),
+        )
+    except PublicRegistrantNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "registrant_not_found", "message": "Public registrant not found."},
+        )
+    except PublicAccountAlreadyDecidedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "approval_already_decided", "message": str(exc)},
+        )
+    # Relationships are fetched after the service's commit so the response has all roles.
+    refreshed = UserRepository(db).get_public_registrant(user.id)
+    return _public_registrant_response(refreshed or user)
+
+
+@router.post(
+    "/users/{user_id}/approve",
+    response_model=PublicRegistrantResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+def approve_public_registrant(
+    user_id: UUID,
+    request: Request,
+    current_user: CurrentUser,
+    db: Annotated[Session, Depends(get_db)],
+) -> PublicRegistrantResponse:
+    return _record_decision(
+        user_id=user_id,
+        decision=PublicAccountApprovalStatus.APPROVED,
+        request=request,
+        current_user=current_user,
+        db=db,
+    )
+
+
+@router.post(
+    "/users/{user_id}/reject",
+    response_model=PublicRegistrantResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+def reject_public_registrant(
+    user_id: UUID,
+    request: Request,
+    current_user: CurrentUser,
+    db: Annotated[Session, Depends(get_db)],
+) -> PublicRegistrantResponse:
+    return _record_decision(
+        user_id=user_id,
+        decision=PublicAccountApprovalStatus.REJECTED,
+        request=request,
+        current_user=current_user,
+        db=db,
+    )
 
 
 def _audit_response(event) -> AuditLogResponse:
