@@ -95,7 +95,8 @@ function ProviderCard({
           <img src={thumbnailUrl} alt={imageAlt} className={styles.cardImage} loading="lazy" decoding="async" onError={() => setImageUnavailable(true)} />
         ) : (
           <div className={styles.imageFallback} role="img" aria-label={`No photo available for ${provider.name}`}>
-            <span aria-hidden="true">✦</span><p>EquiConnected care partner</p>
+            <img src="/logo.png" alt="" className={styles.imageFallbackLogo} />
+            <p>EquiConnected care partner</p>
           </div>
         )}
         <span className={styles.type}>{providerTypeLabel(provider.provider_type)}</span>

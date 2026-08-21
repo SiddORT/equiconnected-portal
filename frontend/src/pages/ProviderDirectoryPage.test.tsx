@@ -200,7 +200,9 @@ describe('ProviderDirectoryPage', () => {
     expect((previous as HTMLButtonElement).disabled).toBe(false);
     await user.click(previous);
     expect(scrollBy).toHaveBeenLastCalledWith({ left: -280 });
-    expect(screen.getByRole('img', { name: 'No photo available for Bluebonnet Equine Hospital' })).toBeTruthy();
+    const fallback = screen.getByRole('img', { name: 'No photo available for Bluebonnet Equine Hospital' });
+    expect(fallback).toBeTruthy();
+    expect(fallback.querySelector('img[src="/logo.png"]')).toBeTruthy();
     expect(screen.getByRole('img', { name: 'Prairie Veterinary Care provider' })).toBeTruthy();
   });
 
@@ -216,7 +218,8 @@ describe('ProviderDirectoryPage', () => {
     const image = await screen.findByRole('img', { name: 'Austin Equine Clinic care team outside the clinic' });
     fireEvent.error(image);
 
-    expect(screen.getByRole('img', { name: 'No photo available for Austin Equine Clinic' })).toBeTruthy();
+    const fallback = screen.getByRole('img', { name: 'No photo available for Austin Equine Clinic' });
+    expect(fallback.querySelector('img[src="/logo.png"]')).toBeTruthy();
   });
 
   it('tries a refreshed thumbnail after an earlier image failed', async () => {
