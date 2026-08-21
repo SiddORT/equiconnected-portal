@@ -90,12 +90,14 @@
   white-space: nowrap;
 }
 
-/* ── Directory menu ──────────────────────────────────────────────────────── */
+/* ── Provider menu ───────────────────────────────────────────────────────── */
+.providerMenu,
 .directoryMenu {
   position: relative;
   flex-shrink: 0;
 }
 
+.providerTrigger,
 .directoryTrigger {
   appearance: none;
   -webkit-appearance: none;
@@ -108,22 +110,30 @@
   text-align: left;
 }
 
+.providerTrigger:hover,
 .directoryTrigger:hover {
   background: rgba(255, 255, 255, 0.06);
   color: var(--color-neutral-100);
 }
 
+.providerTrigger:focus-visible,
 .directoryTrigger:focus-visible {
   background: rgba(255, 255, 255, 0.06);
   color: var(--color-neutral-100);
 }
 
+.providerTrigger.link--active,
+.providerTrigger[aria-expanded='true'],
 .directoryTrigger.link--active,
 .directoryTrigger[aria-expanded='true'] {
   background: rgba(255, 255, 255, 0.12);
   color: var(--color-neutral-50);
 }
 
+.providerTrigger.link--active:hover,
+.providerTrigger.link--active:focus-visible,
+.providerTrigger[aria-expanded='true']:hover,
+.providerTrigger[aria-expanded='true']:focus-visible,
 .directoryTrigger.link--active:hover,
 .directoryTrigger.link--active:focus-visible,
 .directoryTrigger[aria-expanded='true']:hover,
@@ -132,17 +142,21 @@
   color: var(--color-neutral-50);
 }
 
+.providerTrigger[aria-expanded='true'] .providerChevron,
+.providerTrigger.link--active .providerChevron,
 .directoryTrigger[aria-expanded='true'] .directoryChevron,
 .directoryTrigger.link--active .directoryChevron {
   color: var(--color-neutral-100);
 }
 
+.providerChevron,
 .directoryChevron {
   margin-left: var(--space-1);
   font-size: 0.55rem;
   color: var(--color-neutral-400);
 }
 
+.providerDropdown,
 .directoryDropdown {
   left: 0;
   right: auto;
@@ -333,6 +347,7 @@
 
   .brandText,
   .linkLabel,
+  .providerChevron,
   .directoryChevron {
     display: none;
   }
@@ -351,6 +366,7 @@
     font-size: 1rem;
   }
 
+  .providerDropdown,
   .directoryDropdown {
     left: auto;
     right: 0;

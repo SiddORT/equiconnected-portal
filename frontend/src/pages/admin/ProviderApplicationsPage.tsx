@@ -104,6 +104,12 @@ export function ProviderApplicationsPage() {
   ];
 
   const hasFilters = Boolean(search || providerType || reviewStatus || emailVerified !== undefined);
+  const isUnfilteredEmpty =
+    loadState === 'success' &&
+    result !== null &&
+    result.meta.total === 0 &&
+    !hasFilters;
+  const showListControls = !isUnfilteredEmpty;
 
   async function decide() {
     if (!detailTarget || !decision) return;
@@ -128,17 +134,21 @@ export function ProviderApplicationsPage() {
     <div className={styles.shell}>
       <PageHeader title="Provider applications" subtitle="Review verified provider registrations before staging directory listings." breadcrumbs={[{ label: 'Admin' }, { label: 'Provider applications' }]} />
       <div className={styles.body}>
-        <div className={styles.toolbar}>
-          <SearchInput value={search} onChange={(value) => updateParams({ search: value || null, page: '1' })} placeholder="Search provider, contact, or email" aria-label="Search provider applications" />
-          <Button variant="secondary" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} aria-controls="provider-application-filters">Filters</Button>
-        </div>
-        {filtersOpen && <div id="provider-application-filters"><FilterBar groups={[
-          { label: 'Provider type', value: providerType || 'all', onChange: (value: string) => updateParams({ provider_type: value === 'all' ? null : value, page: '1' }), options: TYPE_OPTIONS },
-          { label: 'Email verification', value: emailVerified === undefined ? 'all' : String(emailVerified), onChange: (value: string) => updateParams({ email_verified: value === 'all' ? null : value, page: '1' }), options: [{ value: 'all', label: 'All applications' }, { value: 'true', label: 'Verified' }, { value: 'false', label: 'Unverified' }] },
-          { label: 'Review status', value: reviewStatus || 'all', onChange: (value: string) => updateParams({ review_status: value === 'all' ? null : value, page: '1' }), options: REVIEW_OPTIONS },
-        ]} /></div>}
+        {showListControls && (
+          <>
+            <div className={styles.toolbar}>
+              <SearchInput value={search} onChange={(value) => updateParams({ search: value || null, page: '1' })} placeholder="Search provider, contact, or email" aria-label="Search provider applications" />
+              <Button variant="secondary" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} aria-controls="provider-application-filters">Filters</Button>
+            </div>
+            {filtersOpen && <div id="provider-application-filters"><FilterBar groups={[
+              { label: 'Provider type', value: providerType || 'all', onChange: (value: string) => updateParams({ provider_type: value === 'all' ? null : value, page: '1' }), options: TYPE_OPTIONS },
+              { label: 'Email verification', value: emailVerified === undefined ? 'all' : String(emailVerified), onChange: (value: string) => updateParams({ email_verified: value === 'all' ? null : value, page: '1' }), options: [{ value: 'all', label: 'All applications' }, { value: 'true', label: 'Verified' }, { value: 'false', label: 'Unverified' }] },
+              { label: 'Review status', value: reviewStatus || 'all', onChange: (value: string) => updateParams({ review_status: value === 'all' ? null : value, page: '1' }), options: REVIEW_OPTIONS },
+            ]} /></div>}
+          </>
+        )}
         <DataTable columns={columns} data={result?.data ?? []} page={page} pageSize={pageSize} rowKey={(item) => item.id} loading={loadState === 'loading'} ariaLabel="Provider applications" error={loadState === 'error' ? { title: 'Failed to load provider applications', message: errorMessage ?? undefined, onRetry: load } : null} empty={{ icon: '🏥', title: hasFilters ? 'No provider applications found' : 'No provider applications yet', description: hasFilters ? 'Try adjusting your search or filters.' : 'Verified provider registrations will appear here for review.' }} />
-        {loadState === 'success' && result && <Pagination page={page} pageSize={pageSize} total={result.meta.total} onPageChange={(next) => updateParams({ page: String(next) })} onPageSizeChange={(size) => updateParams({ page_size: String(size), page: '1' })} />}
+        {showListControls && loadState === 'success' && result && <Pagination page={page} pageSize={pageSize} total={result.meta.total} onPageChange={(next) => updateParams({ page: String(next) })} onPageSizeChange={(size) => updateParams({ page_size: String(size), page: '1' })} />}
       </div>
       {detailTarget && <ApplicationDialog application={detailTarget} formatTimestamp={formatTimestamp} onClose={() => { setDetailTarget(null); setDecision(null); }} onDecision={setDecision} error={decisionError} />}
       {detailTarget && decision && <DecisionDialog action={decision} providerName={detailTarget.provider_name} busy={deciding} onCancel={() => setDecision(null)} onConfirm={() => void decide()} />}
