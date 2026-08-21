@@ -21,15 +21,15 @@ export function VisitorVisitsChart({ visits }: VisitorVisitsChartProps) {
     <Card padding="md" shadow="sm" className={styles.card}>
       <div className={styles.header}>
         <div>
-          <h3 className={styles.title}>Visitor visits</h3>
-          <p className={styles.subtitle}>Public landing-page visits · last 7 days</p>
+          <h3 className={styles.title}>Website visits</h3>
+          <p className={styles.subtitle}>Public website visits · last 7 days</p>
         </div>
         <strong className={styles.total}>{total}</strong>
       </div>
       <div
         className={styles.chart}
         role="img"
-        aria-label={`${total} public landing-page visits across the last seven days`}
+        aria-label={`${total} public website visits across the last seven days`}
       >
         {chartVisits.map((visit) => (
           <div key={visit.date} className={styles.column}>

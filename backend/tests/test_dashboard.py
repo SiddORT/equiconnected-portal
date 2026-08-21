@@ -9,6 +9,8 @@ Covers:
   - Empty-data shape
   - Seed idempotency
 """
+from datetime import datetime, timezone
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -83,6 +85,13 @@ class TestDashboard:
         assert data["provider_counts"] == {"hospitals": 0, "clinics": 0, "doctors": 0}
         assert data["active_providers"] == 0
         assert data["invitation_counts"] == {"sent": 0, "accepted": 0, "rejected": 0}
+        assert data["registration_counts"] == {
+            "requests": 0,
+            "approved": 0,
+            "rejected": 0,
+            "horse_owners": 0,
+            "stable_managers": 0,
+        }
         assert len(data["visitor_visits"]) == 7
         assert all(visit["count"] == 0 for visit in data["visitor_visits"])
         assert data["location_markers"] == []
@@ -137,6 +146,41 @@ class TestDashboard:
         visits = client.get(URL, headers=_auth(admin_token)).json()["visitor_visits"]
         assert len(visits) == 7
         assert sum(visit["count"] for visit in visits) == 1
+
+    def test_registration_counts_include_status_and_public_roles(
+        self, client: TestClient, admin_token: str, db
+    ):
+        repo = UserRepository(db)
+        horse_owner = repo.get_role_by_name("horse_owner") or repo.create_role(
+            "horse_owner", "Public horse owner account"
+        )
+        stable_manager = repo.get_role_by_name("stable_manager") or repo.create_role(
+            "stable_manager", "Public stable manager account"
+        )
+        approved = repo.create_user(
+            email="approved-owner@example.com",
+            password_hash=hash_password("Approved#2026!ABC"),
+            role=horse_owner,
+            roles=[horse_owner, stable_manager],
+        )
+        approved.email_verified_at = datetime.now(timezone.utc)
+        rejected = repo.create_user(
+            email="rejected-owner@example.com",
+            password_hash=hash_password("Rejected#2026!ABC"),
+            role=horse_owner,
+            is_active=False,
+        )
+        rejected.email_verified_at = datetime.now(timezone.utc)
+        db.commit()
+
+        counts = client.get(URL, headers=_auth(admin_token)).json()["registration_counts"]
+        assert counts == {
+            "requests": 2,
+            "approved": 1,
+            "rejected": 1,
+            "horse_owners": 2,
+            "stable_managers": 1,
+        }
 
 
 class TestDemoSeed:

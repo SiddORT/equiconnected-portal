@@ -1,0 +1,76 @@
+.card {
+  height: 100%;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+}
+
+.subtitle,
+.note {
+  margin: var(--space-1) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.total {
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  line-height: 1;
+}
+
+.metrics,
+.roles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.metrics {
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.metric,
+.roles > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.metric strong,
+.roles strong {
+  color: var(--text-primary);
+  font-size: var(--text-base);
+}
+
+.approved {
+  color: var(--color-success, #24855b) !important;
+}
+
+.rejected {
+  color: var(--color-error, #bd4b50) !important;
+}
+
+.roles {
+  padding-top: var(--space-4);
+}
+
+.note {
+  margin-top: var(--space-4);
+}

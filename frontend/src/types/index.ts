@@ -80,6 +80,14 @@ export interface InvitationCounts {
   rejected: number;
 }
 
+export interface RegistrationCounts {
+  requests: number;
+  approved: number;
+  rejected: number;
+  horse_owners: number;
+  stable_managers: number;
+}
+
 export interface DailyVisit {
   date: string;
   count: number;
@@ -103,6 +111,7 @@ export interface DashboardStats {
   active_providers: number;
   provider_counts: ProviderCounts;
   invitation_counts: InvitationCounts;
+  registration_counts: RegistrationCounts;
   visitor_visits: DailyVisit[];
   location_markers: LocationMarker[];
 }

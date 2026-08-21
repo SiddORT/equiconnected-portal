@@ -16,7 +16,8 @@ from app.models.enums import InvitationStatus, ProviderStatus, ProviderType
 from app.models.invitation import ProviderInvitation
 from app.models.public_visit import PublicVisitDaily
 from app.models.provider import Provider, ProviderLocation
-from app.models.user import User
+from app.models.role import Role
+from app.models.user import User, UserRole
 from app.repositories.audit_repository import AuditRepository
 from app.schemas.audit_log import AuditActor, AuditChange, AuditLogListResponse, AuditLogResponse
 from app.schemas.common import PaginationMeta
@@ -32,7 +33,7 @@ def dashboard_stats(
     current_user: CurrentUser,
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
-    """Dashboard statistics: providers, invitations, visitors, and map markers."""
+    """Dashboard statistics: providers, invitations, public accounts, visits, and map markers."""
     total_users = db.scalar(select(func.count()).select_from(User))
     active_providers = db.scalar(
         select(func.count())
@@ -69,6 +70,51 @@ def dashboard_stats(
             invitation_status_counts.get(InvitationStatus.CANCELLED, 0)
             + invitation_status_counts.get(InvitationStatus.EXPIRED, 0)
         ),
+    }
+
+    public_role_names = ("horse_owner", "stable_manager")
+    public_role_counts = dict(
+        db.execute(
+            select(Role.name, func.count(func.distinct(UserRole.user_id)))
+            .join(UserRole, UserRole.role_id == Role.id)
+            .where(Role.name.in_(public_role_names))
+            .group_by(Role.name)
+        ).all()
+    )
+    public_user_ids = (
+        select(UserRole.user_id)
+        .join(Role, UserRole.role_id == Role.id)
+        .where(Role.name.in_(public_role_names))
+        .distinct()
+        .subquery()
+    )
+    public_user_id_select = select(public_user_ids.c.user_id)
+    registration_counts = {
+        "requests": db.scalar(select(func.count()).select_from(public_user_ids)) or 0,
+        # Public accounts become approved when their email is verified and activated.
+        "approved": db.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(
+                User.id.in_(public_user_id_select),
+                User.is_active.is_(True),
+                User.email_verified_at.is_not(None),
+            )
+        )
+        or 0,
+        # A verified account is only considered rejected once an administrator deactivates it.
+        "rejected": db.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(
+                User.id.in_(public_user_id_select),
+                User.is_active.is_(False),
+                User.email_verified_at.is_not(None),
+            )
+        )
+        or 0,
+        "horse_owners": public_role_counts.get("horse_owner", 0),
+        "stable_managers": public_role_counts.get("stable_manager", 0),
     }
 
     today = datetime.now(timezone.utc).date()
@@ -123,6 +169,7 @@ def dashboard_stats(
         "active_providers": active_providers,
         "provider_counts": provider_counts,
         "invitation_counts": invitation_counts,
+        "registration_counts": registration_counts,
         "visitor_visits": visitor_visits,
         "location_markers": location_markers,
     }

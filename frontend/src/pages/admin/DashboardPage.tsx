@@ -13,6 +13,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { DashboardMap } from '@/components/dashboard/DashboardMap';
 import { InvitationStatusChart } from '@/components/dashboard/InvitationStatusChart';
+import { RegistrationRequestsCard } from '@/components/dashboard/RegistrationRequestsCard';
 import { VisitorVisitsChart } from '@/components/dashboard/VisitorVisitsChart';
 import type { DashboardStats, LoadingState } from '@/types';
 import styles from './DashboardPage.module.css';
@@ -98,6 +99,7 @@ export function DashboardPage() {
                 <h2 id="activity-heading" className={styles.sectionTitle}>Activity overview</h2>
                 <div className={styles.analyticsGrid}>
                   <InvitationStatusChart counts={stats.invitation_counts} />
+                  <RegistrationRequestsCard counts={stats.registration_counts} />
                   <VisitorVisitsChart visits={stats.visitor_visits ?? []} />
                 </div>
               </section>
