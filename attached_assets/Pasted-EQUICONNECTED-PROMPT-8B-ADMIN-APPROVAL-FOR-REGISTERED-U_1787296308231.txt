@@ -1,0 +1,163 @@
+EQUICONNECTED — PROMPT 8B
+ADMIN APPROVAL FOR REGISTERED USERS
+
+Build the Admin approval workflow for users created by Prompt 8A.
+
+First inspect and reuse the existing user/authentication, Admin authentication, DataTable, status and UI components. Do not create duplicate systems.
+
+### 1. Admin user list
+
+Create/extend:
+
+/admin/users
+
+Use the existing reusable DataTable.
+
+Show:
+
+- Name
+- Email
+- Mobile
+- Role
+- Country
+- City
+- Email verification status
+- Approval status
+- Created date
+- Actions
+
+Support:
+
+- Search
+- Role filter
+- Approval-status filter
+- Email verification filter
+- Pagination
+
+### 2. Approval statuses
+
+Keep these separate:
+
+- Email verification
+- Admin approval
+- Profile completion
+
+Use an appropriate approval status such as:
+
+PENDING
+APPROVED
+REJECTED
+
+A newly registered user should start as:
+
+Email: UNVERIFIED
+Approval: PENDING
+Profile: INCOMPLETE
+
+Email verification must not automatically approve the user.
+
+### 3. Admin actions
+
+Admin can:
+
+- View user details
+- Approve user
+- Reject user
+
+Ask for confirmation before changing approval status.
+
+Do not delete users when rejecting them.
+
+### 4. Access control
+
+Only approved users can access the authenticated member area.
+
+Do not rely only on frontend route protection.
+
+Backend APIs must also check approval status.
+
+Unapproved users should receive a clear response explaining that their account is awaiting approval.
+
+Do not affect existing Admin authentication.
+
+### 5. User notification
+
+When approved or rejected, use the existing email infrastructure if available.
+
+Keep the email simple:
+
+- Approval → account approved
+- Rejection → account not approved
+
+Do not implement the full notification system yet.
+
+### 6. Database
+
+Use the existing user/account model from Prompt 8A.
+
+Add only the required approval-status field/migration.
+
+Do not store approval data as JSON.
+
+Record appropriate timestamps such as:
+
+- approved_at
+- rejected_at
+
+and the Admin responsible where the existing architecture supports it.
+
+### 7. UI
+
+Reuse existing:
+
+- DataTable
+- Search
+- Filters
+- StatusBadge
+- ActionMenu
+- ConfirmationDialog
+- Detail views
+- Loading/error/empty states
+
+Do not create duplicate components.
+
+### 8. Do NOT implement
+
+Do not implement yet:
+
+- Profile form
+- Horse information
+- Stable information
+- Profile progress
+- Provider browsing
+- Ratings
+- Reviews/comments
+- Activity logs
+- Analytics
+
+These are later prompts.
+
+### 9. Done when
+
+- /admin/users works
+- Admin can view registered users
+- Admin can filter/search users
+- Admin can approve users
+- Admin can reject users
+- Approval status is stored in PostgreSQL
+- Email verification remains separate
+- Profile completion remains separate
+- Unapproved users cannot access the member area
+- Existing Admin authentication remains intact
+- Tests and migration pass
+
+At completion, report:
+
+1. Files changed
+2. Database changes
+3. API routes
+4. Frontend routes
+5. Approval flow
+6. Tests/migration result
+
+STOP. Do not implement Prompt 8C.

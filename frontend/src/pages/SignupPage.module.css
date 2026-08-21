@@ -85,6 +85,17 @@
   --input-error-color: #ef9d9d;
 }
 
+.mobileField {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.mobileLabel {
+  color: #e3d7c2;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+}
+
 .twoColumns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

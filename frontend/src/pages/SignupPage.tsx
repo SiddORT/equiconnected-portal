@@ -9,7 +9,9 @@ import * as authApi from '@/api/auth';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { PhoneInput } from '@/components/ui/PhoneInput';
 import type { PublicRoleSelection, RegistrationRequest } from '@/types';
+import { DEFAULT_COUNTRY } from '@/utils/countryCodes';
 import styles from './SignupPage.module.css';
 
 type FormState = RegistrationRequest;
@@ -62,6 +64,7 @@ function validate(form: FormState): FormErrors {
 
 export function SignupPage() {
   const [form, setForm] = useState<FormState>(initialForm);
+  const [mobileCountry, setMobileCountry] = useState(DEFAULT_COUNTRY);
   const [errors, setErrors] = useState<FormErrors>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -87,7 +90,7 @@ export function SignupPage() {
       await authApi.register({
         ...form,
         email: form.email.trim().toLowerCase(),
-        mobile_number: form.mobile_number.trim(),
+        mobile_number: `${mobileCountry.dialCode} ${form.mobile_number.trim()}`,
         country: form.country.trim(),
         city: form.city.trim(),
       });
@@ -134,7 +137,21 @@ export function SignupPage() {
               <Input label="Last name" id="signup-last-name" autoComplete="family-name" placeholder="e.g. Williams" containerClassName={styles.signupField} value={form.last_name} onChange={(e) => update('last_name', e.target.value)} error={errors.last_name} disabled={submitting} required />
             </div>
             <Input label="Email address" type="email" id="signup-email" autoComplete="email" placeholder="you@example.com" containerClassName={styles.signupField} value={form.email} onChange={(e) => update('email', e.target.value)} error={errors.email} disabled={submitting} required />
-            <Input label="Mobile number" type="tel" id="signup-mobile" autoComplete="tel" placeholder="+971 50 000 0000" containerClassName={styles.signupField} value={form.mobile_number} onChange={(e) => update('mobile_number', e.target.value)} error={errors.mobile_number} disabled={submitting} required />
+            <div className={`${styles.signupField} ${styles.mobileField}`}>
+              <span className={styles.mobileLabel}>Mobile number</span>
+              <PhoneInput
+                countryCode={mobileCountry.dialCode}
+                isoCode={mobileCountry.code}
+                number={form.mobile_number}
+                onCountryChange={(dialCode, isoCode) => {
+                  setMobileCountry({ ...mobileCountry, dialCode, code: isoCode });
+                }}
+                onNumberChange={(number) => update('mobile_number', number)}
+                error={errors.mobile_number}
+                disabled={submitting}
+                ariaLabel="Mobile number"
+              />
+            </div>
             <div className={styles.twoColumns}>
               <Input label="Country" id="signup-country" autoComplete="country-name" placeholder="e.g. United Arab Emirates" containerClassName={styles.signupField} value={form.country} onChange={(e) => update('country', e.target.value)} error={errors.country} disabled={submitting} required />
               <Input label="City" id="signup-city" autoComplete="address-level2" placeholder="e.g. Dubai" containerClassName={styles.signupField} value={form.city} onChange={(e) => update('city', e.target.value)} error={errors.city} disabled={submitting} required />
