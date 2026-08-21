@@ -1065,3 +1065,98 @@ class TestDoctorProfessionalFields:
         assert [q["title"] for q in data["qualifications"]] == ["MBBS"]
         assert len(data["organizations"]) == 1
         assert data["organizations"][0]["is_primary"] is True
+
+
+# ── Doctor qualifications via legacy doctor endpoints ─────────────────────────
+
+class TestDoctorQualifications:
+    def test_qualification_mutations_are_immediately_visible_on_detail_reload(
+        self, client: TestClient, admin_token: str
+    ):
+        """The response contract lets the detail card reflect every confirmed mutation."""
+        doctor = _create_provider(
+            client, admin_token, "Dr. Qualified", provider_type="DOCTOR"
+        )
+        doctor_base = f"/api/v1/admin/doctors/{doctor['id']}"
+
+        created = client.post(
+            f"{doctor_base}/qualifications",
+            json={
+                "title": "MBBS",
+                "institution": "Medical University",
+                "year_obtained": 2012,
+                "description": "Undergraduate medical degree.",
+            },
+            headers=_auth(admin_token),
+        )
+        assert created.status_code == 201, created.text
+        qualification = created.json()
+        assert qualification["title"] == "MBBS"
+        assert qualification["institution"] == "Medical University"
+        assert qualification["year_obtained"] == 2012
+        assert qualification["description"] == "Undergraduate medical degree."
+
+        detail = client.get(doctor_base, headers=_auth(admin_token))
+        assert detail.status_code == 200
+        assert detail.json()["qualifications"] == [qualification]
+
+        updated = client.patch(
+            f"{doctor_base}/qualifications/{qualification['id']}",
+            json={
+                "title": "MD",
+                "institution": "Postgraduate Medical University",
+                "year_obtained": 2016,
+                "description": "Advanced clinical training.",
+            },
+            headers=_auth(admin_token),
+        )
+        assert updated.status_code == 200, updated.text
+        assert updated.json()["title"] == "MD"
+
+        detail = client.get(doctor_base, headers=_auth(admin_token))
+        assert detail.status_code == 200
+        assert detail.json()["qualifications"][0]["title"] == "MD"
+        assert detail.json()["qualifications"][0]["institution"] == "Postgraduate Medical University"
+        assert detail.json()["qualifications"][0]["year_obtained"] == 2016
+        assert detail.json()["qualifications"][0]["description"] == "Advanced clinical training."
+
+        deleted = client.delete(
+            f"{doctor_base}/qualifications/{qualification['id']}",
+            headers=_auth(admin_token),
+        )
+        assert deleted.status_code == 204, deleted.text
+
+        detail = client.get(doctor_base, headers=_auth(admin_token))
+        assert detail.status_code == 200
+        assert detail.json()["qualifications"] == []
+
+    def test_rejected_qualification_update_keeps_saved_details(
+        self, client: TestClient, admin_token: str
+    ):
+        doctor = _create_provider(
+            client, admin_token, "Dr. Preserved", provider_type="DOCTOR"
+        )
+        doctor_base = f"/api/v1/admin/doctors/{doctor['id']}"
+        created = client.post(
+            f"{doctor_base}/qualifications",
+            json={
+                "title": "DVM",
+                "institution": "Equine College",
+                "year_obtained": 2010,
+                "description": "Veterinary medicine.",
+            },
+            headers=_auth(admin_token),
+        )
+        assert created.status_code == 201, created.text
+        qualification = created.json()
+
+        rejected = client.patch(
+            f"{doctor_base}/qualifications/{qualification['id']}",
+            json={"title": " "},
+            headers=_auth(admin_token),
+        )
+        assert rejected.status_code == 422
+
+        detail = client.get(doctor_base, headers=_auth(admin_token))
+        assert detail.status_code == 200
+        assert detail.json()["qualifications"] == [qualification]

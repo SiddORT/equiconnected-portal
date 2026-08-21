@@ -63,16 +63,27 @@ export function DoctorProfessionalSections({ providerId }: Props) {
     onConfirm: () => void;
   } | null>(null);
 
-  const load = useCallback(async () => {
+  const refreshDoctor = useCallback(async (preserveCurrent = false) => {
     try {
       setDoctor(await getDoctor(providerId));
       setLoadError(null);
     } catch (err) {
-      setLoadError(extractErrorMessage(err, 'Failed to load doctor details.'));
+      const message = extractErrorMessage(err, 'Failed to load doctor details.');
+      if (preserveCurrent) {
+        setActionError(message);
+      } else {
+        setLoadError(message);
+      }
     }
   }, [providerId]);
 
+  const load = useCallback(async () => {
+    await refreshDoctor();
+  }, [refreshDoctor]);
+
   useEffect(() => {
+    setDoctor(null);
+    setLoadError(null);
     void load();
     (async () => {
       try {
@@ -98,7 +109,25 @@ export function DoctorProfessionalSections({ providerId }: Props) {
     setActionError(null);
     try {
       await action();
-      await load();
+      await refreshDoctor(true);
+    } catch (err) {
+      setActionError(extractErrorMessage(err, failMessage));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runQualificationMutation(
+    action: () => Promise<void>,
+    failMessage: string
+  ) {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await action();
+      // Keep the confirmed local result visible if a follow-up read is
+      // temporarily unavailable.
+      await refreshDoctor(true);
     } catch (err) {
       setActionError(extractErrorMessage(err, failMessage));
     } finally {
@@ -113,6 +142,15 @@ export function DoctorProfessionalSections({ providerId }: Props) {
     setQualYear('');
     setQualDesc('');
     setQualFormOpen(true);
+  }
+
+  function closeQualForm() {
+    setQualFormOpen(false);
+    setQualEdit(null);
+    setQualTitle('');
+    setQualInstitution('');
+    setQualYear('');
+    setQualDesc('');
   }
 
   function openEditQual(q: QualificationResponse) {
@@ -136,15 +174,40 @@ export function DoctorProfessionalSections({ providerId }: Props) {
       year_obtained: qualYear.trim() ? Number(qualYear) : null,
       description: qualDesc.trim() || null,
     };
-    await run(async () => {
+    await runQualificationMutation(async () => {
       if (qualEdit) {
-        await updateDoctorQualification(providerId, qualEdit.id, body);
+        const saved = await updateDoctorQualification(providerId, qualEdit.id, body);
+        setDoctor((current) =>
+          current
+            ? {
+                ...current,
+                qualifications: current.qualifications.map((q) =>
+                  q.id === saved.id ? saved : q
+                ),
+              }
+            : current
+        );
       } else {
-        await addDoctorQualification(providerId, body as QualificationCreate);
+        const saved = await addDoctorQualification(providerId, body as QualificationCreate);
+        setDoctor((current) =>
+          current
+            ? { ...current, qualifications: [...current.qualifications, saved] }
+            : current
+        );
       }
-      setQualFormOpen(false);
-      setQualEdit(null);
+      closeQualForm();
     }, 'Failed to save qualification.');
+  }
+
+  async function handleDeleteQual(q: QualificationResponse) {
+    await runQualificationMutation(async () => {
+      await deleteDoctorQualification(providerId, q.id);
+      setDoctor((current) =>
+        current
+          ? { ...current, qualifications: current.qualifications.filter((item) => item.id !== q.id) }
+          : current
+      );
+    }, 'Failed to delete qualification.');
   }
 
   const linkedOrgIds = new Set((doctor?.organizations ?? []).map((o) => o.organization_id));
@@ -195,7 +258,7 @@ export function DoctorProfessionalSections({ providerId }: Props) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => (qualFormOpen ? setQualFormOpen(false) : openNewQual())}
+              onClick={() => (qualFormOpen ? closeQualForm() : openNewQual())}
             >
               {qualFormOpen ? 'Cancel' : '＋ Add qualification'}
             </Button>
@@ -272,11 +335,7 @@ export function DoctorProfessionalSections({ providerId }: Props) {
                         setConfirm({
                           title: 'Delete qualification?',
                           message: `Delete "${q.title}"? This cannot be undone.`,
-                          onConfirm: () =>
-                            run(
-                              () => deleteDoctorQualification(providerId, q.id),
-                              'Failed to delete qualification.'
-                            ),
+                           onConfirm: () => void handleDeleteQual(q),
                         })
                       }
                     >
