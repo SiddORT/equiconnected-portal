@@ -49,12 +49,16 @@ def _response(review, provider, reviewer) -> AdminReviewListItem:
 def list_reviews(
     svc: _Svc,
     current_user: CurrentUser,
+    provider_id: UUID | None = Query(None),
     comment_visible: bool | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
 ) -> PaginatedResponse[AdminReviewListItem]:
     items, total = svc.list_admin_reviews(
-        comment_visible=comment_visible, page=page, page_size=page_size
+        provider_id=provider_id,
+        comment_visible=comment_visible,
+        page=page,
+        page_size=page_size,
     )
     return PaginatedResponse(
         data=[_response(review, provider, reviewer) for review, provider, reviewer in items],

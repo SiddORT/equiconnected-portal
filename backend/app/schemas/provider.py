@@ -266,11 +266,19 @@ class ProviderListItem(BaseModel):
     created_at: datetime
     updated_at: datetime
     thumbnail_url: str | None = None
+    average_rating: float | None = None
+    review_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def from_provider_row(cls, provider) -> "ProviderListItem":
+    def from_provider_row(
+        cls,
+        provider,
+        *,
+        average_rating: float | None = None,
+        review_count: int = 0,
+    ) -> "ProviderListItem":
         """Build a list item, preferring the primary phone/email entries over
         the legacy single-value columns (which are null going forward)."""
         primary_email = next(
@@ -297,6 +305,8 @@ class ProviderListItem(BaseModel):
             created_at=provider.created_at,
             updated_at=provider.updated_at,
             thumbnail_url=thumbnail,
+            average_rating=average_rating,
+            review_count=review_count,
         )
 
 

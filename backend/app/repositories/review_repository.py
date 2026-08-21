@@ -226,9 +226,16 @@ class ReviewRepository:
         )
 
     def list_admin_reviews(
-        self, *, comment_visible: bool | None, page: int, page_size: int
+        self,
+        *,
+        provider_id: UUID | None,
+        comment_visible: bool | None,
+        page: int,
+        page_size: int,
     ) -> tuple[list[tuple[ProviderReview, Provider, User]], int]:
         conditions = []
+        if provider_id is not None:
+            conditions.append(ProviderReview.provider_id == provider_id)
         if comment_visible is not None:
             conditions.append(ProviderReview.comment_visible == comment_visible)
         total = self._db.scalar(

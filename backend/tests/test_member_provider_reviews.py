@@ -282,3 +282,109 @@ class TestMemberProviderDiscoveryAndReviews:
         assert review_ids[0] == review_ids[1]
         assert db.query(ProviderReview).count() == 1
         assert db.query(ProviderReview).one().rating in {4, 5}
+
+    def test_admin_provider_list_summaries_include_hidden_comments(self, client, db, seeded_admin):
+        admin, _ = seeded_admin
+        reviewed = _provider(db, "Reviewed Clinic")
+        no_reviews = _provider(db, "No Reviews Clinic")
+        visible_reviewer = _member(db, "visible-summary@example.com")
+        hidden_reviewer = _member(db, "hidden-summary@example.com")
+        db.add_all([
+            ProviderReview(
+                provider_id=reviewed.id,
+                member_id=visible_reviewer.id,
+                rating=5,
+                comment="Visible feedback",
+                comment_visible=True,
+            ),
+            ProviderReview(
+                provider_id=reviewed.id,
+                member_id=hidden_reviewer.id,
+                rating=3,
+                comment="Hidden feedback",
+                comment_visible=False,
+            ),
+        ])
+        db.commit()
+
+        response = client.get("/api/v1/admin/providers", headers=_headers(admin))
+        assert response.status_code == 200
+        providers = {item["id"]: item for item in response.json()["data"]}
+        assert providers[str(reviewed.id)]["review_count"] == 2
+        assert providers[str(reviewed.id)]["average_rating"] == 4.0
+        assert providers[str(no_reviews.id)]["review_count"] == 0
+        assert providers[str(no_reviews.id)]["average_rating"] is None
+
+    def test_admin_reviews_can_be_scoped_to_a_provider_and_moderated(
+        self, client, db, seeded_admin
+    ):
+        admin, _ = seeded_admin
+        provider = _provider(db, "Scoped Clinic")
+        other_provider = _provider(db, "Other Clinic")
+        first_reviewer = _member(db, "first-scoped@example.com")
+        second_reviewer = _member(db, "second-scoped@example.com")
+        other_reviewer = _member(db, "other-scoped@example.com")
+        visible_review = ProviderReview(
+            provider_id=provider.id,
+            member_id=first_reviewer.id,
+            rating=5,
+            comment="Visible scoped comment",
+            comment_visible=True,
+        )
+        hidden_review = ProviderReview(
+            provider_id=provider.id,
+            member_id=second_reviewer.id,
+            rating=2,
+            comment="Hidden scoped comment",
+            comment_visible=False,
+        )
+        db.add_all([
+            visible_review,
+            hidden_review,
+            ProviderReview(
+                provider_id=other_provider.id,
+                member_id=other_reviewer.id,
+                rating=4,
+                comment="Other provider comment",
+            ),
+        ])
+        db.commit()
+
+        params = {"provider_id": str(provider.id), "page": 1, "page_size": 1}
+        assert client.get(ADMIN_BASE, params=params).status_code == 401
+        assert client.get(ADMIN_BASE, headers=_headers(first_reviewer), params=params).status_code == 403
+
+        first_page = client.get(ADMIN_BASE, headers=_headers(admin), params=params)
+        assert first_page.status_code == 200
+        assert first_page.json()["meta"] == {
+            "page": 1,
+            "page_size": 1,
+            "total": 2,
+            "total_pages": 2,
+        }
+        assert first_page.json()["data"][0]["provider_id"] == str(provider.id)
+        second_page = client.get(
+            ADMIN_BASE,
+            headers=_headers(admin),
+            params={**params, "page": 2},
+        )
+        assert second_page.json()["data"][0]["provider_id"] == str(provider.id)
+
+        hidden_only = client.get(
+            ADMIN_BASE,
+            headers=_headers(admin),
+            params={"provider_id": str(provider.id), "comment_visible": "false"},
+        )
+        assert hidden_only.json()["meta"]["total"] == 1
+        assert hidden_only.json()["data"][0]["id"] == str(hidden_review.id)
+
+        updated = client.patch(
+            f"{ADMIN_BASE}/{visible_review.id}/comment-visibility",
+            headers=_headers(admin),
+            json={"comment_visible": False},
+        )
+        assert updated.status_code == 200
+        assert updated.json()["rating"] == 5
+        assert updated.json()["comment_visible"] is False
+        db.refresh(visible_review)
+        assert visible_review.rating == 5

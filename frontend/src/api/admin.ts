@@ -106,6 +106,7 @@ export async function rejectProviderApplication(
 }
 
 export interface AdminReviewParams {
+  provider_id?: string;
   comment_visible?: boolean;
   page?: number;
   page_size?: number;

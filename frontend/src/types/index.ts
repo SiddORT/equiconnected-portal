@@ -370,6 +370,8 @@ export interface ProviderListItem {
   created_at: string;
   updated_at: string;
   thumbnail_url: string | null;
+  average_rating: number | null;
+  review_count: number;
 }
 
 export interface ProviderSpecializationBrief {

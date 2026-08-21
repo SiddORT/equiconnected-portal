@@ -166,6 +166,35 @@ export function ProvidersPage() {
       ),
     },
     {
+      key: 'rating',
+      label: 'Rating',
+      width: '90px',
+      hideOnMobile: true,
+      render: (p) => (
+        p.average_rating === null
+          ? <span className={styles.muted}>—</span>
+          : <span className={styles.rating} aria-label={`Average rating ${p.average_rating.toFixed(1)} out of 5`}>
+              ★ {p.average_rating.toFixed(1)}
+            </span>
+      ),
+    },
+    {
+      key: 'review_count',
+      label: 'Reviews',
+      width: '100px',
+      render: (p) => p.review_count > 0
+        ? (
+          <Link
+            to={`/admin/reviews?provider_id=${encodeURIComponent(p.id)}`}
+            className={styles.reviewLink}
+            aria-label={`View ${p.review_count} review${p.review_count === 1 ? '' : 's'} for ${p.name}`}
+          >
+            {p.review_count}
+          </Link>
+        )
+        : <span className={styles.muted}>0</span>,
+    },
+    {
       key: 'status',
       label: 'Status',
       width: '100px',

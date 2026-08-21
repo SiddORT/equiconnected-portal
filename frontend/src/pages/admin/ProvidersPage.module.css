@@ -234,6 +234,20 @@
   display: block;
 }
 
+.rating {
+  color: #b77812;
+  font-weight: var(--font-semibold);
+  white-space: nowrap;
+}
+
+.reviewLink {
+  color: var(--color-primary-700, #5c3d2e);
+  font-weight: var(--font-semibold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.reviewLink:hover { color: var(--color-primary-900, #3d2a1a); }
+
 .dateCell {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

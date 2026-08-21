@@ -4,7 +4,7 @@ locations, photos, and specialization assignments.
 """
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import Float, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.enums import (
@@ -20,6 +20,7 @@ from app.models.provider import (
     ProviderLocation,
     ProviderPhone,
     ProviderPhoto,
+    ProviderReview,
     ProviderSpecialization,
 )
 from app.models.specialization import Specialization
@@ -57,15 +58,9 @@ class ProviderRepository:
         publication_status: PublicationStatus | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> tuple[list[Provider], int]:
+    ) -> tuple[list[tuple[Provider, float | None, int]], int]:
         """Return (items, total_count) for the requested page — all filters at the DB level."""
-        stmt = select(Provider).options(
-            selectinload(Provider.phones),
-            selectinload(Provider.emails),
-            selectinload(Provider.photos),
-        )
         count_stmt = select(func.count()).select_from(Provider)
-
         conditions = []
         if search:
             conditions.append(Provider.name.ilike(f"%{search.strip()}%"))
@@ -78,18 +73,47 @@ class ProviderRepository:
         if publication_status is not None:
             conditions.append(Provider.publication_status == publication_status)
 
-        for cond in conditions:
-            stmt = stmt.where(cond)
-            count_stmt = count_stmt.where(cond)
+        total: int = self._db.scalar(count_stmt.where(*conditions)) or 0
 
-        total: int = self._db.scalar(count_stmt) or 0
-
-        stmt = (
-            stmt.order_by(Provider.name, Provider.id)
+        # Limit rating aggregation to the provider page. Aggregating the entire
+        # review table on every directory request becomes needlessly expensive
+        # as moderation history grows.
+        page_provider_ids = (
+            select(Provider.id.label("id"))
+            .where(*conditions)
+            .order_by(Provider.name, Provider.id)
             .offset((page - 1) * page_size)
             .limit(page_size)
+            .subquery()
         )
-        items = list(self._db.scalars(stmt).all())
+        review_totals = (
+            select(
+                ProviderReview.provider_id.label("provider_id"),
+                func.avg(ProviderReview.rating).cast(Float).label("average_rating"),
+                func.count(ProviderReview.id).label("review_count"),
+            )
+            .where(ProviderReview.provider_id.in_(select(page_provider_ids.c.id)))
+            .group_by(ProviderReview.provider_id)
+            .subquery()
+        )
+        stmt = select(
+            Provider,
+            review_totals.c.average_rating,
+            func.coalesce(review_totals.c.review_count, 0).label("review_count"),
+        ).join(
+            page_provider_ids, page_provider_ids.c.id == Provider.id
+        ).outerjoin(
+            review_totals, review_totals.c.provider_id == Provider.id
+        ).options(
+            selectinload(Provider.phones),
+            selectinload(Provider.emails),
+            selectinload(Provider.photos),
+        )
+        stmt = stmt.order_by(Provider.name, Provider.id)
+        items = [
+            (provider, average_rating, review_count)
+            for provider, average_rating, review_count in self._db.execute(stmt).unique().all()
+        ]
         return items, total
 
     # ── Provider writes ───────────────────────────────────────────────────────
