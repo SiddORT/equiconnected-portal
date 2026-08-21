@@ -24,7 +24,11 @@ export function AuthGuard({ requiredRole }: AuthGuardProps) {
   }
 
   if (requiredRole && user?.role !== requiredRole) {
-    return <Navigate to="/admin/login" replace />;
+    const roles = user?.roles?.length ? user.roles : [user?.role ?? ''];
+    const memberRoute = roles.some((role) => role === 'horse_owner' || role === 'stable_manager')
+      ? '/providers'
+      : '/';
+    return <Navigate to={memberRoute} replace />;
   }
 
   return <Outlet />;

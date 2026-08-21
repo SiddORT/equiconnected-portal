@@ -5,6 +5,7 @@
 - [Invitation email presentation](invitation-email-presentation.md) — use the dark, warm-gold launch aesthetic while keeping invitation CTA and security details prominent.
 - [Dashboard invitation analytics](dashboard-invitation-analytics.md) — accepted and rejected metrics are derived from the workflow’s existing invitation states.
 - [Email verification redemption](email-verification-redemption.md) — single-use verification needs both transactional token locking and a Strict Mode-safe client request.
+- [Role-aware auth redirects](role-aware-auth-redirects.md) — guards and sign-in pages must agree on each role’s destination to avoid redirect loops.
 - [Alembic migration heads](alembic-migration-heads.md) — reconcile sibling migrations before delivery so normal upgrades retain one canonical head.
 - [Dashboard registration metrics](dashboard-registration-metrics.md) — public-account dashboard counts use roles and verification state, not invitation data.
 - [Transactional email delivery accounting](transactional-email-delivery-accounting.md) — commit a pending attempt before SMTP and finalize its safe outcome independently.

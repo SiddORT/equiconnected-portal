@@ -44,7 +44,7 @@ function validate(form: FormState): FormErrors {
 }
 
 export function LoginPage() {
-  const { isAuthenticated, isLoading, login } = useAuth();
+  const { isAuthenticated, isLoading, login, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const loginState = location.state as LoginLocationState | null;
@@ -70,9 +70,11 @@ export function LoginPage() {
     }
   }, [loginState?.verifiedEmail, loginState?.verifiedNotice, navigate]);
 
-  // Already authenticated — go straight to dashboard
+  // Keep authenticated members out of the admin-only route. Without this
+  // role check, the admin guard and this page can redirect a member between
+  // /admin/login and /admin/dashboard indefinitely.
   if (!isLoading && isAuthenticated) {
-    return <Navigate to={from} replace />;
+    return <Navigate to={user?.role === 'admin' ? from : '/providers'} replace />;
   }
 
   if (isLoading) {
