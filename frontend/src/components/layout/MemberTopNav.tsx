@@ -3,12 +3,36 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
 import styles from './MemberTopNav.module.css';
 
+function formatMemberDisplayName(fullName?: string | null, email?: string | null) {
+  const name = fullName?.trim();
+
+  if (name) {
+    return name
+      .toLocaleLowerCase()
+      .split(/\s+/)
+      .map((word) =>
+        word
+          .split(/([-'])/)
+          .map((part, index) =>
+            index % 2 === 0 && part
+              ? `${part.charAt(0).toLocaleUpperCase()}${part.slice(1)}`
+              : part
+          )
+          .join('')
+      )
+      .join(' ');
+  }
+
+  return email?.trim() || 'Member';
+}
+
 export function MemberTopNav() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [loggingOut, setLoggingOut] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const navigationId = useId();
+  const displayName = formatMemberDisplayName(user?.full_name, user?.email);
 
   async function handleLogout() {
     if (loggingOut) return;
@@ -66,7 +90,7 @@ export function MemberTopNav() {
 
         <div className={styles.account}>
           <span className={styles.accountLabel}>Signed in as</span>
-          <span className={styles.name}>{user?.full_name ?? user?.email}</span>
+          <span className={styles.name}>{displayName}</span>
           <button
             type="button"
             className={styles.logout}

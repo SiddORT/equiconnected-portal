@@ -15,7 +15,7 @@ vi.mock('@/app/AuthContext', () => ({
       email: 'rider@example.com',
       first_name: 'Amina',
       last_name: 'Rider',
-      full_name: 'Amina Rider',
+      full_name: 'amina rider',
       role: 'horse_owner',
       roles: ['horse_owner'],
       email_verified_at: '2026-08-21T00:00:00Z',
@@ -39,6 +39,7 @@ describe('MemberTopNav', () => {
     expect(screen.getByRole('link', { name: 'Profile' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Logout' })).toBeTruthy();
     expect(screen.getByText('Amina Rider')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'EquiConnected home' }).querySelector('img')?.getAttribute('src')).toBe('/logo.png');
     expect(screen.getByRole('button', { name: 'Open member navigation' }).getAttribute('aria-expanded')).toBe('false');
   });
 
