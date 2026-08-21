@@ -112,6 +112,12 @@ export function LoginPage() {
 
   return (
     <div className={styles.page} data-testid="admin-login-page" data-layout="admin-centered">
+      <div className={styles.backdrop} data-testid="admin-login-backdrop" aria-hidden="true">
+        <img className={styles.stableImage} src="/stable-panel.jpg" alt="" />
+        <img className={styles.horseImage} src="/horse-panel.jpg" alt="" />
+        <div className={styles.backdropOverlay} />
+      </div>
+
       <main className={styles.main} aria-labelledby="admin-login-heading">
         <div className={styles.brand}>
           <img src="/logo.png" alt="" className={styles.logoMark} aria-hidden="true" />

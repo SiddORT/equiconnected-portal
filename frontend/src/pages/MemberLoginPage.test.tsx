@@ -68,6 +68,15 @@ describe('MemberLoginPage', () => {
     );
 
     expect(screen.getByTestId('admin-login-page').getAttribute('data-layout')).toBe('admin-centered');
+    const adminBackdrop = screen.getByTestId('admin-login-backdrop');
+    expect(adminBackdrop.getAttribute('aria-hidden')).toBe('true');
+    const adminBackdropSources = Array.from(adminBackdrop.querySelectorAll('img')).map((image) =>
+      image.getAttribute('src')
+    );
+    expect(adminBackdropSources).toEqual(['/stable-panel.jpg', '/horse-panel.jpg']);
+    expect(
+      Array.from(adminBackdrop.querySelectorAll('img')).every((image) => image.getAttribute('alt') === '')
+    ).toBe(true);
     expect(screen.getByTestId('admin-login-form')).toBeTruthy();
     expect(screen.queryByTestId('member-story-panel')).toBeNull();
     expect(screen.getByRole('heading', { name: 'Admin sign in' })).toBeTruthy();

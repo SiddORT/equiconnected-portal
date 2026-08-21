@@ -6,14 +6,60 @@
   align-items: center;
   justify-content: center;
   overflow-x: hidden;
+  isolation: isolate;
+  background: #1b1713;
+}
+
+.backdrop {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #1b1713;
+}
+
+.stableImage,
+.horseImage {
+  position: absolute;
+  display: block;
+  max-width: none;
+  user-select: none;
+}
+
+.stableImage {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0.92;
+}
+
+.horseImage {
+  top: -4%;
+  right: -14%;
+  width: min(78vw, 920px);
+  height: 108%;
+  object-fit: contain;
+  object-position: right center;
+  opacity: 0.68;
+  mix-blend-mode: screen;
+}
+
+.backdropOverlay {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
   background:
-    radial-gradient(circle at 50% 0%, rgba(72, 112, 154, 0.28), transparent 34rem),
-    linear-gradient(145deg, #0f2436 0%, #172f46 58%, #102536 100%);
+    linear-gradient(90deg, rgba(14, 17, 20, 0.76) 0%, rgba(14, 17, 20, 0.56) 35%, rgba(14, 17, 20, 0.66) 100%),
+    linear-gradient(180deg, rgba(10, 14, 18, 0.48) 0%, rgba(10, 14, 18, 0.3) 48%, rgba(10, 14, 18, 0.7) 100%);
 }
 
 .page::before {
   content: '';
   position: absolute;
+  z-index: 1;
   inset: 0;
   pointer-events: none;
   opacity: 0.28;
@@ -26,7 +72,7 @@
 
 .main {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   width: min(100% - 2.5rem, 480px);
   display: flex;
   flex-direction: column;
@@ -144,6 +190,19 @@
 }
 
 @media (max-width: 520px) {
+  .horseImage {
+    right: -48%;
+    width: 150vw;
+    height: 96%;
+    opacity: 0.55;
+  }
+
+  .backdropOverlay {
+    background:
+      linear-gradient(90deg, rgba(14, 17, 20, 0.78), rgba(14, 17, 20, 0.66)),
+      linear-gradient(180deg, rgba(10, 14, 18, 0.5), rgba(10, 14, 18, 0.76));
+  }
+
   .main {
     width: min(100% - 2rem, 480px);
     padding: var(--space-8) 0;
