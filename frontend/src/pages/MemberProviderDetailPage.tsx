@@ -6,6 +6,7 @@ import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { ReviewCardList } from '@/components/reviews/ReviewCard';
 import { Select } from '@/components/ui/Select';
 import type { MemberProviderDetail } from '@/types';
 import styles from './ProviderDirectoryPage.module.css';
@@ -114,13 +115,12 @@ export function MemberProviderDetailPage() {
 
       <section className={styles.comments}>
         <h2>Member comments</h2>
-        {provider.visible_reviews.length ? provider.visible_reviews.map((review) => (
-          <article className={styles.commentCard} key={review.id}>
-            <div><strong>{review.reviewer_name}</strong><span className={styles.stars}>★ {review.rating.toFixed(1)}</span></div>
-            <p>{review.comment}</p>
-            <time dateTime={review.created_at}>{formatTimestamp(review.created_at)}</time>
-          </article>
-        )) : <p className={styles.noComments}>No visible comments yet. Be the first to share feedback.</p>}
+        <ReviewCardList
+          reviews={provider.visible_reviews}
+          formatTimestamp={formatTimestamp}
+          emptyTitle="No visible comments yet."
+          emptyDescription="Be the first to share feedback."
+        />
       </section>
     </main>
   );

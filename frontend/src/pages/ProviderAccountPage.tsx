@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
 import { extractErrorMessage, getApiErrorCode } from '@/api/client';
 import * as providersApi from '@/api/providers';
+import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { ReviewCardList } from '@/components/reviews/ReviewCard';
 import type { ProviderPortalProfile, ProviderPortalUpdate, ProviderSpecializationBrief } from '@/types';
 import styles from './ProviderAccountPage.module.css';
 
@@ -18,6 +20,7 @@ function formattedList(value: unknown) {
 
 export function ProviderAccountPage() {
   const { user, logout } = useAuth();
+  const { formatTimestamp } = useTimeSettings();
   const [profile, setProfile] = useState<ProviderPortalProfile | null>(null);
   const [specializations, setSpecializations] = useState<ProviderSpecializationBrief[]>([]);
   const [form, setForm] = useState<ProviderPortalUpdate>({});
@@ -196,11 +199,12 @@ export function ProviderAccountPage() {
           <aside className={styles.card + ' ' + styles.reviews}>
             <h2>Member feedback</h2>
             <p className={styles.rating}>{profile.average_rating?.toFixed(1) ?? '—'} ★ · {profile.review_count} review{profile.review_count === 1 ? '' : 's'}</p>
-            {profile.visible_reviews.length ? profile.visible_reviews.map((review) => <article className={styles.review} key={review.id}>
-              <div className={styles.reviewMeta}><strong>{review.reviewer_name}</strong><span>★ {review.rating.toFixed(1)}</span></div>
-              <p>{review.comment}</p>
-              <time className={styles.hint}>{new Date(review.created_at).toLocaleDateString()}</time>
-            </article>) : <p className={styles.empty}>No member-visible review comments yet.</p>}
+            <ReviewCardList
+              reviews={profile.visible_reviews}
+              formatTimestamp={formatTimestamp}
+              emptyTitle="No member-visible review comments yet."
+              emptyDescription="Visible member feedback will appear here after it has been submitted."
+            />
           </aside>
         </div>
       </div>

@@ -3,12 +3,11 @@ import { useSearchParams } from 'react-router-dom';
 import * as adminApi from '@/api/admin';
 import { extractErrorMessage } from '@/api/client';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
-import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { FilterBar } from '@/components/ui/FilterBar';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
+import { ReviewCardList } from '@/components/reviews/ReviewCard';
 import type { AdminProviderReview, PaginatedResponse } from '@/types';
 import styles from './ReviewsPage.module.css';
 
@@ -104,10 +103,25 @@ export function ReviewsPage() {
     setError(null);
     try {
       const updated = await adminApi.setAdminReviewCommentVisibility(item.id, !item.comment_visible);
-      setResult((current) => current && ({
-        ...current,
-        data: current.data.map((review) => review.id === updated.id ? updated : review),
-      }));
+      const matchesActiveFilter = visibility === 'all'
+        || updated.comment_visible === (visibility === 'visible');
+      setResult((current) => {
+        if (!current) return current;
+        const data = matchesActiveFilter
+          ? current.data.map((review) => review.id === updated.id ? updated : review)
+          : current.data.filter((review) => review.id !== updated.id);
+        const total = matchesActiveFilter ? current.meta.total : Math.max(0, current.meta.total - 1);
+        return {
+          ...current,
+          data,
+          meta: {
+            ...current.meta,
+            total,
+            total_pages: Math.ceil(total / current.meta.page_size),
+          },
+        };
+      });
+      if (!matchesActiveFilter) void load();
     } catch (toggleError) {
       setError(extractErrorMessage(toggleError, 'Comment visibility could not be updated.'));
     } finally {
@@ -115,15 +129,6 @@ export function ReviewsPage() {
     }
   };
 
-  const columns: DataTableColumn<AdminProviderReview>[] = [
-    { key: 'provider_name', label: 'Provider', width: '1.1fr', render: (item) => <strong>{item.provider_name}</strong> },
-    { key: 'reviewer', label: 'Reviewer', width: '1.1fr', hideOnMobile: true, render: (item) => <span>{item.reviewer_name}<small className={styles.email}>{item.reviewer_email}</small></span> },
-    { key: 'rating', label: 'Rating', width: '80px', render: (item) => <span className={styles.rating}>★ {item.rating}</span> },
-    { key: 'comment', label: 'Comment', width: '2fr', hideOnMobile: true, render: (item) => <span className={styles.comment}>{item.comment || 'No comment provided'}</span> },
-    { key: 'comment_visible', label: 'Visibility', width: '95px', render: (item) => <Badge size="sm" variant={item.comment_visible ? 'success' : 'neutral'}>{item.comment_visible ? 'Visible' : 'Hidden'}</Badge> },
-    { key: 'created_at', label: 'Date', width: '105px', hideOnMobile: true, render: (item) => <time dateTime={item.created_at}>{formatTimestamp(item.created_at)}</time> },
-    { key: 'actions', label: 'Action', width: '100px', align: 'right', render: (item) => <Button size="sm" variant={item.comment_visible ? 'outline' : 'secondary'} loading={updating === item.id} onClick={() => void toggleVisibility(item)}>{item.comment_visible ? 'Hide' : 'Restore'}</Button> },
-  ];
   const scopedProviderName = result?.data[0]?.provider_name;
 
   return (
@@ -149,25 +154,29 @@ export function ReviewsPage() {
             options: [{ value: 'all', label: 'All reviews' }, { value: 'visible', label: 'Visible' }, { value: 'hidden', label: 'Hidden' }],
           }]}
         />
-        <DataTable
-          ariaLabel="Provider reviews"
-          columns={columns}
-          data={result?.data ?? []}
-          page={page}
-          pageSize={pageSize}
-          rowKey={(item) => item.id}
-          loading={loadState === 'loading'}
-          error={loadState === 'error' ? { title: 'Failed to load reviews', message: error ?? undefined, onRetry: load } : null}
-          empty={{
-            icon: '★',
-            title: 'No reviews found',
-            description: providerId
+        {loadState === 'loading' && <div className={styles.loading} role="status">Loading reviews…</div>}
+        {loadState === 'error' && (
+          <div className={styles.errorState} role="alert">
+            <strong>Failed to load reviews</strong>
+            <span>{error ?? 'Reviews could not be loaded.'}</span>
+            <Button size="sm" variant="outline" onClick={() => void load()}>Try again</Button>
+          </div>
+        )}
+        {loadState === 'success' && result && (
+          <ReviewCardList
+            reviews={result.data}
+            formatTimestamp={formatTimestamp}
+            variant="admin"
+            updatingId={updating}
+            onToggleVisibility={(review) => void toggleVisibility(review)}
+            emptyTitle="No reviews found"
+            emptyDescription={providerId
               ? 'This provider has no reviews matching the selected filters.'
               : visibility === 'all'
                 ? 'Member reviews will appear here.'
-                : 'Try selecting a different visibility filter.',
-          }}
-        />
+                : 'Try selecting a different visibility filter.'}
+          />
+        )}
         {loadState === 'success' && result && <Pagination page={page} pageSize={pageSize} total={result.meta.total} onPageChange={(next) => updateParams({ page: String(next) })} onPageSizeChange={(size) => updateParams({ page_size: String(size), page: '1' })} />}
       </div>
     </div>

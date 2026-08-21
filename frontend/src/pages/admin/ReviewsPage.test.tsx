@@ -46,7 +46,8 @@ describe('ReviewsPage', () => {
     const user = userEvent.setup();
     render(<MemoryRouter><ReviewsPage /></MemoryRouter>);
     expect(await screen.findByText('Austin Equine Clinic')).toBeTruthy();
-    expect(screen.getByRole('table', { name: 'Provider reviews' })).toBeTruthy();
+    expect(screen.getByTestId('review-card-list')).toBeTruthy();
+    expect(screen.queryByRole('table', { name: 'Provider reviews' })).toBeNull();
     expect(screen.getByText('Wonderful care')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Hide' }));
     await waitFor(() => expect(adminApi.setAdminReviewCommentVisibility).toHaveBeenCalledWith('review-1', false));
@@ -55,6 +56,86 @@ describe('ReviewsPage', () => {
     await waitFor(() => expect(adminApi.listAdminReviews).toHaveBeenLastCalledWith(
       expect.objectContaining({ comment_visible: false })
     ));
+  });
+
+  it('shows complete administrator review details in responsive cards', async () => {
+    const longComment = `A detailed review with line breaks.\n${'Helpful follow-up care. '.repeat(60)}`;
+    vi.mocked(adminApi.listAdminReviews).mockResolvedValue({
+      ...response,
+      data: [{
+        ...response.data[0],
+        comment: longComment,
+        comment_visible: false,
+      }],
+    });
+
+    render(<MemoryRouter><ReviewsPage /></MemoryRouter>);
+
+    const card = await screen.findByTestId('review-card');
+    expect(card.textContent).toContain('Austin Equine Clinic');
+    expect(card.textContent).toContain('Amina Rider');
+    expect(card.textContent).toContain('amina@example.com');
+    expect(card.textContent).toContain('★★★★★');
+    expect(card.textContent).toContain('5/5');
+    expect(card.textContent).toContain(longComment);
+    expect(card.textContent).toContain('Submitted 2026-01-01T00:00:00Z');
+    expect(card.textContent).toContain('Hidden');
+    expect(screen.getByRole('button', { name: 'Restore' })).toBeTruthy();
+  });
+
+  it('provides explicit empty and retry states for the card list', async () => {
+    vi.mocked(adminApi.listAdminReviews)
+      .mockRejectedValueOnce(new Error('Network unavailable'))
+      .mockResolvedValueOnce({ ...response, data: [], meta: { ...response.meta, total: 0, total_pages: 0 } });
+    const user = userEvent.setup();
+    render(<MemoryRouter><ReviewsPage /></MemoryRouter>);
+
+    expect(await screen.findByText('Failed to load reviews')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('No reviews found')).toBeTruthy();
+    expect(screen.getByText('Member reviews will appear here.')).toBeTruthy();
+  });
+
+  it('removes a hidden review from the visible filter and refreshes the page', async () => {
+    vi.mocked(adminApi.listAdminReviews)
+      .mockResolvedValueOnce(response)
+      .mockResolvedValueOnce({ ...response, data: [], meta: { ...response.meta, total: 0, total_pages: 0 } });
+    vi.mocked(adminApi.setAdminReviewCommentVisibility).mockResolvedValue({
+      ...response.data[0],
+      comment_visible: false,
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/admin/reviews?comment_visible=visible']}><ReviewsPage /></MemoryRouter>);
+
+    expect(await screen.findByRole('button', { name: 'Hide' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Hide' }));
+
+    expect(await screen.findByText('No reviews found')).toBeTruthy();
+    expect(screen.queryByTestId('review-card')).toBeNull();
+    expect(adminApi.listAdminReviews).toHaveBeenLastCalledWith(expect.objectContaining({ comment_visible: true }));
+  });
+
+  it('removes a restored review from the hidden filter and refreshes the page', async () => {
+    const hiddenResponse = {
+      ...response,
+      data: [{ ...response.data[0], comment_visible: false }],
+    };
+    vi.mocked(adminApi.listAdminReviews)
+      .mockResolvedValueOnce(hiddenResponse)
+      .mockResolvedValueOnce({ ...hiddenResponse, data: [], meta: { ...hiddenResponse.meta, total: 0, total_pages: 0 } });
+    vi.mocked(adminApi.setAdminReviewCommentVisibility).mockResolvedValue({
+      ...hiddenResponse.data[0],
+      comment_visible: true,
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/admin/reviews?comment_visible=hidden']}><ReviewsPage /></MemoryRouter>);
+
+    expect(await screen.findByRole('button', { name: 'Restore' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Restore' }));
+
+    expect(await screen.findByText('No reviews found')).toBeTruthy();
+    expect(screen.queryByTestId('review-card')).toBeNull();
+    expect(adminApi.listAdminReviews).toHaveBeenLastCalledWith(expect.objectContaining({ comment_visible: false }));
   });
 
   it('keeps a provider scope in review requests and lets administrators return to all reviews', async () => {

@@ -51,4 +51,30 @@ describe('MemberProviderDetailPage', () => {
     ));
     expect(await screen.findByText('Your review has been saved.')).toBeTruthy();
   });
+
+  it('renders visible member feedback as a full card with the submitted timestamp', async () => {
+    vi.mocked(providersApi.getMemberProvider).mockResolvedValue({
+      ...detail,
+      visible_reviews: [{
+        id: 'public-review',
+        rating: 4,
+        comment: `Excellent communication.\n${'A long but readable review. '.repeat(35)}`,
+        reviewer_name: 'Maya Horse Owner',
+        created_at: '2026-02-03T04:05:06Z',
+      }],
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/providers/provider-1']}>
+        <Routes><Route path="/providers/:id" element={<MemberProviderDetailPage />} /></Routes>
+      </MemoryRouter>
+    );
+
+    const card = await screen.findByTestId('review-card');
+    expect(card.textContent).toContain('Maya Horse Owner');
+    expect(card.textContent).toContain('★★★★☆');
+    expect(card.textContent).toContain('4/5');
+    expect(card.textContent).toContain('Excellent communication.');
+    expect(card.textContent).toContain('Submitted 2026-02-03T04:05:06Z');
+  });
 });
