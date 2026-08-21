@@ -70,12 +70,27 @@ def _contact(provider, field: str) -> str | None:
     return value or (getattr(entries[0], field) if entries else getattr(provider, field))
 
 
+def _thumbnail(provider):
+    if not provider.photos:
+        return None
+    return next(
+        (photo for photo in provider.photos if photo.is_thumbnail),
+        min(
+            provider.photos,
+            key=lambda photo: (photo.display_order, photo.created_at, str(photo.id)),
+        ),
+    )
+
+
 def _item(provider, average_rating, review_count, distance=None) -> MemberProviderListItem:
+    thumbnail = _thumbnail(provider)
     return MemberProviderListItem(
         id=provider.id,
         provider_type=provider.provider_type,
         name=provider.name,
         description=provider.description,
+        thumbnail_url=thumbnail.storage_reference if thumbnail else None,
+        thumbnail_alt_text=thumbnail.alt_text if thumbnail else None,
         website=provider.website,
         email=_contact(provider, "email"),
         phone=_contact(provider, "phone"),

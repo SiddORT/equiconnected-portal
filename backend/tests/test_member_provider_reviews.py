@@ -9,7 +9,7 @@ from app.repositories.review_repository import ReviewRepository
 from tests.conftest import TestingSessionLocal
 from app.models.audit_log import AuditLog
 from app.models.enums import ProviderStatus, ProviderType, PublicationStatus, VisitStability
-from app.models.provider import Provider, ProviderLocation, ProviderReview
+from app.models.provider import Provider, ProviderLocation, ProviderPhoto, ProviderReview
 from app.repositories.user_repository import UserRepository
 
 MEMBER_BASE = "/api/v1/member/providers"
@@ -127,6 +127,52 @@ class TestMemberProviderDiscoveryAndReviews:
         assert client.get(
             MEMBER_BASE, headers=_headers(member), params={"closest_first": "true"}
         ).status_code == 422
+
+    def test_directory_uses_selected_thumbnail_and_ordered_photo_fallback(
+        self, client, db
+    ):
+        member = _member(db, "photos@example.com")
+        selected = _provider(db, "Selected Photo Clinic")
+        fallback = _provider(db, "Fallback Photo Clinic")
+        db.add_all(
+            [
+                ProviderPhoto(
+                    provider_id=selected.id,
+                    storage_reference="/uploads/providers/selected.jpg",
+                    alt_text="Selected clinic entrance",
+                    display_order=4,
+                    is_thumbnail=True,
+                ),
+                ProviderPhoto(
+                    provider_id=selected.id,
+                    storage_reference="/uploads/providers/earlier.jpg",
+                    alt_text="Earlier clinic photo",
+                    display_order=1,
+                ),
+                ProviderPhoto(
+                    provider_id=fallback.id,
+                    storage_reference="/uploads/providers/fallback.jpg",
+                    alt_text="Fallback clinic photo",
+                    display_order=2,
+                ),
+                ProviderPhoto(
+                    provider_id=fallback.id,
+                    storage_reference="/uploads/providers/first.jpg",
+                    alt_text=None,
+                    display_order=1,
+                ),
+            ]
+        )
+        db.commit()
+
+        response = client.get(MEMBER_BASE, headers=_headers(member))
+
+        assert response.status_code == 200
+        items = {item["name"]: item for item in response.json()["data"]}
+        assert items["Selected Photo Clinic"]["thumbnail_url"] == "/uploads/providers/selected.jpg"
+        assert items["Selected Photo Clinic"]["thumbnail_alt_text"] == "Selected clinic entrance"
+        assert items["Fallback Photo Clinic"]["thumbnail_url"] == "/uploads/providers/first.jpg"
+        assert items["Fallback Photo Clinic"]["thumbnail_alt_text"] is None
 
     def test_member_can_upsert_one_review_and_hidden_comments_are_not_public(
         self, client, db, seeded_admin

@@ -17,7 +17,7 @@ vi.mock('@/app/TimeSettingsContext', () => ({
 
 const detail = {
   id: 'provider-1', provider_type: 'CLINIC' as const, name: 'Austin Equine Clinic',
-  description: 'Trusted care', website: null, email: null, phone: null,
+  description: 'Trusted care', thumbnail_url: null, thumbnail_alt_text: null, website: null, email: null, phone: null,
   visit_stability: 'STABLE_VISIT' as const,
   location: { city: 'Austin', state_province: 'Texas', country: 'United States' },
   average_rating: 4.5, review_count: 2, distance_km: null,

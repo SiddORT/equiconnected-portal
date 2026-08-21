@@ -683,6 +683,8 @@ export interface MemberProviderListItem {
   provider_type: ProviderType;
   name: string;
   description: string | null;
+  thumbnail_url: string | null;
+  thumbnail_alt_text: string | null;
   website: string | null;
   email: string | null;
   phone: string | null;

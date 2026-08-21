@@ -45,6 +45,8 @@ class MemberProviderListItem(BaseModel):
     provider_type: ProviderType
     name: str
     description: str | None
+    thumbnail_url: str | None = None
+    thumbnail_alt_text: str | None = None
     website: str | None
     email: str | None
     phone: str | None

@@ -117,6 +117,7 @@ class ReviewRepository:
             .where(*conditions)
             .options(
                 selectinload(Provider.locations),
+                selectinload(Provider.photos),
                 selectinload(Provider.phones),
                 selectinload(Provider.emails),
             )
@@ -147,6 +148,7 @@ class ReviewRepository:
             )
             .options(
                 selectinload(Provider.locations),
+                selectinload(Provider.photos),
                 selectinload(Provider.phones),
                 selectinload(Provider.emails),
             )

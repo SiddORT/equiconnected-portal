@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
@@ -37,6 +37,70 @@ function Stars({ rating }: { rating: number | null }) {
   return <span aria-label={`${rating.toFixed(1)} out of 5 stars`} className={styles.stars}>★ {rating.toFixed(1)}</span>;
 }
 
+function ProviderCard({
+  provider,
+  closestFirst,
+  search,
+}: {
+  provider: MemberProviderListItem;
+  closestFirst: boolean;
+  search: string;
+}) {
+  const [imageUnavailable, setImageUnavailable] = useState(false);
+  const thumbnailUrl = provider.thumbnail_url?.trim() || null;
+  const locationName = provider.location
+    ? [provider.location.city, provider.location.state_province, provider.location.country].filter(Boolean).join(', ')
+    : 'Location details unavailable';
+  const imageAlt = provider.thumbnail_alt_text?.trim() || `${provider.name} provider`;
+  const detailPath = `/providers/${provider.id}${search ? `?${search}` : ''}`;
+
+  useEffect(() => {
+    setImageUnavailable(false);
+  }, [thumbnailUrl]);
+
+  return (
+    <article className={styles.card}>
+      <div className={styles.cardMedia}>
+        {thumbnailUrl && !imageUnavailable ? (
+          <img
+            src={thumbnailUrl}
+            alt={imageAlt}
+            className={styles.cardImage}
+            loading="lazy"
+            decoding="async"
+            onError={() => setImageUnavailable(true)}
+          />
+        ) : (
+          <div className={styles.imageFallback} role="img" aria-label={`No photo available for ${provider.name}`}>
+            <span aria-hidden="true">✦</span>
+            <p>EquiConnected care partner</p>
+          </div>
+        )}
+        <span className={styles.type}>{providerTypeLabel(provider.provider_type)}</span>
+      </div>
+      <div className={styles.cardBody}>
+        <div className={styles.cardTop}>
+          <p className={styles.location}>{locationName}</p>
+          <Stars rating={provider.average_rating} />
+        </div>
+        <h2>{provider.name}</h2>
+        {closestFirst && (
+          <p className={styles.distance}>
+            {provider.distance_km === null ? 'Distance unavailable' : `${provider.distance_km.toFixed(1)} km away`}
+          </p>
+        )}
+        <p className={styles.description}>{provider.description || 'Provider details are available on their profile.'}</p>
+        <div className={styles.cardFooter}>
+          <p className={styles.reviewCount}>{provider.review_count} review{provider.review_count === 1 ? '' : 's'}</p>
+          <Link to={detailPath} className={styles.detailLink} aria-label={`View ${provider.name}`}>
+            View provider <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export function ProviderDirectoryPage() {
   const { user } = useAuth();
   const { formatTimestamp } = useTimeSettings();
@@ -45,6 +109,8 @@ export function ProviderDirectoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const [sliderBounds, setSliderBounds] = useState({ canPrevious: false, canNext: false });
 
   const providerType = searchParams.get('provider_type') ?? '';
   const minimumRating = searchParams.get('minimum_rating') ?? '';
@@ -94,6 +160,51 @@ export function ProviderDirectoryPage() {
   }, [closestFirst, latitude, longitude, minimumRating, page, pageSize, providerType, updateParams]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const updateSliderBounds = useCallback(() => {
+    const slider = sliderRef.current;
+    if (!slider) return;
+    const maxScroll = slider.scrollWidth - slider.clientWidth;
+    setSliderBounds({
+      canPrevious: slider.scrollLeft > 1,
+      canNext: maxScroll > 1 && slider.scrollLeft < maxScroll - 1,
+    });
+  }, []);
+
+  useEffect(() => {
+    const slider = sliderRef.current;
+    if (!slider) return;
+    slider.scrollLeft = 0;
+    updateSliderBounds();
+    slider.addEventListener('scroll', updateSliderBounds, { passive: true });
+    window.addEventListener('resize', updateSliderBounds);
+    return () => {
+      slider.removeEventListener('scroll', updateSliderBounds);
+      window.removeEventListener('resize', updateSliderBounds);
+    };
+  }, [result?.data, updateSliderBounds]);
+
+  const scrollSlider = useCallback((direction: -1 | 1) => {
+    const slider = sliderRef.current;
+    if (!slider) return;
+    const amount = Math.max(slider.clientWidth * 0.85, 280);
+    if (typeof slider.scrollBy === 'function') {
+      slider.scrollBy({ left: amount * direction });
+    } else {
+      slider.scrollLeft += amount * direction;
+      slider.dispatchEvent(new Event('scroll'));
+    }
+  }, []);
+
+  const handleSliderKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      scrollSlider(1);
+    } else if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      scrollSlider(-1);
+    }
+  };
 
   const setClosestFirst = () => {
     setLocationNotice(null);
@@ -189,31 +300,53 @@ export function ProviderDirectoryPage() {
       ) : result?.data.length ? (
         <>
           <p className={styles.resultCount}>{result.meta.total} provider{result.meta.total === 1 ? '' : 's'} found</p>
-          <section className={styles.grid} aria-label="Providers">
-            {result.data.map((provider) => (
-              <article className={styles.card} key={provider.id}>
-                <div className={styles.cardTop}>
-                  <span className={styles.type}>{providerTypeLabel(provider.provider_type)}</span>
-                  <Stars rating={provider.average_rating} />
-                </div>
-                <h2>{provider.name}</h2>
-                <p className={styles.location}>
-                  {provider.location
-                    ? [provider.location.city, provider.location.state_province, provider.location.country].filter(Boolean).join(', ')
-                    : 'Location details unavailable'}
-                </p>
-                {closestFirst && (
-                  <p className={styles.distance}>
-                    {provider.distance_km === null ? 'Distance unavailable' : `${provider.distance_km.toFixed(1)} km away`}
-                  </p>
-                )}
-                <p className={styles.description}>{provider.description || 'Provider details are available on their profile.'}</p>
-                <p className={styles.reviewCount}>{provider.review_count} review{provider.review_count === 1 ? '' : 's'}</p>
-                <Link to={`/providers/${provider.id}${searchParams.toString() ? `?${searchParams}` : ''}`} className={styles.detailLink}>
-                  View provider
-                </Link>
-              </article>
-            ))}
+          <section className={styles.slider} aria-label="Provider results">
+            <div className={styles.sliderHeader}>
+              <p className={styles.sliderHint}>Swipe through {result.data.length} current result{result.data.length === 1 ? '' : 's'} or use the controls</p>
+              <div className={styles.sliderControls} aria-label="Provider result controls">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => scrollSlider(-1)}
+                  disabled={!sliderBounds.canPrevious}
+                  aria-controls="provider-results-slider"
+                  aria-label="Previous providers"
+                >
+                  ← Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => scrollSlider(1)}
+                  disabled={!sliderBounds.canNext}
+                  aria-controls="provider-results-slider"
+                  aria-label="Next providers"
+                >
+                  Next →
+                </Button>
+              </div>
+            </div>
+            <div
+              ref={sliderRef}
+              id="provider-results-slider"
+              className={styles.sliderViewport}
+              tabIndex={0}
+              role="region"
+              aria-label="Provider results slider"
+              aria-keyshortcuts="ArrowLeft ArrowRight"
+              onKeyDown={handleSliderKeyDown}
+            >
+              {result.data.map((provider) => (
+                <ProviderCard
+                  key={provider.id}
+                  provider={provider}
+                  closestFirst={closestFirst}
+                  search={searchParams.toString()}
+                />
+              ))}
+            </div>
           </section>
           <Pagination
             page={page}
