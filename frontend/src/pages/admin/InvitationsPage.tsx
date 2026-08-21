@@ -170,6 +170,12 @@ export function InvitationsPage() {
   ];
 
   const hasFilters = Boolean(search || status || providerType || dateFrom || dateTo);
+  const isUnfilteredEmpty =
+    loadState === 'success' &&
+    result !== null &&
+    result.meta.total === 0 &&
+    !hasFilters;
+  const showListControls = !isUnfilteredEmpty;
   const activeChips: { label: string; onClear: () => void }[] = [];
   if (status) {
     activeChips.push({
@@ -227,78 +233,82 @@ export function InvitationsPage() {
       />
       <div className={styles.body}>
         {notice && <Alert variant={notice.variant} onDismiss={() => setNotice(null)}>{notice.message}</Alert>}
-        <div className={styles.toolbar}>
-          <SearchInput value={search} onChange={(value) => updateParams({ search: value || null, page: '1' })} placeholder="Search recipient or provider…" delay={300} containerClassName={styles.search} />
-          <button
-            type="button"
-            className={`${styles.filterToggle} ${filtersOpen ? styles['filterToggle--open'] : ''} ${activeChips.length > 0 && !filtersOpen ? styles['filterToggle--active'] : ''}`}
-            onClick={() => setFiltersOpen((open) => !open)}
-            aria-expanded={filtersOpen}
-            aria-controls="invitation-filter-panel"
-          >
-            <span className={styles.filterToggleIcon}>⊟</span>
-            Filters
-            {activeChips.length > 0 && (
-              <span className={styles.filterCount}>{activeChips.length}</span>
-            )}
-            <span className={`${styles.chevron} ${filtersOpen ? styles['chevron--up'] : ''}`}>▾</span>
-          </button>
+        {showListControls && (
+          <>
+            <div className={styles.toolbar}>
+              <SearchInput value={search} onChange={(value) => updateParams({ search: value || null, page: '1' })} placeholder="Search recipient or provider…" delay={300} containerClassName={styles.search} />
+              <button
+                type="button"
+                className={`${styles.filterToggle} ${filtersOpen ? styles['filterToggle--open'] : ''} ${activeChips.length > 0 && !filtersOpen ? styles['filterToggle--active'] : ''}`}
+                onClick={() => setFiltersOpen((open) => !open)}
+                aria-expanded={filtersOpen}
+                aria-controls="invitation-filter-panel"
+              >
+                <span className={styles.filterToggleIcon}>⊟</span>
+                Filters
+                {activeChips.length > 0 && (
+                  <span className={styles.filterCount}>{activeChips.length}</span>
+                )}
+                <span className={`${styles.chevron} ${filtersOpen ? styles['chevron--up'] : ''}`}>▾</span>
+              </button>
 
-          {!filtersOpen && activeChips.length > 0 && (
-            <div className={styles.activeChips} aria-label="Active filters">
-              {activeChips.map((chip) => (
-                <button
-                  key={chip.label}
-                  type="button"
-                  className={styles.chip}
-                  onClick={chip.onClear}
-                  title={`Remove filter: ${chip.label}`}
-                >
-                  {chip.label}
-                  <span className={styles.chipClose} aria-hidden="true">✕</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <div
-          id="invitation-filter-panel"
-          ref={filterPanelRef}
-          className={`${styles.filterPanel} ${filtersOpen ? styles['filterPanel--open'] : ''}`}
-          aria-hidden={!filtersOpen}
-        >
-          {filtersOpen && (
-            <div className={styles.filterPanelInner}>
-              <FilterBar groups={filterGroups} />
-              <div className={styles.dateFilters} role="group" aria-label="Sent date range">
-                <label className={styles.dateLabel}>
-                  Sent from
-                  <Input type="date" value={dateFrom} onChange={(event) => updateParams({ date_from: event.target.value || null, page: '1' })} />
-                </label>
-                <label className={styles.dateLabel}>
-                  to
-                  <Input type="date" value={dateTo} onChange={(event) => updateParams({ date_to: event.target.value || null, page: '1' })} />
-                </label>
-              </div>
-              {hasFilters && (
-                <button
-                  type="button"
-                  className={styles.clearAll}
-                  onClick={() => updateParams({ search: null, status: null, provider_type: null, date_from: null, date_to: null, page: null })}
-                >
-                  Clear all filters
-                </button>
+              {!filtersOpen && activeChips.length > 0 && (
+                <div className={styles.activeChips} aria-label="Active filters">
+                  {activeChips.map((chip) => (
+                    <button
+                      key={chip.label}
+                      type="button"
+                      className={styles.chip}
+                      onClick={chip.onClear}
+                      title={`Remove filter: ${chip.label}`}
+                    >
+                      {chip.label}
+                      <span className={styles.chipClose} aria-hidden="true">✕</span>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
-          )}
-        </div>
+            <div
+              id="invitation-filter-panel"
+              ref={filterPanelRef}
+              className={`${styles.filterPanel} ${filtersOpen ? styles['filterPanel--open'] : ''}`}
+              aria-hidden={!filtersOpen}
+            >
+              {filtersOpen && (
+                <div className={styles.filterPanelInner}>
+                  <FilterBar groups={filterGroups} />
+                  <div className={styles.dateFilters} role="group" aria-label="Sent date range">
+                    <label className={styles.dateLabel}>
+                      Sent from
+                      <Input type="date" value={dateFrom} onChange={(event) => updateParams({ date_from: event.target.value || null, page: '1' })} />
+                    </label>
+                    <label className={styles.dateLabel}>
+                      to
+                      <Input type="date" value={dateTo} onChange={(event) => updateParams({ date_to: event.target.value || null, page: '1' })} />
+                    </label>
+                  </div>
+                  {hasFilters && (
+                    <button
+                      type="button"
+                      className={styles.clearAll}
+                      onClick={() => updateParams({ search: null, status: null, provider_type: null, date_from: null, date_to: null, page: null })}
+                    >
+                      Clear all filters
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
         <DataTable
           ariaLabel="Provider invitations" columns={columns} data={result?.data ?? []} page={page} pageSize={pageSize}
           rowKey={(item) => item.id} loading={loadState === 'loading'} loadingLabel="Loading invitations…"
           error={loadState === 'error' ? { title: 'Failed to load invitations', message: errorMessage ?? undefined, onRetry: load } : null}
           empty={{ icon: '📩', title: hasFilters ? 'No invitations found' : 'No invitations yet', description: hasFilters ? 'Try adjusting your search or filters.' : 'Send an invitation to begin onboarding a provider.', action: !hasFilters ? <Button variant="primary" onClick={() => setCreateOpen(true)}>New Invitation</Button> : undefined }}
         />
-        {loadState === 'success' && result && <Pagination page={page} pageSize={pageSize} total={result.meta.total} onPageChange={(next) => updateParams({ page: String(next) })} onPageSizeChange={(size) => updateParams({ page_size: String(size), page: '1' })} />}
+        {showListControls && loadState === 'success' && result && <Pagination page={page} pageSize={pageSize} total={result.meta.total} onPageChange={(next) => updateParams({ page: String(next) })} onPageSizeChange={(size) => updateParams({ page_size: String(size), page: '1' })} />}
       </div>
       {createOpen && (
         <CreateInvitationDialog
