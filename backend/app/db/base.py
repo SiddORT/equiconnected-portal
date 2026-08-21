@@ -11,6 +11,7 @@ from app.models.user import EmailVerificationToken, User, UserRole  # noqa: F401
 from app.models.profile import Horse, StableProfile  # noqa: F401, E402
 from app.models.refresh_token import RefreshToken  # noqa: F401, E402
 from app.models.audit_log import AuditLog  # noqa: F401, E402
+from app.models.email_delivery_log import EmailDeliveryLog  # noqa: F401, E402
 from app.models.specialization import Specialization  # noqa: F401, E402
 from app.models.provider import (  # noqa: F401, E402
     Provider,

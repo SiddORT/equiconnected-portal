@@ -171,7 +171,11 @@ class EmailService:
                     smtp.starttls()
                 if settings.SMTP_USER:
                     smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-                smtp.sendmail(settings.resolved_email_from, [recipient], message.as_string())
+                refused = smtp.sendmail(
+                    settings.resolved_email_from, [recipient], message.as_string()
+                )
+                if refused:
+                    raise EmailDeliveryError("SMTP server rejected the recipient.")
         except (OSError, smtplib.SMTPException) as exc:
             raise EmailDeliveryError("Unable to deliver email.") from exc
 

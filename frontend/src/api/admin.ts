@@ -7,6 +7,8 @@ import type {
   AdminUser,
   AdminUserListParams,
   DashboardStats,
+  EmailLogFilterMode,
+  EmailDeliveryLog,
   PaginatedResponse,
 } from '@/types';
 
@@ -27,6 +29,27 @@ export async function getActivityLogs(
 ): Promise<PaginatedResponse<ActivityLog>> {
   const { data } = await apiClient.get<PaginatedResponse<ActivityLog>>(
     '/admin/activity-logs',
+    { params }
+  );
+  return data;
+}
+
+export interface EmailDeliveryLogParams {
+  filter_mode?: EmailLogFilterMode;
+  date?: string;
+  month?: number;
+  year?: number;
+  date_from?: string;
+  date_to?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export async function getEmailDeliveryLogs(
+  params: EmailDeliveryLogParams
+): Promise<PaginatedResponse<EmailDeliveryLog>> {
+  const { data } = await apiClient.get<PaginatedResponse<EmailDeliveryLog>>(
+    '/admin/email-logs',
     { params }
   );
   return data;

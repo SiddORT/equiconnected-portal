@@ -15,7 +15,7 @@ import os
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.rate_limit import (
@@ -45,6 +45,7 @@ _CLEANUP_TABLES = [
     "stable_profiles",
     "refresh_tokens",
     "email_verification_tokens",
+    "email_delivery_logs",
     "audit_logs",
     "provider_invitations",
     "organization_requests",
@@ -120,8 +121,10 @@ def setup_test_db():
 def _delete_all_rows() -> None:
     """Remove every row from every table in FK-safe order."""
     with engine.connect() as conn:
+        available_tables = set(inspect(conn).get_table_names())
         for table in _CLEANUP_TABLES:
-            conn.execute(text(f"DELETE FROM {table}"))
+            if table in available_tables:
+                conn.execute(text(f"DELETE FROM {table}"))
         conn.commit()
     # The verification concurrency test creates independent sessions. Dispose
     # the shared pool after every test so a closed worker connection cannot

@@ -2,6 +2,7 @@
 from datetime import datetime
 from email import message_from_string
 from types import SimpleNamespace
+import pytest
 
 from app.services import email_service
 
@@ -26,6 +27,11 @@ class _FakeSMTP:
 
     def sendmail(self, *_args):
         self.sent_messages.append(_args[-1])
+
+
+class _RefusingSMTP(_FakeSMTP):
+    def sendmail(self, *_args):
+        return {"recipient@example.test": (550, b"Rejected")}
 
 
 def test_verification_email_uses_branded_shell_and_inline_logo(monkeypatch):
@@ -69,3 +75,26 @@ def test_verification_email_uses_branded_shell_and_inline_logo(monkeypatch):
     assert "cid:equiconnected-logo" in html_body
     assert logo.get("Content-ID") == "<equiconnected-logo>"
     assert logo.get_content_disposition() == "inline"
+
+
+def test_email_delivery_rejects_a_recipient_refused_by_smtp(monkeypatch):
+    monkeypatch.setattr(
+        email_service,
+        "get_settings",
+        lambda: SimpleNamespace(
+            SMTP_HOST="smtp.example.test",
+            SMTP_PORT=587,
+            SMTP_USER="",
+            SMTP_PASSWORD="",
+            EMAIL_TLS=True,
+            resolved_email_from="no-reply@example.test",
+        ),
+    )
+    monkeypatch.setattr(email_service.smtplib, "SMTP", _RefusingSMTP)
+
+    with pytest.raises(email_service.EmailDeliveryError, match="SMTP server rejected"):
+        email_service.EmailService().send_verification_email(
+            "recipient@example.test",
+            "https://example.test/verify/secure-token",
+            datetime(2026, 8, 28, 10, 37),
+        )

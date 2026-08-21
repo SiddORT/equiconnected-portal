@@ -16,6 +16,7 @@ import { ProviderEditPage } from '@/pages/admin/ProviderEditPage';
 import { LegacyDoctorRedirect } from '@/pages/admin/LegacyDoctorRedirect';
 import { InvitationsPage } from '@/pages/admin/InvitationsPage';
 import { ActivityLogsPage } from '@/pages/admin/ActivityLogsPage';
+import { EmailLogsPage } from '@/pages/admin/EmailLogsPage';
 import { InvitationPage } from '@/pages/InvitationPage';
 import { SubmissionSuccessPage } from '@/pages/SubmissionSuccessPage';
 import { SignupPage } from '@/pages/SignupPage';
@@ -68,6 +69,7 @@ export function AppRouter() {
             <Route path="/admin/invitations" element={<InvitationsPage />} />
             <Route path="/admin/users" element={<UsersPage />} />
             <Route path="/admin/activity-logs" element={<ActivityLogsPage />} />
+            <Route path="/admin/email-logs" element={<EmailLogsPage />} />
           </Route>
         </Route>
 

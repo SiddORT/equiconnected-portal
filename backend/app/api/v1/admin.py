@@ -25,6 +25,11 @@ from app.models.role import Role
 from app.models.user import PUBLIC_ACCOUNT_ROLE_NAMES, User, UserRole
 from app.repositories.audit_repository import AuditRepository
 from app.schemas.audit_log import AuditActor, AuditChange, AuditLogListResponse, AuditLogResponse
+from app.repositories.email_delivery_repository import EmailDeliveryRepository
+from app.schemas.email_delivery_log import (
+    EmailDeliveryLogListResponse,
+    EmailDeliveryLogResponse,
+)
 from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.schemas.user import PublicRegistrantResponse
 from app.repositories.user_repository import UserRepository
@@ -309,6 +314,91 @@ def list_activity_logs(
     )
     return AuditLogListResponse(
         data=[_audit_response(event) for event in events],
+        meta=PaginationMeta(
+            page=page,
+            page_size=page_size,
+            total=total,
+            total_pages=max(1, ceil(total / page_size)),
+        ),
+    )
+
+
+def _email_log_filter_error(code: str, message: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail={"code": code, "message": message},
+    )
+
+
+@router.get(
+    "/email-logs",
+    response_model=EmailDeliveryLogListResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+def list_email_logs(
+    db: Annotated[Session, Depends(get_db)],
+    filter_mode: str | None = Query(None),
+    filter_date: date | None = Query(None, alias="date"),
+    month: int | None = Query(None, ge=1, le=12),
+    year: int | None = Query(None, ge=2000, le=9999),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+) -> EmailDeliveryLogListResponse:
+    """Newest-first transactional email handoff history for administrators."""
+    valid_modes = {"day", "month", "year", "range"}
+    if filter_mode is not None and filter_mode not in valid_modes:
+        raise _email_log_filter_error(
+            "invalid_email_log_filter_mode",
+            "Filter mode must be day, month, year, or range.",
+        )
+    if filter_mode == "day" and filter_date is None:
+        raise _email_log_filter_error(
+            "email_log_date_required", "A date is required for the day filter."
+        )
+    if filter_mode == "month" and (month is None or year is None):
+        raise _email_log_filter_error(
+            "email_log_month_required",
+            "A month and year are required for the month filter.",
+        )
+    if filter_mode == "year" and year is None:
+        raise _email_log_filter_error(
+            "email_log_year_required", "A year is required for the year filter."
+        )
+    if filter_mode == "range":
+        if date_from is None or date_to is None:
+            raise _email_log_filter_error(
+                "email_log_range_required",
+                "Start and end dates are required for the custom range.",
+            )
+        if date_from > date_to:
+            raise _email_log_filter_error(
+                "invalid_date_range", "Start date must be on or before end date."
+            )
+
+    logs, total = EmailDeliveryRepository(db).list(
+        filter_mode=filter_mode,
+        filter_date=filter_date,
+        filter_month=month,
+        filter_year=year,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        page_size=page_size,
+    )
+    return EmailDeliveryLogListResponse(
+        data=[
+            EmailDeliveryLogResponse(
+                id=entry.id,
+                recipient_email=entry.recipient_email,
+                purpose=entry.purpose,
+                status=entry.status,
+                failure_message=entry.failure_message,
+                created_at=entry.created_at,
+            )
+            for entry in logs
+        ],
         meta=PaginationMeta(
             page=page,
             page_size=page_size,

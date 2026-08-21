@@ -22,10 +22,15 @@ from app.core.security import (
 )
 from app.auth.account_access import PublicAccountAccessIssue, public_account_access_issue
 from app.repositories.audit_repository import AuditRepository
+from app.repositories.email_delivery_repository import (
+    EmailDeliveryRepository,
+    safe_failure_message,
+)
 from app.repositories.token_repository import TokenRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth import RegistrationRequest, UserProfile
 from app.models.user import EmailVerificationToken
+from app.models.enums import EmailDeliveryStatus, EmailPurpose
 from app.services.email_service import EmailDeliveryError, EmailService
 
 logger = get_logger(__name__)
@@ -90,6 +95,7 @@ class AuthService:
         self._users = UserRepository(db)
         self._tokens = TokenRepository(db)
         self._audit = AuditRepository(db)
+        self._email_logs = EmailDeliveryRepository(db)
         self._email = EmailService()
 
     # ── Public registration and verification ───────────────────────────────────
@@ -153,15 +159,29 @@ class AuthService:
                 f"{get_settings().PUBLIC_APP_URL.rstrip('/')}/verify-email"
                 f"?token={quote(raw_token, safe='')}"
             )
-            self._email.send_verification_email(email, verification_url, expires_at)
+            attempt_id = self._email_logs.record_durable_attempt(
+                recipient_email=email,
+                purpose=EmailPurpose.ACCOUNT_VERIFICATION,
+            )
+            try:
+                self._email.send_verification_email(email, verification_url, expires_at)
+            except Exception as exc:
+                self._email_logs.complete_durable_attempt(
+                    attempt_id,
+                    status=EmailDeliveryStatus.FAILED,
+                    failure_message=safe_failure_message(exc),
+                )
+                self._db.rollback()
+                raise
+            self._email_logs.complete_durable_attempt(
+                attempt_id,
+                status=EmailDeliveryStatus.SUCCESS,
+            )
             self._db.commit()
         except IntegrityError as exc:
             self._db.rollback()
             raise DuplicateEmailError("An account with this email already exists.") from exc
         except RegistrationUnavailableError:
-            self._db.rollback()
-            raise
-        except EmailDeliveryError:
             self._db.rollback()
             raise
 

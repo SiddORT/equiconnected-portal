@@ -26,7 +26,12 @@ from app.models.provider import (
 from app.repositories.invitation_repository import InvitationRepository
 from app.repositories.provider_repository import ProviderRepository
 from app.repositories.audit_repository import AuditContext, AuditRepository
+from app.repositories.email_delivery_repository import (
+    EmailDeliveryRepository,
+    safe_failure_message,
+)
 from app.services.email_service import EmailService
+from app.models.enums import EmailDeliveryStatus, EmailPurpose
 from app.services.provider_service import ProviderNotFoundError
 
 
@@ -74,6 +79,7 @@ class InvitationService:
     def __init__(self, repo: InvitationRepository, provider_repo: ProviderRepository, email: EmailService | None = None) -> None:
         self._repo, self._providers, self._email = repo, provider_repo, email or EmailService()
         self._audit = AuditRepository(repo._db)
+        self._email_logs = EmailDeliveryRepository(repo._db)
 
     @staticmethod
     def _hash(token: str) -> str:
@@ -191,6 +197,10 @@ class InvitationService:
         except Exception:
             self._repo.rollback()
             raise
+        attempt_id = self._email_logs.record_durable_attempt(
+            recipient_email=recipient,
+            purpose=EmailPurpose.PROVIDER_INVITATION,
+        )
         try:
             self._email.send_invitation_email(
                 recipient,
@@ -198,12 +208,21 @@ class InvitationService:
                 self._url(token),
                 invitation.expires_at,
             )
-        except Exception:
+        except Exception as exc:
             # The committed PENDING record is deliberately retained so the
             # administrator sees the error and can retry with resend.
             self._emit_event("provider_invitation.delivery_failed", invitation, context=audit_context)
+            self._email_logs.complete_durable_attempt(
+                attempt_id,
+                status=EmailDeliveryStatus.FAILED,
+                failure_message=safe_failure_message(exc),
+            )
             self._repo.commit()
             raise
+        self._email_logs.complete_durable_attempt(
+            attempt_id,
+            status=EmailDeliveryStatus.SUCCESS,
+        )
         self._emit_event("provider_invitation.delivered", invitation, context=audit_context)
         self._repo.commit()
         # Transient, non-persisted convenience for the admin UI: the raw link
@@ -239,6 +258,10 @@ class InvitationService:
         except Exception:
             self._repo.rollback()
             raise
+        attempt_id = self._email_logs.record_durable_attempt(
+            recipient_email=invitation.recipient_email,
+            purpose=EmailPurpose.PROVIDER_INVITATION,
+        )
         try:
             self._email.send_invitation_email(
                 invitation.recipient_email,
@@ -246,10 +269,19 @@ class InvitationService:
                 self._url(token),
                 invitation.expires_at,
             )
-        except Exception:
+        except Exception as exc:
             self._emit_event("provider_invitation.delivery_failed", invitation, context=audit_context)
+            self._email_logs.complete_durable_attempt(
+                attempt_id,
+                status=EmailDeliveryStatus.FAILED,
+                failure_message=safe_failure_message(exc),
+            )
             self._repo.commit()
             raise
+        self._email_logs.complete_durable_attempt(
+            attempt_id,
+            status=EmailDeliveryStatus.SUCCESS,
+        )
         self._emit_event("provider_invitation.delivered", invitation, context=audit_context)
         self._repo.commit()
         # Transient, non-persisted convenience for the admin UI (see create).

@@ -47,3 +47,14 @@ class OrganizationRequestStatus(str, enum.Enum):
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
+
+
+class EmailPurpose(str, enum.Enum):
+    PROVIDER_INVITATION = "provider_invitation"
+    ACCOUNT_VERIFICATION = "account_verification"
+
+
+class EmailDeliveryStatus(str, enum.Enum):
+    PENDING = "pending"
+    SUCCESS = "success"
+    FAILED = "failed"

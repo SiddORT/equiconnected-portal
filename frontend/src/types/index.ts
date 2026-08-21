@@ -257,6 +257,20 @@ export interface ActivityLog {
   metadata: Record<string, unknown>;
 }
 
+// ── Email delivery logs ─────────────────────────────────────────────────────
+
+export type EmailLogFilterMode = 'day' | 'month' | 'year' | 'range';
+export type EmailDeliveryStatus = 'pending' | 'success' | 'failed';
+
+export interface EmailDeliveryLog {
+  id: string;
+  recipient_email: string;
+  purpose: 'provider_invitation' | 'account_verification';
+  status: EmailDeliveryStatus;
+  failure_message: string | null;
+  created_at: string;
+}
+
 // ── Common ────────────────────────────────────────────────────────────────────
 
 export type LoadingState = 'idle' | 'loading' | 'success' | 'error';

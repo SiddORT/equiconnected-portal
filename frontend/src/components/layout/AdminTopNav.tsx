@@ -180,6 +180,19 @@ export function AdminTopNav() {
               Activity Logs
             </NavLink>
 
+            <NavLink
+              to="/admin/email-logs"
+              className={({ isActive }) => [
+                styles.dropdownItem,
+                isActive ? styles['dropdownItem--active'] : '',
+              ].filter(Boolean).join(' ')}
+              role="menuitem"
+              onClick={() => setMenuOpen(false)}
+            >
+              <span aria-hidden="true">✉</span>
+              Email Logs
+            </NavLink>
+
             <button
               className={styles.dropdownItem}
               role="menuitem"
