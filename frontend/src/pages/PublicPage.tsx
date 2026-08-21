@@ -2,6 +2,7 @@
  * Public "Coming Soon" page for the EquiConnected portal.
  */
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { recordPublicVisit } from '@/api/public';
 import styles from './PublicPage.module.css';
 
@@ -118,13 +119,13 @@ export function PublicPage() {
 
         {/* ── Admin link ───────────────────────────────────────── */}
         <div className={styles.adminLink}>
-          <a href="/signup" className={styles.signupAnchor}>
-            Create a public account
-          </a>
+          <Link to="/signup" className={styles.signupCta}>
+            Create account
+          </Link>
           <span className={styles.linkSeparator} aria-hidden="true">·</span>
-          <a href="/admin/login" className={styles.adminAnchor}>
+          <Link to="/admin/login" className={styles.adminAnchor}>
             Admin Portal →
-          </a>
+          </Link>
         </div>
       </main>
 

@@ -7,7 +7,7 @@
 .label {
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
-  color: var(--text-primary);
+  color: var(--input-label-color, var(--text-primary));
 }
 
 .inputWrapper {
@@ -51,7 +51,8 @@
   min-width: 0;
 }
 .input::placeholder {
-  color: var(--text-muted);
+  color: var(--input-placeholder-color, var(--text-muted));
+  opacity: 1;
 }
 .input:disabled {
   cursor: not-allowed;
@@ -87,9 +88,9 @@
 
 .hint {
   font-size: var(--text-xs);
-  color: var(--text-secondary);
+  color: var(--input-hint-color, var(--text-secondary));
 }
 .error {
   font-size: var(--text-xs);
-  color: var(--color-error);
+  color: var(--input-error-color, var(--color-error));
 }

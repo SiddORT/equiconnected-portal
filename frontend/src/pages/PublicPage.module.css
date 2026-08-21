@@ -285,20 +285,47 @@
 /* ── Admin link ──────────────────────────────────────────────────────────── */
 .adminLink {
   margin-top: calc(var(--space-4) * -1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
-.signupAnchor,
+.signupCta,
 .adminAnchor {
   font-size: var(--text-sm);
-  color: var(--text-muted);
   text-decoration: none;
   transition: color var(--transition-fast);
   letter-spacing: 0.02em;
 }
-.signupAnchor { color: var(--color-primary-700); font-weight: var(--font-semibold); }
-.signupAnchor:hover,
+
+.signupCta {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-6);
+  border: 1px solid var(--color-primary-700);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-700);
+  color: var(--text-inverse);
+  font-weight: var(--font-semibold);
+  box-shadow: var(--shadow-sm);
+}
+.signupCta:hover {
+  background: var(--color-primary-800);
+  border-color: var(--color-primary-800);
+  color: var(--text-inverse);
+}
+.adminAnchor { color: var(--text-muted); }
 .adminAnchor:hover { color: var(--color-primary-700); }
-.linkSeparator { margin: 0 var(--space-3); color: var(--border-strong); }
+.signupCta:focus-visible,
+.adminAnchor:focus-visible {
+  outline: 3px solid var(--color-accent-300);
+  outline-offset: 3px;
+}
+.linkSeparator { color: var(--border-strong); }
 
 /* ── Footer ──────────────────────────────────────────────────────────────── */
 .footer {

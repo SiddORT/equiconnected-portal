@@ -130,14 +130,14 @@ export function SignupPage() {
             {globalError && <Alert variant="error" onDismiss={() => setGlobalError(null)}>{globalError}</Alert>}
 
             <div className={styles.twoColumns}>
-              <Input label="First name" id="signup-first-name" autoComplete="given-name" value={form.first_name} onChange={(e) => update('first_name', e.target.value)} error={errors.first_name} disabled={submitting} required />
-              <Input label="Last name" id="signup-last-name" autoComplete="family-name" value={form.last_name} onChange={(e) => update('last_name', e.target.value)} error={errors.last_name} disabled={submitting} required />
+              <Input label="First name" id="signup-first-name" autoComplete="given-name" placeholder="e.g. Sarah" containerClassName={styles.signupField} value={form.first_name} onChange={(e) => update('first_name', e.target.value)} error={errors.first_name} disabled={submitting} required />
+              <Input label="Last name" id="signup-last-name" autoComplete="family-name" placeholder="e.g. Williams" containerClassName={styles.signupField} value={form.last_name} onChange={(e) => update('last_name', e.target.value)} error={errors.last_name} disabled={submitting} required />
             </div>
-            <Input label="Email address" type="email" id="signup-email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(e) => update('email', e.target.value)} error={errors.email} disabled={submitting} required />
-            <Input label="Mobile number" type="tel" id="signup-mobile" autoComplete="tel" placeholder="+971 50 000 0000" value={form.mobile_number} onChange={(e) => update('mobile_number', e.target.value)} error={errors.mobile_number} disabled={submitting} required />
+            <Input label="Email address" type="email" id="signup-email" autoComplete="email" placeholder="you@example.com" containerClassName={styles.signupField} value={form.email} onChange={(e) => update('email', e.target.value)} error={errors.email} disabled={submitting} required />
+            <Input label="Mobile number" type="tel" id="signup-mobile" autoComplete="tel" placeholder="+971 50 000 0000" containerClassName={styles.signupField} value={form.mobile_number} onChange={(e) => update('mobile_number', e.target.value)} error={errors.mobile_number} disabled={submitting} required />
             <div className={styles.twoColumns}>
-              <Input label="Country" id="signup-country" autoComplete="country-name" value={form.country} onChange={(e) => update('country', e.target.value)} error={errors.country} disabled={submitting} required />
-              <Input label="City" id="signup-city" autoComplete="address-level2" value={form.city} onChange={(e) => update('city', e.target.value)} error={errors.city} disabled={submitting} required />
+              <Input label="Country" id="signup-country" autoComplete="country-name" placeholder="e.g. United Arab Emirates" containerClassName={styles.signupField} value={form.country} onChange={(e) => update('country', e.target.value)} error={errors.country} disabled={submitting} required />
+              <Input label="City" id="signup-city" autoComplete="address-level2" placeholder="e.g. Dubai" containerClassName={styles.signupField} value={form.city} onChange={(e) => update('city', e.target.value)} error={errors.city} disabled={submitting} required />
             </div>
             <div className={styles.roleSection}>
               <span className={styles.roleLabel}>I am joining as</span>
@@ -151,8 +151,8 @@ export function SignupPage() {
               </div>
             </div>
             <div className={styles.twoColumns}>
-              <Input label="Password" type="password" id="signup-password" autoComplete="new-password" hint="At least 8 characters with upper- and lowercase letters and a number." value={form.password} onChange={(e) => update('password', e.target.value)} error={errors.password} disabled={submitting} required />
-              <Input label="Confirm password" type="password" id="signup-password-confirmation" autoComplete="new-password" value={form.password_confirmation} onChange={(e) => update('password_confirmation', e.target.value)} error={errors.password_confirmation} disabled={submitting} required />
+              <Input label="Password" type="password" id="signup-password" autoComplete="new-password" placeholder="e.g. StableHorse7" containerClassName={styles.signupField} hint="At least 8 characters with upper- and lowercase letters and a number." value={form.password} onChange={(e) => update('password', e.target.value)} error={errors.password} disabled={submitting} required />
+              <Input label="Confirm password" type="password" id="signup-password-confirmation" autoComplete="new-password" placeholder="Repeat your password" containerClassName={styles.signupField} value={form.password_confirmation} onChange={(e) => update('password_confirmation', e.target.value)} error={errors.password_confirmation} disabled={submitting} required />
             </div>
             <div className={styles.consents}>
               <label className={styles.consent}>

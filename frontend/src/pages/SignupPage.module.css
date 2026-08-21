@@ -78,6 +78,13 @@
 
 .form { display: grid; gap: 19px; }
 
+.signupField {
+  --input-label-color: #e3d7c2;
+  --input-hint-color: #cfc4b1;
+  --input-placeholder-color: #5e4f3e;
+  --input-error-color: #ef9d9d;
+}
+
 .twoColumns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
