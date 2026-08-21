@@ -2,7 +2,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
+from uuid import uuid4
 from uuid import UUID
+import warnings
+
+from PIL import Image, UnidentifiedImageError
 
 from app.models.enums import (
     InvitationStatus,
@@ -32,6 +37,24 @@ class ProviderPortalUnavailableError(Exception):
 
 class ProviderProfileUpdateDiscardError(Exception):
     """A retained review record cannot be discarded by the provider."""
+
+
+class ProviderPortalPhotoUploadError(Exception):
+    """A provider portal photo upload does not meet the upload policy."""
+
+    def __init__(self, code: str, message: str) -> None:
+        self.code = code
+        super().__init__(message)
+
+
+_IMAGE_FORMATS: dict[str, tuple[str, str]] = {
+    "JPEG": ("image/jpeg", ".jpg"),
+    "PNG": ("image/png", ".png"),
+    "GIF": ("image/gif", ".gif"),
+    "WEBP": ("image/webp", ".webp"),
+}
+_MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
+_UPLOADS_DIR = Path(__file__).resolve().parents[2] / "uploads"
 
 
 class ProviderPortalService:
@@ -128,6 +151,98 @@ class ProviderPortalService:
     def get_profile(self, user: User):
         return self._profile_response(self._provider_id_for_user(user))
 
+    async def upload_photo(
+        self,
+        user: User,
+        *,
+        upload,
+        audit_context: AuditContext | None,
+    ) -> str:
+        """Stream, verify, and save an image for a later owner-profile save."""
+        provider_id = self._provider_id_for_user(user)
+        if self._providers.get_by_id(provider_id) is None:
+            raise ProviderPortalUnavailableError()
+        destination_dir = _UPLOADS_DIR / "providers" / str(provider_id) / "photos"
+        destination_dir.mkdir(parents=True, exist_ok=True)
+        temporary_path = destination_dir / f".{uuid4()}.upload"
+        try:
+            size = 0
+            with temporary_path.open("wb") as target:
+                while chunk := await upload.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > _MAX_IMAGE_SIZE_BYTES:
+                        raise ProviderPortalPhotoUploadError(
+                            "image_too_large",
+                            "Images must be 10 MB or smaller.",
+                        )
+                    target.write(chunk)
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("error", Image.DecompressionBombWarning)
+                    with Image.open(temporary_path) as image:
+                        image_format = image.format
+                        image.verify()
+            except (
+                UnidentifiedImageError,
+                OSError,
+                SyntaxError,
+                ValueError,
+                Image.DecompressionBombError,
+                Image.DecompressionBombWarning,
+            ) as exc:
+                raise ProviderPortalPhotoUploadError(
+                    "invalid_image_content",
+                    "The uploaded file is not a valid supported image.",
+                ) from exc
+            if image_format not in _IMAGE_FORMATS:
+                raise ProviderPortalPhotoUploadError(
+                    "invalid_image_type",
+                    "Only JPEG, PNG, GIF, and WebP images are accepted.",
+                )
+            image_type, extension = _IMAGE_FORMATS[image_format]
+            if upload.content_type and upload.content_type != image_type:
+                raise ProviderPortalPhotoUploadError(
+                    "invalid_image_content",
+                    "The uploaded file content does not match its declared image type.",
+                )
+            filename = f"{uuid4()}{extension}"
+            temporary_path.replace(destination_dir / filename)
+        except Exception:
+            temporary_path.unlink(missing_ok=True)
+            raise
+        storage_reference = f"/uploads/providers/{provider_id}/photos/{filename}"
+        self._audit.record(
+            "provider_portal.photo_uploaded",
+            context=audit_context,
+            resource_type="provider",
+            resource_id=str(provider_id),
+            summary="Uploaded a photo for a provider-owned profile update.",
+        )
+        self._db.commit()
+        return storage_reference
+
+    def _validate_photo_references(self, provider, editable) -> None:
+        """Allow portal saves to retain existing photos or use this provider's uploads."""
+        if not editable.photos:
+            return
+        existing_references = {
+            photo.storage_reference for photo in provider.photos
+        }
+        owned_prefix = f"/uploads/providers/{provider.id}/photos/"
+        for photo in editable.photos:
+            reference = photo.storage_reference
+            if reference in existing_references:
+                continue
+            if not reference.startswith(owned_prefix):
+                raise InvalidProviderDataError(
+                    "Profile photos must be uploaded through your provider portal."
+                )
+            upload_path = _UPLOADS_DIR / reference.removeprefix("/uploads/")
+            if not upload_path.is_file():
+                raise InvalidProviderDataError(
+                    "One or more selected profile photos are unavailable. Please upload them again."
+                )
+
     def update_profile(self, user: User, fields: dict, *, audit_context: AuditContext | None):
         provider = self._providers.get_by_id(self._provider_id_for_user(user))
         if provider is None:
@@ -159,6 +274,7 @@ class ProviderPortalService:
         ):
             base = base.model_validate(profile_update.proposed_profile)
         editable = merge_editable_profile(base, safe_fields)
+        self._validate_photo_references(provider, editable)
         validate_editable_profile(
             provider, editable, self._providers, supplied_fields=set(safe_fields)
         )

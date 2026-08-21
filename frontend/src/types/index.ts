@@ -568,6 +568,14 @@ export interface ProviderPortalUpdate {
   }>;
 }
 
+export interface ProviderPortalPhotoUpload {
+  storage_reference: string;
+  alt_text: string | null;
+  caption: string | null;
+  display_order: number;
+  is_thumbnail: boolean;
+}
+
 export interface ProviderPortalEditableProfile extends ProviderPortalUpdate {
   name: string;
   visit_stability: VisitStability;

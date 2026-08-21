@@ -13,6 +13,7 @@ vi.mock('@/api/providers', () => ({
   getProviderPortalSpecializations: vi.fn(),
   updateProviderPortalProfile: vi.fn(),
   discardProviderPortalProfileUpdate: vi.fn(),
+  uploadProviderPortalPhoto: vi.fn(),
 }));
 vi.mock('@/api/client', () => ({
   extractErrorMessage: () => 'Provider portal unavailable',
@@ -73,6 +74,7 @@ const portalProfile: ProviderPortalProfile = {
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   vi.resetAllMocks();
 });
 
@@ -190,8 +192,6 @@ describe('ProviderAccountPage', () => {
     await user.click(screen.getByRole('button', { name: 'Add location' }));
     await user.type(screen.getByLabelText('Address line 1'), '42 Riding Lane');
     await user.type(screen.getByLabelText('City'), 'Dubai');
-    await user.click(screen.getByRole('button', { name: 'Add photo' }));
-    await user.type(screen.getByLabelText('Image link'), 'https://example.com/clinic.jpg');
     const form = screen.getByRole('button', { name: 'Save profile' }).closest('form');
     if (!form) throw new Error('Provider profile form was not rendered.');
     fireEvent.submit(form);
@@ -199,9 +199,42 @@ describe('ProviderAccountPage', () => {
     await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
       expect.objectContaining({
         locations: [expect.objectContaining({ address_line_1: '42 Riding Lane', city: 'Dubai', is_primary: true })],
-        photos: [expect.objectContaining({ storage_reference: 'https://example.com/clinic.jpg', is_thumbnail: true })],
       })
     ));
+  });
+
+  it('uploads staged provider photos with alt text and an image title', async () => {
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:provider-photo'),
+      revokeObjectURL: vi.fn(),
+    });
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(portalProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    vi.mocked(providersApi.uploadProviderPortalPhoto).mockResolvedValue({
+      storage_reference: '/uploads/providers/provider-1/photos/clinic.png',
+      alt_text: 'A horse clinic exterior',
+      caption: 'Clinic entrance',
+      display_order: 0,
+      is_thumbnail: false,
+    });
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await screen.findByRole('heading', { name: 'Your profile' });
+    const image = new File(['image content'], 'clinic.png', { type: 'image/png' });
+    const fileInput = document.querySelector('input[type="file"]');
+    if (!fileInput) throw new Error('Photo file input was not rendered.');
+    await user.upload(fileInput as HTMLInputElement, image);
+    await user.type(screen.getByLabelText('Alt text'), 'A horse clinic exterior');
+    await user.type(screen.getByLabelText('Image title'), 'Clinic entrance');
+    await user.click(screen.getByRole('button', { name: 'Upload photo' }));
+
+    await waitFor(() => expect(providersApi.uploadProviderPortalPhoto).toHaveBeenCalledWith(
+      image,
+      { alt_text: 'A horse clinic exterior', caption: 'Clinic entrance' }
+    ));
+    expect(screen.getByText(/Photo upload complete/)).toBeTruthy();
   });
 
   it('keeps profile submission working with the full-width workspace', async () => {

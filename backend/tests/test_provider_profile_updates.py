@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 
+from PIL import Image
 from app.core.security import hash_password
 from app.models.audit_log import AuditLog
 from app.models.enums import (
@@ -19,12 +21,19 @@ from app.models.provider import Provider, ProviderLocation, ProviderProfileUpdat
 from app.models.provider_registration import ProviderRegistrationApplication
 from app.repositories.user_repository import UserRepository
 from app.services.provider_profile_update_service import editable_profile_from_provider
+from app.services.provider_portal_service import _UPLOADS_DIR
 
 
 def _login(client, email: str, password: str) -> str:
     response = client.post("/api/v1/auth/login", json={"email": email, "password": password})
     assert response.status_code == 200, response.text
     return response.json()["access_token"]
+
+
+def _one_pixel_png() -> bytes:
+    buffer = BytesIO()
+    Image.new("RGB", (1, 1), color="white").save(buffer, format="PNG")
+    return buffer.getvalue()
 
 
 def _portal_provider(
@@ -173,6 +182,8 @@ def test_published_profile_update_isolated_then_rejected_and_resubmitted(client,
     )
     assert other_profile.status_code == 200
     assert other_profile.json()["id"] == str(other.id)
+
+
     assert other_profile.json()["profile_update"] is None
     assert client.get(
         "/api/v1/admin/provider-profile-updates",
@@ -202,6 +213,49 @@ def test_published_profile_update_isolated_then_rejected_and_resubmitted(client,
     assert resubmitted.json()["profile_update"]["rejection_reason"] is None
     db.refresh(provider)
     assert provider.name == "Approved Clinic"
+
+
+def test_published_provider_photo_upload_stays_inside_the_review_request(
+    client, db, seeded_admin
+):
+    admin, _ = seeded_admin
+    provider, account = _portal_provider(
+        db,
+        admin,
+        email="published-photo-owner@example.com",
+        name="Published Photo Clinic",
+        publication_status=PublicationStatus.PUBLISHED,
+    )
+    token = _login(client, account.email, "ProviderPass9")
+    headers = {"Authorization": f"Bearer {token}"}
+    uploaded = client.post(
+        "/api/v1/provider/portal/profile/photos/upload",
+        headers=headers,
+        files={"file": ("clinic.png", _one_pixel_png(), "image/png")},
+        data={"alt_text": "Clinic exterior", "caption": "Arrival entrance"},
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    photo = uploaded.json()
+
+    submitted = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=headers,
+        json={
+            "photos": [{
+                **photo,
+                "display_order": 0,
+                "is_thumbnail": True,
+            }],
+        },
+    )
+
+    assert submitted.status_code == 200, submitted.text
+    body = submitted.json()
+    assert body["profile_update"]["review_status"] == "PENDING_REVIEW"
+    assert body["editable_profile"]["photos"][0]["storage_reference"] == photo["storage_reference"]
+    db.refresh(provider)
+    assert provider.photos == []
+    (_UPLOADS_DIR / photo["storage_reference"].removeprefix("/uploads/")).unlink()
 
 
 def test_approved_registered_provider_submits_published_changes_for_review(

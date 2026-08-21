@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 from urllib.parse import parse_qs, urlparse
 
+from PIL import Image
 from app.core.security import hash_password
 from app.models.enums import (
     InvitationStatus,
@@ -19,6 +21,16 @@ from app.models.doctor import DoctorProfile
 from app.models.provider_registration import ProviderRegistrationApplication
 from app.repositories.user_repository import UserRepository
 from app.services.email_service import EmailService
+from app.services.provider_portal_service import _UPLOADS_DIR
+
+
+def _one_pixel_png() -> bytes:
+    buffer = BytesIO()
+    Image.new("RGB", (1, 1), color="white").save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+_ONE_PIXEL_PNG = _one_pixel_png()
 
 
 def _login(client, email: str, password: str) -> str:
@@ -243,6 +255,83 @@ def test_approved_registration_provider_can_manage_own_profile_and_see_visible_f
     assert provider.name == "Updated Registered Clinic"
     assert provider.status == ProviderStatus.DRAFT
     assert provider.publication_status == PublicationStatus.UNPUBLISHED
+
+
+def test_portal_photo_upload_returns_staged_metadata_for_an_owner(client, db, seeded_admin):
+    _admin, _ = seeded_admin
+    provider, account = _approved_registration_provider(db)
+    token = _login(client, account.email, "RegisteredPass9")
+    response = client.post(
+        "/api/v1/provider/portal/profile/photos/upload",
+        headers={"Authorization": f"Bearer {token}"},
+        files={"file": ("clinic.png", _ONE_PIXEL_PNG, "image/png")},
+        data={"alt_text": "A horse clinic exterior", "caption": "Clinic entrance"},
+    )
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["alt_text"] == "A horse clinic exterior"
+    assert body["caption"] == "Clinic entrance"
+    assert body["storage_reference"].startswith(f"/uploads/providers/{provider.id}/photos/")
+    upload_path = _UPLOADS_DIR / body["storage_reference"].removeprefix("/uploads/")
+    assert upload_path.exists()
+    # Uploading the asset alone does not add it to the provider listing. The
+    # provider must still save the profile, preserving the review workflow.
+    assert provider.photos == []
+    upload_path.unlink()
+
+
+def test_portal_rejects_spoofed_or_oversized_photo_uploads(client, db, seeded_admin):
+    _admin, _ = seeded_admin
+    _provider, account = _approved_registration_provider(db)
+    token = _login(client, account.email, "RegisteredPass9")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    spoofed = client.post(
+        "/api/v1/provider/portal/profile/photos/upload",
+        headers=headers,
+        files={"file": ("not-an-image.png", b"not actually a PNG", "image/png")},
+    )
+    assert spoofed.status_code == 422, spoofed.text
+    assert spoofed.json()["detail"]["code"] == "invalid_image_content"
+
+    oversized = client.post(
+        "/api/v1/provider/portal/profile/photos/upload",
+        headers=headers,
+        files={"file": ("large.png", _ONE_PIXEL_PNG + b"x" * (10 * 1024 * 1024), "image/png")},
+    )
+    assert oversized.status_code == 413, oversized.text
+    assert oversized.json()["detail"]["code"] == "image_too_large"
+
+
+def test_portal_rejects_photo_references_outside_the_owner_uploads(client, db, seeded_admin):
+    _admin, _ = seeded_admin
+    _provider, account = _approved_registration_provider(db)
+    other_provider = Provider(
+        provider_type=ProviderType.HOSPITAL,
+        name="Other Clinic",
+        visit_stability=VisitStability.STABLE_VISIT,
+        status=ProviderStatus.ACTIVE,
+        publication_status=PublicationStatus.UNPUBLISHED,
+    )
+    db.add(other_provider)
+    db.commit()
+    token = _login(client, account.email, "RegisteredPass9")
+
+    response = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "photos": [{
+                "storage_reference": f"/uploads/providers/{other_provider.id}/photos/private.png",
+                "display_order": 0,
+                "is_thumbnail": True,
+            }],
+        },
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"]["code"] == "provider_profile_invalid"
 
 
 def test_portal_rejects_provider_account_without_an_approved_listing_link(

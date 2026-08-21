@@ -10,9 +10,23 @@
 .remove { border: 0; background: transparent; color: var(--color-error); cursor: pointer; font: inherit; font-size: .88rem; font-weight: 700; }
 .remove:disabled { cursor: not-allowed; opacity: .55; }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.description { display: grid; grid-column: 1 / -1; gap: 7px; font-size: .9rem; font-weight: 600; }
-.description textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); color: inherit; font: inherit; line-height: 1.45; resize: vertical; }
+.fileInput { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.dropZone { display: grid; justify-items: center; gap: 5px; padding: 20px; border: 1px dashed var(--border-strong); border-radius: var(--radius-md); color: var(--text-secondary); text-align: center; cursor: pointer; }
+.dropZone:hover { border-color: var(--color-primary-700); background: var(--bg-subtle); }
+.dropZone small { font-size: .8rem; }
+.dropIcon { font-size: 1.6rem; }
+.uploadError { margin: 0; color: var(--color-error); font-size: .9rem; }
+.stagedList { display: grid; gap: 12px; }
+.stagedPhoto, .savedPhoto { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; align-items: start; gap: 14px; padding: 14px; border: 1px solid var(--border-default); border-radius: var(--radius-md); }
+.savedPhoto { grid-template-columns: 112px minmax(0, 1fr); padding: 0; border: 0; }
+.stagedFields { display: grid; gap: 10px; min-width: 0; }
+.stagedFields strong { overflow: hidden; color: var(--text-primary); font-size: .9rem; text-overflow: ellipsis; white-space: nowrap; }
+.preview { width: 112px; height: 88px; border-radius: var(--radius-sm); background: var(--bg-subtle); object-fit: cover; }
+.previewPlaceholder { display: grid; width: 112px; height: 88px; place-items: center; border-radius: var(--radius-sm); background: var(--bg-subtle); color: var(--text-secondary); font-size: .8rem; text-align: center; }
 @media (max-width: 620px) {
   .collectionHeader { flex-direction: column; }
   .grid { grid-template-columns: 1fr; }
+  .stagedPhoto, .savedPhoto { grid-template-columns: 1fr; }
+  .preview { width: 100%; height: 180px; }
+  .previewPlaceholder { width: 100%; height: 180px; }
 }

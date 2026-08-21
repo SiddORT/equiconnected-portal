@@ -27,6 +27,7 @@ import type {
   MemberProviderReview,
   ProviderPortalProfile,
   ProviderPortalUpdate,
+  ProviderPortalPhotoUpload,
   ProviderSpecializationBrief,
 } from '@/types';
 
@@ -44,6 +45,22 @@ export async function updateProviderPortalProfile(
 
 export async function discardProviderPortalProfileUpdate(): Promise<ProviderPortalProfile> {
   const { data } = await apiClient.post<ProviderPortalProfile>('/provider/portal/profile-update/discard');
+  return data;
+}
+
+export async function uploadProviderPortalPhoto(
+  file: File,
+  meta: { alt_text?: string | null; caption?: string | null }
+): Promise<ProviderPortalPhotoUpload> {
+  const form = new FormData();
+  form.append('file', file);
+  if (meta.alt_text) form.append('alt_text', meta.alt_text);
+  if (meta.caption) form.append('caption', meta.caption);
+  const { data } = await apiClient.post<ProviderPortalPhotoUpload>(
+    '/provider/portal/profile/photos/upload',
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  );
   return data;
 }
 

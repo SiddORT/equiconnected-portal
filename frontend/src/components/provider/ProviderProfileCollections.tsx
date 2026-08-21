@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { MultiEmailField, type EmailEntry } from '@/components/admin/MultiEmailField';
@@ -25,11 +26,23 @@ interface ProviderProfileCollectionsProps {
   onEmailsChange: (emails: EmailEntry[]) => void;
   photos: PortalPhoto[];
   onPhotosChange: (photos: PortalPhoto[]) => void;
+  onUploadPhoto: (item: { file: File; alt_text: string | null; caption: string | null }) => Promise<PortalPhoto>;
   qualifications: PortalQualification[];
   onQualificationsChange: (qualifications: PortalQualification[]) => void;
   showQualifications: boolean;
   disabled: boolean;
 }
+
+interface StagedPhoto {
+  id: string;
+  file: File;
+  preview: string;
+  alt_text: string;
+  caption: string;
+}
+
+const IMAGE_ACCEPT = 'image/jpeg,image/png,image/gif,image/webp';
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
 function withPrimary<T extends { is_primary: boolean }>(entries: T[], index: number) {
   return entries.map((entry, entryIndex) => ({ ...entry, is_primary: entryIndex === index }));
@@ -55,11 +68,26 @@ export function ProviderProfileCollections({
   onEmailsChange,
   photos,
   onPhotosChange,
+  onUploadPhoto,
   qualifications,
   onQualificationsChange,
   showQualifications,
   disabled,
 }: ProviderProfileCollectionsProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const stagedPhotosRef = useRef<StagedPhoto[]>([]);
+  const [stagedPhotos, setStagedPhotos] = useState<StagedPhoto[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+
+  useEffect(() => {
+    stagedPhotosRef.current = stagedPhotos;
+  }, [stagedPhotos]);
+
+  useEffect(() => () => {
+    stagedPhotosRef.current.forEach((photo) => URL.revokeObjectURL(photo.preview));
+  }, []);
+
   function updateLocation(index: number, patch: Partial<PortalLocation>) {
     onLocationsChange(locations.map((location, itemIndex) => (
       itemIndex === index ? { ...location, ...patch } : location
@@ -87,6 +115,78 @@ export function ProviderProfileCollections({
     onPhotosChange(next.map((photo, itemIndex) => ({ ...photo, display_order: itemIndex })));
   }
 
+  function addPhotos(files: FileList) {
+    const additions: StagedPhoto[] = [];
+    for (const file of Array.from(files)) {
+      if (!IMAGE_ACCEPT.split(',').includes(file.type)) {
+        setUploadError('Choose a JPEG, PNG, GIF, or WebP image.');
+        continue;
+      }
+      if (file.size > MAX_IMAGE_SIZE) {
+        setUploadError('Each image must be 10 MB or smaller.');
+        continue;
+      }
+      additions.push({
+        id: `${file.name}-${file.lastModified}-${crypto.randomUUID()}`,
+        file,
+        preview: URL.createObjectURL(file),
+        alt_text: '',
+        caption: '',
+      });
+    }
+    if (additions.length > 0) {
+      setUploadError(null);
+      setStagedPhotos((current) => [...current, ...additions]);
+    }
+  }
+
+  function updateStagedPhoto(id: string, patch: Partial<Pick<StagedPhoto, 'alt_text' | 'caption'>>) {
+    setStagedPhotos((current) => current.map((photo) => (
+      photo.id === id ? { ...photo, ...patch } : photo
+    )));
+  }
+
+  function removeStagedPhoto(id: string) {
+    setStagedPhotos((current) => {
+      const removed = current.find((photo) => photo.id === id);
+      if (removed) URL.revokeObjectURL(removed.preview);
+      return current.filter((photo) => photo.id !== id);
+    });
+  }
+
+  async function uploadStagedPhotos() {
+    if (!stagedPhotos.length || uploadingPhotos) return;
+    const completedIds: string[] = [];
+    try {
+      setUploadError(null);
+      setUploadingPhotos(true);
+      for (const photo of stagedPhotos) {
+        await onUploadPhoto({
+          file: photo.file,
+          alt_text: photo.alt_text.trim() || null,
+          caption: photo.caption.trim() || null,
+        });
+        completedIds.push(photo.id);
+      }
+      setStagedPhotos((current) => {
+        current
+          .filter((photo) => completedIds.includes(photo.id))
+          .forEach((photo) => URL.revokeObjectURL(photo.preview));
+        return current.filter((photo) => !completedIds.includes(photo.id));
+      });
+    } catch (error) {
+      setStagedPhotos((current) => {
+        current
+          .filter((photo) => completedIds.includes(photo.id))
+          .forEach((photo) => URL.revokeObjectURL(photo.preview));
+        return current.filter((photo) => !completedIds.includes(photo.id));
+      });
+      setUploadError(error instanceof Error ? error.message : 'Photos could not be uploaded. Please try again.');
+    } finally {
+      setUploadingPhotos(false);
+    }
+  }
+
   return (
     <>
       <section className={styles.collection} aria-labelledby="portal-locations-heading">
@@ -99,7 +199,7 @@ export function ProviderProfileCollections({
             type="button"
             variant="outline"
             size="sm"
-            disabled={disabled}
+            disabled={disabled || uploadingPhotos}
             onClick={() => onLocationsChange([
               ...locations,
               {
@@ -178,27 +278,60 @@ export function ProviderProfileCollections({
         <div className={styles.collectionHeader}>
           <div>
             <h2 id="portal-photos-heading">Profile photos</h2>
-            <p>Add image links, a helpful description, and choose the image members see first.</p>
+            <p>Upload photos, add accessible Alt text and an optional image title, then choose the image members see first.</p>
           </div>
           <Button
             type="button"
             variant="outline"
             size="sm"
             disabled={disabled}
-            onClick={() => onPhotosChange([
-              ...photos,
-              {
-                storage_reference: '',
-                alt_text: null,
-                caption: null,
-                display_order: photos.length,
-                is_thumbnail: photos.length === 0,
-              },
-            ])}
+            onClick={() => fileInputRef.current?.click()}
           >
-            Add photo
+            Add photos
           </Button>
         </div>
+        <input
+          ref={fileInputRef}
+          className={styles.fileInput}
+          type="file"
+          accept={IMAGE_ACCEPT}
+          multiple
+          onChange={(event) => {
+            if (event.target.files) addPhotos(event.target.files);
+            event.target.value = '';
+          }}
+        />
+        <div
+          className={styles.dropZone}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            event.preventDefault();
+            addPhotos(event.dataTransfer.files);
+          }}
+        >
+          <span className={styles.dropIcon} aria-hidden="true">🖼</span>
+          <span>Drag photos here or use “Add photos”.</span>
+          <small>JPEG, PNG, GIF, or WebP · up to 10 MB each</small>
+        </div>
+        {uploadError && <p className={styles.uploadError} role="alert">{uploadError}</p>}
+        {stagedPhotos.length > 0 && (
+          <div className={styles.stagedList}>
+            {stagedPhotos.map((photo) => (
+              <div className={styles.stagedPhoto} key={photo.id}>
+                <img src={photo.preview} alt="" className={styles.preview} />
+                <div className={styles.stagedFields}>
+                  <strong>{photo.file.name}</strong>
+                  <Input label="Alt text" value={photo.alt_text} onChange={(event) => updateStagedPhoto(photo.id, { alt_text: event.target.value })} disabled={disabled || uploadingPhotos} placeholder="Describe the image for screen readers" />
+                  <Input label="Image title" value={photo.caption} onChange={(event) => updateStagedPhoto(photo.id, { caption: event.target.value })} disabled={disabled || uploadingPhotos} placeholder="Optional title or caption" />
+                </div>
+                <button type="button" className={styles.remove} onClick={() => removeStagedPhoto(photo.id)} disabled={disabled || uploadingPhotos} aria-label={`Remove ${photo.file.name}`}>Remove</button>
+              </div>
+            ))}
+            <Button type="button" size="sm" disabled={disabled || uploadingPhotos || stagedPhotos.length === 0} onClick={() => void uploadStagedPhotos()}>
+              Upload {stagedPhotos.length === 1 ? 'photo' : `${stagedPhotos.length} photos`}
+            </Button>
+          </div>
+        )}
         {photos.length === 0 && <p className={styles.empty}>No profile photos added yet.</p>}
         <div className={styles.stack}>
           {photos.map((photo, index) => (
@@ -217,10 +350,16 @@ export function ProviderProfileCollections({
                 </label>
                 <button type="button" className={styles.remove} onClick={() => removePhoto(index)} disabled={disabled} aria-label={`Remove photo ${index + 1}`}>Remove</button>
               </div>
-              <div className={styles.grid}>
-                <Input label="Image link" type="url" value={photo.storage_reference} onChange={(event) => updatePhoto(index, { storage_reference: event.target.value })} disabled={disabled} placeholder="https://example.com/photo.jpg" required />
-                <Input label="Image description" value={photo.alt_text ?? ''} onChange={(event) => updatePhoto(index, { alt_text: event.target.value || null })} disabled={disabled} placeholder="Describe the image for screen readers" />
-                <Input label="Caption" value={photo.caption ?? ''} onChange={(event) => updatePhoto(index, { caption: event.target.value || null })} disabled={disabled} />
+              <div className={styles.savedPhoto}>
+                {photo.storage_reference ? (
+                  <img src={photo.storage_reference} alt={photo.alt_text ?? photo.caption ?? 'Provider photo'} className={styles.preview} />
+                ) : (
+                  <div className={styles.previewPlaceholder}>Image unavailable</div>
+                )}
+                <div className={styles.grid}>
+                  <Input label="Alt text" value={photo.alt_text ?? ''} onChange={(event) => updatePhoto(index, { alt_text: event.target.value || null })} disabled={disabled} placeholder="Describe the image for screen readers" />
+                  <Input label="Image title" value={photo.caption ?? ''} onChange={(event) => updatePhoto(index, { caption: event.target.value || null })} disabled={disabled} placeholder="Optional title or caption" />
+                </div>
               </div>
             </fieldset>
           ))}
@@ -256,12 +395,10 @@ export function ProviderProfileCollections({
                   <button type="button" className={styles.remove} onClick={() => onQualificationsChange(qualifications.filter((_, itemIndex) => itemIndex !== index).map((item, itemIndex) => ({ ...item, display_order: itemIndex })))} disabled={disabled} aria-label={`Remove qualification ${index + 1}`}>Remove</button>
                 </div>
                 <div className={styles.grid}>
-                  <Input label="Qualification" value={qualification.title} onChange={(event) => updateQualification(index, { title: event.target.value })} disabled={disabled} required />
+                  <Input label="Title" value={qualification.title} onChange={(event) => updateQualification(index, { title: event.target.value })} disabled={disabled} placeholder="e.g. MBBS, MD, Fellowship…" required />
                   <Input label="Institution" value={qualification.institution ?? ''} onChange={(event) => updateQualification(index, { institution: event.target.value || null })} disabled={disabled} />
                   <Input label="Year obtained" type="number" min="1900" max="2100" value={qualification.year_obtained ?? ''} onChange={(event) => updateQualification(index, { year_obtained: event.target.value ? Number(event.target.value) : null })} disabled={disabled} />
-                  <label className={styles.description}>Description
-                    <textarea value={qualification.description ?? ''} onChange={(event) => updateQualification(index, { description: event.target.value || null })} disabled={disabled} rows={3} />
-                  </label>
+                  <Input label="Description" value={qualification.description ?? ''} onChange={(event) => updateQualification(index, { description: event.target.value || null })} disabled={disabled} maxLength={2000} />
                 </div>
               </fieldset>
             ))}

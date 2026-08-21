@@ -164,6 +164,30 @@ export function ProviderAccountPage() {
     }
   }
 
+  async function uploadPhoto(
+    { file, alt_text, caption }: { file: File; alt_text: string | null; caption: string | null }
+  ): Promise<PortalPhoto> {
+    const uploaded = await providersApi.uploadProviderPortalPhoto(file, { alt_text, caption });
+    const portalPhoto = {
+      ...uploaded,
+      display_order: photos.length,
+      is_thumbnail: photos.length === 0,
+    };
+    setPhotos((current) => {
+      const nextPhoto = {
+        ...uploaded,
+        display_order: current.length,
+        is_thumbnail: current.length === 0,
+      };
+      return [...current, nextPhoto];
+    });
+    setNotice({
+      variant: 'success',
+      text: 'Photo upload complete. Save your profile to include these photos in your listing or review request.',
+    });
+    return portalPhoto;
+  }
+
   useEffect(() => {
     if (feedbackOpen) {
       feedbackWasOpen.current = true;
@@ -315,6 +339,7 @@ export function ProviderAccountPage() {
               onEmailsChange={setEmails}
               photos={photos}
               onPhotosChange={setPhotos}
+              onUploadPhoto={uploadPhoto}
               qualifications={qualifications}
               onQualificationsChange={setQualifications}
               showQualifications={profile.doctor_fields_available}
