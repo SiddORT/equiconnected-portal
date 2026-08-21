@@ -152,89 +152,92 @@ export function UsersPage() {
   const hasFilters = Boolean(search || role || emailVerified !== undefined);
 
   return (
-    <div className={styles.page}>
+    <div className={styles.shell}>
       <PageHeader
         title="Registered accounts"
         subtitle="View public member registrations and their email-verification state."
+        breadcrumbs={[{ label: 'Admin' }, { label: 'Users' }]}
       />
 
-      <div className={styles.toolbar}>
-        <SearchInput
-          value={search}
-          onChange={(value) => updateParams({ search: value || null, page: '1' })}
-          placeholder="Search name or email"
-          aria-label="Search registered accounts"
-        />
-        <Button
-          variant="secondary"
-          onClick={() => setFiltersOpen((open) => !open)}
-          aria-expanded={filtersOpen}
-          aria-controls="account-filters"
-        >
-          Filters
-        </Button>
-      </div>
-
-      {filtersOpen && (
-        <div id="account-filters" ref={filterPanelRef}>
-          <FilterBar
-            groups={[
-              {
-                label: 'Role',
-                value: role || 'all',
-                onChange: (value: string) =>
-                  updateParams({ role: value === 'all' ? null : value, page: '1' }),
-                options: ROLE_OPTIONS,
-              },
-              {
-                label: 'Email verification',
-                value: emailVerified === undefined ? 'all' : String(emailVerified),
-                onChange: (value: string) =>
-                  updateParams({
-                    email_verified: value === 'all' ? null : value,
-                    page: '1',
-                  }),
-                options: [
-                  { value: 'all', label: 'All accounts' },
-                  { value: 'true', label: 'Verified' },
-                  { value: 'false', label: 'Unverified' },
-                ],
-              },
-            ]}
+      <div className={styles.body}>
+        <div className={styles.toolbar}>
+          <SearchInput
+            value={search}
+            onChange={(value) => updateParams({ search: value || null, page: '1' })}
+            placeholder="Search name or email"
+            aria-label="Search registered accounts"
           />
+          <Button
+            variant="secondary"
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            aria-controls="account-filters"
+          >
+            Filters
+          </Button>
         </div>
-      )}
 
-      <DataTable
-        columns={columns}
-        data={result?.data ?? []}
-        page={page}
-        pageSize={pageSize}
-        rowKey={(item) => item.id}
-        loading={loadState === 'loading'}
-        error={
-          loadState === 'error'
-            ? { title: 'Failed to load registered accounts', message: errorMessage ?? undefined, onRetry: load }
-            : null
-        }
-        empty={{
-          icon: '👤',
-          title: hasFilters ? 'No accounts found' : 'No registered accounts yet',
-          description: hasFilters
-            ? 'Try adjusting your search or filters.'
-            : 'Public member registrations will appear here.',
-        }}
-      />
+        {filtersOpen && (
+          <div id="account-filters" ref={filterPanelRef}>
+            <FilterBar
+              groups={[
+                {
+                  label: 'Role',
+                  value: role || 'all',
+                  onChange: (value: string) =>
+                    updateParams({ role: value === 'all' ? null : value, page: '1' }),
+                  options: ROLE_OPTIONS,
+                },
+                {
+                  label: 'Email verification',
+                  value: emailVerified === undefined ? 'all' : String(emailVerified),
+                  onChange: (value: string) =>
+                    updateParams({
+                      email_verified: value === 'all' ? null : value,
+                      page: '1',
+                    }),
+                  options: [
+                    { value: 'all', label: 'All accounts' },
+                    { value: 'true', label: 'Verified' },
+                    { value: 'false', label: 'Unverified' },
+                  ],
+                },
+              ]}
+            />
+          </div>
+        )}
 
-      {loadState === 'success' && result && (
-        <Pagination
+        <DataTable
+          columns={columns}
+          data={result?.data ?? []}
           page={page}
           pageSize={pageSize}
-          total={result.meta.total}
-          onPageChange={(next) => updateParams({ page: String(next) })}
-          onPageSizeChange={(size) => updateParams({ page_size: String(size), page: '1' })}
+          rowKey={(item) => item.id}
+          loading={loadState === 'loading'}
+          error={
+            loadState === 'error'
+              ? { title: 'Failed to load registered accounts', message: errorMessage ?? undefined, onRetry: load }
+              : null
+          }
+          empty={{
+            icon: '👤',
+            title: hasFilters ? 'No accounts found' : 'No registered accounts yet',
+            description: hasFilters
+              ? 'Try adjusting your search or filters.'
+              : 'Public member registrations will appear here.',
+          }}
         />
-      )}
+
+        {loadState === 'success' && result && (
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={result.meta.total}
+            onPageChange={(next) => updateParams({ page: String(next) })}
+            onPageSizeChange={(size) => updateParams({ page_size: String(size), page: '1' })}
+          />
+        )}
+      </div>
 
       {detailTarget && (
         <UserDetailDialog user={detailTarget} onClose={() => setDetailTarget(null)} />
