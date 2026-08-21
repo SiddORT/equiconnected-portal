@@ -521,8 +521,11 @@ export interface ProviderListParams {
   page_size?: number;
 }
 
-// ── Provider invitations ──────────────────────────────────────────────────────
-
+export interface DirectoryLocation {
+  city: string;
+  state_province: string | null;
+  country: string | null;
+}
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'CANCELLED' | 'COMPLETED';
 
 export interface Invitation {
@@ -597,4 +600,65 @@ export interface AdminUserListParams {
   email_verified?: boolean;
   page?: number;
   page_size?: number;
+}
+
+export interface MemberProviderReview {
+  id: string;
+  rating: number;
+  comment: string;
+  comment_visible: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PublicProviderReview {
+  id: string;
+  rating: number;
+  comment: string;
+  reviewer_name: string;
+  created_at: string;
+}
+
+export interface MemberProviderListItem {
+  id: string;
+  provider_type: ProviderType;
+  name: string;
+  description: string | null;
+  website: string | null;
+  email: string | null;
+  phone: string | null;
+  visit_stability: VisitStability;
+  location: DirectoryLocation | null;
+  average_rating: number | null;
+  review_count: number;
+  distance_km: number | null;
+}
+
+export interface MemberProviderDetail extends MemberProviderListItem {
+  visible_reviews: PublicProviderReview[];
+  own_review: MemberProviderReview | null;
+}
+
+export interface MemberProviderListParams {
+  provider_type?: ProviderType;
+  minimum_rating?: number;
+  closest_first?: boolean;
+  latitude?: number;
+  longitude?: number;
+  page?: number;
+  page_size?: number;
+}
+
+export interface AdminProviderReview {
+  id: string;
+  provider_id: string;
+  provider_name: string;
+  reviewer_id: string;
+  reviewer_name: string;
+  reviewer_email: string;
+  rating: number;
+  comment: string;
+  comment_visible: boolean;
+  created_at: string;
+  updated_at: string;
 }

@@ -50,7 +50,7 @@ export function LoginPage() {
   const memberLogin = location.pathname === '/login';
   const loginState = location.state as LoginLocationState | null;
   const from = loginState?.from?.pathname
-    ?? (memberLogin ? '/profile' : '/admin/dashboard');
+    ?? (memberLogin ? '/providers' : '/admin/dashboard');
 
   const [form, setForm] = useState<FormState>(() => ({
     email: loginState?.verifiedEmail ?? '',

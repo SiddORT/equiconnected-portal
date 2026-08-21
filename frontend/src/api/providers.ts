@@ -21,7 +21,39 @@ import type {
   ProviderStatus,
   ProviderUpdate,
   PublicationStatus,
+  MemberProviderDetail,
+  MemberProviderListItem,
+  MemberProviderListParams,
+  MemberProviderReview,
 } from '@/types';
+
+// ── Member directory ────────────────────────────────────────────────────────
+
+export async function listMemberProviders(
+  params?: MemberProviderListParams
+): Promise<PaginatedResponse<MemberProviderListItem>> {
+  const { data } = await apiClient.get<PaginatedResponse<MemberProviderListItem>>(
+    '/member/providers',
+    { params }
+  );
+  return data;
+}
+
+export async function getMemberProvider(id: string): Promise<MemberProviderDetail> {
+  const { data } = await apiClient.get<MemberProviderDetail>(`/member/providers/${id}`);
+  return data;
+}
+
+export async function saveMemberProviderReview(
+  id: string,
+  body: { rating: number; comment: string }
+): Promise<MemberProviderReview> {
+  const { data } = await apiClient.put<MemberProviderReview>(
+    `/member/providers/${id}/review`,
+    body
+  );
+  return data;
+}
 
 export async function listProviders(
   params?: ProviderListParams

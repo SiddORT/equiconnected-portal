@@ -10,6 +10,7 @@ import type {
   EmailLogFilterMode,
   EmailDeliveryLog,
   PaginatedResponse,
+  AdminProviderReview,
 } from '@/types';
 
 export async function getDashboardStats(): Promise<DashboardStats> {
@@ -69,5 +70,32 @@ export async function listAdminUsers(
 
 export async function getAdminUser(id: string): Promise<AdminUser> {
   const { data } = await apiClient.get<AdminUser>(`/admin/users/${id}`);
+  return data;
+}
+
+export interface AdminReviewParams {
+  comment_visible?: boolean;
+  page?: number;
+  page_size?: number;
+}
+
+export async function listAdminReviews(
+  params?: AdminReviewParams
+): Promise<PaginatedResponse<AdminProviderReview>> {
+  const { data } = await apiClient.get<PaginatedResponse<AdminProviderReview>>(
+    '/admin/reviews',
+    { params }
+  );
+  return data;
+}
+
+export async function setAdminReviewCommentVisibility(
+  id: string,
+  comment_visible: boolean
+): Promise<AdminProviderReview> {
+  const { data } = await apiClient.patch<AdminProviderReview>(
+    `/admin/reviews/${id}/comment-visibility`,
+    { comment_visible }
+  );
   return data;
 }

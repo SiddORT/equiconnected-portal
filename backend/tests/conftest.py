@@ -43,6 +43,7 @@ TEST_SCHEMA = "test_equiconnected"
 _CLEANUP_TABLES = [
     "horses",
     "stable_profiles",
+    "provider_reviews",
     "refresh_tokens",
     "email_verification_tokens",
     "email_delivery_logs",

@@ -1,0 +1,5 @@
+.shell { display: grid; gap: var(--space-5); }
+.error { margin: 0; color: var(--color-danger, #a13c35); background: var(--color-danger-soft, #fff0ee); border-radius: var(--radius-md); padding: var(--space-3); }
+.email { display: block; color: var(--text-secondary); font-size: var(--text-xs); margin-top: .15rem; overflow-wrap: anywhere; }
+.rating { color: #b77812; font-weight: var(--font-semibold); white-space: nowrap; }
+.comment { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.4; }

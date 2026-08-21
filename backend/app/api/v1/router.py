@@ -13,6 +13,8 @@ from app.api.v1.invitations import admin_router as invitations_admin_router, pub
 from app.api.v1.organization_requests import admin_router as organization_requests_admin_router, public_router as organizations_public_router
 from app.api.v1.public import router as public_router
 from app.api.v1.profile import router as profile_router
+from app.api.v1.member_providers import router as member_providers_router
+from app.api.v1.reviews import router as reviews_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
@@ -27,3 +29,5 @@ api_v1_router.include_router(organizations_public_router)
 api_v1_router.include_router(organization_requests_admin_router)
 api_v1_router.include_router(public_router)
 api_v1_router.include_router(profile_router)
+api_v1_router.include_router(member_providers_router)
+api_v1_router.include_router(reviews_router)

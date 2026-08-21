@@ -25,6 +25,9 @@ import { LegalPage } from '@/pages/LegalPage';
 import { UsersPage } from '@/pages/admin/UsersPage';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { MemberAuthGuard } from '@/features/member/MemberAuthGuard';
+import { ProviderDirectoryPage } from '@/pages/ProviderDirectoryPage';
+import { MemberProviderDetailPage } from '@/pages/MemberProviderDetailPage';
+import { ReviewsPage } from '@/pages/admin/ReviewsPage';
 
 export function AppRouter() {
   return (
@@ -68,6 +71,7 @@ export function AppRouter() {
             <Route path="/admin/doctors/:id/edit" element={<LegacyDoctorRedirect edit />} />
             <Route path="/admin/invitations" element={<InvitationsPage />} />
             <Route path="/admin/users" element={<UsersPage />} />
+            <Route path="/admin/reviews" element={<ReviewsPage />} />
             <Route path="/admin/activity-logs" element={<ActivityLogsPage />} />
             <Route path="/admin/email-logs" element={<EmailLogsPage />} />
           </Route>
@@ -75,6 +79,8 @@ export function AppRouter() {
 
         {/* ── Verified member profile ─────────────────────────────── */}
         <Route element={<MemberAuthGuard />}>
+          <Route path="/providers" element={<ProviderDirectoryPage />} />
+          <Route path="/providers/:id" element={<MemberProviderDetailPage />} />
           <Route path="/profile" element={<ProfilePage />} />
         </Route>
 

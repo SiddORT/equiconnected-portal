@@ -13,6 +13,7 @@ const DIRECTORY_ITEMS: NavItem[] = [
   { label: 'Providers', to: '/admin/providers', icon: '🏥' },
   { label: 'Invitations', to: '/admin/invitations', icon: '✉' },
   { label: 'Users', to: '/admin/users', icon: '👥' },
+  { label: 'Reviews', to: '/admin/reviews', icon: '★' },
 ];
 
 export function AdminTopNav() {

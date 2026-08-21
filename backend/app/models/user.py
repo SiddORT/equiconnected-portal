@@ -74,6 +74,9 @@ class User(TimestampMixin, Base):
     horses: Mapped[list["Horse"]] = relationship(  # noqa: F821
         "Horse", back_populates="user", cascade="all, delete-orphan"
     )
+    provider_reviews: Mapped[list["ProviderReview"]] = relationship(  # noqa: F821
+        "ProviderReview", back_populates="member", cascade="all, delete-orphan"
+    )
 
     @property
     def full_name(self) -> str:

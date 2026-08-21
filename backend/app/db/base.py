@@ -19,6 +19,7 @@ from app.models.provider import (  # noqa: F401, E402
     ProviderLocation,
     ProviderPhone,
     ProviderPhoto,
+    ProviderReview,
     ProviderSpecialization,
 )
 from app.models.doctor import DoctorOrganization, DoctorProfile, DoctorQualification  # noqa: F401, E402

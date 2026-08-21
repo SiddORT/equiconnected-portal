@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     Enum,
     ForeignKey,
@@ -79,6 +80,9 @@ class Provider(TimestampMixin, Base):
     emails: Mapped[list["ProviderEmail"]] = relationship(
         back_populates="provider", cascade="all, delete-orphan"
     )
+    reviews: Mapped[list["ProviderReview"]] = relationship(
+        back_populates="provider", cascade="all, delete-orphan"
+    )
 
     # ── Doctor extensions (populated only when provider_type == DOCTOR) ────────
     doctor_profile: Mapped["app.models.doctor.DoctorProfile | None"] = relationship(  # type: ignore[name-defined]
@@ -114,6 +118,44 @@ class Provider(TimestampMixin, Base):
 
     def __repr__(self) -> str:
         return f"<Provider id={self.id} type={self.provider_type} name={self.name!r}>"
+
+
+class ProviderReview(TimestampMixin, Base):
+    """One member-owned rating and optional comment for a directory provider."""
+
+    __tablename__ = "provider_reviews"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("providers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    member_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)
+    comment: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    comment_visible: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+
+    provider: Mapped["Provider"] = relationship(back_populates="reviews")
+    member: Mapped["User"] = relationship(back_populates="provider_reviews")
+
+    __table_args__ = (
+        CheckConstraint("rating >= 1 AND rating <= 5", name="ck_provider_reviews_rating"),
+        UniqueConstraint(
+            "provider_id", "member_id", name="uq_provider_reviews_provider_member"
+        ),
+        Index("ix_provider_reviews_provider_id", "provider_id"),
+        Index("ix_provider_reviews_comment_visible", "comment_visible"),
+        Index("ix_provider_reviews_created_at", "created_at"),
+    )
 
 
 class ProviderPhone(TimestampMixin, Base):
