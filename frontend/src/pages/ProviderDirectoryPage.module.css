@@ -29,6 +29,18 @@
 .artLabel { right: var(--space-4); bottom: var(--space-4); padding: .35rem .55rem; border: 1px solid rgba(255, 250, 243, .48); border-radius: var(--radius-sm); background: rgba(45, 31, 14, .62); backdrop-filter: blur(5px); }
 .artCaption { left: .3rem; bottom: -1.65rem; color: var(--color-primary-200); letter-spacing: .04em; white-space: nowrap; }
 .backLink { width: fit-content; }
+.profileProgress { display: grid; gap: var(--space-3); padding: var(--space-5); border: 1px solid var(--color-primary-300); border-radius: var(--radius-lg); background: linear-gradient(110deg, color-mix(in srgb, var(--color-primary-100) 42%, var(--surface-raised)), var(--surface-raised)); }
+.profileProgressHeader { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.profileProgressHeader h2 { margin: var(--space-1) 0 0; font-size: var(--text-2xl); }
+.profileProgressHeader strong { flex: 0 0 auto; color: var(--color-primary-800); font-size: var(--text-2xl); }
+.progressEyebrow { margin: 0; color: var(--color-primary-700); font-size: var(--text-sm); font-weight: var(--font-semibold); letter-spacing: .08em; text-transform: uppercase; }
+.progressTrack { overflow: hidden; height: .65rem; border-radius: 999px; background: var(--surface-muted); }
+.progressTrack span { display: block; height: 100%; border-radius: inherit; background: var(--color-primary-700); transition: width var(--transition-fast); }
+.profileProgress > p, .profileProgressAction > p { margin: 0; color: var(--text-secondary); }
+.profileProgressAction { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.continueProfile { display: inline-flex; flex: 0 0 auto; align-items: center; gap: var(--space-2); width: fit-content; padding: .55rem .8rem; border-radius: var(--radius-md); color: var(--text-inverse); background: var(--color-primary-700); font-size: var(--text-sm); font-weight: var(--font-semibold); text-decoration: none; }
+.continueProfile:hover { color: var(--text-inverse); background: var(--color-primary-800); }
+.profileProgressLoading { min-height: 1.5rem; color: var(--text-secondary); font-size: var(--text-sm); }
 .filters { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(190px, auto); align-items: end; gap: var(--space-4); background: var(--surface-raised); padding: var(--space-4); border: 1px solid var(--border-default); border-radius: var(--radius-lg); }
 .closest { display: grid; gap: .45rem; }
 .filterLabel { color: var(--text-secondary); font-size: var(--text-sm); font-weight: var(--font-semibold); }
@@ -98,7 +110,7 @@
   .stableImageFrame { right: 0; bottom: -1rem; }
   .artCaption { bottom: -1.4rem; }
   .filters, .detailGrid { grid-template-columns: 1fr; }
-  .sliderHeader { align-items: flex-start; flex-direction: column; }
+  .sliderHeader, .profileProgressAction { align-items: flex-start; flex-direction: column; }
   .card { flex-basis: min(86vw, 23rem); }
   .description { -webkit-line-clamp: 2; }
   .ratingBlock { text-align: left; }

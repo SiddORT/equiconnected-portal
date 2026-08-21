@@ -5,9 +5,29 @@
 .eyebrow { color: var(--color-primary-700) !important; font-size: var(--text-sm); font-weight: var(--font-semibold); text-transform: uppercase; letter-spacing: .08em; }
 .homeLink { white-space: nowrap; font-weight: var(--font-semibold); }
 .section { display: grid; gap: var(--space-5); }
+.sectionAnchor { scroll-margin-top: var(--space-6); }
 .sectionHeader { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); }
 .sectionHeader h2 { font-size: var(--text-2xl); }
 .sectionHeader p, .empty { color: var(--text-secondary); margin-top: var(--space-1); }
+.sectionActions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); }
+.sectionStatus { display: flex; align-items: flex-start; gap: var(--space-2); max-width: 280px; padding: var(--space-2) var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-md); font-size: var(--text-sm); }
+.sectionStatus p { margin: .15rem 0 0; color: var(--text-secondary); }
+.complete { border-color: color-mix(in srgb, var(--color-primary-700) 35%, var(--border-default)); background: color-mix(in srgb, var(--color-primary-100) 42%, var(--surface-raised)); }
+.incomplete { border-style: dashed; }
+.statusIcon { display: grid; flex: 0 0 auto; width: 1.25rem; height: 1.25rem; place-items: center; border-radius: 50%; background: var(--surface-muted); font-weight: var(--font-bold); }
+.complete .statusIcon { color: var(--text-inverse); background: var(--color-primary-700); }
+.progressSummary { display: grid; gap: var(--space-3); padding: var(--space-5); border: 1px solid var(--color-primary-300); border-radius: var(--radius-lg); background: linear-gradient(125deg, color-mix(in srgb, var(--color-primary-100) 45%, var(--surface-raised)), var(--surface-raised)); }
+.progressHeading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.progressHeading h2 { margin-top: var(--space-1); font-size: var(--text-2xl); }
+.progressPercent { flex: 0 0 auto; color: var(--color-primary-800); font-size: var(--text-2xl); font-weight: var(--font-bold); }
+.progressTrack { overflow: hidden; height: .65rem; border-radius: 999px; background: var(--surface-muted); }
+.progressValue { display: block; height: 100%; border-radius: inherit; background: var(--color-primary-700); transition: width var(--transition-fast); }
+.progressMessage { color: var(--text-secondary); }
+.accountStatus { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; padding: var(--space-3); border-radius: var(--radius-md); background: var(--surface-muted); color: var(--text-secondary); }
+.accountStatus strong { color: var(--text-primary); }
+.formGroup { display: grid; gap: var(--space-3); }
+.formGroupHeading { margin: 0; font-size: var(--text-lg); }
+.formHelp { margin: calc(var(--space-2) * -1) 0 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: var(--leading-relaxed); }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 .actions { display: flex; justify-content: flex-end; gap: var(--space-3); }
 .textarea, .select { width: 100%; border: 1px solid var(--border-default); background: var(--bg-surface); border-radius: var(--radius-md); color: var(--text-primary); padding: var(--space-3); }
@@ -24,4 +44,4 @@
 .photoButton input { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; }
 .horseForm { display: grid; gap: var(--space-4); border: 1px solid var(--border-default); border-radius: var(--radius-lg); padding: var(--space-4); }
 .linkButton { color: inherit; background: none; border: 0; text-decoration: underline; cursor: pointer; font-weight: var(--font-semibold); }
-@media (max-width: 700px) { .page { padding: var(--space-5) var(--space-4) var(--space-9); } .header, .sectionHeader, .horseCard { flex-direction: column; align-items: stretch; } .homeLink { align-self: flex-start; } .grid { grid-template-columns: 1fr; } .horseButtons, .actions { justify-content: flex-start; } }
+@media (max-width: 700px) { .page { padding: var(--space-5) var(--space-4) var(--space-9); } .header, .sectionHeader, .horseCard { flex-direction: column; align-items: stretch; } .homeLink { align-self: flex-start; } .grid { grid-template-columns: 1fr; } .sectionActions { align-items: stretch; flex-direction: column; } .sectionStatus { max-width: none; } .horseButtons, .actions { justify-content: flex-start; } .progressHeading { align-items: flex-start; } }

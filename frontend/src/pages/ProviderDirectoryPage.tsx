@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
+import * as profileApi from '@/api/profile';
 import * as providersApi from '@/api/providers';
 import { extractErrorMessage } from '@/api/client';
 import { Alert } from '@/components/ui/Alert';
@@ -9,7 +10,8 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Pagination } from '@/components/ui/Pagination';
 import { Select } from '@/components/ui/Select';
-import type { MemberProviderListItem, PaginatedResponse, ProviderType } from '@/types';
+import { calculateProfileCompletion } from '@/features/member/profileCompletion';
+import type { MemberProfile, MemberProviderListItem, PaginatedResponse, ProviderType } from '@/types';
 import styles from './ProviderDirectoryPage.module.css';
 
 const providerTypeOptions = [
@@ -37,6 +39,36 @@ function Stars({ rating }: { rating: number | null }) {
   return <span aria-label={`${rating.toFixed(1)} out of 5 stars`} className={styles.stars}>★ {rating.toFixed(1)}</span>;
 }
 
+function ProfileProgressCard({ profile }: { profile: MemberProfile }) {
+  const completion = calculateProfileCompletion(profile);
+  const remaining = completion.totalItems - completion.completedItems;
+  return (
+    <section className={styles.profileProgress} aria-labelledby="profile-progress-heading" data-testid="profile-progress-card">
+      <div className={styles.profileProgressHeader}>
+        <div>
+          <p className={styles.progressEyebrow}>Member profile</p>
+          <h2 id="profile-progress-heading">{completion.isComplete ? 'Your profile is ready' : 'Finish your profile'}</h2>
+        </div>
+        <strong aria-label={`${completion.percentage}% complete`}>{completion.percentage}%</strong>
+      </div>
+      <div className={styles.progressTrack} role="progressbar" aria-label="Profile completion" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completion.percentage}>
+        <span style={{ width: `${completion.percentage}%` }} />
+      </div>
+      {completion.isComplete ? (
+        <p>All core account, contact, and role details are ready. You can keep discovering providers.</p>
+      ) : (
+        <div className={styles.profileProgressAction}>
+          <p>{completion.nextAction} {remaining} core item{remaining === 1 ? '' : 's'} remaining.</p>
+          <Link to={`/profile?section=${completion.nextSection}`} className={styles.continueProfile}>
+            Continue in {completion.sections.find((section) => section.id === completion.nextSection)?.label}
+            <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function ProviderCard({
   provider,
   closestFirst,
@@ -54,47 +86,28 @@ function ProviderCard({
   const imageAlt = provider.thumbnail_alt_text?.trim() || `${provider.name} provider`;
   const detailPath = `/providers/${provider.id}${search ? `?${search}` : ''}`;
 
-  useEffect(() => {
-    setImageUnavailable(false);
-  }, [thumbnailUrl]);
+  useEffect(() => { setImageUnavailable(false); }, [thumbnailUrl]);
 
   return (
     <article className={styles.card}>
       <div className={styles.cardMedia}>
         {thumbnailUrl && !imageUnavailable ? (
-          <img
-            src={thumbnailUrl}
-            alt={imageAlt}
-            className={styles.cardImage}
-            loading="lazy"
-            decoding="async"
-            onError={() => setImageUnavailable(true)}
-          />
+          <img src={thumbnailUrl} alt={imageAlt} className={styles.cardImage} loading="lazy" decoding="async" onError={() => setImageUnavailable(true)} />
         ) : (
           <div className={styles.imageFallback} role="img" aria-label={`No photo available for ${provider.name}`}>
-            <span aria-hidden="true">✦</span>
-            <p>EquiConnected care partner</p>
+            <span aria-hidden="true">✦</span><p>EquiConnected care partner</p>
           </div>
         )}
         <span className={styles.type}>{providerTypeLabel(provider.provider_type)}</span>
       </div>
       <div className={styles.cardBody}>
-        <div className={styles.cardTop}>
-          <p className={styles.location}>{locationName}</p>
-          <Stars rating={provider.average_rating} />
-        </div>
+        <div className={styles.cardTop}><p className={styles.location}>{locationName}</p><Stars rating={provider.average_rating} /></div>
         <h2>{provider.name}</h2>
-        {closestFirst && (
-          <p className={styles.distance}>
-            {provider.distance_km === null ? 'Distance unavailable' : `${provider.distance_km.toFixed(1)} km away`}
-          </p>
-        )}
+        {closestFirst && <p className={styles.distance}>{provider.distance_km === null ? 'Distance unavailable' : `${provider.distance_km.toFixed(1)} km away`}</p>}
         <p className={styles.description}>{provider.description || 'Provider details are available on their profile.'}</p>
         <div className={styles.cardFooter}>
           <p className={styles.reviewCount}>{provider.review_count} review{provider.review_count === 1 ? '' : 's'}</p>
-          <Link to={detailPath} className={styles.detailLink} aria-label={`View ${provider.name}`}>
-            View provider <span aria-hidden="true">→</span>
-          </Link>
+          <Link to={detailPath} className={styles.detailLink} aria-label={`View ${provider.name}`}>View provider <span aria-hidden="true">→</span></Link>
         </div>
       </div>
     </article>
@@ -109,6 +122,8 @@ export function ProviderDirectoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
+  const [memberProfile, setMemberProfile] = useState<MemberProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const sliderRef = useRef<HTMLDivElement>(null);
   const [sliderBounds, setSliderBounds] = useState({ canPrevious: false, canNext: false });
 
@@ -119,9 +134,7 @@ export function ProviderDirectoryPage() {
   const longitude = searchParams.get('longitude');
   const page = Math.max(1, Number(searchParams.get('page') ?? 1));
   const pageSize = Math.min(50, Math.max(1, Number(searchParams.get('page_size') ?? 20)));
-  const lastSignIn = user?.last_successful_login_at
-    ? new Date(user.last_successful_login_at)
-    : null;
+  const lastSignIn = user?.last_successful_login_at ? new Date(user.last_successful_login_at) : null;
   const hasLastSignIn = lastSignIn !== null && !Number.isNaN(lastSignIn.getTime());
   const firstName = user?.first_name?.trim() || user?.full_name?.split(' ')[0] || 'there';
 
@@ -161,14 +174,20 @@ export function ProviderDirectoryPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => {
+    let active = true;
+    profileApi.getProfile()
+      .then((profile) => { if (active) setMemberProfile(profile); })
+      .catch(() => { /* Provider discovery remains available if profile progress cannot load. */ })
+      .finally(() => { if (active) setProfileLoading(false); });
+    return () => { active = false; };
+  }, []);
+
   const updateSliderBounds = useCallback(() => {
     const slider = sliderRef.current;
     if (!slider) return;
     const maxScroll = slider.scrollWidth - slider.clientWidth;
-    setSliderBounds({
-      canPrevious: slider.scrollLeft > 1,
-      canNext: maxScroll > 1 && slider.scrollLeft < maxScroll - 1,
-    });
+    setSliderBounds({ canPrevious: slider.scrollLeft > 1, canNext: maxScroll > 1 && slider.scrollLeft < maxScroll - 1 });
   }, []);
 
   useEffect(() => {
@@ -188,9 +207,8 @@ export function ProviderDirectoryPage() {
     const slider = sliderRef.current;
     if (!slider) return;
     const amount = Math.max(slider.clientWidth * 0.85, 280);
-    if (typeof slider.scrollBy === 'function') {
-      slider.scrollBy({ left: amount * direction });
-    } else {
+    if (typeof slider.scrollBy === 'function') slider.scrollBy({ left: amount * direction });
+    else {
       slider.scrollLeft += amount * direction;
       slider.dispatchEvent(new Event('scroll'));
     }
@@ -217,18 +235,9 @@ export function ProviderDirectoryPage() {
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        updateParams({
-          closest_first: 'true',
-          latitude: String(position.coords.latitude),
-          longitude: String(position.coords.longitude),
-          page: '1',
-        });
-      },
-      () => {
-        setLocationNotice('Location access was not available. Providers remain sorted by rating.');
-      },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+      (position) => updateParams({ closest_first: 'true', latitude: String(position.coords.latitude), longitude: String(position.coords.longitude), page: '1' }),
+      () => setLocationNotice('Location access was not available. Providers remain sorted by rating.'),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
     );
   };
 
@@ -242,56 +251,29 @@ export function ProviderDirectoryPage() {
           <div className={styles.heroDetails}>
             <span className={styles.sessionMarker} aria-hidden="true" />
             <p className={styles.signInTime}>
-              {hasLastSignIn ? (
-                <>
-                  Last successful sign-in:{' '}
-                  <time dateTime={user!.last_successful_login_at!}>
-                    {formatTimestamp(user!.last_successful_login_at!)}
-                  </time>
-                </>
-              ) : (
-                'Your member session is ready.'
-              )}
+              {hasLastSignIn ? <>Last successful sign-in: <time dateTime={user!.last_successful_login_at!}>{formatTimestamp(user!.last_successful_login_at!)}</time></> : 'Your member session is ready.'}
             </p>
           </div>
-          <Link to="/profile" className={styles.profileLink}>
-            <span>View your profile</span>
-            <span aria-hidden="true">→</span>
-          </Link>
+          <Link to="/profile" className={styles.profileLink}><span>View your profile</span><span aria-hidden="true">→</span></Link>
         </div>
         <div className={styles.heroArt} aria-hidden="true">
-          <div className={styles.horseImageFrame}>
-            <img src="/horse-panel.jpg" alt="" />
-            <span className={styles.artLabel}>Care, connected</span>
-          </div>
-          <div className={styles.stableImageFrame}>
-            <img src="/stable-panel.jpg" alt="" />
-          </div>
+          <div className={styles.horseImageFrame}><img src="/horse-panel.jpg" alt="" /><span className={styles.artLabel}>Care, connected</span></div>
+          <div className={styles.stableImageFrame}><img src="/stable-panel.jpg" alt="" /></div>
           <span className={styles.artCaption}>For every chapter of the journey</span>
         </div>
       </header>
 
       {locationNotice && <Alert variant="info" onDismiss={() => setLocationNotice(null)}>{locationNotice}</Alert>}
       {error && <Alert variant="error" onDismiss={() => setError(null)}>{error}</Alert>}
+      {profileLoading && <div className={styles.profileProgressLoading} role="status">Checking profile readiness…</div>}
+      {memberProfile && <ProfileProgressCard profile={memberProfile} />}
 
       <section className={styles.filters} aria-label="Provider filters">
-        <Select
-          label="Provider type"
-          options={providerTypeOptions}
-          value={providerType}
-          onChange={(event) => updateParams({ provider_type: event.target.value || null, page: '1' })}
-        />
-        <Select
-          label="Minimum rating"
-          options={ratingOptions}
-          value={minimumRating}
-          onChange={(event) => updateParams({ minimum_rating: event.target.value || null, page: '1' })}
-        />
+        <Select label="Provider type" options={providerTypeOptions} value={providerType} onChange={(event) => updateParams({ provider_type: event.target.value || null, page: '1' })} />
+        <Select label="Minimum rating" options={ratingOptions} value={minimumRating} onChange={(event) => updateParams({ minimum_rating: event.target.value || null, page: '1' })} />
         <div className={styles.closest}>
           <span className={styles.filterLabel}>Order</span>
-          <Button variant={closestFirst ? 'primary' : 'outline'} onClick={setClosestFirst}>
-            {closestFirst ? 'Closest first enabled' : 'Sort closest first'}
-          </Button>
+          <Button variant={closestFirst ? 'primary' : 'outline'} onClick={setClosestFirst}>{closestFirst ? 'Closest first enabled' : 'Sort closest first'}</Button>
         </div>
       </section>
 
@@ -304,63 +286,18 @@ export function ProviderDirectoryPage() {
             <div className={styles.sliderHeader}>
               <p className={styles.sliderHint}>Swipe through {result.data.length} current result{result.data.length === 1 ? '' : 's'} or use the controls</p>
               <div className={styles.sliderControls} aria-label="Provider result controls">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => scrollSlider(-1)}
-                  disabled={!sliderBounds.canPrevious}
-                  aria-controls="provider-results-slider"
-                  aria-label="Previous providers"
-                >
-                  ← Previous
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => scrollSlider(1)}
-                  disabled={!sliderBounds.canNext}
-                  aria-controls="provider-results-slider"
-                  aria-label="Next providers"
-                >
-                  Next →
-                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => scrollSlider(-1)} disabled={!sliderBounds.canPrevious} aria-controls="provider-results-slider" aria-label="Previous providers">← Previous</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => scrollSlider(1)} disabled={!sliderBounds.canNext} aria-controls="provider-results-slider" aria-label="Next providers">Next →</Button>
               </div>
             </div>
-            <div
-              ref={sliderRef}
-              id="provider-results-slider"
-              className={styles.sliderViewport}
-              tabIndex={0}
-              role="region"
-              aria-label="Provider results slider"
-              aria-keyshortcuts="ArrowLeft ArrowRight"
-              onKeyDown={handleSliderKeyDown}
-            >
-              {result.data.map((provider) => (
-                <ProviderCard
-                  key={provider.id}
-                  provider={provider}
-                  closestFirst={closestFirst}
-                  search={searchParams.toString()}
-                />
-              ))}
+            <div ref={sliderRef} id="provider-results-slider" className={styles.sliderViewport} tabIndex={0} role="region" aria-label="Provider results slider" aria-keyshortcuts="ArrowLeft ArrowRight" onKeyDown={handleSliderKeyDown}>
+              {result.data.map((provider) => <ProviderCard key={provider.id} provider={provider} closestFirst={closestFirst} search={searchParams.toString()} />)}
             </div>
           </section>
-          <Pagination
-            page={page}
-            pageSize={pageSize}
-            total={result.meta.total}
-            onPageChange={(next) => updateParams({ page: String(next) })}
-            onPageSizeChange={(size) => updateParams({ page_size: String(size), page: '1' })}
-          />
+          <Pagination page={page} pageSize={pageSize} total={result.meta.total} onPageChange={(next) => updateParams({ page: String(next) })} onPageSizeChange={(size) => updateParams({ page_size: String(size), page: '1' })} />
         </>
       ) : (
-        <section className={styles.empty} aria-live="polite">
-          <h2>No providers match these filters</h2>
-          <p>Try removing a filter or check back when more providers are published.</p>
-        </section>
+        <section className={styles.empty} aria-live="polite"><h2>No providers match these filters</h2><p>Try removing a filter or check back when more providers are published.</p></section>
       )}
     </main>
   );
