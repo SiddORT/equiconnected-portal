@@ -208,15 +208,7 @@ def refresh(
         if user is None:
             raise InvalidTokenError("User not found")
 
-        profile = UserProfile(
-            id=user.id,
-            email=user.email,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            full_name=user.full_name,
-            role=user.role.name,
-            is_active=user.is_active,
-        )
+        profile = AuthService._safe_user_profile(user)
         return LoginResponse(
             access_token=pair.access_token,
             token_type="bearer",
@@ -267,12 +259,4 @@ def logout(
 @router.get("/me", response_model=UserProfile)
 def me(current_user: CurrentUser) -> UserProfile:
     """Return the authenticated user's profile."""
-    return UserProfile(
-        id=current_user.id,
-        email=current_user.email,
-        first_name=current_user.first_name,
-        last_name=current_user.last_name,
-        full_name=current_user.full_name,
-        role=current_user.role.name,
-        is_active=current_user.is_active,
-    )
+    return AuthService._safe_user_profile(current_user)

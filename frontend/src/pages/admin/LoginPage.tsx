@@ -2,7 +2,7 @@
  * Admin login page — /admin/login
  * Redirects to dashboard if already authenticated.
  */
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
 import { extractErrorMessage } from '@/api/client';
@@ -41,7 +41,9 @@ export function LoginPage() {
   const { isAuthenticated, isLoading, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/admin/dashboard';
+  const memberLogin = location.pathname === '/login';
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname
+    ?? (memberLogin ? '/profile' : '/admin/dashboard');
 
   const [form, setForm] = useState<FormState>({ email: '', password: '' });
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
@@ -116,9 +118,11 @@ export function LoginPage() {
         <div className={styles.formCard}>
           <div className={styles.formHeader}>
 <div className={styles.formIcon} aria-hidden="true">🔐</div>
-            <h2 className={`text-display ${styles.formTitle}`}>Admin sign in</h2>
+            <h2 className={`text-display ${styles.formTitle}`}>{memberLogin ? 'Member sign in' : 'Admin sign in'}</h2>
             <p className={styles.formSubtitle}>
-              Enter your administrator credentials to access the portal.
+              {memberLogin
+                ? 'Enter your approved member credentials to access your profile.'
+                : 'Enter your administrator credentials to access the portal.'}
             </p>
           </div>
 
@@ -179,7 +183,7 @@ export function LoginPage() {
           </form>
 
           <p className={styles.noRegister}>
-            This portal is for authorised administrators only.
+            {memberLogin ? 'Need an approved member account?' : 'This portal is for authorised administrators only.'}
             <br />
             Joining as a horse owner or stable manager?{' '}
             <Link to="/signup" className={styles.signupLink}>Create a public account</Link>

@@ -12,6 +12,9 @@ export interface UserProfile {
   last_name: string | null;
   full_name: string;
   role: string;
+  roles: string[];
+  approval_status: string | null;
+  email_verified_at: string | null;
   is_active: boolean;
 }
 
@@ -52,6 +55,99 @@ export interface RegistrationRequest {
 
 export interface MessageResponse {
   message: string;
+}
+
+// ── Member profile ───────────────────────────────────────────────────────────
+
+export type HorseSex = 'MARE' | 'GELDING' | 'STALLION' | 'FILLY' | 'COLT' | 'OTHER';
+
+export interface PersonalProfileUpdate {
+  first_name: string;
+  last_name: string;
+  mobile_number: string;
+  address?: string | null;
+  country: string;
+  state_province?: string | null;
+  city: string;
+  postal_code?: string | null;
+}
+
+export interface StableProfile {
+  id: string;
+  name: string;
+  description: string | null;
+  address: string | null;
+  country: string | null;
+  state_province: string | null;
+  city: string | null;
+  postal_code: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  updated_at: string;
+}
+
+export interface StableProfileUpdate {
+  name: string;
+  description?: string | null;
+  address?: string | null;
+  country?: string | null;
+  state_province?: string | null;
+  city?: string | null;
+  postal_code?: string | null;
+  contact_name?: string | null;
+  contact_phone?: string | null;
+  contact_email?: string | null;
+}
+
+export interface Horse {
+  id: string;
+  name: string;
+  sex: HorseSex;
+  registered_name: string | null;
+  breed: string | null;
+  date_of_birth: string | null;
+  color: string | null;
+  primary_discipline: string | null;
+  registration_number: string | null;
+  microchip_number: string | null;
+  description: string | null;
+  photo_reference: string | null;
+  updated_at: string;
+}
+
+export interface HorsePayload {
+  name: string;
+  sex: HorseSex;
+  registered_name?: string | null;
+  breed?: string | null;
+  date_of_birth?: string | null;
+  color?: string | null;
+  primary_discipline?: string | null;
+  registration_number?: string | null;
+  microchip_number?: string | null;
+  description?: string | null;
+}
+
+export interface MemberProfile {
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+  mobile_number: string | null;
+  address: string | null;
+  country: string | null;
+  state_province: string | null;
+  city: string | null;
+  postal_code: string | null;
+  roles: string[];
+  stable_profile: StableProfile | null;
+  horses: Horse[];
+}
+
+export interface PostalLookupResult {
+  status: 'match' | 'no_match' | 'unavailable';
+  city: string | null;
+  state_province: string | null;
 }
 
 // ── API Error ─────────────────────────────────────────────────────────────────

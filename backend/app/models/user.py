@@ -38,6 +38,8 @@ class User(TimestampMixin, Base):
     country: Mapped[str | None] = mapped_column(String(100), nullable=True)
     state_province: Mapped[str | None] = mapped_column(String(100), nullable=True)
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    postal_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     terms_accepted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -79,6 +81,12 @@ class User(TimestampMixin, Base):
     )
     email_verification_tokens: Mapped[list["EmailVerificationToken"]] = relationship(  # noqa: F821
         "EmailVerificationToken", back_populates="user", cascade="all, delete-orphan"
+    )
+    stable_profile: Mapped["StableProfile | None"] = relationship(  # noqa: F821
+        "StableProfile", back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
+    horses: Mapped[list["Horse"]] = relationship(  # noqa: F821
+        "Horse", back_populates="user", cascade="all, delete-orphan"
     )
 
     @property

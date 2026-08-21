@@ -1,0 +1,27 @@
+.page { max-width: 1080px; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-12); display: grid; gap: var(--space-6); }
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-5); }
+.header h1 { font-size: var(--text-4xl); margin-top: var(--space-1); }
+.header p { color: var(--text-secondary); margin-top: var(--space-2); }
+.eyebrow { color: var(--color-primary-700) !important; font-size: var(--text-sm); font-weight: var(--font-semibold); text-transform: uppercase; letter-spacing: .08em; }
+.homeLink { white-space: nowrap; font-weight: var(--font-semibold); }
+.section { display: grid; gap: var(--space-5); }
+.sectionHeader { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); }
+.sectionHeader h2 { font-size: var(--text-2xl); }
+.sectionHeader p, .empty { color: var(--text-secondary); margin-top: var(--space-1); }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.actions { display: flex; justify-content: flex-end; gap: var(--space-3); }
+.textarea, .select { width: 100%; border: 1px solid var(--border-default); background: var(--bg-surface); border-radius: var(--radius-md); color: var(--text-primary); padding: var(--space-3); }
+.textarea { resize: vertical; }
+.horseList { display: grid; gap: var(--space-4); }
+.horseCard { border: 1px solid var(--border-default); border-radius: var(--radius-lg); padding: var(--space-4); display: flex; gap: var(--space-4); align-items: center; justify-content: space-between; }
+.horseIdentity { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.horseIdentity img, .photoPlaceholder { width: 70px; height: 70px; object-fit: cover; border-radius: var(--radius-md); background: var(--bg-subtle); }
+.photoPlaceholder { display: grid; place-items: center; color: var(--text-tertiary); font-size: var(--text-xs); text-align: center; padding: var(--space-2); }
+.horseIdentity h3 { font-size: var(--text-lg); }
+.horseIdentity p { color: var(--text-secondary); text-transform: capitalize; }
+.horseButtons { display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; }
+.photoButton { cursor: pointer; border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: .45rem .7rem; font-size: var(--text-sm); font-weight: var(--font-medium); }
+.photoButton input { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; }
+.horseForm { display: grid; gap: var(--space-4); border: 1px solid var(--border-default); border-radius: var(--radius-lg); padding: var(--space-4); }
+.linkButton { color: inherit; background: none; border: 0; text-decoration: underline; cursor: pointer; font-weight: var(--font-semibold); }
+@media (max-width: 700px) { .page { padding: var(--space-5) var(--space-4) var(--space-9); } .header, .sectionHeader, .horseCard { flex-direction: column; align-items: stretch; } .homeLink { align-self: flex-start; } .grid { grid-template-columns: 1fr; } .horseButtons, .actions { justify-content: flex-start; } }

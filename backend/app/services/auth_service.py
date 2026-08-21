@@ -245,15 +245,7 @@ class AuthService:
 
         logger.info("login.success", user_id=str(user.id))
 
-        profile = UserProfile(
-            id=user.id,
-            email=user.email,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            full_name=user.full_name,
-            role=user.role.name,
-            is_active=user.is_active,
-        )
+        profile = self._safe_user_profile(user)
         return LoginResult(
             access_token=pair.access_token,
             refresh_token=pair.refresh_token,
@@ -373,6 +365,21 @@ class AuthService:
         issue = public_account_access_issue(user)
         if issue is not None:
             raise PublicAccountAccessError(issue)
+
+    @staticmethod
+    def _safe_user_profile(user) -> UserProfile:
+        return UserProfile(
+            id=user.id,
+            email=user.email,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            full_name=user.full_name,
+            role=user.role.name,
+            roles=sorted({assignment.role.name for assignment in user.role_assignments} or {user.role.name}),
+            approval_status=(user.approval_status.value if user.approval_status else None),
+            email_verified_at=user.email_verified_at,
+            is_active=user.is_active,
+        )
 
     @staticmethod
     def _hash_verification_token(raw_token: str) -> str:

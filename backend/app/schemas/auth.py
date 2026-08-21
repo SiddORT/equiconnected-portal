@@ -4,6 +4,7 @@ Passwords are NEVER included in response schemas.
 """
 import re
 import uuid
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
@@ -33,6 +34,9 @@ class UserProfile(BaseModel):
     last_name: str | None
     full_name: str
     role: str
+    roles: list[str] = []
+    approval_status: str | None = None
+    email_verified_at: datetime | None = None
     is_active: bool
 
     model_config = {"from_attributes": True}
