@@ -21,6 +21,7 @@ def _payload(**overrides) -> dict:
         "email": "amina@example.com",
         "mobile_number": "+971 50 123 4567",
         "country": "United Arab Emirates",
+        "state_province": "Dubai",
         "city": "Dubai",
         "password": "HorseCare2026",
         "password_confirmation": "HorseCare2026",
@@ -67,6 +68,9 @@ class TestPublicRegistration:
         user = db.query(User).filter(User.email == "amina@example.com").one()
         assert user.is_active is False
         assert user.email_verified_at is None
+        assert user.country == "United Arab Emirates"
+        assert user.state_province == "Dubai"
+        assert user.city == "Dubai"
         assert user.terms_accepted_at is not None
         assert user.privacy_accepted_at is not None
         assert user.password_hash != "HorseCare2026"

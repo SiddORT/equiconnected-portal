@@ -114,6 +114,7 @@ class AuthService:
                 last_name=registration.last_name,
                 mobile_number=registration.mobile_number,
                 country=registration.country,
+                state_province=registration.state_province,
                 city=registration.city,
                 terms_accepted_at=now,
                 privacy_accepted_at=now,

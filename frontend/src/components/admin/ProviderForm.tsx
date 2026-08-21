@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
+import { LocationPicker } from '@/components/ui/LocationPicker';
 import { Select } from '@/components/ui/Select';
 import { MultiEmailField, type EmailEntry } from './MultiEmailField';
 import { MultiPhoneField, type PhoneEntry } from './MultiPhoneField';
@@ -809,21 +810,16 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               value={location.address_line_2}
               onChange={(e) => setLocation((l) => ({ ...l, address_line_2: e.target.value }))}
             />
-            <Input
-              label="City"
-              value={location.city}
-              onChange={(e) => setLocation((l) => ({ ...l, city: e.target.value }))}
-              error={errs.city}
-            />
-            <Input
-              label="State / Province"
-              value={location.state_province}
-              onChange={(e) => setLocation((l) => ({ ...l, state_province: e.target.value }))}
-            />
-            <Input
-              label="Country"
-              value={location.country}
-              onChange={(e) => setLocation((l) => ({ ...l, country: e.target.value }))}
+            <LocationPicker
+              value={location}
+              onChange={(nextLocation) => setLocation((current) => ({ ...current, ...nextLocation }))}
+              errors={{
+                country: errs.country,
+                state_province: errs.state_province,
+                city: errs.city,
+              }}
+              idPrefix="provider-primary-location"
+              className={styles.locationPicker}
             />
             <Input
               label="Postal code"

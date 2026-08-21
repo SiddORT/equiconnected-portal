@@ -41,6 +41,7 @@ export interface RegistrationRequest {
   email: string;
   mobile_number: string;
   country: string;
+  state_province: string;
   city: string;
   password: string;
   password_confirmation: string;

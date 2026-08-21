@@ -54,6 +54,7 @@ class RegistrationRequest(BaseModel):
     email: EmailStr
     mobile_number: str = Field(min_length=6, max_length=32)
     country: str = Field(min_length=1, max_length=100)
+    state_province: str = Field(max_length=100)
     city: str = Field(min_length=1, max_length=100)
     password: str = Field(min_length=8, max_length=128)
     password_confirmation: str = Field(min_length=8, max_length=128)
@@ -73,6 +74,11 @@ class RegistrationRequest(BaseModel):
         if not value:
             raise ValueError("This field is required.")
         return value
+
+    @field_validator("state_province")
+    @classmethod
+    def trim_state_province(cls, value: str) -> str:
+        return value.strip()
 
     @field_validator("mobile_number")
     @classmethod

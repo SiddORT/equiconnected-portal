@@ -53,6 +53,10 @@
   gap: var(--space-4);
 }
 
+.locationPicker {
+  grid-column: 1 / -1;
+}
+
 .textarea {
   width: 100%;
   padding: var(--space-2) var(--space-3);

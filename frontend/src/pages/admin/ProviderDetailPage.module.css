@@ -14,6 +14,10 @@
   flex: 1;
 }
 
+.locationPicker {
+  grid-column: 1 / -1;
+}
+
 /* Cards that span both columns */
 .colFull {
   grid-column: 1 / -1;

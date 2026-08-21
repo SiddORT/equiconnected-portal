@@ -29,6 +29,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { LocationPicker } from '@/components/ui/LocationPicker';
 import { Select } from '@/components/ui/Select';
 import { PageHeader } from '@/components/layout/PageHeader';
 import type { LoadingState, Provider, Specialization } from '@/types';
@@ -584,21 +585,11 @@ export function ProviderDetailPage() {
                     value={locationForm.address_line_2}
                     onChange={(e) => setLocationForm((f) => ({ ...f, address_line_2: e.target.value }))}
                   />
-                  <Input
-                    label="City"
-                    required
-                    value={locationForm.city}
-                    onChange={(e) => setLocationForm((f) => ({ ...f, city: e.target.value }))}
-                  />
-                  <Input
-                    label="State / Province"
-                    value={locationForm.state_province}
-                    onChange={(e) => setLocationForm((f) => ({ ...f, state_province: e.target.value }))}
-                  />
-                  <Input
-                    label="Country"
-                    value={locationForm.country}
-                    onChange={(e) => setLocationForm((f) => ({ ...f, country: e.target.value }))}
+                  <LocationPicker
+                    value={locationForm}
+                    onChange={(nextLocation) => setLocationForm((current) => ({ ...current, ...nextLocation }))}
+                    idPrefix="provider-add-location"
+                    className={styles.locationPicker}
                   />
                   <Input
                     label="Postal code"
@@ -686,21 +677,11 @@ export function ProviderDetailPage() {
                             value={editLocationForm.address_line_2}
                             onChange={(e) => setEditLocationForm((f) => ({ ...f, address_line_2: e.target.value }))}
                           />
-                          <Input
-                            label="City"
-                            required
-                            value={editLocationForm.city}
-                            onChange={(e) => setEditLocationForm((f) => ({ ...f, city: e.target.value }))}
-                          />
-                          <Input
-                            label="State / Province"
-                            value={editLocationForm.state_province}
-                            onChange={(e) => setEditLocationForm((f) => ({ ...f, state_province: e.target.value }))}
-                          />
-                          <Input
-                            label="Country"
-                            value={editLocationForm.country}
-                            onChange={(e) => setEditLocationForm((f) => ({ ...f, country: e.target.value }))}
+                          <LocationPicker
+                            value={editLocationForm}
+                            onChange={(nextLocation) => setEditLocationForm((current) => ({ ...current, ...nextLocation }))}
+                            idPrefix={`provider-edit-location-${loc.id}`}
+                            className={styles.locationPicker}
                           />
                           <Input
                             label="Postal code"

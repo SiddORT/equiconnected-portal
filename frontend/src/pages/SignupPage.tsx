@@ -9,9 +9,11 @@ import * as authApi from '@/api/auth';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { LocationPicker } from '@/components/ui/LocationPicker';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import type { PublicRoleSelection, RegistrationRequest } from '@/types';
 import { DEFAULT_COUNTRY } from '@/utils/countryCodes';
+import { getStateOptions } from '@/utils/geography';
 import styles from './SignupPage.module.css';
 
 type FormState = RegistrationRequest;
@@ -23,6 +25,7 @@ const initialForm: FormState = {
   email: '',
   mobile_number: '',
   country: '',
+  state_province: '',
   city: '',
   password: '',
   password_confirmation: '',
@@ -37,7 +40,7 @@ const roleOptions: Array<{ value: PublicRoleSelection; label: string; descriptio
   { value: 'BOTH', label: 'Both', description: 'Both descriptions apply to me.' },
 ];
 
-function validate(form: FormState): FormErrors {
+export function validateSignup(form: FormState): FormErrors {
   const errors: FormErrors = {};
   const requiredFields: Array<keyof Pick<FormState, 'first_name' | 'last_name' | 'mobile_number' | 'country' | 'city'>> = [
     'first_name', 'last_name', 'mobile_number', 'country', 'city',
@@ -45,6 +48,9 @@ function validate(form: FormState): FormErrors {
   requiredFields.forEach((field) => {
     if (!form[field].trim()) errors[field] = 'This field is required';
   });
+  if (form.country && getStateOptions(form.country).length > 0 && !form.state_province.trim()) {
+    errors.state_province = 'Select a state or province';
+  }
   if (!form.email.trim()) errors.email = 'Email is required';
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Enter a valid email address';
   if (form.mobile_number.trim() && !/^[0-9+\-()\s]{6,32}$/.test(form.mobile_number.trim())) {
@@ -80,7 +86,7 @@ export function SignupPage() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const nextErrors = validate(form);
+    const nextErrors = validateSignup(form);
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors);
       return;
@@ -94,6 +100,7 @@ export function SignupPage() {
         email: form.email.trim().toLowerCase(),
         mobile_number: `${mobileCountry.dialCode} ${form.mobile_number.trim()}`,
         country: form.country.trim(),
+        state_province: form.state_province.trim(),
         city: form.city.trim(),
       });
       setSubmitted(true);
@@ -154,10 +161,28 @@ export function SignupPage() {
                 ariaLabel="Mobile number"
               />
             </div>
-            <div className={styles.twoColumns}>
-              <Input label="Country" id="signup-country" autoComplete="country-name" placeholder="e.g. United Arab Emirates" containerClassName={styles.signupField} value={form.country} onChange={(e) => update('country', e.target.value)} error={errors.country} disabled={submitting} required />
-              <Input label="City" id="signup-city" autoComplete="address-level2" placeholder="e.g. Dubai" containerClassName={styles.signupField} value={form.city} onChange={(e) => update('city', e.target.value)} error={errors.city} disabled={submitting} required />
-            </div>
+            <LocationPicker
+              value={form}
+              onChange={(nextLocation) => {
+                setForm((current) => ({ ...current, ...nextLocation }));
+                setErrors((current) => ({
+                  ...current,
+                  country: undefined,
+                  state_province: undefined,
+                  city: undefined,
+                }));
+                setGlobalError(null);
+              }}
+              errors={{
+                country: errors.country,
+                state_province: errors.state_province,
+                city: errors.city,
+              }}
+              disabled={submitting}
+              theme="dark"
+              required
+              idPrefix="signup-location"
+            />
             <div className={styles.roleSection}>
               <span className={styles.roleLabel}>I am joining as</span>
               <div className={styles.roleOptions}>
