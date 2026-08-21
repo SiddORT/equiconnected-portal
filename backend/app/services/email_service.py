@@ -1,12 +1,17 @@
 """SMTP-backed invitation email delivery."""
 import smtplib
 from datetime import datetime
+from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from html import escape
+from pathlib import Path
 
 from app.core.config import get_settings
 from app.models.enums import ProviderType
+
+_LOGO_PATH = Path(__file__).resolve().parents[1] / "assets" / "equiconnected-logo-gold.png"
+_LOGO_CONTENT_ID = "equiconnected-logo"
 
 
 class EmailDeliveryError(Exception):
@@ -36,7 +41,7 @@ class EmailService:
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:620px;background-color:#11100e;border:1px solid #4a3b25;border-radius:8px;">
             <tr>
               <td align="center" style="padding:48px 42px 18px;">
-                <div style="font-family:Arial,sans-serif;font-size:26px;line-height:26px;letter-spacing:5px;color:#b9975b;">✦</div>
+                <img src="cid:{_LOGO_CONTENT_ID}" width="66" height="66" alt="EquiConnected logo" style="display:block;width:66px;height:66px;margin:0 auto;border:0;outline:none;text-decoration:none;">
                 <div style="margin-top:14px;font-family:Arial,sans-serif;font-size:11px;line-height:16px;letter-spacing:4px;color:#b9975b;">EQUICONNECTED</div>
                 <div style="margin-top:5px;font-family:Arial,sans-serif;font-size:8px;line-height:12px;letter-spacing:2px;color:#82745b;">EXCEPTIONAL EQUINE CARE</div>
                 <div style="width:52px;height:1px;margin:25px auto 0;background-color:#80633a;"></div>
@@ -94,7 +99,7 @@ class EmailService:
         settings = get_settings()
         if not settings.SMTP_HOST:
             raise EmailDeliveryError("SMTP_HOST is not configured; invitation email was not sent.")
-        message = MIMEMultipart("alternative")
+        message = MIMEMultipart("related")
         message["Subject"] = "Complete your EquiConnected provider profile"
         message["From"] = settings.resolved_email_from
         message["To"] = recipient
@@ -107,8 +112,18 @@ class EmailService:
             "If you were not expecting this email, you can safely ignore it.\n"
         )
         html = self._invitation_html(provider_type, invitation_url, expiry)
-        message.attach(MIMEText(plain, "plain", "utf-8"))
-        message.attach(MIMEText(html, "html", "utf-8"))
+        alternatives = MIMEMultipart("alternative")
+        alternatives.attach(MIMEText(plain, "plain", "utf-8"))
+        alternatives.attach(MIMEText(html, "html", "utf-8"))
+        message.attach(alternatives)
+
+        try:
+            logo = MIMEImage(_LOGO_PATH.read_bytes(), _subtype="png")
+        except OSError as exc:
+            raise EmailDeliveryError("Unable to load the EquiConnected email logo.") from exc
+        logo.add_header("Content-ID", f"<{_LOGO_CONTENT_ID}>")
+        logo.add_header("Content-Disposition", "inline", filename="equiconnected-logo.png")
+        message.attach(logo)
         try:
             with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15) as smtp:
                 if settings.EMAIL_TLS:

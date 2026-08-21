@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { cancelInvitation, listInvitations, resendInvitation } from '@/api/invitations';
 import { extractErrorMessage } from '@/api/client';
 import { CreateInvitationDialog } from '@/components/admin/CreateInvitationDialog';
@@ -45,6 +45,7 @@ function statusVariant(status: InvitationStatus): 'success' | 'warning' | 'error
 }
 
 export function InvitationsPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get('search') ?? '';
   const status = searchParams.get('status') as InvitationStatus | null;
@@ -155,6 +156,13 @@ export function InvitationsPage() {
       key: 'actions', label: 'Actions', width: '70px', align: 'right',
       render: (item) => {
         const actions: ActionMenuItem[] = [{ label: 'View', onSelect: () => setDetailTarget(item) }];
+        if (item.status === 'COMPLETED' && item.provider_id) {
+          actions.push({
+            label: 'View submitted details',
+            icon: '👁',
+            onSelect: () => navigate(`/admin/providers/${item.provider_id}`),
+          });
+        }
         if (item.status === 'PENDING' || item.status === 'EXPIRED') actions.push({ label: actionId === item.id ? 'Resending…' : 'Resend', disabled: actionId === item.id, onSelect: () => void resend(item) });
         if (item.status === 'PENDING') actions.push({ label: 'Cancel', danger: true, onSelect: () => setCancelTarget(item) });
         if (item.status === 'PENDING' || item.status === 'ACCEPTED') actions.push({ label: 'Copy Link', onSelect: () => void copyLink(item) });
