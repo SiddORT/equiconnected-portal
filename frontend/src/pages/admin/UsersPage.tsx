@@ -221,7 +221,7 @@ export function UsersPage() {
           }}
         />
 
-        {loadState === 'success' && result && (
+        {loadState === 'success' && result && result.meta.total > 0 && (
           <Pagination
             page={page}
             pageSize={pageSize}
