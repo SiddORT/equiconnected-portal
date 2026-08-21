@@ -7,4 +7,4 @@ Email-verification tokens must be redeemed under a database row lock (or an equi
 
 **Why:** A read-then-write redemption can allow two concurrent requests to activate the same token, while React Strict Mode can replay an effect and turn a successful single-use redemption into a misleading “already used” failure.
 
-**How to apply:** Preserve transactional consumption whenever verification-token behavior changes. Any frontend route that submits a non-idempotent email token from an effect must use a request guard before calling the API.
+**How to apply:** Preserve transactional consumption whenever verification-token behavior changes. Any frontend route that submits a non-idempotent email token from an effect must use a request guard before calling the API. If the route adds a delayed redirect, keep timer cleanup in a mounted-lifecycle guard rather than a per-effect “active” flag: Strict Mode's first cleanup can otherwise suppress the only token response and leave the page indefinitely loading.

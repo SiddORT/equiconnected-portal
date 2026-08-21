@@ -181,6 +181,7 @@
   font-size: 1.7rem;
 }
 .errorMark { border-color: #d98080; color: #eea2a2; }
+.verifiedMark { animation: verificationComplete 420ms ease-out both; }
 .success h1,
 .success h2 { margin: 0 0 13px; color: #f5efe4; font-size: 2rem; font-weight: 400; }
 .success p { color: #d2c8b7; line-height: 1.65; }
@@ -189,6 +190,44 @@
 .homeLink { display: inline-block; margin-top: 16px; color: #d3b276; font-weight: 600; text-decoration: none; }
 .homeLink:hover { text-decoration: underline; }
 .verifyCard { max-width: 620px; }
+.redirectMessage {
+  margin: 18px 0 10px;
+  color: #e4bf7d !important;
+  font-weight: 600;
+  animation: verificationFadeIn 360ms ease-out both;
+}
+.redirectTrack {
+  width: min(100%, 240px);
+  height: 3px;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #3c3021;
+}
+.redirectTrack span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left;
+  background: #c39a58;
+  animation: redirectProgress 1.8s linear both;
+}
+
+@keyframes verificationComplete {
+  0% { opacity: 0; transform: scale(0.7); }
+  70% { transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes verificationFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes redirectProgress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
 
 @media (max-width: 620px) {
   .page { padding: 20px 12px; }
