@@ -69,6 +69,8 @@ export function SignupPage() {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
 
   function update<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -168,8 +170,55 @@ export function SignupPage() {
               </div>
             </div>
             <div className={styles.twoColumns}>
-              <Input label="Password" type="password" id="signup-password" autoComplete="new-password" placeholder="e.g. StableHorse7" containerClassName={styles.signupField} hint="At least 8 characters with upper- and lowercase letters and a number." value={form.password} onChange={(e) => update('password', e.target.value)} error={errors.password} disabled={submitting} required />
-              <Input label="Confirm password" type="password" id="signup-password-confirmation" autoComplete="new-password" placeholder="Repeat your password" containerClassName={styles.signupField} value={form.password_confirmation} onChange={(e) => update('password_confirmation', e.target.value)} error={errors.password_confirmation} disabled={submitting} required />
+              <Input
+                label="Password"
+                type={showPassword ? 'text' : 'password'}
+                id="signup-password"
+                autoComplete="new-password"
+                placeholder="e.g. StableHorse7"
+                containerClassName={styles.signupField}
+                hint="At least 8 characters with upper- and lowercase letters and a number."
+                value={form.password}
+                onChange={(e) => update('password', e.target.value)}
+                error={errors.password}
+                disabled={submitting}
+                required
+                rightAdornment={
+                  <button
+                    type="button"
+                    className={styles.showHide}
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-pressed={showPassword}
+                  >
+                    {showPassword ? '🙈' : '👁'}
+                  </button>
+                }
+              />
+              <Input
+                label="Confirm password"
+                type={showPasswordConfirmation ? 'text' : 'password'}
+                id="signup-password-confirmation"
+                autoComplete="new-password"
+                placeholder="Repeat your password"
+                containerClassName={styles.signupField}
+                value={form.password_confirmation}
+                onChange={(e) => update('password_confirmation', e.target.value)}
+                error={errors.password_confirmation}
+                disabled={submitting}
+                required
+                rightAdornment={
+                  <button
+                    type="button"
+                    className={styles.showHide}
+                    onClick={() => setShowPasswordConfirmation((visible) => !visible)}
+                    aria-label={showPasswordConfirmation ? 'Hide password confirmation' : 'Show password confirmation'}
+                    aria-pressed={showPasswordConfirmation}
+                  >
+                    {showPasswordConfirmation ? '🙈' : '👁'}
+                  </button>
+                }
+              />
             </div>
             <div className={styles.consents}>
               <div className={styles.consent}>
