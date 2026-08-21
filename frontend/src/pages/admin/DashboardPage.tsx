@@ -13,6 +13,8 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { DashboardMap } from '@/components/dashboard/DashboardMap';
+import { InvitationStatusChart } from '@/components/dashboard/InvitationStatusChart';
+import { VisitorVisitsChart } from '@/components/dashboard/VisitorVisitsChart';
 import type { DashboardStats, LoadingState } from '@/types';
 import styles from './DashboardPage.module.css';
 
@@ -70,6 +72,12 @@ export function DashboardPage() {
                 <h2 id="stats-heading" className={styles.sectionTitle}>Provider Inventory</h2>
                 <div className={styles.statsGrid}>
                   <StatCard
+                    label="Active providers"
+                    value={String(stats.active_providers)}
+                    icon="✓"
+                    badge={{ label: 'Active', variant: 'success' }}
+                  />
+                  <StatCard
                     label="Hospitals"
                     value={String(stats.provider_counts.hospitals)}
                     icon="🏥"
@@ -84,6 +92,14 @@ export function DashboardPage() {
                     value={String(stats.provider_counts.doctors)}
                     icon="👨‍⚕️"
                   />
+                </div>
+              </section>
+
+              <section aria-labelledby="activity-heading">
+                <h2 id="activity-heading" className={styles.sectionTitle}>Activity overview</h2>
+                <div className={styles.analyticsGrid}>
+                  <InvitationStatusChart counts={stats.invitation_counts} />
+                  <VisitorVisitsChart visits={stats.visitor_visits ?? []} />
                 </div>
               </section>
 

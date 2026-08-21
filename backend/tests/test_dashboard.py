@@ -79,6 +79,10 @@ class TestDashboard:
         assert resp.status_code == 200
         data = resp.json()
         assert data["provider_counts"] == {"hospitals": 0, "clinics": 0, "doctors": 0}
+        assert data["active_providers"] == 0
+        assert data["invitation_counts"] == {"sent": 0, "accepted": 0, "rejected": 0}
+        assert len(data["visitor_visits"]) == 7
+        assert all(visit["count"] == 0 for visit in data["visitor_visits"])
         assert data["location_markers"] == []
         assert "total_users" in data
         assert "recent_audit_events" in data
@@ -124,6 +128,14 @@ class TestDashboard:
         data = client.get(URL, headers=_auth(admin_token)).json()
         # Login above produced at least one audit event
         assert isinstance(data["recent_audit_events"], list)
+
+    def test_public_visit_is_reflected_in_dashboard(self, client: TestClient, admin_token: str):
+        response = client.post("/api/v1/public/visits")
+        assert response.status_code == 204
+
+        visits = client.get(URL, headers=_auth(admin_token)).json()["visitor_visits"]
+        assert len(visits) == 7
+        assert sum(visit["count"] for visit in visits) == 1
 
 
 class TestDemoSeed:

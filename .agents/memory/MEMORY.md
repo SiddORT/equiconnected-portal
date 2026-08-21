@@ -3,3 +3,4 @@
 - [Collapsible admin filters](collapsible-admin-filters.md) — hidden filter controls must leave the interactive page structure, not only be visually clipped.
 - [Provider photo upload policy](provider-photo-uploads.md) — allow JPEG, PNG, GIF, and WebP only, with a 10 MB per-photo limit.
 - [Invitation email presentation](invitation-email-presentation.md) — use the dark, warm-gold launch aesthetic while keeping invitation CTA and security details prominent.
+- [Dashboard invitation analytics](dashboard-invitation-analytics.md) — accepted and rejected metrics are derived from the workflow’s existing invitation states.

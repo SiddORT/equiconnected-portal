@@ -1,13 +1,25 @@
 /**
  * Public "Coming Soon" page for the EquiConnected portal.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { recordPublicVisit } from '@/api/public';
 import styles from './PublicPage.module.css';
 
 export function PublicPage() {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const storageKey = 'equiconnected-public-visit-date';
+    const today = new Date().toISOString().slice(0, 10);
+    if (window.localStorage.getItem(storageKey) === today) return;
+
+    window.localStorage.setItem(storageKey, today);
+    void recordPublicVisit().catch(() => {
+      window.localStorage.removeItem(storageKey);
+    });
+  }, []);
 
   function handleNotify(e: React.FormEvent) {
     e.preventDefault();

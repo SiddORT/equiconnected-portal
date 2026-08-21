@@ -13,7 +13,18 @@ git reset --hard origin/main
 
 echo "==> Installing frontend dependencies"
 cd "$APP_DIR/frontend"
-npm install
+
+# Always use the public npm registry on the VPS.
+npm config set registry https://registry.npmjs.org/
+
+# Replit can generate dependency metadata pointing at its internal
+# package firewall. That URL is unreachable from the VPS.
+if grep -Rqs "package-firewall.replit.local" package.json package-lock.json 2>/dev/null; then
+  echo "==> Replit package-firewall URL detected; regenerating npm lockfile"
+  rm -f package-lock.json
+fi
+
+npm install --registry=https://registry.npmjs.org/
 
 echo "==> Building frontend"
 npm run build

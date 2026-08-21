@@ -28,6 +28,7 @@ _lock = threading.Lock()
 # Maps IP → deque of monotonic timestamps of recent attempts
 _attempts: dict[str, deque[float]] = defaultdict(deque)
 _invitation_attempts: dict[str, deque[float]] = defaultdict(deque)
+_public_visit_attempts: dict[str, deque[float]] = defaultdict(deque)
 
 
 # ── Dependency ────────────────────────────────────────────────────────────────
@@ -80,6 +81,29 @@ def check_invitation_rate_limit(request: Request) -> None:
                 detail={
                     "code": "rate_limited",
                     "message": "Too many invitation requests. Please try again later.",
+                },
+                headers={"Retry-After": str(window_seconds)},
+            )
+        q.append(now)
+
+
+def check_public_visit_rate_limit(request: Request) -> None:
+    """Limit anonymous visit events without persisting visitor identifiers."""
+    ip: str = (request.client.host if request.client else None) or "unknown"
+    now: float = time.monotonic()
+    window_seconds = 60
+    max_attempts = 30
+    cutoff = now - window_seconds
+    with _lock:
+        q = _public_visit_attempts[ip]
+        while q and q[0] < cutoff:
+            q.popleft()
+        if len(q) >= max_attempts:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "code": "rate_limited",
+                    "message": "Too many visit events. Please try again later.",
                 },
                 headers={"Retry-After": str(window_seconds)},
             )

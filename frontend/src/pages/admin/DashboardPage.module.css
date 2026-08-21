@@ -66,6 +66,12 @@
   font-weight: var(--font-medium);
 }
 
+.analyticsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
 /* ── Audit table ─────────────────────────────────────────────────────────── */
 .auditTable {
   width: 100%;
@@ -108,6 +114,7 @@
 
 @media (max-width: 768px) {
   .body { padding: var(--space-5); }
+  .analyticsGrid { grid-template-columns: 1fr; }
   .auditRow { grid-template-columns: 1fr 1fr; }
   .auditRow > :last-child { display: none; }
 }

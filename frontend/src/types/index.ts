@@ -61,6 +61,17 @@ export interface ProviderCounts {
   doctors: number;
 }
 
+export interface InvitationCounts {
+  sent: number;
+  accepted: number;
+  rejected: number;
+}
+
+export interface DailyVisit {
+  date: string;
+  count: number;
+}
+
 export interface LocationMarker {
   location_id: string;
   provider_id: string;
@@ -76,7 +87,10 @@ export interface LocationMarker {
 
 export interface DashboardStats {
   total_users: number;
+  active_providers: number;
   provider_counts: ProviderCounts;
+  invitation_counts: InvitationCounts;
+  visitor_visits: DailyVisit[];
   location_markers: LocationMarker[];
   recent_audit_events: AuditEvent[];
 }
