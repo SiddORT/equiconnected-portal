@@ -352,6 +352,7 @@ export interface Invitation {
 export interface InvitationCreate {
   recipient_email: string;
   provider_type: ProviderType;
+  provider_name?: string | null;
   provider_id?: string | null;
 }
 

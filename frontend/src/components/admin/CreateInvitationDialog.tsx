@@ -2,12 +2,11 @@ import { useEffect, useId, useRef, useState } from 'react';
 import axios from 'axios';
 import { createInvitation } from '@/api/invitations';
 import { extractErrorMessage } from '@/api/client';
-import { listProviders } from '@/api/providers';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import type { Invitation, ProviderListItem, ProviderType } from '@/types';
+import type { Invitation, ProviderType } from '@/types';
 import styles from './CreateInvitationDialog.module.css';
 
 interface Props {
@@ -27,13 +26,11 @@ export function CreateInvitationDialog({ onSuccess, onCancel, onDeliveryFailure 
   const titleId = useId();
   const emailRef = useRef<HTMLInputElement>(null);
   const [providerType, setProviderType] = useState<ProviderType>('HOSPITAL');
+  const [providerName, setProviderName] = useState('');
   const [email, setEmail] = useState('');
-  const [providerSearch, setProviderSearch] = useState('');
-  const [providers, setProviders] = useState<ProviderListItem[]>([]);
-  const [selectedProvider, setSelectedProvider] = useState<ProviderListItem | null>(null);
-  const [loadingProviders, setLoadingProviders] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [providerNameError, setProviderNameError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
 
   useEffect(() => { emailRef.current?.focus(); }, []);
@@ -43,36 +40,16 @@ export function CreateInvitationDialog({ onSuccess, onCancel, onDeliveryFailure 
     return () => window.removeEventListener('keydown', listener);
   }, [onCancel, submitting]);
 
-  useEffect(() => {
-    const timer = window.setTimeout(async () => {
-      setLoadingProviders(true);
-      try {
-        const result = await listProviders({
-          provider_type: providerType,
-          search: providerSearch.trim() || undefined,
-          page: 1,
-          page_size: 10,
-        });
-        setProviders(result.data);
-      } catch {
-        setProviders([]);
-      } finally {
-        setLoadingProviders(false);
-      }
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [providerSearch, providerType]);
-
-  function changeProviderType(value: ProviderType) {
-    setProviderType(value);
-    setSelectedProvider(null);
-    setProviderSearch('');
-  }
-
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
+    const normalizedProviderName = providerName.trim();
     const normalizedEmail = email.trim();
+    if (!normalizedProviderName) {
+      setProviderNameError('Enter a provider name.');
+      return;
+    }
+    setProviderNameError(null);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       setEmailError('Enter a valid recipient email address.');
       return;
@@ -83,7 +60,7 @@ export function CreateInvitationDialog({ onSuccess, onCancel, onDeliveryFailure 
       const invitation = await createInvitation({
         recipient_email: normalizedEmail,
         provider_type: providerType,
-        provider_id: selectedProvider?.id ?? null,
+        provider_name: normalizedProviderName,
       });
       onSuccess(invitation);
     } catch (err) {
@@ -112,8 +89,16 @@ export function CreateInvitationDialog({ onSuccess, onCancel, onDeliveryFailure 
             <Select
               label="Provider type"
               value={providerType}
-              onChange={(event) => changeProviderType(event.target.value as ProviderType)}
+              onChange={(event) => setProviderType(event.target.value as ProviderType)}
               options={PROVIDER_TYPES}
+              required
+            />
+            <Input
+              label="Provider name"
+              value={providerName}
+              onChange={(event) => { setProviderName(event.target.value); setProviderNameError(null); }}
+              error={providerNameError ?? undefined}
+              placeholder="Enter provider name"
               required
             />
             <Input
@@ -126,42 +111,6 @@ export function CreateInvitationDialog({ onSuccess, onCancel, onDeliveryFailure 
               placeholder="name@example.com"
               required
             />
-            <div className={styles.providerField}>
-              <Input
-                role="combobox"
-                aria-expanded={!selectedProvider && Boolean(providerSearch || providers.length > 0)}
-                aria-autocomplete="list"
-                aria-controls={`${titleId}-provider-listbox`}
-                label="Existing provider"
-                hint="Optional — leave unselected to invite as a new provider."
-                value={selectedProvider ? selectedProvider.name : providerSearch}
-                onChange={(event) => {
-                  setSelectedProvider(null);
-                  setProviderSearch(event.target.value);
-                }}
-                placeholder={`Search ${providerType.toLowerCase()}s…`}
-              />
-              {!selectedProvider && (providerSearch || providers.length > 0) && (
-                <div className={styles.providerOptions} id={`${titleId}-provider-listbox`} role="listbox" aria-label="Matching providers">
-                  {loadingProviders ? <span className={styles.optionHint}>Searching…</span> : providers.length === 0
-                    ? <span className={styles.optionHint}>No matching providers</span>
-                    : providers.map((provider) => (
-                      <button key={provider.id} type="button" role="option" className={styles.providerOption} onClick={() => {
-                        setSelectedProvider(provider);
-                        setProviderSearch('');
-                      }}>
-                        <strong>{provider.name}</strong>
-                        {provider.email && <span>{provider.email}</span>}
-                      </button>
-                    ))}
-                </div>
-              )}
-              {selectedProvider && (
-                <button type="button" className={styles.clearProvider} onClick={() => setSelectedProvider(null)}>
-                  Invite as new provider instead
-                </button>
-              )}
-            </div>
           </div>
           <footer className={styles.footer}>
             <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>Cancel</Button>

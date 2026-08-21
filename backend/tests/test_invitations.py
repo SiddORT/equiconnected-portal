@@ -212,6 +212,7 @@ class TestAdminCreate:
         self,
         client: TestClient,
         admin_token: str,
+        db,
         captured_email: dict,
     ):
         """When no provider_id given a new provider is auto-created."""
@@ -225,12 +226,22 @@ class TestAdminCreate:
         assert data["status"] == InvitationStatus.PENDING.value
         assert data["provider_id"] is not None
         assert data["recipient_email"] == "newprovider@example.com"
+        provider = db.get(Provider, uuid.UUID(data["provider_id"]))
+        assert provider is not None
+        assert provider.name == "Brand New Clinic"
         # Email was sent
         assert len(captured_email["calls"]) == 1
         recipient, ptype, url, _ = captured_email["calls"][0]
         assert recipient == "newprovider@example.com"
         assert ptype == ProviderType.CLINIC
         assert "provider/invitations/" in url
+
+        list_response = client.get(ADMIN_BASE, headers=_auth(admin_token))
+        assert list_response.status_code == 200
+        listed = next(
+            item for item in list_response.json()["data"] if item["id"] == data["id"]
+        )
+        assert listed["provider_name"] == "Brand New Clinic"
 
     def test_create_for_existing_provider(
         self,
@@ -324,13 +335,18 @@ class TestAdminCreate:
         admin_token: str,
         captured_email: dict,
     ):
-        _create_invitation(client, admin_token, recipient_email="list@example.com")
+        _create_invitation(
+            client,
+            admin_token,
+            recipient_email="list@example.com",
+            provider_name="Listed Hospital",
+        )
         resp = client.get(ADMIN_BASE, headers=_auth(admin_token))
         assert resp.status_code == 200
         body = resp.json()
         assert body["meta"]["total"] >= 1
-        emails = [item["recipient_email"] for item in body["data"]]
-        assert "list@example.com" in emails
+        listed = next(item for item in body["data"] if item["recipient_email"] == "list@example.com")
+        assert listed["provider_name"] == "Listed Hospital"
 
 
 # ── Public endpoints ──────────────────────────────────────────────────────────

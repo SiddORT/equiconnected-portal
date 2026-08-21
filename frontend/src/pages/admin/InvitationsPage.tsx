@@ -26,8 +26,7 @@ const STATUS_LABELS: Record<InvitationStatus, string> = {
 const TYPE_LABELS: Record<ProviderType, string> = { HOSPITAL: 'Hospital', CLINIC: 'Clinic', DOCTOR: 'Doctor' };
 
 function providerDisplay(item: Invitation): string {
-  if (item.is_new_provider) return `New — ${TYPE_LABELS[item.provider_type]}`;
-  return item.provider_name ?? `New — ${TYPE_LABELS[item.provider_type]}`;
+  return item.provider_name || `New — ${TYPE_LABELS[item.provider_type]}`;
 }
 
 function formatDate(value: string) {
