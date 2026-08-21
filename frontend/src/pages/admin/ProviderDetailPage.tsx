@@ -447,7 +447,7 @@ export function ProviderDetailPage() {
                 p.doctor_profile.biography ||
                 p.doctor_profile.years_experience != null ||
                 p.doctor_profile.experience_description) ? (
-                <dl className={styles.infoStrip}>
+                <dl className={`${styles.infoStrip} ${styles.professionalInfoStrip}`}>
                   <div>
                     <dt>Professional title</dt>
                     <dd>{p.doctor_profile.professional_title ?? '—'}</dd>
