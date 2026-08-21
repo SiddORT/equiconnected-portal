@@ -145,14 +145,6 @@ export function AdminTopNav() {
       {/* ── Profile menu ──────────────────────────────── */}
       <div className={styles.profileArea} ref={menuRef}>
         <button
-          type="button"
-          className={styles.logoutButton}
-          onClick={handleLogout}
-        >
-          <span aria-hidden="true">↩</span>
-          Log out
-        </button>
-        <button
           className={styles.avatarBtn}
           aria-label="Open profile menu"
           aria-expanded={menuOpen}

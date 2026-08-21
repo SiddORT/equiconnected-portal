@@ -182,28 +182,6 @@
   margin-left: auto;
 }
 
-.logoutButton {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-neutral-300);
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  cursor: pointer;
-  transition: background-color var(--transition-fast), border-color var(--transition-fast),
-    color var(--transition-fast);
-}
-
-.logoutButton:hover {
-  border-color: rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--color-neutral-50);
-}
-
 .avatarBtn {
   display: flex;
   align-items: center;
@@ -357,14 +335,6 @@
   .linkLabel,
   .directoryChevron {
     display: none;
-  }
-
-  .logoutButton {
-    padding: var(--space-2);
-  }
-
-  .logoutButton span {
-    font-size: 1rem;
   }
 
   .links {

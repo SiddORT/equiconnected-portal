@@ -1,8 +1,10 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { AdminTopNav } from './AdminTopNav';
+
+const mockLogout = vi.hoisted(() => vi.fn());
 
 vi.mock('@/app/AuthContext', () => ({
   useAuth: () => ({
@@ -17,16 +19,38 @@ vi.mock('@/app/AuthContext', () => ({
       email_verified_at: null,
       is_active: true,
     },
-    logout: vi.fn(),
+    logout: mockLogout,
   }),
 }));
 
 afterEach(cleanup);
 
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location">{location.pathname}</span>;
+}
+
 describe('AdminTopNav', () => {
-  it('shows a visible logout control in the top bar', () => {
+  it('does not show a standalone logout control in the top bar', () => {
     render(<MemoryRouter><AdminTopNav /></MemoryRouter>);
-    expect(screen.getByRole('button', { name: 'Log out' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Log out' })).toBeNull();
+  });
+
+  it('keeps logout in the profile menu and redirects after signing out', async () => {
+    const user = userEvent.setup();
+    mockLogout.mockResolvedValueOnce(undefined);
+    render(
+      <MemoryRouter>
+        <AdminTopNav />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole('button', { name: 'Open profile menu' }));
+    const logoutItem = screen.getByRole('menuitem', { name: 'Logout' });
+    expect(logoutItem).toBeTruthy();
+    await user.click(logoutItem);
+    expect(mockLogout).toHaveBeenCalledOnce();
+    expect(screen.getByTestId('location').textContent).toBe('/admin/login');
   });
 
   it('links the profile menu to the email delivery history', async () => {
