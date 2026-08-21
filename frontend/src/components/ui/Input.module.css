@@ -78,10 +78,10 @@
   padding-right: var(--space-3);
 }
 
-/* Kill any focus ring on elements inside the wrapper —
-   the wrapper itself provides the only visible focus indicator. */
-.inputWrapper *:focus,
-.inputWrapper *:focus-visible {
+/* The wrapper provides the field focus indicator. Interactive adornments
+   retain their own focus styles so they remain keyboard-accessible. */
+.inputWrapper .input:focus,
+.inputWrapper .input:focus-visible {
   outline: none !important;
   box-shadow: none !important;
 }
