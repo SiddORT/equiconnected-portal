@@ -27,7 +27,7 @@ alembic revision --autogenerate -m "description"           # generate new migrat
 ```bash
 cd backend
 python -m pytest tests/ -v                                 # all tests
-python -m pytest tests/test_auth.py -v                    # auth suite (32 tests)
+python -m pytest tests/test_auth.py -v                    # auth suite (36 tests)
 python -m pytest tests/test_specializations.py -v         # specializations suite (38 tests)
 ```
 
@@ -38,6 +38,21 @@ cd backend
 # ADMIN_EMAIL and ADMIN_PASSWORD must be set as Replit Secrets
 python scripts/seed_admin.py
 ```
+
+The normal command is non-destructive: it creates a missing account or verifies
+an existing one, reporting a credential mismatch without changing the password,
+role, or active state. It exits `2` when operator attention is needed.
+
+For an intentional recovery after confirming the target database, run:
+
+```bash
+ADMIN_RECOVERY_CONFIRM=RESET_BOOTSTRAP_PASSWORD python scripts/seed_admin.py
+```
+
+This rotates only the existing active administrator's password and revokes that
+account's refresh sessions. Never configure the recovery confirmation in
+automated deployment or post-merge environments; changing `ADMIN_PASSWORD`
+alone never resets an existing account.
 
 ## Seeding demo data (development)
 

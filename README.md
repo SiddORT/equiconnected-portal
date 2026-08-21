@@ -87,24 +87,58 @@ alembic upgrade head
 
 This creates all tables: `roles`, `users`, `refresh_tokens`, `audit_logs`.
 
-### 3. Create the first Admin
+### 3. Bootstrap or verify the administrator
 
 ```bash
 cd backend
-ADMIN_EMAIL=admin@yourdomain.com \
-ADMIN_PASSWORD=YourStrongPassword123! \
-ADMIN_FIRST_NAME=Admin \
-ADMIN_LAST_NAME=User \
 python scripts/seed_admin.py
 ```
 
 **Requirements:**
-- `ADMIN_EMAIL` — valid email address
-- `ADMIN_PASSWORD` — minimum 12 characters
+- `ADMIN_EMAIL` — bootstrap administrator email, supplied through the environment
+- `ADMIN_PASSWORD` — bootstrap password, supplied through the environment (minimum 12 characters)
 - `ADMIN_FIRST_NAME` / `ADMIN_LAST_NAME` — optional
 
-The script is **idempotent**: running it again with the same email will detect the existing account and exit without creating a duplicate.  
-Credentials are never printed or logged.
+Keep credentials in Replit Secrets or another secret manager; never pass them as
+command-line arguments or commit them to a file. The normal command is safe to
+run after migrations and during deployment. It has exactly these outcomes:
+
+| Existing state | Normal command outcome |
+|---|---|
+| No account at `ADMIN_EMAIL` | Creates one active administrator account. |
+| Active administrator with matching `ADMIN_PASSWORD` | Verifies it without changing the account. |
+| Existing account with a different password, inactive state, or non-admin role | Reports a secret-safe diagnostic and makes no changes. |
+
+The diagnostic shows whether the supplied credential matches, but never prints a
+password or password hash. A mismatch exits with status `2` so automation can
+surface it; it does **not** mean that the configured password was applied.
+
+#### Intentional password recovery
+
+Only an authorized operator who has confirmed the target database should run a
+password recovery. Recovery is deliberately separate from normal bootstrap:
+
+```bash
+cd backend
+ADMIN_RECOVERY_CONFIRM=RESET_BOOTSTRAP_PASSWORD python scripts/seed_admin.py
+```
+
+This command uses the current `ADMIN_PASSWORD` secret to replace the password
+for the existing, active administrator named by `ADMIN_EMAIL`. It preserves the
+account ID, profile, active state, and role assignments, then revokes all of
+that account's stored refresh sessions. Existing access tokens remain usable
+only until their normal short expiry (15 minutes by default). Recovery refuses
+to activate or promote an account, and it refuses to create an account while
+the recovery confirmation is set.
+
+Never add `ADMIN_RECOVERY_CONFIRM` to deployment configuration or automated
+scripts. Changing the `ADMIN_PASSWORD` secret alone is not a password reset:
+run the normal command first to verify the state, then use the explicit
+recovery command only when a rotation is intended.
+
+Database migrations and the deployment/post-merge procedures do not reset
+bootstrap credentials. Run the normal verification command separately after
+confirming the deployment points at the intended database.
 
 ### 4. Start the backend
 
@@ -199,6 +233,7 @@ pytest tests/test_auth.py::TestLogin -v
 | 9 | Unauthorized access (no token, bad token) |
 | 10 | Non-admin role rejected (403 Forbidden) |
 | 11 | Duplicate admin prevention (unique constraint + idempotent seed) |
+| 12 | Bootstrap verification and explicit password recovery (preservation + session revocation) |
 
 ---
 
@@ -290,7 +325,7 @@ Browser                      FastAPI
 ✅ Public website at `/`  
 ✅ Admin login at `/admin/login`  
 ✅ Protected admin dashboard at `/admin/dashboard`  
-✅ Secure admin seed mechanism (idempotent, env-var credentials)  
+✅ Safe admin bootstrap verification with explicit credential recovery
 ✅ JWT authentication (access token + rotating refresh token)  
 ✅ Argon2id password hashing  
 ✅ Role-based access control foundation  

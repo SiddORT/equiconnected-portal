@@ -464,3 +464,145 @@ class TestDuplicateAdminPrevention:
         existing = repo.get_by_email(email)
         assert existing is not None
         assert existing.id == first.id  # same record — no duplicate created
+
+
+# ── 12. Bootstrap credential protection ───────────────────────────────────────
+
+class TestBootstrapCredentialProtection:
+    def test_repeat_bootstrap_verifies_without_changing_password_or_access(
+        self, client: TestClient, db
+    ):
+        """A changed environment secret must not silently replace an admin password."""
+        from app.repositories.user_repository import UserRepository
+        from scripts.seed_admin import bootstrap_admin
+
+        email = "bootstrap@example.com"
+        original_password = "OriginalAdmin#2026!"
+        changed_password = "ChangedAdmin#2026!"
+
+        created = bootstrap_admin(
+            db, email=email, password=original_password, first_name="Bootstrap"
+        )
+        assert created.status == "created"
+
+        admin = UserRepository(db).get_by_email(email)
+        assert admin is not None
+        original_id = admin.id
+        original_hash = admin.password_hash
+
+        repeat = bootstrap_admin(db, email=email, password=changed_password)
+
+        assert repeat.status == "verification_requires_attention"
+        assert repeat.credential_matches is False
+        assert repeat.is_active is True
+        assert repeat.has_admin_role is True
+        db.refresh(admin)
+        assert admin.id == original_id
+        assert admin.password_hash == original_hash
+        assert admin.is_active is True
+        assert admin.role.name == "admin"
+
+        assert client.post(
+            "/api/v1/auth/login",
+            json={"email": email, "password": original_password},
+        ).status_code == 200
+        assert client.post(
+            "/api/v1/auth/login",
+            json={"email": email, "password": changed_password},
+        ).status_code == 401
+
+    def test_explicit_recovery_rotates_password_and_revokes_refresh_sessions(
+        self, client: TestClient, db
+    ):
+        """Recovery preserves the user and role, but invalidates prior refresh sessions."""
+        from app.repositories.user_repository import UserRepository
+        from scripts.seed_admin import bootstrap_admin
+
+        email = "recoverable-bootstrap@example.com"
+        original_password = "OriginalAdmin#2026!"
+        recovered_password = "RecoveredAdmin#2026!"
+        bootstrap_admin(db, email=email, password=original_password)
+
+        admin = UserRepository(db).get_by_email(email)
+        assert admin is not None
+        original_id = admin.id
+        original_role_id = admin.role_id
+        _login_and_mount_refresh_cookie(client, email, original_password)
+
+        recovered = bootstrap_admin(
+            db,
+            email=email,
+            password=recovered_password,
+            recover_password=True,
+        )
+
+        assert recovered.status == "recovered"
+        assert recovered.revoked_refresh_sessions == 1
+        db.refresh(admin)
+        assert admin.id == original_id
+        assert admin.role_id == original_role_id
+        assert admin.is_active is True
+        assert admin.role.name == "admin"
+
+        assert client.post("/api/v1/auth/refresh").status_code == 401
+        assert client.post(
+            "/api/v1/auth/login",
+            json={"email": email, "password": original_password},
+        ).status_code == 401
+        assert client.post(
+            "/api/v1/auth/login",
+            json={"email": email, "password": recovered_password},
+        ).status_code == 200
+
+    def test_unsafe_existing_account_is_reported_without_any_mutation(self, db):
+        """The bootstrap command never activates or promotes an existing account."""
+        from app.core.security import hash_password
+        from app.repositories.user_repository import UserRepository
+        from scripts.seed_admin import _format_result, bootstrap_admin
+
+        repo = UserRepository(db)
+        visitor_role = repo.create_role("visitor", "Visitor")
+        original_password = "VisitorAdmin#2026!"
+        user = repo.create_user(
+            email="inactive-bootstrap@example.com",
+            password_hash=hash_password(original_password),
+            role=visitor_role,
+            is_active=False,
+        )
+        db.commit()
+        original_hash = user.password_hash
+
+        checked = bootstrap_admin(
+            db, email=user.email, password=original_password
+        )
+        recovery = bootstrap_admin(
+            db,
+            email=user.email,
+            password="ReplacementAdmin#2026!",
+            recover_password=True,
+        )
+
+        assert checked.status == "verification_requires_attention"
+        assert checked.credential_matches is True
+        assert checked.is_active is False
+        assert checked.has_admin_role is False
+        assert recovery.status == "recovery_not_allowed"
+        assert original_password not in _format_result(checked)
+        assert user.password_hash == original_hash
+        assert user.is_active is False
+        assert user.role.name == "visitor"
+
+    def test_recovery_requires_the_exact_environment_confirmation(self, monkeypatch):
+        """A vague truthy flag must never trigger a password rotation."""
+        from scripts.seed_admin import (
+            RECOVERY_CONFIRM_ENV,
+            RECOVERY_CONFIRM_VALUE,
+            _recovery_requested,
+        )
+
+        monkeypatch.setenv(RECOVERY_CONFIRM_ENV, "true")
+        with pytest.raises(ValueError, match=RECOVERY_CONFIRM_VALUE):
+            _recovery_requested()
+
+        monkeypatch.setenv(RECOVERY_CONFIRM_ENV, RECOVERY_CONFIRM_VALUE)
+        assert _recovery_requested() is True

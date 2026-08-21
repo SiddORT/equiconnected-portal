@@ -79,6 +79,11 @@ class UserRepository:
         self._db.flush()
         return user
 
+    def update_password_hash(self, user: User, password_hash: str) -> None:
+        """Persist a deliberately rotated password hash for an existing user."""
+        user.password_hash = password_hash
+        self._db.flush()
+
     def commit(self) -> None:
         self._db.commit()
 

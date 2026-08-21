@@ -14,4 +14,6 @@ echo "==> Running database migrations..."
 cd backend && uv run alembic upgrade heads
 cd ..
 
+# Do not run credential recovery from post-merge automation. The bootstrap
+# command is an operator action and is non-destructive unless explicitly confirmed.
 echo "==> Post-merge setup complete."

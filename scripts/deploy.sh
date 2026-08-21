@@ -51,6 +51,9 @@ echo "==> Running database migrations"
 cd "$APP_DIR/backend"
 alembic upgrade head
 
+# Bootstrap credentials are intentionally not reset during deployment. Run the
+# seed command separately for its non-destructive verification, and use its
+# explicit recovery confirmation only when a credential rotation is intended.
 echo "==> Restarting FastAPI"
 cd "$APP_DIR"
 pm2 reload ecosystem.config.cjs --only equiconnected-uat --update-env

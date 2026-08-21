@@ -294,6 +294,41 @@ class AuthService:
         self._db.commit()
         logger.info("logout.success", user_id=str(user_id))
 
+    # ── Operational credential recovery ───────────────────────────────────────
+
+    def recover_bootstrap_admin_password(
+        self,
+        user_id: uuid.UUID,
+        new_password: str,
+    ) -> int:
+        """Rotate an active administrator's password and revoke refresh sessions.
+
+        This is deliberately not exposed as an HTTP endpoint. The operational
+        bootstrap command calls it only after its explicit recovery confirmation.
+        """
+        user = self._users.get_by_id(user_id)
+        if user is None:
+            raise ValueError("Bootstrap administrator no longer exists.")
+        if not user.is_active or user.role.name != "admin":
+            raise ValueError(
+                "Only an active account with the administrator role can be recovered."
+            )
+
+        self._users.update_password_hash(user, hash_password(new_password))
+        revoked_sessions = self._tokens.revoke_all_for_user(user.id)
+        self._audit.log(
+            action="admin.bootstrap_password_recovered",
+            user_id=user.id,
+            metadata={"revoked_refresh_sessions": revoked_sessions},
+        )
+        self._db.commit()
+        logger.info(
+            "admin.bootstrap_password_recovered",
+            user_id=str(user.id),
+            revoked_refresh_sessions=revoked_sessions,
+        )
+        return revoked_sessions
+
     # ── Internal ─────────────────────────────────────────────────────────────
 
     def _issue_token_pair(self, user_id: uuid.UUID) -> TokenPair:
