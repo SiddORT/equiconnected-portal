@@ -9,4 +9,4 @@ For transactional mail, persist an outcome-pending delivery attempt before makin
 
 **Why:** SMTP can accept a message even when the surrounding registration or invitation transaction later fails or rolls back. A post-send-only log would silently lose the history of a real handoff.
 
-**How to apply:** New transactional email paths must use the durable attempt lifecycle, expose only allow-listed failure explanations, and leave a pending record if the process cannot establish the final outcome.
+**How to apply:** New transactional email paths must use the durable attempt lifecycle, expose only allow-listed failure explanations, and leave a pending record if the process cannot establish the final outcome. For retryable public flows, serialize the recipient identity while claiming and handing off mail so concurrent retries cannot send duplicates.

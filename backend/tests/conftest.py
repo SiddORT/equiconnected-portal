@@ -22,6 +22,7 @@ from app.core.rate_limit import (
     check_email_verification_rate_limit,
     check_login_rate_limit,
     check_registration_rate_limit,
+    check_subscriber_rate_limit,
 )
 from app.db.base import Base
 from app.db.session import get_db
@@ -50,6 +51,7 @@ _CLEANUP_TABLES = [
     "refresh_tokens",
     "email_verification_tokens",
     "email_delivery_logs",
+    "subscribers",
     "audit_logs",
     "provider_invitations",
     "organization_requests",
@@ -182,6 +184,7 @@ def client(db):
     app.dependency_overrides[check_login_rate_limit] = _no_rate_limit
     app.dependency_overrides[check_registration_rate_limit] = _no_rate_limit
     app.dependency_overrides[check_email_verification_rate_limit] = _no_rate_limit
+    app.dependency_overrides[check_subscriber_rate_limit] = _no_rate_limit
 
     with TestClient(app) as c:
         yield c

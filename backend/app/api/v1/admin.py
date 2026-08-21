@@ -19,6 +19,7 @@ from app.models.enums import (
     ProviderProfileUpdateStatus,
     ProviderStatus,
     ProviderType,
+    SubscriberRegistrationType,
 )
 from app.models.invitation import ProviderInvitation
 from app.models.public_visit import PublicVisitDaily
@@ -39,6 +40,7 @@ from app.schemas.provider_registration import (
     ProviderApplicationResponse,
 )
 from app.schemas.provider import ProviderProfileUpdateAdminResponse
+from app.schemas.subscriber import SubscriberListResponse, SubscriberResponse
 from app.repositories.provider_registration_repository import ProviderRegistrationRepository
 from app.repositories.provider_profile_update_repository import ProviderProfileUpdateRepository
 from app.repositories.provider_repository import ProviderRepository
@@ -56,6 +58,7 @@ from app.services.provider_profile_update_service import (
 )
 from app.repositories.user_repository import UserRepository
 from app.repositories.system_settings_repository import SystemSettingsRepository
+from app.repositories.subscriber_repository import SubscriberRepository
 from app.core.time_standards import system_today
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -260,6 +263,36 @@ def list_public_registrants(
     )
     return PaginatedResponse(
         data=[_public_registrant_response(user) for user in users],
+        meta=PaginationMeta(
+            page=page,
+            page_size=page_size,
+            total=total,
+            total_pages=max(1, ceil(total / page_size)),
+        ),
+    )
+
+
+@router.get(
+    "/subscribers",
+    response_model=SubscriberListResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+def list_subscribers(
+    db: Annotated[Session, Depends(get_db)],
+    search: str | None = Query(None, max_length=100),
+    registration_type: SubscriberRegistrationType | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+) -> SubscriberListResponse:
+    """Newest-first subscriber registrations for administrators."""
+    subscribers, total = SubscriberRepository(db).list(
+        search=search,
+        registration_type=registration_type,
+        page=page,
+        page_size=page_size,
+    )
+    return SubscriberListResponse(
+        data=[SubscriberResponse.model_validate(item) for item in subscribers],
         meta=PaginationMeta(
             page=page,
             page_size=page_size,

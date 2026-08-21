@@ -28,4 +28,5 @@ from app.models.doctor import DoctorOrganization, DoctorProfile, DoctorQualifica
 from app.models.invitation import ProviderInvitation, ProviderPortalSetupToken  # noqa: F401, E402
 from app.models.organization_request import OrganizationRequest  # noqa: F401, E402
 from app.models.public_visit import PublicVisitDaily  # noqa: F401, E402
+from app.models.subscriber import Subscriber  # noqa: F401, E402
 from app.models.system_settings import SystemSettings  # noqa: F401, E402

@@ -37,6 +37,7 @@ import { ProviderAccountPage } from '@/pages/ProviderAccountPage';
 import { ProviderAuthGuard } from '@/features/provider/ProviderAuthGuard';
 import { ProviderApplicationsPage } from '@/pages/admin/ProviderApplicationsPage';
 import { ProviderPasswordSetupPage } from '@/pages/ProviderPasswordSetupPage';
+import { SubscribersPage } from '@/pages/admin/SubscribersPage';
 
 export function AppRouter() {
   return (
@@ -83,6 +84,7 @@ export function AppRouter() {
             <Route path="/admin/doctors/:id/edit" element={<LegacyDoctorRedirect edit />} />
             <Route path="/admin/invitations" element={<InvitationsPage />} />
             <Route path="/admin/users" element={<UsersPage />} />
+            <Route path="/admin/subscribers" element={<SubscribersPage />} />
             <Route path="/admin/provider-applications" element={<ProviderApplicationsPage />} />
             <Route path="/admin/reviews" element={<ReviewsPage />} />
             <Route path="/admin/activity-logs" element={<ActivityLogsPage />} />

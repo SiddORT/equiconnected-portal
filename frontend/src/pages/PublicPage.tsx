@@ -3,15 +3,21 @@
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { recordPublicVisit } from '@/api/public';
+import { extractErrorMessage } from '@/api/client';
+import { recordPublicVisit, registerSubscriber } from '@/api/public';
 import { systemCalendarDate, useTimeSettings } from '@/app/TimeSettingsContext';
+import type { SubscriberRegistrationType } from '@/types';
 import styles from './PublicPage.module.css';
 
 export function PublicPage() {
   const { settings, isLoading: settingsLoading, error: settingsError } = useTimeSettings();
   const [email, setEmail] = useState('');
+  const [registrationType, setRegistrationType] = useState<SubscriberRegistrationType | ''>('');
   const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [registrationTypeError, setRegistrationTypeError] = useState('');
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     // Wait for the shared settings so the client-side once-per-day key agrees
@@ -28,14 +34,33 @@ export function PublicPage() {
     });
   }, [settings.timezone, settingsError, settingsLoading]);
 
-  function handleNotify(e: React.FormEvent) {
+  async function handleNotify(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError('Please enter a valid email address.');
+    if (!registrationType) {
+      setRegistrationTypeError('Please choose how you would like to register.');
       return;
     }
-    setError('');
-    setSubmitted(true);
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailError('Please enter a valid email address.');
+      return;
+    }
+    setEmailError('');
+    setRegistrationTypeError('');
+    setFormError('');
+    setSubmitting(true);
+    try {
+      await registerSubscriber({ email: email.trim(), registration_type: registrationType });
+      setSubmitted(true);
+    } catch (requestError) {
+      setFormError(
+        extractErrorMessage(
+          requestError,
+          'We could not save your registration. Please try again shortly.'
+        )
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -75,35 +100,69 @@ export function PublicPage() {
                 <span className={styles.successIcon} aria-hidden="true">✓</span>
                 <p>
                   <strong>You're on the list.</strong><br />
-                  We'll let you know the moment we launch.
+                  The EquiConnected team will be in touch soon.
                 </p>
               </div>
             ) : (
               <form onSubmit={handleNotify} className={styles.form} noValidate>
+                <label htmlFor="registration-type" className={styles.formLabel}>
+                  Register as
+                </label>
+                <select
+                  id="registration-type"
+                  value={registrationType}
+                  onChange={(e) => {
+                    setRegistrationType(e.target.value as SubscriberRegistrationType | '');
+                    setRegistrationTypeError('');
+                    setFormError('');
+                  }}
+                  className={`${styles.registrationSelect} ${registrationTypeError ? styles['registrationSelect--error'] : ''}`}
+                  aria-describedby={registrationTypeError ? 'registration-type-error' : undefined}
+                  aria-invalid={!!registrationTypeError}
+                  required
+                  disabled={submitting}
+                >
+                  <option value="">Choose your role</option>
+                  {REGISTRATION_TYPES.map((type) => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
                 <label htmlFor="notify-email" className={styles.formLabel}>
-                  Get notified when we launch
+                  Email address
                 </label>
                 <div className={styles.formRow}>
                   <input
                     id="notify-email"
                     type="email"
                     value={email}
-                    onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setEmailError('');
+                      setFormError('');
+                    }}
                     placeholder="your@email.com"
-                    className={`${styles.emailInput} ${error ? styles['emailInput--error'] : ''}`}
-                    aria-describedby={error ? 'notify-error' : undefined}
-                    aria-invalid={!!error}
+                    className={`${styles.emailInput} ${emailError ? styles['emailInput--error'] : ''}`}
+                    aria-describedby={emailError ? 'notify-email-error' : undefined}
+                    aria-invalid={!!emailError}
                     autoComplete="email"
+                    required
+                    disabled={submitting}
                   />
-                  <button type="submit" className={styles.notifyBtn}>
-                    Notify Me
+                  <button type="submit" className={styles.notifyBtn} disabled={submitting}>
+                    {submitting ? 'Submitting…' : 'Register'}
                   </button>
                 </div>
-                {error && (
-                  <p id="notify-error" className={styles.errorMsg} role="alert">
-                    {error}
+                {registrationTypeError && (
+                  <p id="registration-type-error" className={styles.errorMsg} role="alert">
+                    {registrationTypeError}
                   </p>
                 )}
+                {emailError && (
+                  <p id="notify-email-error" className={styles.errorMsg} role="alert">
+                    {emailError}
+                  </p>
+                )}
+                {formError && <p className={styles.errorMsg} role="alert">{formError}</p>}
               </form>
             )}
           </div>
@@ -163,4 +222,13 @@ const TEASERS = [
     title: 'Built for Trust',
     desc: 'Enterprise-grade security with full audit trails and role-based access.',
   },
+];
+
+const REGISTRATION_TYPES: Array<{ value: SubscriberRegistrationType; label: string }> = [
+  { value: 'VET', label: 'Vet' },
+  { value: 'HORSE_OWNER', label: 'Horse Owner' },
+  { value: 'HOSPITAL', label: 'Hospital' },
+  { value: 'CLINIC', label: 'Clinic' },
+  { value: 'STABLE_MANAGER', label: 'Stable Manager' },
+  { value: 'OTHER', label: 'Other' },
 ];

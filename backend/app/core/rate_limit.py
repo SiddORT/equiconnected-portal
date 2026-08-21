@@ -29,6 +29,7 @@ _lock = threading.Lock()
 _attempts: dict[str, deque[float]] = defaultdict(deque)
 _invitation_attempts: dict[str, deque[float]] = defaultdict(deque)
 _public_visit_attempts: dict[str, deque[float]] = defaultdict(deque)
+_subscriber_attempts: dict[str, deque[float]] = defaultdict(deque)
 _registration_attempts: dict[str, deque[float]] = defaultdict(deque)
 _email_verification_attempts: dict[str, deque[float]] = defaultdict(deque)
 
@@ -110,6 +111,17 @@ def check_public_visit_rate_limit(request: Request) -> None:
                 headers={"Retry-After": str(window_seconds)},
             )
         q.append(now)
+
+
+def check_subscriber_rate_limit(request: Request) -> None:
+    """Limit anonymous subscriber submissions per remote IP."""
+    _check_rate_limit(
+        request,
+        _subscriber_attempts,
+        window_seconds=600,
+        max_attempts=5,
+        message="Too many subscriber registrations. Please try again later.",
+    )
 
 
 def _check_rate_limit(

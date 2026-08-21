@@ -256,3 +256,29 @@ class EmailService:
             html=self._portal_access_html(setup_url, expiry),
         )
         self._deliver(message, recipient)
+
+    def send_subscriber_confirmation_email(self, recipient: str) -> None:
+        """Acknowledge public launch interest without collecting extra profile data."""
+        plain = (
+            "Thank you for your interest in EquiConnected.\n\n"
+            "We've received your registration and the EquiConnected team will be in "
+            "touch soon. We look forward to connecting you with the right care.\n\n"
+            "If you did not submit this registration, you can safely ignore this email.\n"
+        )
+        html = self._branded_html(
+            headline="Thank you for your interest.",
+            body_html=(
+                "We've received your registration. The EquiConnected team will be "
+                "in touch soon."
+            ),
+            action_label="Visit EquiConnected",
+            action_url="https://equiconnected.com",
+            security_html="If you did not submit this registration, you can safely ignore this email.",
+        )
+        message = self._build_message(
+            recipient=recipient,
+            subject="Thanks for registering with EquiConnected",
+            plain=plain,
+            html=html,
+        )
+        self._deliver(message, recipient)

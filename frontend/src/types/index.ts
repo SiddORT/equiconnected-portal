@@ -57,6 +57,33 @@ export interface MessageResponse {
   message: string;
 }
 
+export type SubscriberRegistrationType =
+  | 'VET'
+  | 'HORSE_OWNER'
+  | 'HOSPITAL'
+  | 'CLINIC'
+  | 'STABLE_MANAGER'
+  | 'OTHER';
+
+export interface SubscriberRegistrationRequest {
+  email: string;
+  registration_type: SubscriberRegistrationType;
+}
+
+export interface Subscriber {
+  id: string;
+  email: string;
+  registration_type: SubscriberRegistrationType;
+  submitted_at: string;
+}
+
+export interface SubscriberListParams {
+  search?: string;
+  registration_type?: SubscriberRegistrationType;
+  page?: number;
+  page_size?: number;
+}
+
 export interface EmailVerificationResponse extends MessageResponse {
   email: string;
   redirect_to?: '/login' | '/provider/login';
@@ -291,7 +318,11 @@ export type EmailDeliveryStatus = 'pending' | 'success' | 'failed';
 export interface EmailDeliveryLog {
   id: string;
   recipient_email: string;
-  purpose: 'provider_invitation' | 'account_verification';
+  purpose:
+    | 'provider_invitation'
+    | 'account_verification'
+    | 'provider_portal_access'
+    | 'subscriber_confirmation';
   status: EmailDeliveryStatus;
   failure_message: string | null;
   created_at: string;

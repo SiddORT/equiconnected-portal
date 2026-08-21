@@ -17,6 +17,8 @@ import type {
   ProviderProfileUpdateListParams,
   SystemSettings,
   SystemSettingsUpdate,
+  Subscriber,
+  SubscriberListParams,
 } from '@/types';
 
 export async function getDashboardStats(): Promise<DashboardStats> {
@@ -69,6 +71,16 @@ export async function listAdminUsers(
 ): Promise<PaginatedResponse<AdminUser>> {
   const { data } = await apiClient.get<PaginatedResponse<AdminUser>>(
     '/admin/users',
+    { params }
+  );
+  return data;
+}
+
+export async function listSubscribers(
+  params?: SubscriberListParams
+): Promise<PaginatedResponse<Subscriber>> {
+  const { data } = await apiClient.get<PaginatedResponse<Subscriber>>(
+    '/admin/subscribers',
     { params }
   );
   return data;

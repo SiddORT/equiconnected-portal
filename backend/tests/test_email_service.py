@@ -98,3 +98,32 @@ def test_email_delivery_rejects_a_recipient_refused_by_smtp(monkeypatch):
             "https://example.test/verify/secure-token",
             datetime(2026, 8, 28, 10, 37),
         )
+
+
+def test_subscriber_confirmation_uses_branded_shell_and_reach_out_copy(monkeypatch):
+    _FakeSMTP.sent_messages = []
+    monkeypatch.setattr(
+        email_service,
+        "get_settings",
+        lambda: SimpleNamespace(
+            SMTP_HOST="smtp.example.test",
+            SMTP_PORT=587,
+            SMTP_USER="",
+            SMTP_PASSWORD="",
+            EMAIL_TLS=True,
+            resolved_email_from="no-reply@example.test",
+        ),
+    )
+    monkeypatch.setattr(email_service.smtplib, "SMTP", _FakeSMTP)
+
+    email_service.EmailService().send_subscriber_confirmation_email(
+        "subscriber@example.test"
+    )
+
+    message = message_from_string(_FakeSMTP.sent_messages[0])
+    assert message["Subject"] == "Thanks for registering with EquiConnected"
+    plain = next(part for part in message.walk() if part.get_content_type() == "text/plain")
+    html = next(part for part in message.walk() if part.get_content_type() == "text/html")
+    assert "team will be in touch soon" in plain.get_payload(decode=True).decode("utf-8")
+    assert "team will be in touch soon" in html.get_payload(decode=True).decode("utf-8")
+    assert "cid:equiconnected-logo" in html.get_payload(decode=True).decode("utf-8")

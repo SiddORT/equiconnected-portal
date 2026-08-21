@@ -27,9 +27,10 @@ const FILTER_OPTIONS = [
 ];
 
 function purposeLabel(purpose: EmailDeliveryLog['purpose']): string {
-  return purpose === 'provider_invitation'
-    ? 'Provider profile invitation'
-    : 'Account verification';
+  if (purpose === 'provider_invitation') return 'Provider profile invitation';
+  if (purpose === 'provider_portal_access') return 'Provider portal access';
+  if (purpose === 'subscriber_confirmation') return 'Subscriber confirmation';
+  return 'Account verification';
 }
 
 function selectedPeriod(
@@ -200,7 +201,7 @@ export function EmailLogsPage() {
     <div className={styles.shell}>
       <PageHeader
         title="Email Logs"
-        subtitle="SMTP handoff attempts for provider invitations and account verification."
+        subtitle="SMTP handoff attempts for invitations, account verification, and subscriber confirmations."
         breadcrumbs={[{ label: 'Admin' }, { label: 'Email Logs' }]}
       />
       <div className={styles.body}>

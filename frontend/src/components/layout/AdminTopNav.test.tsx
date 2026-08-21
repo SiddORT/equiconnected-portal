@@ -75,6 +75,14 @@ describe('AdminTopNav', () => {
     expect(registrationsLink.getAttribute('aria-current')).toBe('page');
   });
 
+  it('adds Subscribers to the top-level navigation', () => {
+    render(<MemoryRouter initialEntries={['/admin/subscribers']}><AdminTopNav /></MemoryRouter>);
+    const navigation = screen.getByRole('navigation', { name: 'Admin navigation' });
+    const subscribersLink = within(navigation).getByRole('link', { name: 'Subscribers' });
+    expect(subscribersLink.getAttribute('href')).toBe('/admin/subscribers');
+    expect(subscribersLink.getAttribute('aria-current')).toBe('page');
+  });
+
   it('groups provider destinations inside Directory Management and closes it with Escape', async () => {
     const user = userEvent.setup();
     render(

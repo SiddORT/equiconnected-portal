@@ -68,9 +68,19 @@ class EmailPurpose(str, enum.Enum):
     PROVIDER_INVITATION = "provider_invitation"
     ACCOUNT_VERIFICATION = "account_verification"
     PROVIDER_PORTAL_ACCESS = "provider_portal_access"
+    SUBSCRIBER_CONFIRMATION = "subscriber_confirmation"
 
 
 class EmailDeliveryStatus(str, enum.Enum):
     PENDING = "pending"
     SUCCESS = "success"
     FAILED = "failed"
+
+
+class SubscriberRegistrationType(str, enum.Enum):
+    VET = "VET"
+    HORSE_OWNER = "HORSE_OWNER"
+    HOSPITAL = "HOSPITAL"
+    CLINIC = "CLINIC"
+    STABLE_MANAGER = "STABLE_MANAGER"
+    OTHER = "OTHER"
