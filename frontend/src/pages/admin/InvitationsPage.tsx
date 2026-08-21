@@ -5,6 +5,7 @@ import { extractErrorMessage } from '@/api/client';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { CreateInvitationDialog } from '@/components/admin/CreateInvitationDialog';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { CancelIcon, CopyLinkIcon, ResendIcon, SendIcon, ViewIcon } from '@/components/ui/AdminIcons';
 import { ActionMenu, type ActionMenuItem } from '@/components/ui/ActionMenu';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
@@ -174,11 +175,11 @@ export function InvitationsPage() {
     {
       key: 'actions', label: 'Actions', width: '70px', align: 'right',
       render: (item) => {
-        const actions: ActionMenuItem[] = [{ label: 'View', onSelect: () => setDetailTarget(item) }];
+        const actions: ActionMenuItem[] = [{ label: 'View', icon: <ViewIcon />, onSelect: () => setDetailTarget(item) }];
         if (item.status === 'COMPLETED' && item.provider_id) {
           actions.push({
             label: 'View submitted details',
-            icon: '👁',
+            icon: <ViewIcon />,
             onSelect: () => navigate(`/admin/providers/${item.provider_id}`),
           });
           actions.push({
@@ -188,12 +189,13 @@ export function InvitationsPage() {
                 ? 'Resend portal access'
                 : 'Send portal access',
             disabled: actionId === item.id,
+            icon: item.portal_access_sent_at ? <ResendIcon /> : <SendIcon />,
             onSelect: () => void sendAccess(item),
           });
         }
-        if (item.status === 'PENDING' || item.status === 'EXPIRED') actions.push({ label: actionId === item.id ? 'Resending…' : 'Resend', disabled: actionId === item.id, onSelect: () => void resend(item) });
-        if (item.status === 'PENDING') actions.push({ label: 'Cancel', danger: true, onSelect: () => setCancelTarget(item) });
-        if (item.status === 'PENDING' || item.status === 'ACCEPTED') actions.push({ label: 'Copy Link', onSelect: () => void copyLink(item) });
+        if (item.status === 'PENDING' || item.status === 'EXPIRED') actions.push({ label: actionId === item.id ? 'Resending…' : 'Resend', icon: <ResendIcon />, disabled: actionId === item.id, onSelect: () => void resend(item) });
+        if (item.status === 'PENDING') actions.push({ label: 'Cancel', icon: <CancelIcon />, danger: true, onSelect: () => setCancelTarget(item) });
+        if (item.status === 'PENDING' || item.status === 'ACCEPTED') actions.push({ label: 'Copy Link', icon: <CopyLinkIcon />, onSelect: () => void copyLink(item) });
         return <ActionMenu items={actions} ariaLabel={`Actions for ${item.recipient_email}`} />;
       },
     },

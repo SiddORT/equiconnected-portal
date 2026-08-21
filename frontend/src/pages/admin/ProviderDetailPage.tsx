@@ -22,6 +22,7 @@ import {
 import { listSpecializations } from '@/api/specializations';
 import { DoctorProfessionalSections } from '@/components/admin/DoctorProfessionalSections';
 import { ActionMenu } from '@/components/ui/ActionMenu';
+import { ActivateIcon, DeactivateIcon, PublishIcon, UnpublishIcon } from '@/components/ui/AdminIcons';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
@@ -355,7 +356,7 @@ export function ProviderDetailPage() {
               items={[
                 {
                   label: p.status === 'ACTIVE' ? 'Deactivate' : 'Activate',
-                  icon: p.status === 'ACTIVE' ? '⊘' : '✓',
+                   icon: p.status === 'ACTIVE' ? <DeactivateIcon /> : <ActivateIcon />,
                   danger: p.status === 'ACTIVE',
                   disabled: busy,
                   onSelect: () =>
@@ -366,7 +367,7 @@ export function ProviderDetailPage() {
                 },
                 {
                   label: p.publication_status === 'PUBLISHED' ? 'Unpublish' : 'Publish',
-                  icon: p.publication_status === 'PUBLISHED' ? '📕' : '📗',
+                   icon: p.publication_status === 'PUBLISHED' ? <UnpublishIcon /> : <PublishIcon />,
                   disabled: busy,
                   onSelect: () =>
                     run(

@@ -9,6 +9,7 @@ import { extractErrorMessage } from '@/api/client';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionMenu } from '@/components/ui/ActionMenu';
+import { ViewIcon } from '@/components/ui/AdminIcons';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -100,7 +101,7 @@ export function ProviderApplicationsPage() {
     { key: 'email', label: 'Email', width: '1.4fr', render: (item) => <span className={styles.emailCell}>{item.email}</span> },
     { key: 'email_verified_at', label: 'Email', width: '100px', hideOnMobile: true, render: (item) => item.email_verified_at ? <Badge size="sm" variant="success">Verified</Badge> : <Badge size="sm" variant="neutral">Unverified</Badge> },
     { key: 'review_status', label: 'Review', width: '130px', hideOnMobile: true, render: (item) => applicationStatusBadge(item.review_status) },
-    { key: 'actions', label: 'Actions', width: '70px', align: 'right', render: (item) => <ActionMenu ariaLabel={`Actions for ${item.provider_name}`} items={[{ label: 'View application', onSelect: () => { setDetailTarget(item); setDecisionError(null); } }]} /> },
+    { key: 'actions', label: 'Actions', width: '70px', align: 'right', render: (item) => <ActionMenu ariaLabel={`Actions for ${item.provider_name}`} items={[{ label: 'View application', icon: <ViewIcon />, onSelect: () => { setDetailTarget(item); setDecisionError(null); } }]} /> },
   ];
 
   const hasFilters = Boolean(search || providerType || reviewStatus || emailVerified !== undefined);

@@ -8,7 +8,6 @@
   background: none;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
-  font-size: var(--text-lg);
   line-height: 1;
   color: var(--text-secondary);
   cursor: pointer;
@@ -17,6 +16,15 @@
 .trigger:hover {
   background: var(--bg-subtle);
   color: var(--text-primary);
+}
+.trigger:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.triggerIcon {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
 .menu {
@@ -55,5 +63,25 @@
 .item--danger:hover:not(:disabled) { background: var(--color-error-light, #fef2f2); }
 
 .icon {
-  font-size: var(--text-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  color: var(--color-primary-600);
+}
+.icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+.item:hover:not(:disabled) .icon {
+  color: var(--color-primary-700);
+}
+.item--danger .icon {
+  color: currentColor;
+}
+.item:disabled .icon {
+  color: currentColor;
 }

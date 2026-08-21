@@ -5,6 +5,7 @@ import { extractErrorMessage } from '@/api/client';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionMenu, type ActionMenuItem } from '@/components/ui/ActionMenu';
+import { ViewIcon } from '@/components/ui/AdminIcons';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
@@ -134,7 +135,7 @@ export function UsersPage() {
       align: 'right',
       render: (item) => {
         const actions: ActionMenuItem[] = [
-          { label: 'View details', onSelect: () => setDetailTarget(item) },
+          { label: 'View details', icon: <ViewIcon />, onSelect: () => setDetailTarget(item) },
         ];
         return <ActionMenu items={actions} ariaLabel={`Actions for ${item.full_name}`} />;
       },

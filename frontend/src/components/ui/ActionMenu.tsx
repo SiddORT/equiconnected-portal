@@ -8,6 +8,7 @@
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { MoreHorizontalIcon } from './AdminIcons';
 import styles from './ActionMenu.module.css';
 
 export interface ActionMenuItem {
@@ -82,7 +83,7 @@ export function ActionMenu({ items, ariaLabel = 'Actions' }: ActionMenuProps) {
         aria-controls={menuId}
         onClick={() => setOpen((o) => !o)}
       >
-        ⋯
+        <MoreHorizontalIcon className={styles.triggerIcon} />
       </button>
       {open &&
         createPortal(
@@ -109,7 +110,7 @@ export function ActionMenu({ items, ariaLabel = 'Actions' }: ActionMenuProps) {
                   item.onSelect();
                 }}
               >
-                {item.icon && <span className={styles.icon} aria-hidden="true">{item.icon}</span>}
+                {item.icon && <span className={styles.icon}>{item.icon}</span>}
                 {item.label}
               </button>
             ))}

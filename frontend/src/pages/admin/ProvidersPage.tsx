@@ -12,6 +12,7 @@ import {
   updateProviderStatus,
 } from '@/api/providers';
 import { ActionMenu } from '@/components/ui/ActionMenu';
+import { ActivateIcon, DeactivateIcon, EditIcon, PublishIcon, UnpublishIcon, ViewIcon } from '@/components/ui/AdminIcons';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
@@ -235,18 +236,18 @@ export function ProvidersPage() {
         <ActionMenu
           ariaLabel={`Actions for ${p.name}`}
           items={[
-            { label: 'View', icon: '👁', onSelect: () => navigate(`/admin/providers/${p.id}`) },
-            { label: 'Edit', icon: '✏️', onSelect: () => navigate(`/admin/providers/${p.id}/edit`) },
+            { label: 'View', icon: <ViewIcon />, onSelect: () => navigate(`/admin/providers/${p.id}`) },
+            { label: 'Edit', icon: <EditIcon />, onSelect: () => navigate(`/admin/providers/${p.id}/edit`) },
             {
               label: p.status === 'ACTIVE' ? 'Deactivate' : 'Activate',
-              icon: p.status === 'ACTIVE' ? '⊘' : '✓',
+              icon: p.status === 'ACTIVE' ? <DeactivateIcon /> : <ActivateIcon />,
               danger: p.status === 'ACTIVE',
               disabled: busyId === p.id,
               onSelect: () => handleToggleStatus(p),
             },
             {
               label: p.publication_status === 'PUBLISHED' ? 'Unpublish' : 'Publish',
-              icon: p.publication_status === 'PUBLISHED' ? '📕' : '📗',
+              icon: p.publication_status === 'PUBLISHED' ? <UnpublishIcon /> : <PublishIcon />,
               disabled: busyId === p.id,
               onSelect: () => handleTogglePublication(p),
             },
