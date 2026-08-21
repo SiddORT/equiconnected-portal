@@ -6,3 +6,4 @@
 - [Dashboard invitation analytics](dashboard-invitation-analytics.md) — accepted and rejected metrics are derived from the workflow’s existing invitation states.
 - [Email verification redemption](email-verification-redemption.md) — single-use verification needs both transactional token locking and a Strict Mode-safe client request.
 - [Alembic migration heads](alembic-migration-heads.md) — reconcile sibling migrations before delivery so normal upgrades retain one canonical head.
+- [Dashboard registration metrics](dashboard-registration-metrics.md) — public-account dashboard counts use roles and verification state, not invitation data.
