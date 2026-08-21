@@ -66,7 +66,7 @@ export function LoginPage() {
     if (loginState?.verifiedEmail || loginState?.verifiedNotice) {
       // Keep the success notice in component state while removing the
       // one-time handoff data from browser history.
-      navigate('/login', { replace: true, state: null });
+      navigate('/admin/login', { replace: true, state: null });
     }
   }, [loginState?.verifiedEmail, loginState?.verifiedNotice, navigate]);
 
@@ -111,35 +111,22 @@ export function LoginPage() {
   }
 
   return (
-    <div className={styles.page}>
-      <div className={styles.leftPanel} aria-hidden="true">
-        <div className={styles.leftContent}>
+    <div className={styles.page} data-testid="admin-login-page" data-layout="admin-centered">
+      <main className={styles.main} aria-labelledby="admin-login-heading">
+        <div className={styles.brand}>
           <img src="/logo.png" alt="" className={styles.logoMark} aria-hidden="true" />
-          <h1 className={`text-display ${styles.leftTitle}`}>EquiConnected</h1>
-          <p className={styles.leftSubtitle}>
-            Secure healthcare coordination for the modern era.
-          </p>
-          <ul className={styles.leftFeatures} role="list">
-            {[
-              'Role-based access control',
-              'Full audit trail',
-              'End-to-end encryption',
-              'Real-time coordination',
-            ].map((f) => (
-              <li key={f} className={styles.leftFeature}>
-                <span className={styles.leftCheck} aria-hidden="true">✓</span>
-                {f}
-              </li>
-            ))}
-          </ul>
+          <div>
+            <strong>EquiConnected</strong>
+            <span>Administration portal</span>
+          </div>
         </div>
-      </div>
 
-      <main className={styles.rightPanel}>
-        <div className={styles.formCard}>
+        <div className={styles.formCard} data-testid="admin-login-form">
           <div className={styles.formHeader}>
-<div className={styles.formIcon} aria-hidden="true">🔐</div>
-            <h2 className={`text-display ${styles.formTitle}`}>Admin sign in</h2>
+            <p className={styles.formEyebrow}>Secure administrator access</p>
+            <h1 id="admin-login-heading" className={`text-display ${styles.formTitle}`}>
+              Admin sign in
+            </h1>
             <p className={styles.formSubtitle}>
               Enter your administrator credentials to access the portal.
             </p>

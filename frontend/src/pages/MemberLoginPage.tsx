@@ -109,8 +109,16 @@ export function MemberLoginPage() {
   }
 
   return (
-    <div className={styles.page}>
-      <section className={styles.story} aria-labelledby="member-story-heading">
+    <div
+      className={styles.page}
+      data-testid="member-login-page"
+      data-layout="member-story-right-form"
+    >
+      <section
+        className={styles.story}
+        data-testid="member-story-panel"
+        aria-labelledby="member-story-heading"
+      >
         <div className={styles.storyImages} aria-hidden="true">
           <img className={styles.stableImage} src="/stable-panel.jpg" alt="" />
           <img className={styles.horseImage} src="/horse-panel.jpg" alt="" />
@@ -136,7 +144,7 @@ export function MemberLoginPage() {
         </div>
       </section>
 
-      <main className={styles.main}>
+      <main className={styles.main} data-testid="member-login-form">
         <div className={styles.formCard}>
           <div className={styles.mobileBrand}>
             <Link className={styles.mobileBrandLink} to="/" aria-label="EquiConnected home">

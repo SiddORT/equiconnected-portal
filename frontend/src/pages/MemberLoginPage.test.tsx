@@ -45,6 +45,11 @@ describe('MemberLoginPage', () => {
   it('uses a member-focused presentation and member field identifiers', () => {
     renderMember();
 
+    expect(screen.getByTestId('member-login-page').getAttribute('data-layout')).toBe(
+      'member-story-right-form'
+    );
+    expect(screen.getByTestId('member-story-panel')).toBeTruthy();
+    expect(screen.getByTestId('member-login-form')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Sign in to your care community' })).toBeTruthy();
     expect(screen.getByText('Discover trusted hospitals, clinics, and doctors for the horses who rely on you.')).toBeTruthy();
     const decorativeImages = document.querySelectorAll('img[alt=""]');
@@ -62,6 +67,9 @@ describe('MemberLoginPage', () => {
       </MemoryRouter>
     );
 
+    expect(screen.getByTestId('admin-login-page').getAttribute('data-layout')).toBe('admin-centered');
+    expect(screen.getByTestId('admin-login-form')).toBeTruthy();
+    expect(screen.queryByTestId('member-story-panel')).toBeNull();
     expect(screen.getByRole('heading', { name: 'Admin sign in' })).toBeTruthy();
     expect(screen.getByText('Enter your administrator credentials to access the portal.')).toBeTruthy();
     expect(screen.getByLabelText('Email address').getAttribute('id')).toBe('admin-email');
@@ -81,6 +89,24 @@ describe('MemberLoginPage', () => {
     expect(screen.getByDisplayValue('rider@example.com')).toBeTruthy();
     expect(screen.getByText('Your email has been verified. You can now sign in.')).toBeTruthy();
     expect(navigate).toHaveBeenCalledWith('/login', { replace: true, state: null });
+  });
+
+  it('keeps the administrator verification handoff on the admin route', () => {
+    render(
+      <MemoryRouter initialEntries={[{
+        pathname: '/admin/login',
+        state: {
+          verifiedEmail: 'admin@example.com',
+          verifiedNotice: 'Administrator email verified. You can now sign in.',
+        },
+      }]}>
+        <LoginPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByDisplayValue('admin@example.com')).toBeTruthy();
+    expect(screen.getByText('Administrator email verified. You can now sign in.')).toBeTruthy();
+    expect(navigate).toHaveBeenCalledWith('/admin/login', { replace: true, state: null });
   });
 
   it('validates credentials, toggles password visibility, and returns to the requested page', async () => {
@@ -107,5 +133,33 @@ describe('MemberLoginPage', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
     await waitFor(() => expect(login).toHaveBeenCalledWith('rider@example.com', 'SecureHorse7'));
     expect(navigate).toHaveBeenCalledWith('/providers/demo-provider', { replace: true });
+  });
+
+  it('preserves administrator validation, visibility control, and requested navigation', async () => {
+    const user = userEvent.setup();
+    login.mockResolvedValue(undefined);
+    render(
+      <MemoryRouter initialEntries={[{
+        pathname: '/admin/login',
+        state: { from: { pathname: '/admin/invitations' } },
+      }]}>
+        <LoginPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.submit(screen.getByRole('button', { name: 'Sign in' }).closest('form')!);
+    expect(await screen.findByText('Email is required')).toBeTruthy();
+    expect(screen.getByText('Password is required')).toBeTruthy();
+
+    await user.type(screen.getByLabelText('Email address'), ' Admin@Example.com ');
+    await user.type(screen.getByLabelText('Password'), 'SecureAdmin7');
+    expect(screen.getByLabelText('Password').getAttribute('type')).toBe('password');
+
+    await user.click(screen.getByRole('button', { name: 'Show password' }));
+    expect(screen.getByLabelText('Password').getAttribute('type')).toBe('text');
+
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+    await waitFor(() => expect(login).toHaveBeenCalledWith('admin@example.com', 'SecureAdmin7'));
+    expect(navigate).toHaveBeenCalledWith('/admin/invitations', { replace: true });
   });
 });
