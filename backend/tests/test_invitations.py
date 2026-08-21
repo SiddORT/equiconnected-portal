@@ -312,6 +312,39 @@ class TestAdminCreate:
         assert resp.status_code == 409
         assert resp.json()["detail"]["code"] == "duplicate_invitation"
 
+    def test_existing_account_email_returns_clear_validation_error(
+        self,
+        client: TestClient,
+        admin_token: str,
+        db,
+        captured_email: dict,
+    ):
+        users = UserRepository(db)
+        visitor = users.get_role_by_name("visitor") or users.create_role("visitor", "Visitor")
+        users.create_user(
+            email="existing-account@example.com",
+            password_hash=hash_password("VisitorPass9"),
+            role=visitor,
+            roles=[visitor],
+        )
+        db.commit()
+
+        resp = client.post(
+            ADMIN_BASE,
+            json=_invitation_body(recipient_email="existing-account@example.com"),
+            headers=_auth(admin_token),
+        )
+
+        assert resp.status_code == 409
+        assert resp.json()["detail"] == {
+            "code": "recipient_email_in_use",
+            "message": (
+                "This email address already belongs to an EquiConnected account. "
+                "Use a different email address to send a provider invitation."
+            ),
+        }
+        assert captured_email["calls"] == []
+
     def test_unknown_provider_id_returns_404(
         self,
         client: TestClient,

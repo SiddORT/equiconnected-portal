@@ -62,6 +62,10 @@ class DuplicateInvitationError(InvitationError):
     pass
 
 
+class RecipientEmailInUseError(InvitationError):
+    """The recipient email already belongs to an existing app account."""
+
+
 class InvalidInvitationStateError(InvitationError):
     pass
 
@@ -164,6 +168,11 @@ class InvitationService:
     ) -> ProviderInvitation:
         self._expire_due()
         recipient = str(fields["recipient_email"]).strip().lower()
+        if UserRepository(self._repo._db).get_by_email(recipient) is not None:
+            raise RecipientEmailInUseError(
+                "This email address already belongs to an EquiConnected account. "
+                "Use a different email address to send a provider invitation."
+            )
         provider_id = fields.get("provider_id")
         if not provider_id:
             self._repo.lock_new_provider_invitation(

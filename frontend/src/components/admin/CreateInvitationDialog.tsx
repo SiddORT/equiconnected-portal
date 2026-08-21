@@ -68,6 +68,9 @@ export function CreateInvitationDialog({ onSuccess, onCancel, onDeliveryFailure 
       if (code === 'email_delivery_failed') {
         setError('The invitation was saved, but the email could not be delivered. Close this dialog and use Resend from the invitation row to try delivery again.');
         onDeliveryFailure?.();
+      } else if (code === 'recipient_email_in_use') {
+        setEmailError(extractErrorMessage(err, 'This email address is already in use.'));
+        emailRef.current?.focus();
       } else {
         setError(extractErrorMessage(err, 'The invitation could not be sent. Please try again.'));
       }

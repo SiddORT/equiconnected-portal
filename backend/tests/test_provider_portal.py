@@ -162,7 +162,14 @@ def test_portal_access_rejects_unrelated_existing_account(client, db, seeded_adm
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 409
-    assert response.json()["detail"]["code"] == "portal_access_account_conflict"
+    assert response.json()["detail"] == {
+        "code": "portal_access_account_conflict",
+        "message": (
+            "This email address already belongs to an EquiConnected account and "
+            "cannot be linked to this provider automatically. Use a different "
+            "email address for the provider."
+        ),
+    }
 
 
 def test_disabling_pending_provider_revokes_setup_link(client, db, seeded_admin, monkeypatch):

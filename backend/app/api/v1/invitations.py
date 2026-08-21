@@ -24,6 +24,7 @@ from app.services.invitation_service import (
     DuplicateInvitationError, InvitationCancelledError, InvitationCompletedError, InvitationExpiredError,
     InvitationNotFoundError, InvitationService, InvalidInvitationStateError, InvalidProviderDataError,
     PortalAccessAccountConflictError, PortalAccessUnavailableError, ProviderTypeMismatchError,
+    RecipientEmailInUseError,
 )
 from app.services.provider_service import ProviderNotFoundError
 from app.repositories.organization_request_repository import OrganizationRequestRepository
@@ -104,6 +105,7 @@ def create_invitation(body: InvitationCreate, request: Request, user: CurrentUse
         audit_context=context_from_request(request, user.id),
     ))
     except DuplicateInvitationError as exc: raise _error(409, "duplicate_invitation", str(exc))
+    except RecipientEmailInUseError as exc: raise _error(409, "recipient_email_in_use", str(exc))
     except (ProviderNotFoundError,): raise _error(404, "provider_not_found", "Provider was not found.")
     except ProviderTypeMismatchError as exc: raise _error(422, "provider_type_mismatch", str(exc))
     except EmailDeliveryError as exc: raise _error(502, "email_delivery_failed", str(exc))
@@ -138,11 +140,13 @@ def send_portal_access(invitation_id: UUID, request: Request, user: CurrentUser,
     except PortalAccessUnavailableError as exc:
         raise _error(409, "portal_access_unavailable", str(exc))
     except PortalAccessAccountConflictError:
-        # Do not identify the unrelated account; the admin gets a safe conflict.
+        # Do not disclose the identity or role of the unrelated account.
         raise _error(
             409,
             "portal_access_account_conflict",
-            "Portal access could not be sent for this recipient. Please contact support.",
+            "This email address already belongs to an EquiConnected account and "
+            "cannot be linked to this provider automatically. Use a different "
+            "email address for the provider.",
         )
     except EmailDeliveryError as exc:
         raise _error(502, "email_delivery_failed", str(exc))

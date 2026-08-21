@@ -13,3 +13,4 @@
 - [Provider review concurrency](provider-review-concurrency.md) — member review writes must use an atomic provider/member upsert, not a read-then-insert.
 - [Destructive user maintenance locking](destructive-user-maintenance-locking.md) — user resets must lock the authorization and restrictive-reference boundary before calculating deletion scope.
 - [PostgreSQL locking with eager relationships](postgres-locking-eager-relationships.md) — lock only the root row when optional eager joins are present.
+- [Provider invitation account boundary](provider-invitation-account-boundary.md) — existing EquiConnected accounts are never auto-linked to provider invitations.
