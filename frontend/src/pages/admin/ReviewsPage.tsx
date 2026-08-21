@@ -84,27 +84,29 @@ export function ReviewsPage() {
   return (
     <div className={styles.shell}>
       <PageHeader title="Provider reviews" subtitle="Review member feedback and hide or restore comment text without affecting ratings." breadcrumbs={[{ label: 'Admin' }, { label: 'Reviews' }]} />
-      {error && <p className={styles.error} role="alert">{error}</p>}
-      <FilterBar
-        groups={[{
-          label: 'Comment visibility',
-          value: visibility,
-          onChange: (value) => updateParams({ comment_visible: value === 'all' ? null : value, page: '1' }),
-          options: [{ value: 'all', label: 'All reviews' }, { value: 'visible', label: 'Visible' }, { value: 'hidden', label: 'Hidden' }],
-        }]}
-      />
-      <DataTable
-        ariaLabel="Provider reviews"
-        columns={columns}
-        data={result?.data ?? []}
-        page={page}
-        pageSize={pageSize}
-        rowKey={(item) => item.id}
-        loading={loadState === 'loading'}
-        error={loadState === 'error' ? { title: 'Failed to load reviews', message: error ?? undefined, onRetry: load } : null}
-        empty={{ icon: '★', title: 'No reviews found', description: visibility === 'all' ? 'Member reviews will appear here.' : 'Try selecting a different visibility filter.' }}
-      />
-      {loadState === 'success' && result && <Pagination page={page} pageSize={pageSize} total={result.meta.total} onPageChange={(next) => updateParams({ page: String(next) })} onPageSizeChange={(size) => updateParams({ page_size: String(size), page: '1' })} />}
+      <div className={styles.body}>
+        {error && <p className={styles.error} role="alert">{error}</p>}
+        <FilterBar
+          groups={[{
+            label: 'Comment visibility',
+            value: visibility,
+            onChange: (value) => updateParams({ comment_visible: value === 'all' ? null : value, page: '1' }),
+            options: [{ value: 'all', label: 'All reviews' }, { value: 'visible', label: 'Visible' }, { value: 'hidden', label: 'Hidden' }],
+          }]}
+        />
+        <DataTable
+          ariaLabel="Provider reviews"
+          columns={columns}
+          data={result?.data ?? []}
+          page={page}
+          pageSize={pageSize}
+          rowKey={(item) => item.id}
+          loading={loadState === 'loading'}
+          error={loadState === 'error' ? { title: 'Failed to load reviews', message: error ?? undefined, onRetry: load } : null}
+          empty={{ icon: '★', title: 'No reviews found', description: visibility === 'all' ? 'Member reviews will appear here.' : 'Try selecting a different visibility filter.' }}
+        />
+        {loadState === 'success' && result && <Pagination page={page} pageSize={pageSize} total={result.meta.total} onPageChange={(next) => updateParams({ page: String(next) })} onPageSizeChange={(size) => updateParams({ page_size: String(size), page: '1' })} />}
+      </div>
     </div>
   );
 }

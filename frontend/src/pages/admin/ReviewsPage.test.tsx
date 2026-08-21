@@ -46,6 +46,8 @@ describe('ReviewsPage', () => {
     const user = userEvent.setup();
     render(<MemoryRouter><ReviewsPage /></MemoryRouter>);
     expect(await screen.findByText('Austin Equine Clinic')).toBeTruthy();
+    expect(screen.getByRole('table', { name: 'Provider reviews' })).toBeTruthy();
+    expect(screen.getByText('Wonderful care')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Hide' }));
     await waitFor(() => expect(adminApi.setAdminReviewCommentVisibility).toHaveBeenCalledWith('review-1', false));
     expect(await screen.findByRole('button', { name: 'Restore' })).toBeTruthy();
