@@ -148,7 +148,7 @@ export function ProvidersPage() {
       hideOnMobile: true,
       render: (p) => (
         <Badge variant={p.visit_stability === 'STABLE_VISIT' ? 'success' : 'warning'} size="sm">
-          {p.visit_stability === 'STABLE_VISIT' ? 'Stable' : 'Not stable'}
+          {p.visit_stability === 'STABLE_VISIT' ? 'Yes' : 'No'}
         </Badge>
       ),
     },
