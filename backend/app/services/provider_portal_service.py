@@ -4,8 +4,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import UUID
 
-from app.models.enums import InvitationStatus, ProviderProfileUpdateStatus
+from app.models.enums import (
+    InvitationStatus,
+    ProviderApplicationStatus,
+    ProviderProfileUpdateStatus,
+)
 from app.models.invitation import ProviderInvitation
+from app.models.provider_registration import ProviderRegistrationApplication
 from app.models.user import User
 from app.repositories.audit_repository import AuditContext, AuditRepository
 from app.repositories.provider_profile_update_repository import ProviderProfileUpdateRepository
@@ -22,7 +27,7 @@ from app.services.provider_profile_update_service import (
 
 
 class ProviderPortalUnavailableError(Exception):
-    """The authenticated provider is not linked to a completed invitation."""
+    """The authenticated provider does not own an approved listing."""
 
 
 class ProviderProfileUpdateDiscardError(Exception):
@@ -42,18 +47,39 @@ class ProviderPortalService:
         self._db = provider_repo._db
         self._audit = AuditRepository(self._db)
 
-    def _invitation_for_user(self, user: User) -> ProviderInvitation:
-        invitation = (
-            self._db.query(ProviderInvitation)
+    def _provider_id_for_user(self, user: User) -> UUID:
+        """Resolve one explicitly approved provider listing for this account.
+
+        Provider ownership is created through either a completed administrator
+        invitation or an approved self-service registration. A missing or
+        ambiguous link is deliberately not inferred from an email address.
+        """
+        provider_ids = {
+            provider_id
+            for (provider_id,) in self._db.query(ProviderInvitation.provider_id)
             .filter(
                 ProviderInvitation.portal_user_id == user.id,
                 ProviderInvitation.status == InvitationStatus.COMPLETED,
+                ProviderInvitation.provider_id.is_not(None),
             )
-            .first()
+            .all()
+        }
+        provider_ids.update(
+            provider_id
+            for (provider_id,) in self._db.query(
+                ProviderRegistrationApplication.provider_id
+            )
+            .filter(
+                ProviderRegistrationApplication.user_id == user.id,
+                ProviderRegistrationApplication.review_status
+                == ProviderApplicationStatus.APPROVED,
+                ProviderRegistrationApplication.provider_id.is_not(None),
+            )
+            .all()
         )
-        if invitation is None or invitation.provider_id is None:
+        if len(provider_ids) != 1:
             raise ProviderPortalUnavailableError()
-        return invitation
+        return provider_ids.pop()
 
     def _profile_response(self, provider_id: UUID):
         from app.schemas.provider import ProviderPortalResponse, ProviderProfileUpdateState
@@ -100,12 +126,10 @@ class ProviderPortalService:
         )
 
     def get_profile(self, user: User):
-        invitation = self._invitation_for_user(user)
-        return self._profile_response(invitation.provider_id)
+        return self._profile_response(self._provider_id_for_user(user))
 
     def update_profile(self, user: User, fields: dict, *, audit_context: AuditContext | None):
-        invitation = self._invitation_for_user(user)
-        provider = self._providers.get_by_id(invitation.provider_id)
+        provider = self._providers.get_by_id(self._provider_id_for_user(user))
         if provider is None:
             raise ProviderPortalUnavailableError()
         # Share the invitation's proven collection and doctor validation, while
@@ -186,8 +210,7 @@ class ProviderPortalService:
         self, user: User, *, audit_context: AuditContext | None
     ):
         """Discard a stale/private draft and return to the latest approved source."""
-        invitation = self._invitation_for_user(user)
-        provider = self._providers.lock_provider(invitation.provider_id)
+        provider = self._providers.lock_provider(self._provider_id_for_user(user))
         if provider is None:
             self._db.rollback()
             raise ProviderPortalUnavailableError()

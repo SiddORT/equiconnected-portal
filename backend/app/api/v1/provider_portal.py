@@ -1,4 +1,4 @@
-"""Authenticated portal endpoints for provider accounts created from invitations."""
+"""Authenticated portal endpoints for approved provider account owners."""
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request

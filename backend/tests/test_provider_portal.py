@@ -5,10 +5,18 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
 from app.core.security import hash_password
-from app.models.enums import InvitationStatus, ProviderStatus, ProviderType, PublicationStatus, VisitStability
+from app.models.enums import (
+    InvitationStatus,
+    ProviderApplicationStatus,
+    ProviderStatus,
+    ProviderType,
+    PublicationStatus,
+    VisitStability,
+)
 from app.models.invitation import ProviderInvitation
 from app.models.provider import Provider, ProviderReview
 from app.models.doctor import DoctorProfile
+from app.models.provider_registration import ProviderRegistrationApplication
 from app.repositories.user_repository import UserRepository
 from app.services.email_service import EmailService
 
@@ -43,6 +51,46 @@ def _completed_invitation(db, admin, *, email: str = "invitee@portal.example.com
     db.add(invitation)
     db.commit()
     return invitation, provider
+
+
+def _approved_registration_provider(
+    db,
+    *,
+    email: str = "registered@portal.example.com",
+    publication_status: PublicationStatus = PublicationStatus.UNPUBLISHED,
+):
+    users = UserRepository(db)
+    provider_role = users.get_role_by_name("provider") or users.create_role(
+        "provider", "Provider portal"
+    )
+    provider = Provider(
+        provider_type=ProviderType.CLINIC,
+        name="Registered Portal Clinic",
+        visit_stability=VisitStability.STABLE_VISIT,
+        status=ProviderStatus.DRAFT,
+        publication_status=publication_status,
+    )
+    db.add(provider)
+    db.flush()
+    account = users.create_user(
+        email=email,
+        password_hash=hash_password("RegisteredPass9"),
+        role=provider_role,
+        roles=[provider_role],
+    )
+    account.email_verified_at = datetime.now(timezone.utc)
+    db.add(
+        ProviderRegistrationApplication(
+            user_id=account.id,
+            provider_id=provider.id,
+            provider_type=provider.provider_type,
+            provider_name=provider.name,
+            visit_stability=provider.visit_stability,
+            review_status=ProviderApplicationStatus.APPROVED,
+        )
+    )
+    db.commit()
+    return provider, account
 
 
 def test_portal_setup_is_single_use_and_provider_profile_is_owned(client, db, seeded_admin, monkeypatch):
@@ -138,6 +186,107 @@ def test_portal_setup_is_single_use_and_provider_profile_is_owned(client, db, se
     assert provider.name == "Updated Portal Clinic"
     assert provider.status == ProviderStatus.UNDER_REVIEW
     assert provider.publication_status == PublicationStatus.UNPUBLISHED
+
+
+def test_approved_registration_provider_can_manage_own_profile_and_see_visible_feedback(
+    client, db, seeded_admin
+):
+    admin, _ = seeded_admin
+    provider, account = _approved_registration_provider(db)
+    users = UserRepository(db)
+    reviewer_role = users.get_role_by_name("visitor") or users.create_role(
+        "visitor", "Visitor"
+    )
+    reviewer = users.create_user(
+        email="registered-reviewer@portal.example.com",
+        password_hash=hash_password("ReviewerPass9"),
+        role=reviewer_role,
+        roles=[reviewer_role],
+    )
+    db.add_all(
+        [
+            ProviderReview(
+                provider_id=provider.id,
+                member_id=admin.id,
+                rating=5,
+                comment="Clear and compassionate care.",
+                comment_visible=True,
+            ),
+            ProviderReview(
+                provider_id=provider.id,
+                member_id=reviewer.id,
+                rating=1,
+                comment="Moderated feedback remains private.",
+                comment_visible=False,
+            ),
+        ]
+    )
+    db.commit()
+
+    token = _login(client, account.email, "RegisteredPass9")
+    headers = {"Authorization": f"Bearer {token}"}
+    profile = client.get("/api/v1/provider/portal/profile", headers=headers)
+
+    assert profile.status_code == 200, profile.text
+    assert profile.json()["id"] == str(provider.id)
+    assert profile.json()["average_rating"] == 3.0
+    assert profile.json()["review_count"] == 2
+    assert [review["comment"] for review in profile.json()["visible_reviews"]] == [
+        "Clear and compassionate care."
+    ]
+    assert client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=headers,
+        json={"name": "Updated Registered Clinic"},
+    ).status_code == 200
+    db.refresh(provider)
+    assert provider.name == "Updated Registered Clinic"
+    assert provider.status == ProviderStatus.DRAFT
+    assert provider.publication_status == PublicationStatus.UNPUBLISHED
+
+
+def test_portal_rejects_provider_account_without_an_approved_listing_link(
+    client, db, seeded_admin
+):
+    _admin, _ = seeded_admin
+    _provider, account = _approved_registration_provider(
+        db, email="unlinked-provider@portal.example.com"
+    )
+    token = _login(client, account.email, "RegisteredPass9")
+    application = (
+        db.query(ProviderRegistrationApplication)
+        .filter(ProviderRegistrationApplication.user_id == account.id)
+        .one()
+    )
+    db.delete(application)
+    db.commit()
+
+    response = client.get(
+        "/api/v1/provider/portal/profile",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "provider_application_unavailable"
+
+
+def test_portal_rejects_conflicting_approved_provider_links(client, db, seeded_admin):
+    admin, _ = seeded_admin
+    _registered_provider, account = _approved_registration_provider(db)
+    invitation, _invited_provider = _completed_invitation(
+        db, admin, email=account.email
+    )
+    invitation.portal_user_id = account.id
+    db.commit()
+
+    token = _login(client, account.email, "RegisteredPass9")
+    response = client.get(
+        "/api/v1/provider/portal/profile",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "provider_portal_unavailable"
 
 
 def test_portal_access_rejects_unrelated_existing_account(client, db, seeded_admin, monkeypatch):

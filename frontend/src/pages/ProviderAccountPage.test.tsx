@@ -15,7 +15,6 @@ vi.mock('@/api/providers', () => ({
   discardProviderPortalProfileUpdate: vi.fn(),
 }));
 vi.mock('@/api/client', () => ({
-  getApiErrorCode: () => 'provider_portal_unavailable',
   extractErrorMessage: () => 'Provider portal unavailable',
 }));
 vi.mock('@/app/AuthContext', () => ({
@@ -83,15 +82,16 @@ function LocationProbe() {
 }
 
 describe('ProviderAccountPage', () => {
-  it('preserves the approved self-registered provider account view outside the invitation portal', async () => {
-    vi.mocked(providersApi.getProviderPortalProfile).mockRejectedValue(new Error('not invitation-linked'));
+  it('renders the editable workspace instead of the legacy approved-account placeholder', async () => {
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(portalProfile);
     vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
 
     render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
 
-    expect(await screen.findByText('Your provider account is approved.')).toBeTruthy();
-    expect(screen.getByText(/Your directory listing is staged/)).toBeTruthy();
-    expect(screen.queryByText('Provider portal access is unavailable.')).toBeNull();
+    expect(await screen.findByRole('heading', { name: 'Your profile' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Member feedback' })).toBeTruthy();
+    expect(screen.queryByText('Your provider account is approved.')).toBeNull();
+    expect(screen.queryByText(/more account tools are ready/)).toBeNull();
   });
 
   it('shows only member-visible feedback as timestamped cards without reviewer emails or moderation controls', async () => {

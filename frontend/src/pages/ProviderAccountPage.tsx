@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
-import { extractErrorMessage, getApiErrorCode } from '@/api/client';
+import { extractErrorMessage } from '@/api/client';
 import * as providersApi from '@/api/providers';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { Alert } from '@/components/ui/Alert';
@@ -20,7 +20,7 @@ function formattedList(value: unknown) {
 }
 
 export function ProviderAccountPage() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { formatTimestamp } = useTimeSettings();
   const [profile, setProfile] = useState<ProviderPortalProfile | null>(null);
   const [specializations, setSpecializations] = useState<ProviderSpecializationBrief[]>([]);
@@ -31,7 +31,6 @@ export function ProviderAccountPage() {
   const [photos, setPhotos] = useState('[]');
   const [qualifications, setQualifications] = useState('[]');
   const [loading, setLoading] = useState(true);
-  const [legacyApprovedAccount, setLegacyApprovedAccount] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -72,13 +71,7 @@ export function ProviderAccountPage() {
         populate(next);
         setSpecializations(choices);
       } catch (err) {
-        if (getApiErrorCode(err) === 'provider_portal_unavailable') {
-          // Approved self-service provider accounts continue to use this route,
-          // but are deliberately outside the invitation-owned portal boundary.
-          setLegacyApprovedAccount(true);
-        } else {
-          setNotice({ variant: 'error', text: extractErrorMessage(err, 'Your provider portal could not be loaded.') });
-        }
+        setNotice({ variant: 'error', text: extractErrorMessage(err, 'Your provider portal could not be loaded.') });
       } finally {
         setLoading(false);
       }
@@ -185,24 +178,6 @@ export function ProviderAccountPage() {
     );
   }
   if (!profile) {
-    if (legacyApprovedAccount) {
-      return (
-        <div className={styles.page}>
-          <ProviderTopNav />
-          <main className={styles.state}><section className={styles.card}>
-            <p className={styles.eyebrow}>Provider account</p>
-            <h1 className="text-display">Your provider account is approved.</h1>
-            <p className={styles.empty}>
-              Welcome, {user?.full_name ?? 'provider'}. Your directory listing is staged for the EquiConnected team.
-            </p>
-            <p className={styles.hint}>
-              Profile editing is currently available through administrator review. We’ll let you know when more account tools are ready.
-            </p>
-            <Button type="button" variant="secondary" onClick={() => void logout()}>Sign out</Button>
-          </section></main>
-        </div>
-      );
-    }
     return (
       <div className={styles.page}>
         <ProviderTopNav />

@@ -7,6 +7,7 @@ from app.core.security import hash_password
 from app.models.audit_log import AuditLog
 from app.models.enums import (
     InvitationStatus,
+    ProviderApplicationStatus,
     ProviderProfileUpdateStatus,
     ProviderStatus,
     ProviderType,
@@ -15,6 +16,7 @@ from app.models.enums import (
 )
 from app.models.invitation import ProviderInvitation
 from app.models.provider import Provider, ProviderLocation, ProviderProfileUpdate
+from app.models.provider_registration import ProviderRegistrationApplication
 from app.repositories.user_repository import UserRepository
 from app.services.provider_profile_update_service import editable_profile_from_provider
 
@@ -26,7 +28,13 @@ def _login(client, email: str, password: str) -> str:
 
 
 def _portal_provider(
-    db, admin, *, email: str, name: str, publication_status: PublicationStatus
+    db,
+    admin,
+    *,
+    email: str,
+    name: str,
+    publication_status: PublicationStatus,
+    registered_account: bool = False,
 ):
     users = UserRepository(db)
     role = users.get_role_by_name("provider") or users.create_role("provider", "Provider portal")
@@ -55,20 +63,32 @@ def _portal_provider(
         roles=[role],
     )
     account.email_verified_at = datetime.now(timezone.utc)
-    db.add(
-        ProviderInvitation(
-            provider_id=provider.id,
-            provider_type=ProviderType.CLINIC,
-            recipient_email=email,
-            token_hash=f"{email}-completed",
-            status=InvitationStatus.COMPLETED,
-            expires_at=datetime.now(timezone.utc) + timedelta(days=1),
-            sent_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
-            portal_user_id=account.id,
-            created_by=admin.id,
+    if registered_account:
+        db.add(
+            ProviderRegistrationApplication(
+                user_id=account.id,
+                provider_id=provider.id,
+                provider_type=ProviderType.CLINIC,
+                provider_name=name,
+                visit_stability=VisitStability.STABLE_VISIT,
+                review_status=ProviderApplicationStatus.APPROVED,
+            )
         )
-    )
+    else:
+        db.add(
+            ProviderInvitation(
+                provider_id=provider.id,
+                provider_type=ProviderType.CLINIC,
+                recipient_email=email,
+                token_hash=f"{email}-completed",
+                status=InvitationStatus.COMPLETED,
+                expires_at=datetime.now(timezone.utc) + timedelta(days=1),
+                sent_at=datetime.now(timezone.utc),
+                completed_at=datetime.now(timezone.utc),
+                portal_user_id=account.id,
+                created_by=admin.id,
+            )
+        )
     db.commit()
     return provider, account
 
@@ -182,6 +202,32 @@ def test_published_profile_update_isolated_then_rejected_and_resubmitted(client,
     assert resubmitted.json()["profile_update"]["rejection_reason"] is None
     db.refresh(provider)
     assert provider.name == "Approved Clinic"
+
+
+def test_approved_registered_provider_submits_published_changes_for_review(
+    client, db, seeded_admin
+):
+    admin, _ = seeded_admin
+    provider, account = _portal_provider(
+        db,
+        admin,
+        email="registered-published-owner@example.com",
+        name="Registered Published Clinic",
+        publication_status=PublicationStatus.PUBLISHED,
+        registered_account=True,
+    )
+    token = _login(client, account.email, "ProviderPass9")
+    submitted = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"name": "Registered Provider Proposal"},
+    )
+
+    assert submitted.status_code == 200, submitted.text
+    assert submitted.json()["profile_update"]["review_status"] == "PENDING_REVIEW"
+    assert submitted.json()["editable_profile"]["name"] == "Registered Provider Proposal"
+    db.refresh(provider)
+    assert provider.name == "Registered Published Clinic"
 
 
 def test_admin_approval_atomically_applies_snapshot_and_records_audit(client, db, seeded_admin):
