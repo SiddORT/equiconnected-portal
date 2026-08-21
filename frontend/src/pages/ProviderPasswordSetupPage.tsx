@@ -17,6 +17,8 @@ export function ProviderPasswordSetupPage() {
   );
   const [complete, setComplete] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -70,8 +72,8 @@ export function ProviderPasswordSetupPage() {
         ) : (
           <form className={styles.form} onSubmit={submit} noValidate>
             {error && <Alert variant="error" onDismiss={() => setError(null)}>{error}</Alert>}
-            <Input label="Password" id="portal-password" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={saving || !token} containerClassName={styles.signupField} hint="At least 8 characters with upper- and lowercase letters and a number." required />
-            <Input label="Confirm password" id="portal-password-confirmation" type="password" autoComplete="new-password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} disabled={saving || !token} containerClassName={styles.signupField} required />
+            <Input label="Password" id="portal-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={saving || !token} containerClassName={styles.signupField} hint="At least 8 characters with upper- and lowercase letters and a number." required rightAdornment={<button type="button" className={styles.showHide} onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} disabled={saving || !token}>{showPassword ? '🙈' : '👁'}</button>} />
+            <Input label="Confirm password" id="portal-password-confirmation" type={showConfirmation ? 'text' : 'password'} autoComplete="new-password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} disabled={saving || !token} containerClassName={styles.signupField} required rightAdornment={<button type="button" className={styles.showHide} onClick={() => setShowConfirmation((visible) => !visible)} aria-label={showConfirmation ? 'Hide password confirmation' : 'Show password confirmation'} aria-pressed={showConfirmation} disabled={saving || !token}>{showConfirmation ? '🙈' : '👁'}</button>} />
             <Button type="submit" fullWidth loading={saving} disabled={!token}>Set password</Button>
           </form>
         )}
