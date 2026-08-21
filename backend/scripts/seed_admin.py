@@ -30,6 +30,12 @@ logger = get_logger(__name__)
 
 RECOVERY_CONFIRM_ENV = "ADMIN_RECOVERY_CONFIRM"
 RECOVERY_CONFIRM_VALUE = "RESET_BOOTSTRAP_PASSWORD"
+REQUIRED_ROLES = (
+    ("admin", "Full system administrator"),
+    ("provider", "Provider portal"),
+    ("horse_owner", "Public horse owner account"),
+    ("stable_manager", "Public stable manager account"),
+)
 
 
 @dataclass(frozen=True)
@@ -56,6 +62,18 @@ def bootstrap_admin(
 ) -> BootstrapResult:
     """Create a bootstrap admin once, then only verify it unless recovery is explicit."""
     repo = UserRepository(db)
+    roles = {}
+    roles_changed = False
+    for role_name, description in REQUIRED_ROLES:
+        role = repo.get_role_by_name(role_name)
+        if role is None:
+            logger.info("seed.creating_role", role=role_name)
+            role = repo.create_role(role_name, description)
+            roles_changed = True
+        roles[role_name] = role
+    if roles_changed:
+        repo.commit()
+
     existing = repo.get_by_email(email)
 
     if existing is not None:
@@ -105,15 +123,10 @@ def bootstrap_admin(
             f"Unset {RECOVERY_CONFIRM_ENV} and run the normal bootstrap command first."
         )
 
-    role = repo.get_role_by_name("admin")
-    if role is None:
-        logger.info("seed.creating_role", role="admin")
-        role = repo.create_role("admin", description="Full system administrator")
-
     user = repo.create_user(
         email=email,
         password_hash=hash_password(password),
-        role=role,
+        role=roles["admin"],
         first_name=first_name,
         last_name=last_name,
     )

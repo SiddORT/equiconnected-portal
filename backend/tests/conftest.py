@@ -82,6 +82,10 @@ def _make_engine(schema: str):
         cursor = dbapi_conn.cursor()
         cursor.execute(f"SET search_path TO {schema}")
         cursor.close()
+        # psycopg starts an implicit transaction for SET. Commit the session
+        # setting before SQLAlchemy's pool reset rolls that transaction back;
+        # otherwise later test cleanup can silently fall through to public.
+        dbapi_conn.commit()
 
     return e
 

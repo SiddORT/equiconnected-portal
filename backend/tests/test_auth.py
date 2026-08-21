@@ -469,6 +469,20 @@ class TestDuplicateAdminPrevention:
 # ── 12. Bootstrap credential protection ───────────────────────────────────────
 
 class TestBootstrapCredentialProtection:
+    def test_bootstrap_repairs_all_required_application_roles(self, db):
+        from app.models.role import Role
+        from scripts.seed_admin import REQUIRED_ROLES, bootstrap_admin
+
+        result = bootstrap_admin(
+            db,
+            email="role-repair-admin@example.com",
+            password="RoleRepairAdmin#2026!",
+        )
+
+        assert result.status == "created"
+        role_names = {role.name for role in db.query(Role).all()}
+        assert {name for name, _description in REQUIRED_ROLES} <= role_names
+
     def test_repeat_bootstrap_verifies_without_changing_password_or_access(
         self, client: TestClient, db
     ):
