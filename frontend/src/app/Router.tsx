@@ -20,6 +20,7 @@ import { InvitationPage } from '@/pages/InvitationPage';
 import { SubmissionSuccessPage } from '@/pages/SubmissionSuccessPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { VerifyEmailPage } from '@/pages/VerifyEmailPage';
+import { LegalPage } from '@/pages/LegalPage';
 
 export function AppRouter() {
   return (
@@ -33,6 +34,8 @@ export function AppRouter() {
         <Route path="/provider/invitations/:token" element={<InvitationPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/terms-of-service" element={<LegalPage kind="terms" />} />
+        <Route path="/privacy-policy" element={<LegalPage kind="privacy" />} />
 
         {/* ── Admin auth ──────────────────────────────────────────── */}
         <Route path="/admin/login" element={<LoginPage />} />

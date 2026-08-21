@@ -172,15 +172,19 @@ export function SignupPage() {
               <Input label="Confirm password" type="password" id="signup-password-confirmation" autoComplete="new-password" placeholder="Repeat your password" containerClassName={styles.signupField} value={form.password_confirmation} onChange={(e) => update('password_confirmation', e.target.value)} error={errors.password_confirmation} disabled={submitting} required />
             </div>
             <div className={styles.consents}>
-              <label className={styles.consent}>
-                <input type="checkbox" checked={form.accept_terms} onChange={(e) => update('accept_terms', e.target.checked)} disabled={submitting} />
-                <span>I agree to the Terms &amp; Conditions.</span>
-              </label>
+              <div className={styles.consent}>
+                <input id="accept-terms" type="checkbox" checked={form.accept_terms} onChange={(e) => update('accept_terms', e.target.checked)} disabled={submitting} />
+                <label htmlFor="accept-terms">I agree to the&nbsp;</label>
+                <Link to="/terms-of-service">Terms &amp; Conditions</Link>
+                <span>.</span>
+              </div>
               {errors.accept_terms && <p className={styles.consentError} role="alert">{errors.accept_terms}</p>}
-              <label className={styles.consent}>
-                <input type="checkbox" checked={form.accept_privacy} onChange={(e) => update('accept_privacy', e.target.checked)} disabled={submitting} />
-                <span>I agree to the Privacy Policy.</span>
-              </label>
+              <div className={styles.consent}>
+                <input id="accept-privacy" type="checkbox" checked={form.accept_privacy} onChange={(e) => update('accept_privacy', e.target.checked)} disabled={submitting} />
+                <label htmlFor="accept-privacy">I agree to the&nbsp;</label>
+                <Link to="/privacy-policy">Privacy Policy</Link>
+                <span>.</span>
+              </div>
               {errors.accept_privacy && <p className={styles.consentError} role="alert">{errors.accept_privacy}</p>}
             </div>
             <Button type="submit" variant="primary" size="lg" fullWidth loading={submitting}>
