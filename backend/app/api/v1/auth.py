@@ -37,6 +37,7 @@ from app.services.auth_service import (
     InvalidTokenError,
     LoginResult,
     PublicAccountAccessError,
+    RegistrationUnavailableError,
     VerificationTokenExpiredError,
     VerificationTokenNotFoundError,
     VerificationTokenUsedError,
@@ -85,6 +86,14 @@ def register(
             detail={
                 "code": "email_already_registered",
                 "message": "An account with this email already exists.",
+            },
+        )
+    except RegistrationUnavailableError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "registration_unavailable",
+                "message": "Registration is temporarily unavailable. Please try again later.",
             },
         )
     except EmailDeliveryError:

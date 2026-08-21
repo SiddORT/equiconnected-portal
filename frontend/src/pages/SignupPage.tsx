@@ -4,7 +4,7 @@
  */
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { extractErrorMessage } from '@/api/client';
+import { extractErrorMessage, getApiErrorCode } from '@/api/client';
 import * as authApi from '@/api/auth';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
@@ -105,7 +105,10 @@ export function SignupPage() {
       });
       setSubmitted(true);
     } catch (error) {
-      setGlobalError(extractErrorMessage(error, 'We could not create your account. Please try again.'));
+      const message = getApiErrorCode(error) === 'registration_unavailable'
+        ? 'Registration is temporarily unavailable. Please try again later.'
+        : extractErrorMessage(error, 'We could not create your account. Please try again.');
+      setGlobalError(message);
     } finally {
       setSubmitting(false);
     }

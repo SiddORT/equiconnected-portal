@@ -25,6 +25,12 @@ export function getAccessToken(): string | null {
   return accessToken;
 }
 
+export function getApiErrorCode(error: unknown): string | null {
+  if (!axios.isAxiosError(error)) return null;
+  const detail = error.response?.data?.detail;
+  return typeof detail?.code === 'string' ? detail.code : null;
+}
+
 // ── Axios instance ─────────────────────────────────────────────────────────
 
 export const apiClient: AxiosInstance = axios.create({
@@ -100,6 +106,9 @@ apiClient.interceptors.response.use(
 export function extractErrorMessage(error: unknown, fallback = 'An unexpected error occurred.'): string {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data;
+    if (data?.detail?.code === 'registration_unavailable') {
+      return 'Registration is temporarily unavailable. Please try again later.';
+    }
     if (data?.error?.message) return data.error.message;
     if (data?.detail?.message) return data.detail.message;
     if (typeof data?.detail === 'string') return data.detail;

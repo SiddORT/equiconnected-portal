@@ -1,12 +1,17 @@
 """Public signup and single-use email-verification flow tests."""
 from datetime import datetime, timedelta, timezone
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
 import threading
 from urllib.parse import parse_qs, urlparse
 
+from alembic.operations import Operations
+from alembic.runtime.migration import MigrationContext
 from fastapi.testclient import TestClient
 
 from app.models.enums import PublicAccountApprovalStatus
 from app.models.user import EmailVerificationToken, User, UserRole
+from app.models.role import Role
 from app.repositories.user_repository import UserRepository
 from app.services.email_service import EmailService
 from app.services.auth_service import AuthService, VerificationTokenUsedError
@@ -56,6 +61,101 @@ def _capture_verification_email(monkeypatch) -> list[str]:
 
 
 class TestPublicRegistration:
+    def test_public_role_repair_migration_is_idempotent_and_preserves_existing_data(
+        self, db, monkeypatch
+    ):
+        repo = UserRepository(db)
+        horse_owner = repo.create_role("horse_owner", "Existing horse owner description")
+        existing_user = repo.create_user(
+            email="existing-owner@example.com",
+            password_hash="not-a-real-password-hash",
+            role=horse_owner,
+        )
+        db.commit()
+
+        migration_path = (
+            Path(__file__).resolve().parents[1]
+            / "alembic"
+            / "versions"
+            / "d4b7e9a1c203_restore_public_registration_roles.py"
+        )
+        spec = spec_from_file_location("restore_public_registration_roles", migration_path)
+        assert spec is not None and spec.loader is not None
+        migration = module_from_spec(spec)
+        spec.loader.exec_module(migration)
+        operations = Operations(MigrationContext.configure(db.connection()))
+        monkeypatch.setattr(migration, "op", operations)
+
+        migration.upgrade()
+        migration.upgrade()
+        db.expire_all()
+
+        roles = {role.name: role for role in db.query(Role).all()}
+        restored_user = db.query(User).filter(User.id == existing_user.id).one()
+        assert set(roles) == {"horse_owner", "stable_manager"}
+        assert roles["horse_owner"].description == "Existing horse owner description"
+        assert restored_user.role_id == horse_owner.id
+        assert (
+            db.query(UserRole)
+            .filter(
+                UserRole.user_id == existing_user.id,
+                UserRole.role_id == horse_owner.id,
+            )
+            .count()
+            == 1
+        )
+
+    def test_all_public_role_selections_reach_verification_flow(
+        self, client: TestClient, db, monkeypatch
+    ):
+        _seed_public_roles(db)
+        sent_urls = _capture_verification_email(monkeypatch)
+
+        for index, role in enumerate(("HORSE_OWNER", "STABLE_MANAGER", "BOTH")):
+            response = client.post(
+                f"{BASE}/register",
+                json=_payload(
+                    email=f"role-{index}@example.com",
+                    role=role,
+                ),
+            )
+            assert response.status_code == 201
+
+        assert len(sent_urls) == 3
+        users = db.query(User).order_by(User.email).all()
+        assert len(users) == 3
+        assigned_roles = {
+            user.email: {
+                assignment.role.name
+                for assignment in db.query(UserRole)
+                .filter(UserRole.user_id == user.id)
+                .all()
+            }
+            for user in users
+        }
+        assert assigned_roles["role-0@example.com"] == {"horse_owner"}
+        assert assigned_roles["role-1@example.com"] == {"stable_manager"}
+        assert assigned_roles["role-2@example.com"] == {"horse_owner", "stable_manager"}
+
+    def test_missing_public_role_returns_temporary_unavailability_without_user(
+        self, client: TestClient, db, monkeypatch
+    ):
+        _seed_public_roles(db)
+        missing_role = db.query(Role).filter(Role.name == "stable_manager").one()
+        db.delete(missing_role)
+        db.commit()
+        _capture_verification_email(monkeypatch)
+
+        response = client.post(f"{BASE}/register", json=_payload())
+
+        assert response.status_code == 503
+        assert response.json()["detail"] == {
+            "code": "registration_unavailable",
+            "message": "Registration is temporarily unavailable. Please try again later.",
+        }
+        assert db.query(User).count() == 0
+        assert "stable_manager" not in response.text
+
     def test_registers_inactive_account_with_relational_both_roles(
         self, client: TestClient, db, monkeypatch
     ):

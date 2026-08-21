@@ -53,6 +53,10 @@ class DuplicateEmailError(Exception):
     """Raised when a registration attempts to reuse an account email."""
 
 
+class RegistrationUnavailableError(Exception):
+    """Raised when required public registration roles are unavailable."""
+
+
 class VerificationTokenNotFoundError(Exception):
     """Raised when a verification token is invalid."""
 
@@ -108,7 +112,12 @@ class AuthService:
             roles = self._users.get_roles_by_names(role_names)
             roles_by_name = {role.name: role for role in roles}
             if set(roles_by_name) != set(role_names):
-                raise RuntimeError("Public account roles have not been configured.")
+                logger.error(
+                    "registration.configuration_missing",
+                    required_roles=role_names,
+                    configured_roles=sorted(roles_by_name),
+                )
+                raise RegistrationUnavailableError
 
             now = datetime.now(timezone.utc)
             primary_role = roles_by_name[role_names[0]]
@@ -151,6 +160,9 @@ class AuthService:
         except IntegrityError as exc:
             self._db.rollback()
             raise DuplicateEmailError("An account with this email already exists.") from exc
+        except RegistrationUnavailableError:
+            self._db.rollback()
+            raise
         except EmailDeliveryError:
             self._db.rollback()
             raise
