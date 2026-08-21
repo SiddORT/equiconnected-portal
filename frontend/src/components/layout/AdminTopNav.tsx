@@ -9,12 +9,9 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Registrations', to: '/admin/users', icon: '👥' },
 ];
 
-const PROVIDER_ITEMS: NavItem[] = [
+const DIRECTORY_ITEMS: NavItem[] = [
   { label: 'Providers', to: '/admin/providers', icon: '🏥' },
   { label: 'Provider applications', to: '/admin/provider-applications', icon: '✓' },
-];
-
-const DIRECTORY_ITEMS: NavItem[] = [
   { label: 'Specializations', to: '/admin/specializations', icon: '⚕' },
   { label: 'Invitations', to: '/admin/invitations', icon: '✉' },
   { label: 'Reviews', to: '/admin/reviews', icon: '★' },
@@ -25,10 +22,8 @@ export function AdminTopNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [providerOpen, setProviderOpen] = useState(false);
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const providerRef = useRef<HTMLDivElement>(null);
   const directoryRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -37,29 +32,25 @@ export function AdminTopNav() {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
       }
-      if (providerRef.current && !providerRef.current.contains(e.target as Node)) {
-        setProviderOpen(false);
-      }
       if (directoryRef.current && !directoryRef.current.contains(e.target as Node)) {
         setDirectoryOpen(false);
       }
     }
-    if (menuOpen || providerOpen || directoryOpen) document.addEventListener('mousedown', handleClick);
+    if (menuOpen || directoryOpen) document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [menuOpen, providerOpen, directoryOpen]);
+  }, [menuOpen, directoryOpen]);
 
   // Close dropdown on Escape
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         setMenuOpen(false);
-        setProviderOpen(false);
         setDirectoryOpen(false);
       }
     }
-    if (menuOpen || providerOpen || directoryOpen) document.addEventListener('keydown', handleKey);
+    if (menuOpen || directoryOpen) document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [menuOpen, providerOpen, directoryOpen]);
+  }, [menuOpen, directoryOpen]);
 
   async function handleLogout() {
     setMenuOpen(false);
@@ -102,56 +93,6 @@ export function AdminTopNav() {
           </NavLink>
         ))}
 
-        <div className={styles.providerMenu} ref={providerRef}>
-          <button
-            type="button"
-            className={[
-              styles.link,
-              styles.providerTrigger,
-              PROVIDER_ITEMS.some((item) => location.pathname.startsWith(item.to))
-                ? styles['link--active']
-                : '',
-            ].filter(Boolean).join(' ')}
-            aria-haspopup="menu"
-            aria-expanded={providerOpen}
-            aria-label="Provider"
-            title="Provider"
-            onClick={() => {
-              setProviderOpen((open) => !open);
-              setDirectoryOpen(false);
-              setMenuOpen(false);
-            }}
-          >
-            <span className={styles.linkIcon} aria-hidden="true">🏥</span>
-            <span className={styles.linkLabel}>Provider</span>
-            <span className={styles.providerChevron} aria-hidden="true">
-              {providerOpen ? '▲' : '▼'}
-            </span>
-          </button>
-
-          {providerOpen && (
-            <div className={`${styles.dropdown} ${styles.providerDropdown}`} role="menu" aria-label="Provider">
-              {PROVIDER_ITEMS.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  role="menuitem"
-                  className={({ isActive }) =>
-                    [
-                      styles.dropdownNavItem,
-                      isActive ? styles['dropdownNavItem--active'] : '',
-                    ].filter(Boolean).join(' ')
-                  }
-                  onClick={() => setProviderOpen(false)}
-                >
-                  <span aria-hidden="true">{item.icon}</span>
-                  {item.label}
-                </NavLink>
-              ))}
-            </div>
-          )}
-        </div>
-
         <div className={styles.directoryMenu} ref={directoryRef}>
           <button
             type="button"
@@ -168,7 +109,6 @@ export function AdminTopNav() {
             title="Directory Management"
             onClick={() => {
               setDirectoryOpen((open) => !open);
-              setProviderOpen(false);
               setMenuOpen(false);
             }}
           >

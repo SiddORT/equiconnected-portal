@@ -75,7 +75,7 @@ describe('AdminTopNav', () => {
     expect(registrationsLink.getAttribute('aria-current')).toBe('page');
   });
 
-  it('groups provider destinations in an active Provider menu and closes it with Escape', async () => {
+  it('groups provider destinations inside Directory Management and closes it with Escape', async () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter initialEntries={['/admin/provider-applications']}>
@@ -84,23 +84,25 @@ describe('AdminTopNav', () => {
     );
 
     const navigation = screen.getByRole('navigation', { name: 'Admin navigation' });
-    const providerMenuButton = within(navigation).getByRole('button', { name: 'Provider' });
-    expect(within(navigation).queryByRole('link', { name: 'Provider applications' })).toBeNull();
-    expect(providerMenuButton.className).toContain('link--active');
+    expect(within(navigation).queryByRole('button', { name: 'Provider' })).toBeNull();
+    const directoryMenuButton = within(navigation).getByRole('button', { name: 'Directory Management' });
+    expect(directoryMenuButton.className).toContain('link--active');
 
-    await user.click(providerMenuButton);
-    const providerMenu = screen.getByRole('menu', { name: 'Provider' });
-    expect(within(providerMenu).getByRole('menuitem', { name: 'Providers' }).getAttribute('href')).toBe('/admin/providers');
-    const applicationsLink = within(providerMenu).getByRole('menuitem', { name: 'Provider applications' });
+    expect(within(navigation).queryByRole('link', { name: 'Provider applications' })).toBeNull();
+    await user.click(directoryMenuButton);
+    const directoryMenu = screen.getByRole('menu', { name: 'Directory Management' });
+    expect(within(directoryMenu).getByRole('menuitem', { name: 'Providers' }).getAttribute('href')).toBe('/admin/providers');
+    const applicationsLink = within(directoryMenu).getByRole('menuitem', { name: 'Provider applications' });
     expect(applicationsLink.getAttribute('href')).toBe('/admin/provider-applications');
     expect(applicationsLink.getAttribute('aria-current')).toBe('page');
+    expect(within(directoryMenu).getByRole('menuitem', { name: 'Specializations' })).toBeTruthy();
 
     await user.click(document.body);
-    expect(screen.queryByRole('menu', { name: 'Provider' })).toBeNull();
+    expect(screen.queryByRole('menu', { name: 'Directory Management' })).toBeNull();
 
-    await user.click(providerMenuButton);
+    await user.click(directoryMenuButton);
     await user.keyboard('{Escape}');
-    expect(screen.queryByRole('menu', { name: 'Provider' })).toBeNull();
+    expect(screen.queryByRole('menu', { name: 'Directory Management' })).toBeNull();
   });
 
   it('removes Profile and links Settings to the active admin settings route', async () => {
