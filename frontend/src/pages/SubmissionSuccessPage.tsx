@@ -3,13 +3,13 @@
  * submission. Route: /provider/invite/success (public).
  */
 import styles from './SubmissionSuccessPage.module.css';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 
 export function SubmissionSuccessPage() {
   return (
     <div className={styles.page}>
       <main className={styles.card} role="status">
-        <span className={styles.icon} aria-hidden="true">✅</span>
-        <span className={styles.brand}>EquiConnected</span>
+        <BrandLogo className={styles.brandLockup} />
         <h1 className={styles.title}>Submission received</h1>
         <p className={styles.text}>
           Thank you — your profile has been submitted and is now under review by our admin

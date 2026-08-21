@@ -22,16 +22,8 @@
   text-align: center;
 }
 
-.icon {
-  font-size: 40px;
-}
-
-.brand {
-  font-size: var(--text-xs);
-  font-weight: var(--font-semibold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--primary-600, #4f46e5);
+.brandLockup {
+  justify-content: center;
 }
 
 .title {

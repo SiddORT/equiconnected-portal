@@ -8,6 +8,7 @@ import { extractErrorMessage } from '@/api/client';
 import { getInvitationByToken, getPublicErrorCode, getPublicErrorStatus } from '@/api/invitations';
 import { InvitationDoctorForm } from '@/components/invite/InvitationDoctorForm';
 import { InvitationProviderForm } from '@/components/invite/InvitationProviderForm';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import type { InvitationTokenData } from '@/types';
@@ -66,7 +67,7 @@ export function InvitationPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <span className={styles.brand}>EquiConnected</span>
+        <BrandLogo className={styles.brandLockup} />
         <h1 className={styles.title}>{heading}</h1>
         {state.kind === 'ready' && (
           <p className={styles.subtitle}>
