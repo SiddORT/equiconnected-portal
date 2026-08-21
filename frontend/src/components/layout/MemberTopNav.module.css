@@ -1,0 +1,127 @@
+.nav {
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+}
+
+.inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  width: min(100% - (var(--space-8) * 2), var(--container-max));
+  min-height: 68px;
+  margin: 0 auto;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.logo {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+
+.brand span {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand strong {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+}
+
+.brand small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 1;
+}
+
+.link {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  text-decoration: none;
+}
+
+.link:hover,
+.link.active {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.name {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logout {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  white-space: nowrap;
+}
+
+.logout:hover {
+  border-color: var(--color-primary-500);
+  background: var(--bg-subtle);
+}
+
+.logout:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+@media (max-width: 700px) {
+  .inner {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .links {
+    order: 3;
+    width: 100%;
+  }
+
+  .account {
+    margin-left: auto;
+  }
+
+  .name {
+    display: none;
+  }
+}

@@ -24,6 +24,11 @@ vi.mock('@/app/AuthContext', () => ({
 afterEach(cleanup);
 
 describe('AdminTopNav', () => {
+  it('shows a visible logout control in the top bar', () => {
+    render(<MemoryRouter><AdminTopNav /></MemoryRouter>);
+    expect(screen.getByRole('button', { name: 'Log out' })).toBeTruthy();
+  });
+
   it('links the profile menu to the email delivery history', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><AdminTopNav /></MemoryRouter>);

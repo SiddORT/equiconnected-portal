@@ -53,8 +53,11 @@ export function AdminTopNav() {
 
   async function handleLogout() {
     setMenuOpen(false);
-    await logout();
-    navigate('/admin/login');
+    try {
+      await logout();
+    } finally {
+      navigate('/admin/login', { replace: true });
+    }
   }
 
   const initials = user?.full_name
@@ -141,6 +144,14 @@ export function AdminTopNav() {
 
       {/* ── Profile menu ──────────────────────────────── */}
       <div className={styles.profileArea} ref={menuRef}>
+        <button
+          type="button"
+          className={styles.logoutButton}
+          onClick={handleLogout}
+        >
+          <span aria-hidden="true">↩</span>
+          Log out
+        </button>
         <button
           className={styles.avatarBtn}
           aria-label="Open profile menu"

@@ -26,6 +26,7 @@ import { LegalPage } from '@/pages/LegalPage';
 import { UsersPage } from '@/pages/admin/UsersPage';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { MemberAuthGuard } from '@/features/member/MemberAuthGuard';
+import { MemberLayout } from '@/components/layout/MemberLayout';
 import { ProviderDirectoryPage } from '@/pages/ProviderDirectoryPage';
 import { MemberProviderDetailPage } from '@/pages/MemberProviderDetailPage';
 import { ReviewsPage } from '@/pages/admin/ReviewsPage';
@@ -80,9 +81,11 @@ export function AppRouter() {
 
         {/* ── Verified member profile ─────────────────────────────── */}
         <Route element={<MemberAuthGuard />}>
-          <Route path="/providers" element={<ProviderDirectoryPage />} />
-          <Route path="/providers/:id" element={<MemberProviderDetailPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
+          <Route element={<MemberLayout />}>
+            <Route path="/providers" element={<ProviderDirectoryPage />} />
+            <Route path="/providers/:id" element={<MemberProviderDetailPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+          </Route>
         </Route>
 
         {/* ── Fallback ─────────────────────────────────────────────── */}
