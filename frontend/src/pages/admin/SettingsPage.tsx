@@ -7,10 +7,11 @@ import { getSystemSettings, updateSystemSettings } from '@/api/admin';
 import { extractErrorMessage } from '@/api/client';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Select } from '@/components/ui/Select';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
-import type { DateFormat, SystemSettings, TimeFormat } from '@/types';
+import type { DateFormat, TimeFormat } from '@/types';
 import styles from './SettingsPage.module.css';
 
 // ── Timezone options — common IANA zones ───────────────────────────────────
@@ -218,36 +219,58 @@ export function SettingsPage() {
           <p aria-live="polite">Loading settings…</p>
         ) : (
           <form id={formId} onSubmit={(e) => void handleSave(e)}>
-            <div className={styles.formCard}>
-              <h2 className={styles.formTitle}>Time &amp; date configuration</h2>
+            <div className={styles.settingsWorkspace}>
+              <div className={styles.settingsGrid}>
+                <Card as="section" padding="md" shadow="sm" className={styles.settingCard}>
+                  <div className={styles.cardHeading}>
+                    <h2 className={styles.formTitle}>Timezone</h2>
+                    <p className={styles.cardDescription}>Choose the timezone used across the portal.</p>
+                  </div>
+                  <div className={styles.fieldGroup}>
+                    <Select
+                      label="Timezone"
+                      value={timezone}
+                      options={TIMEZONE_OPTIONS}
+                      onChange={(e) => setTimezone(e.target.value)}
+                      aria-label="Timezone"
+                      disabled={saveState === 'loading'}
+                    />
+                  </div>
+                </Card>
 
-              <div className={styles.fieldGroup}>
-                <Select
-                  label="Timezone"
-                  value={timezone}
-                  options={TIMEZONE_OPTIONS}
-                  onChange={(e) => setTimezone(e.target.value)}
-                  aria-label="Timezone"
-                  disabled={saveState === 'loading'}
-                />
+                <Card as="section" padding="md" shadow="sm" className={styles.settingCard}>
+                  <div className={styles.cardHeading}>
+                    <h2 className={styles.formTitle}>Date format</h2>
+                    <p className={styles.cardDescription}>Set how calendar dates appear to administrators.</p>
+                  </div>
+                  <div className={styles.fieldGroup}>
+                    <Select
+                      label="Date format"
+                      value={dateFormat}
+                      options={DATE_FORMAT_OPTIONS}
+                      onChange={(e) => setDateFormat(e.target.value as DateFormat)}
+                      aria-label="Date format"
+                      disabled={saveState === 'loading'}
+                    />
+                  </div>
+                </Card>
 
-                <Select
-                  label="Date format"
-                  value={dateFormat}
-                  options={DATE_FORMAT_OPTIONS}
-                  onChange={(e) => setDateFormat(e.target.value as DateFormat)}
-                  aria-label="Date format"
-                  disabled={saveState === 'loading'}
-                />
-
-                <Select
-                  label="Time format"
-                  value={timeFormat}
-                  options={TIME_FORMAT_OPTIONS}
-                  onChange={(e) => setTimeFormat(e.target.value as TimeFormat)}
-                  aria-label="Time format"
-                  disabled={saveState === 'loading'}
-                />
+                <Card as="section" padding="md" shadow="sm" className={styles.settingCard}>
+                  <div className={styles.cardHeading}>
+                    <h2 className={styles.formTitle}>Time format</h2>
+                    <p className={styles.cardDescription}>Set whether times use a 12-hour or 24-hour clock.</p>
+                  </div>
+                  <div className={styles.fieldGroup}>
+                    <Select
+                      label="Time format"
+                      value={timeFormat}
+                      options={TIME_FORMAT_OPTIONS}
+                      onChange={(e) => setTimeFormat(e.target.value as TimeFormat)}
+                      aria-label="Time format"
+                      disabled={saveState === 'loading'}
+                    />
+                  </div>
+                </Card>
               </div>
 
               {/* Live preview */}

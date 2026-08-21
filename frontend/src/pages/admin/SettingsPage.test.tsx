@@ -54,6 +54,13 @@ describe('SettingsPage', () => {
     await waitFor(() =>
       expect((screen.getByLabelText('Timezone') as HTMLSelectElement).value).toBe('UTC')
     );
+    const timezoneCard = screen.getByRole('heading', { name: 'Timezone', level: 2 }).closest('section');
+    const dateFormatCard = screen.getByRole('heading', { name: 'Date format', level: 2 }).closest('section');
+    const timeFormatCard = screen.getByRole('heading', { name: 'Time format', level: 2 }).closest('section');
+
+    expect(timezoneCard?.contains(screen.getByLabelText('Timezone'))).toBe(true);
+    expect(dateFormatCard?.contains(screen.getByLabelText('Date format'))).toBe(true);
+    expect(timeFormatCard?.contains(screen.getByLabelText('Time format'))).toBe(true);
     expect((screen.getByLabelText('Date format') as HTMLSelectElement).value).toBe('month_day_year');
     expect((screen.getByLabelText('Time format') as HTMLSelectElement).value).toBe('12_hour');
   });
