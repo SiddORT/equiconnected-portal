@@ -1,5 +1,4 @@
 """Unauthenticated, privacy-safe public telemetry endpoints."""
-from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
@@ -10,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.core.rate_limit import check_public_visit_rate_limit
 from app.db.session import get_db
 from app.models.public_visit import PublicVisitDaily
+from app.repositories.system_settings_repository import SystemSettingsRepository
+from app.core.time_standards import system_today
 
 router = APIRouter(prefix="/public", tags=["Public"])
 _DB = Annotated[Session, Depends(get_db)]
@@ -22,7 +23,8 @@ _DB = Annotated[Session, Depends(get_db)]
 )
 def record_public_visit(db: _DB) -> Response:
     """Increment today's landing-page visit aggregate without retaining visitor data."""
-    visit_date = datetime.now(timezone.utc).date()
+    settings = SystemSettingsRepository(db).get_or_create()
+    visit_date = system_today(settings.timezone)
     result = db.execute(
         update(PublicVisitDaily)
         .where(PublicVisitDaily.visit_date == visit_date)

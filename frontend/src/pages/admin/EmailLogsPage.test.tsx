@@ -6,6 +6,11 @@ import * as adminApi from '@/api/admin';
 import { EmailLogsPage } from './EmailLogsPage';
 
 vi.mock('@/api/admin', () => ({ getEmailDeliveryLogs: vi.fn() }));
+vi.mock('@/app/TimeSettingsContext', () => ({
+  useTimeSettings: () => ({
+    formatTimestamp: (value: string) => value,
+  }),
+}));
 
 const emailLog = {
   id: 'email-log-1',

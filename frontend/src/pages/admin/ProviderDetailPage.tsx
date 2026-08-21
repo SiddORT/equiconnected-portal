@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
+import { useTimeSettings } from '@/app/TimeSettingsContext';
 import {
   addProviderSpecialization,
   createProviderLocation,
@@ -95,6 +96,7 @@ function isImageUrl(ref: string) {
 }
 
 export function ProviderDetailPage() {
+  const { formatTimestamp } = useTimeSettings();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -424,11 +426,11 @@ export function ProviderDetailPage() {
               </div>
               <div>
                 <dt>Created</dt>
-                <dd>{new Date(p.created_at).toLocaleString()}</dd>
+                <dd>{formatTimestamp(p.created_at)}</dd>
               </div>
               <div>
                 <dt>Updated</dt>
-                <dd>{new Date(p.updated_at).toLocaleString()}</dd>
+                <dd>{formatTimestamp(p.updated_at)}</dd>
               </div>
             </dl>
             {p.description && <p className={styles.overviewDescription}>{p.description}</p>}

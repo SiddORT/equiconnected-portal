@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { getEmailDeliveryLogs } from '@/api/admin';
 import { extractErrorMessage } from '@/api/client';
+import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -24,13 +25,6 @@ const FILTER_OPTIONS = [
   { value: 'year', label: 'Year' },
   { value: 'range', label: 'Custom range' },
 ];
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'medium',
-  }).format(new Date(value));
-}
 
 function purposeLabel(purpose: EmailDeliveryLog['purpose']): string {
   return purpose === 'provider_invitation'
@@ -71,6 +65,7 @@ function isFilterComplete(
 }
 
 export function EmailLogsPage() {
+  const { formatTimestamp } = useTimeSettings();
   const [searchParams, setSearchParams] = useSearchParams();
   const rawMode = searchParams.get('filter_mode');
   const filterMode: EmailLogFilterMode | '' =
@@ -155,7 +150,7 @@ export function EmailLogsPage() {
       key: 'created_at',
       label: 'Sent',
       width: '1.3fr',
-      render: (entry) => <time dateTime={entry.created_at}>{formatDate(entry.created_at)}</time>,
+      render: (entry) => <time dateTime={entry.created_at}>{formatTimestamp(entry.created_at)}</time>,
     },
     {
       key: 'recipient_email',
@@ -195,7 +190,7 @@ export function EmailLogsPage() {
         </span>
       ),
     },
-  ], []);
+  ], [formatTimestamp]);
 
   const data = result?.data ?? [];
   const meta = result?.meta;

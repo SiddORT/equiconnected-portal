@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { listAdminUsers } from '@/api/admin';
 import { extractErrorMessage } from '@/api/client';
+import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionMenu, type ActionMenuItem } from '@/components/ui/ActionMenu';
 import { Badge } from '@/components/ui/Badge';
@@ -19,18 +20,9 @@ const ROLE_OPTIONS = [
   { value: 'stable_manager', label: 'Stable Manager' },
 ];
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value));
-}
-
-function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
-}
 
 export function UsersPage() {
+  const { formatTimestamp } = useTimeSettings();
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get('search') ?? '';
   const role = searchParams.get('role') ?? '';
@@ -133,7 +125,7 @@ export function UsersPage() {
       label: 'Registered',
       width: '110px',
       hideOnMobile: true,
-      render: (item) => <time dateTime={item.created_at}>{formatDate(item.created_at)}</time>,
+      render: (item) => <time dateTime={item.created_at}>{formatTimestamp(item.created_at)}</time>,
     },
     {
       key: 'actions',
@@ -247,6 +239,7 @@ export function UsersPage() {
 }
 
 function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: () => void }) {
+  const { formatTimestamp } = useTimeSettings();
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -284,10 +277,10 @@ function UserDetailDialog({ user, onClose }: { user: AdminUser; onClose: () => v
           <dt>Email verification</dt>
           <dd>
             {user.email_verified_at ? (
-              <><Badge size="sm" variant="success">Verified</Badge> <span className={styles.muted}>{formatDateTime(user.email_verified_at)}</span></>
+              <><Badge size="sm" variant="success">Verified</Badge> <span className={styles.muted}>{formatTimestamp(user.email_verified_at)}</span></>
             ) : <Badge size="sm" variant="neutral">Unverified</Badge>}
           </dd>
-          <dt>Registered</dt><dd><time dateTime={user.created_at}>{formatDateTime(user.created_at)}</time></dd>
+          <dt>Registered</dt><dd><time dateTime={user.created_at}>{formatTimestamp(user.created_at)}</time></dd>
         </dl>
         <footer className={styles.detailFooter}><Button variant="ghost" onClick={onClose}>Close</Button></footer>
       </div>

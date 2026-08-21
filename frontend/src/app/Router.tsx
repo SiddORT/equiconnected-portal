@@ -30,6 +30,7 @@ import { MemberLayout } from '@/components/layout/MemberLayout';
 import { ProviderDirectoryPage } from '@/pages/ProviderDirectoryPage';
 import { MemberProviderDetailPage } from '@/pages/MemberProviderDetailPage';
 import { ReviewsPage } from '@/pages/admin/ReviewsPage';
+import { SettingsPage } from '@/pages/admin/SettingsPage';
 
 export function AppRouter() {
   return (
@@ -76,6 +77,7 @@ export function AppRouter() {
             <Route path="/admin/reviews" element={<ReviewsPage />} />
             <Route path="/admin/activity-logs" element={<ActivityLogsPage />} />
             <Route path="/admin/email-logs" element={<EmailLogsPage />} />
+            <Route path="/admin/settings" element={<SettingsPage />} />
           </Route>
         </Route>
 

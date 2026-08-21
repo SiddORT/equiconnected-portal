@@ -663,3 +663,19 @@ export interface AdminProviderReview {
   created_at: string;
   updated_at: string;
 }
+
+export type DateFormat = 'month_day_year' | 'day_month_year' | 'year_month_day';
+
+export interface SystemSettings {
+  timezone: string;
+  date_format: DateFormat;
+  time_format: TimeFormat;
+}
+
+export type TimeFormat = '12_hour' | '24_hour';
+
+export interface SystemSettingsUpdate {
+  timezone: string;
+  date_format: DateFormat;
+  time_format: TimeFormat;
+}

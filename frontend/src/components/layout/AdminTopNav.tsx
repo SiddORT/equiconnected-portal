@@ -197,23 +197,18 @@ export function AdminTopNav() {
               Email Logs
             </NavLink>
 
-            <button
-              className={styles.dropdownItem}
-              role="menuitem"
-              onClick={() => setMenuOpen(false)}
-            >
-              <span aria-hidden="true">👤</span>
-              Profile
-            </button>
-
-            <button
-              className={styles.dropdownItem}
+            <NavLink
+              to="/admin/settings"
+              className={({ isActive }) => [
+                styles.dropdownItem,
+                isActive ? styles['dropdownItem--active'] : '',
+              ].filter(Boolean).join(' ')}
               role="menuitem"
               onClick={() => setMenuOpen(false)}
             >
               <span aria-hidden="true">⚙️</span>
               Settings
-            </button>
+            </NavLink>
 
             <div className={styles.dropdownDivider} />
 

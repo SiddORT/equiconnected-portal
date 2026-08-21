@@ -11,6 +11,8 @@ import type {
   EmailDeliveryLog,
   PaginatedResponse,
   AdminProviderReview,
+  SystemSettings,
+  SystemSettingsUpdate,
 } from '@/types';
 
 export async function getDashboardStats(): Promise<DashboardStats> {
@@ -97,5 +99,19 @@ export async function setAdminReviewCommentVisibility(
     `/admin/reviews/${id}/comment-visibility`,
     { comment_visible }
   );
+  return data;
+}
+
+// ── System settings ────────────────────────────────────────────────────────
+
+export async function getSystemSettings(): Promise<SystemSettings> {
+  const { data } = await apiClient.get<SystemSettings>('/admin/system-settings');
+  return data;
+}
+
+export async function updateSystemSettings(
+  updates: SystemSettingsUpdate
+): Promise<SystemSettings> {
+  const { data } = await apiClient.patch<SystemSettings>('/admin/system-settings', updates);
   return data;
 }

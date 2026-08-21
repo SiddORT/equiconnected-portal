@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { cancelInvitation, listInvitations, resendInvitation } from '@/api/invitations';
 import { extractErrorMessage } from '@/api/client';
+import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { CreateInvitationDialog } from '@/components/admin/CreateInvitationDialog';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionMenu, type ActionMenuItem } from '@/components/ui/ActionMenu';
@@ -29,10 +30,6 @@ function providerDisplay(item: Invitation): string {
   return item.provider_name || `New — ${TYPE_LABELS[item.provider_type]}`;
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
-}
-
 function statusVariant(status: InvitationStatus): 'success' | 'warning' | 'error' | 'info' | 'neutral' {
   const variants: Record<InvitationStatus, 'success' | 'warning' | 'error' | 'info' | 'neutral'> = {
     PENDING: 'warning',
@@ -45,6 +42,7 @@ function statusVariant(status: InvitationStatus): 'success' | 'warning' | 'error
 }
 
 export function InvitationsPage() {
+  const { formatTimestamp } = useTimeSettings();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get('search') ?? '';
@@ -83,8 +81,8 @@ export function InvitationsPage() {
         search: search || undefined,
         status: status ?? undefined,
         provider_type: providerType ?? undefined,
-        date_from: dateFrom ? new Date(`${dateFrom}T00:00:00`).toISOString() : undefined,
-        date_to: dateTo ? new Date(`${dateTo}T23:59:59.999`).toISOString() : undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
         page,
         page_size: pageSize,
       });
@@ -150,8 +148,8 @@ export function InvitationsPage() {
     { key: 'provider_type', label: 'Provider type', width: '120px', render: (item) => TYPE_LABELS[item.provider_type] },
     { key: 'provider', label: 'Provider', width: '1.3fr', hideOnMobile: true, render: (item) => providerDisplay(item) },
     { key: 'status', label: 'Status', width: '110px', render: (item) => <Badge size="sm" variant={statusVariant(item.status)}>{STATUS_LABELS[item.status]}</Badge> },
-    { key: 'sent_at', label: 'Sent', width: '150px', hideOnMobile: true, render: (item) => formatDate(item.sent_at) },
-    { key: 'expires_at', label: 'Expires', width: '150px', hideOnMobile: true, render: (item) => formatDate(item.expires_at) },
+    { key: 'sent_at', label: 'Sent', width: '150px', hideOnMobile: true, render: (item) => formatTimestamp(item.sent_at) },
+    { key: 'expires_at', label: 'Expires', width: '150px', hideOnMobile: true, render: (item) => formatTimestamp(item.expires_at) },
     {
       key: 'actions', label: 'Actions', width: '70px', align: 'right',
       render: (item) => {
@@ -321,6 +319,7 @@ export function InvitationsPage() {
 }
 
 function InvitationDetailDialog({ invitation, onClose }: { invitation: Invitation; onClose: () => void }) {
+  const { formatTimestamp } = useTimeSettings();
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => { closeRef.current?.focus(); }, []);
@@ -337,10 +336,10 @@ function InvitationDetailDialog({ invitation, onClose }: { invitation: Invitatio
         <dt>Provider type</dt><dd>{TYPE_LABELS[invitation.provider_type]}</dd>
         <dt>Provider</dt><dd>{providerDisplay(invitation)}</dd>
         <dt>Status</dt><dd><Badge size="sm" variant={statusVariant(invitation.status)}>{STATUS_LABELS[invitation.status]}</Badge></dd>
-        <dt>Sent</dt><dd>{formatDate(invitation.sent_at)}</dd>
-        <dt>Expires</dt><dd>{formatDate(invitation.expires_at)}</dd>
-        {invitation.accepted_at && <><dt>Accepted</dt><dd>{formatDate(invitation.accepted_at)}</dd></>}
-        {invitation.completed_at && <><dt>Completed</dt><dd>{formatDate(invitation.completed_at)}</dd></>}
+        <dt>Sent</dt><dd>{formatTimestamp(invitation.sent_at)}</dd>
+        <dt>Expires</dt><dd>{formatTimestamp(invitation.expires_at)}</dd>
+        {invitation.accepted_at && <><dt>Accepted</dt><dd>{formatTimestamp(invitation.accepted_at)}</dd></>}
+        {invitation.completed_at && <><dt>Completed</dt><dd>{formatTimestamp(invitation.completed_at)}</dd></>}
       </dl>
       <footer><Button variant="primary" onClick={onClose}>Close</Button></footer>
     </div>

@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
+import { useTimeSettings } from '@/app/TimeSettingsContext';
 import {
   listProviders,
   updateProviderPublication,
@@ -37,6 +38,7 @@ const TYPE_LABELS: Record<ProviderType, string> = {
 };
 
 export function ProvidersPage() {
+  const { formatTimestamp } = useTimeSettings();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialType = searchParams.get('provider_type');
@@ -191,7 +193,7 @@ export function ProvidersPage() {
       hideOnMobile: true,
       render: (p) => (
         <span className={styles.dateCell}>
-          {new Date(p.created_at).toLocaleDateString()}
+          {formatTimestamp(p.created_at)}
         </span>
       ),
     },

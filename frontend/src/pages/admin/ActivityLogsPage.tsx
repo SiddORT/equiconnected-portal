@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { getActivityLogs } from '@/api/admin';
 import { extractErrorMessage } from '@/api/client';
+import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -11,13 +12,6 @@ import { Pagination } from '@/components/ui/Pagination';
 import type { ActivityLog, LoadingState, PaginatedResponse } from '@/types';
 import styles from './ActivityLogsPage.module.css';
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'medium',
-  }).format(new Date(value));
-}
-
 function valueLabel(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
@@ -25,6 +19,7 @@ function valueLabel(value: unknown): string {
 }
 
 export function ActivityLogsPage() {
+  const { formatTimestamp } = useTimeSettings();
   const [searchParams, setSearchParams] = useSearchParams();
   const dateFrom = searchParams.get('date_from') ?? '';
   const dateTo = searchParams.get('date_to') ?? '';
@@ -70,7 +65,7 @@ export function ActivityLogsPage() {
       key: 'created_at',
       label: 'When',
       width: '1.25fr',
-      render: (event) => <time dateTime={event.created_at}>{formatDate(event.created_at)}</time>,
+      render: (event) => <time dateTime={event.created_at}>{formatTimestamp(event.created_at)}</time>,
     },
     {
       key: 'actor',

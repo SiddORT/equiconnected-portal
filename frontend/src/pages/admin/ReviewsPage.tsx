@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import * as adminApi from '@/api/admin';
 import { extractErrorMessage } from '@/api/client';
+import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
@@ -11,11 +12,8 @@ import { Pagination } from '@/components/ui/Pagination';
 import type { AdminProviderReview, PaginatedResponse } from '@/types';
 import styles from './ReviewsPage.module.css';
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value));
-}
-
 export function ReviewsPage() {
+  const { formatTimestamp } = useTimeSettings();
   const [searchParams, setSearchParams] = useSearchParams();
   const [result, setResult] = useState<PaginatedResponse<AdminProviderReview> | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'success' | 'error'>('loading');
@@ -79,7 +77,7 @@ export function ReviewsPage() {
     { key: 'rating', label: 'Rating', width: '80px', render: (item) => <span className={styles.rating}>★ {item.rating}</span> },
     { key: 'comment', label: 'Comment', width: '2fr', hideOnMobile: true, render: (item) => <span className={styles.comment}>{item.comment || 'No comment provided'}</span> },
     { key: 'comment_visible', label: 'Visibility', width: '95px', render: (item) => <Badge size="sm" variant={item.comment_visible ? 'success' : 'neutral'}>{item.comment_visible ? 'Visible' : 'Hidden'}</Badge> },
-    { key: 'created_at', label: 'Date', width: '105px', hideOnMobile: true, render: (item) => <time dateTime={item.created_at}>{formatDate(item.created_at)}</time> },
+    { key: 'created_at', label: 'Date', width: '105px', hideOnMobile: true, render: (item) => <time dateTime={item.created_at}>{formatTimestamp(item.created_at)}</time> },
     { key: 'actions', label: 'Action', width: '100px', align: 'right', render: (item) => <Button size="sm" variant={item.comment_visible ? 'outline' : 'secondary'} loading={updating === item.id} onClick={() => void toggleVisibility(item)}>{item.comment_visible ? 'Hide' : 'Restore'}</Button> },
   ];
 

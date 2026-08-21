@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import * as providersApi from '@/api/providers';
 import { extractErrorMessage } from '@/api/client';
+import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -9,11 +10,8 @@ import { Select } from '@/components/ui/Select';
 import type { MemberProviderDetail } from '@/types';
 import styles from './ProviderDirectoryPage.module.css';
 
-function date(value: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value));
-}
-
 export function MemberProviderDetailPage() {
+  const { formatTimestamp } = useTimeSettings();
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
   const [provider, setProvider] = useState<MemberProviderDetail | null>(null);
@@ -120,7 +118,7 @@ export function MemberProviderDetailPage() {
           <article className={styles.commentCard} key={review.id}>
             <div><strong>{review.reviewer_name}</strong><span className={styles.stars}>★ {review.rating.toFixed(1)}</span></div>
             <p>{review.comment}</p>
-            <time dateTime={review.created_at}>{date(review.created_at)}</time>
+            <time dateTime={review.created_at}>{formatTimestamp(review.created_at)}</time>
           </article>
         )) : <p className={styles.noComments}>No visible comments yet. Be the first to share feedback.</p>}
       </section>

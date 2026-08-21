@@ -1,5 +1,5 @@
 """Data access for administrator-only transactional email delivery history."""
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime
 from typing import Any
 import uuid
 
@@ -8,6 +8,11 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.email_delivery_log import EmailDeliveryLog
 from app.models.enums import EmailDeliveryStatus, EmailPurpose
+from app.core.time_standards import (
+    local_date_bounds,
+    local_month_bounds,
+    local_year_bounds,
+)
 
 
 SAFE_FAILURE_MESSAGES = {
@@ -110,55 +115,17 @@ class EmailDeliveryRepository:
         filter_year: int | None,
         date_from: date | None,
         date_to: date | None,
-    ) -> tuple[datetime | None, datetime | None, bool]:
+        timezone_name: str | None = None,
+    ) -> tuple[datetime | None, datetime | None]:
         if not filter_mode:
-            return None, None, False
+            return None, None
         if filter_mode == "day":
-            start = datetime.combine(filter_date, time.min, tzinfo=timezone.utc)
-            if filter_date == date.max:
-                return start, datetime.max.replace(tzinfo=timezone.utc), True
-            return start, start + timedelta(days=1), False
+            return local_date_bounds(filter_date, filter_date, timezone_name)
         if filter_mode == "month":
-            start_date = date(filter_year, filter_month, 1)
-            if filter_year == date.max.year and filter_month == 12:
-                return (
-                    datetime.combine(start_date, time.min, tzinfo=timezone.utc),
-                    datetime.max.replace(tzinfo=timezone.utc),
-                    True,
-                )
-            next_month = (
-                date(filter_year + 1, 1, 1)
-                if filter_month == 12
-                else date(filter_year, filter_month + 1, 1)
-            )
-            return (
-                datetime.combine(start_date, time.min, tzinfo=timezone.utc),
-                datetime.combine(next_month, time.min, tzinfo=timezone.utc),
-                False,
-            )
+            return local_month_bounds(filter_year, filter_month, timezone_name)
         if filter_mode == "year":
-            start_date = date(filter_year, 1, 1)
-            if filter_year == date.max.year:
-                return (
-                    datetime.combine(start_date, time.min, tzinfo=timezone.utc),
-                    datetime.max.replace(tzinfo=timezone.utc),
-                    True,
-                )
-            return (
-                datetime.combine(start_date, time.min, tzinfo=timezone.utc),
-                datetime.combine(date(filter_year + 1, 1, 1), time.min, tzinfo=timezone.utc),
-                False,
-            )
-        inclusive_end = date_to == date.max
-        return (
-            datetime.combine(date_from, time.min, tzinfo=timezone.utc),
-            (
-                datetime.max.replace(tzinfo=timezone.utc)
-                if inclusive_end
-                else datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=timezone.utc)
-            ),
-            inclusive_end,
-        )
+            return local_year_bounds(filter_year, timezone_name)
+        return local_date_bounds(date_from, date_to, timezone_name)
 
     def list(
         self,
@@ -169,26 +136,24 @@ class EmailDeliveryRepository:
         filter_year: int | None = None,
         date_from: date | None = None,
         date_to: date | None = None,
+        timezone_name: str | None = None,
         page: int = 1,
         page_size: int = 25,
     ) -> tuple[list[EmailDeliveryLog], int]:
-        start, end, inclusive_end = self._bounds(
+        start, end = self._bounds(
             filter_mode=filter_mode,
             filter_date=filter_date,
             filter_month=filter_month,
             filter_year=filter_year,
             date_from=date_from,
             date_to=date_to,
+            timezone_name=timezone_name,
         )
         filters: list[Any] = []
         if start is not None:
             filters.append(EmailDeliveryLog.created_at >= start)
         if end is not None:
-            filters.append(
-                EmailDeliveryLog.created_at <= end
-                if inclusive_end
-                else EmailDeliveryLog.created_at < end
-            )
+            filters.append(EmailDeliveryLog.created_at < end)
         total = self._db.scalar(
             select(func.count()).select_from(EmailDeliveryLog).where(*filters)
         ) or 0

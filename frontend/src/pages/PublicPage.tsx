@@ -4,23 +4,29 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { recordPublicVisit } from '@/api/public';
+import { systemCalendarDate, useTimeSettings } from '@/app/TimeSettingsContext';
 import styles from './PublicPage.module.css';
 
 export function PublicPage() {
+  const { settings, isLoading: settingsLoading, error: settingsError } = useTimeSettings();
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    // Wait for the shared settings so the client-side once-per-day key agrees
+    // with the backend's system-calendar visit bucket.
+    if (settingsLoading || settingsError) return;
+
     const storageKey = 'equiconnected-public-visit-date';
-    const today = new Date().toISOString().slice(0, 10);
+    const today = systemCalendarDate(new Date(), settings.timezone);
     if (window.localStorage.getItem(storageKey) === today) return;
 
     window.localStorage.setItem(storageKey, today);
     void recordPublicVisit().catch(() => {
       window.localStorage.removeItem(storageKey);
     });
-  }, []);
+  }, [settings.timezone, settingsError, settingsLoading]);
 
   function handleNotify(e: React.FormEvent) {
     e.preventDefault();

@@ -1,7 +1,7 @@
 """add last successful login timestamp
 
 Revision ID: b35196334e9b
-Revises: f7c1d4e8a901
+Revises: 96fa41bf63c0
 Create Date: 2026-08-21 17:13:50.089596
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'b35196334e9b'
-down_revision: Union[str, None] = 'f7c1d4e8a901'
+down_revision: Union[str, None] = '96fa41bf63c0'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

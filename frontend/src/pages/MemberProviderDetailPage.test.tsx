@@ -9,6 +9,11 @@ vi.mock('@/api/providers', () => ({
   getMemberProvider: vi.fn(),
   saveMemberProviderReview: vi.fn(),
 }));
+vi.mock('@/app/TimeSettingsContext', () => ({
+  useTimeSettings: () => ({
+    formatTimestamp: (value: string) => value,
+  }),
+}));
 
 const detail = {
   id: 'provider-1', provider_type: 'CLINIC' as const, name: 'Austin Equine Clinic',

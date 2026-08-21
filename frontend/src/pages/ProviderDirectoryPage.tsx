@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
+import { useTimeSettings } from '@/app/TimeSettingsContext';
 import * as providersApi from '@/api/providers';
 import { extractErrorMessage } from '@/api/client';
 import { Alert } from '@/components/ui/Alert';
@@ -38,6 +39,7 @@ function Stars({ rating }: { rating: number | null }) {
 
 export function ProviderDirectoryPage() {
   const { user } = useAuth();
+  const { formatTimestamp } = useTimeSettings();
   const [searchParams, setSearchParams] = useSearchParams();
   const [result, setResult] = useState<PaginatedResponse<MemberProviderListItem> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -128,7 +130,12 @@ export function ProviderDirectoryPage() {
           <p>Find the care team that keeps every ride, recovery, and routine moving forward.</p>
           <p className={styles.signInTime}>
             {hasLastSignIn ? (
-              <>Last successful sign-in: <time dateTime={user!.last_successful_login_at!}>{lastSignIn.toLocaleString()}</time></>
+              <>
+                Last successful sign-in:{' '}
+                <time dateTime={user!.last_successful_login_at!}>
+                  {formatTimestamp(user!.last_successful_login_at!)}
+                </time>
+              </>
             ) : (
               'Your member session is ready.'
             )}

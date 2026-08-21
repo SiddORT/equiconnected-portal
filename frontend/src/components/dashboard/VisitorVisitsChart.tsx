@@ -1,4 +1,5 @@
 import type { DailyVisit } from '@/types';
+import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { Card } from '@/components/ui/Card';
 import styles from './VisitorVisitsChart.module.css';
 
@@ -6,13 +7,8 @@ interface VisitorVisitsChartProps {
   visits: DailyVisit[];
 }
 
-function dayLabel(date: string): string {
-  return new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(
-    new Date(`${date}T12:00:00Z`),
-  );
-}
-
 export function VisitorVisitsChart({ visits }: VisitorVisitsChartProps) {
+  const { formatWeekday } = useTimeSettings();
   const chartVisits = visits.length === 7 ? visits : [];
   const maximum = Math.max(...chartVisits.map((visit) => visit.count), 1);
   const total = chartVisits.reduce((sum, visit) => sum + visit.count, 0);
@@ -40,7 +36,7 @@ export function VisitorVisitsChart({ visits }: VisitorVisitsChartProps) {
                 style={{ height: `${(visit.count / maximum) * 100}%` }}
               />
             </div>
-            <span className={styles.day}>{dayLabel(visit.date)}</span>
+            <span className={styles.day}>{formatWeekday(visit.date)}</span>
           </div>
         ))}
       </div>

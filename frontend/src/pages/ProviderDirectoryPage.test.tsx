@@ -26,6 +26,12 @@ vi.mock('@/app/AuthContext', () => ({
   }),
 }));
 
+vi.mock('@/app/TimeSettingsContext', () => ({
+  useTimeSettings: () => ({
+    formatTimestamp: (value: string) => `System time: ${value}`,
+  }),
+}));
+
 const response = {
   data: [{
     id: 'provider-1',
@@ -64,6 +70,7 @@ describe('ProviderDirectoryPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Welcome back, Amina.' })).toBeTruthy();
     expect(screen.getByText(/Last successful sign-in:/)).toBeTruthy();
+    expect(screen.getByText('System time: 2026-08-21T15:30:00Z')).toBeTruthy();
     expect(document.querySelector('time')?.getAttribute('dateTime')).toBe('2026-08-21T15:30:00Z');
     expect(await screen.findByRole('heading', { name: 'Austin Equine Clinic' })).toBeTruthy();
   });

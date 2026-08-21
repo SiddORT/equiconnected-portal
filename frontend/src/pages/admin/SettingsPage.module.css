@@ -1,0 +1,106 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.body {
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 680px;
+  flex: 1;
+}
+
+/* ── Form card ────────────────────────────────────────────────────────────── */
+.formCard {
+  background: var(--color-neutral-0);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.formTitle {
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin: 0 0 var(--space-2);
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── Preview panel ────────────────────────────────────────────────────────── */
+.previewPanel {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+}
+
+.previewTitle {
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 var(--space-3);
+}
+
+.previewGrid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.previewLabel {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.previewValue {
+  color: var(--text-primary);
+  font-weight: var(--font-medium);
+  font-family: var(--font-mono, monospace);
+}
+
+/* ── Footer / actions ─────────────────────────────────────────────────────── */
+.formFooter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-default);
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* ── Feedback ─────────────────────────────────────────────────────────────── */
+.feedback {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+}
+
+.feedback--success {
+  color: var(--color-success);
+}
+
+.feedback--error {
+  color: var(--color-error);
+}
+
+.feedback--loading {
+  color: var(--text-secondary);
+}

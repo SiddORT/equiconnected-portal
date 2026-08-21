@@ -10,6 +10,18 @@ vi.mock('@/api/admin', () => ({
   setAdminReviewCommentVisibility: vi.fn(),
 }));
 
+vi.mock('@/app/TimeSettingsContext', () => ({
+  useTimeSettings: () => ({
+    settings: { timezone: 'UTC', date_format: 'month_day_year', time_format: '12_hour' },
+    isLoading: false,
+    error: null,
+    formatTimestamp: (v: string) => v,
+    formatDate: (v: string) => v,
+    formatWeekday: (v: string) => v,
+    refresh: vi.fn(),
+  }),
+}));
+
 const response = {
   data: [{
     id: 'review-1', provider_id: 'provider-1', provider_name: 'Austin Equine Clinic',

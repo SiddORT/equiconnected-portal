@@ -141,7 +141,7 @@ class InvitationRepository:
         if date_from:
             conditions.append(ProviderInvitation.sent_at >= date_from)
         if date_to:
-            conditions.append(ProviderInvitation.sent_at <= date_to)
+            conditions.append(ProviderInvitation.sent_at < date_to)
         for condition in conditions:
             stmt, count_stmt = stmt.where(condition), count_stmt.where(condition)
         total = self._db.scalar(count_stmt) or 0

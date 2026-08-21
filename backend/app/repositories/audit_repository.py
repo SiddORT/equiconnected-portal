@@ -4,7 +4,7 @@ Audit log data access.
 import ipaddress
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import func, select
@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.audit_log import AuditLog
 from app.models.user import User
+from app.core.time_standards import local_date_bounds
 
 
 @dataclass(frozen=True)
@@ -160,19 +161,28 @@ class AuditRepository:
         )
 
     @staticmethod
-    def _bounds(date_from: date | None, date_to: date | None) -> tuple[datetime | None, datetime | None]:
-        start = datetime.combine(date_from, time.min, tzinfo=timezone.utc) if date_from else None
-        end = datetime.combine(date_to, time.max, tzinfo=timezone.utc) if date_to else None
-        return start, end
+    def _bounds(
+        date_from: date | None,
+        date_to: date | None,
+        timezone_name: str | None = None,
+    ) -> tuple[datetime | None, datetime | None]:
+        return local_date_bounds(date_from, date_to, timezone_name)
 
-    def list(self, *, date_from: date | None = None, date_to: date | None = None,
-             page: int = 1, page_size: int = 25) -> tuple[list[AuditLog], int]:
-        start, end = self._bounds(date_from, date_to)
+    def list(
+        self,
+        *,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        timezone_name: str | None = None,
+        page: int = 1,
+        page_size: int = 25,
+    ) -> tuple[list[AuditLog], int]:
+        start, end = self._bounds(date_from, date_to, timezone_name)
         filters = []
         if start:
             filters.append(AuditLog.created_at >= start)
         if end:
-            filters.append(AuditLog.created_at <= end)
+            filters.append(AuditLog.created_at < end)
         total = self._db.scalar(
             select(func.count()).select_from(AuditLog).where(*filters)
         ) or 0

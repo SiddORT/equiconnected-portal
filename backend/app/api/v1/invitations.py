@@ -1,5 +1,5 @@
 """Authenticated admin and token-only public provider invitation endpoints."""
-from datetime import datetime
+from datetime import date
 from math import ceil
 from typing import Annotated
 from uuid import UUID
@@ -15,6 +15,8 @@ from app.models.specialization import Specialization
 from app.repositories.invitation_repository import InvitationRepository
 from app.repositories.provider_repository import ProviderRepository
 from app.repositories.audit_repository import context_from_request
+from app.repositories.system_settings_repository import SystemSettingsRepository
+from app.core.time_standards import local_date_bounds
 from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.schemas.invitation import DraftSaveRequest, InvitationCreate, InvitationListResponse, InvitationResponse, InvitationTokenResponse, SubmitRequest
 from app.services.email_service import EmailDeliveryError
@@ -55,10 +57,35 @@ def _unavailable_error(exc: Exception) -> HTTPException:
         return _error(409, "invitation_completed", "This invitation has already been completed.")
     return _error(409, "invitation_cancelled", "This invitation has been cancelled.")
 @admin_router.get("", response_model=InvitationListResponse)
-def list_invitations(svc: _Svc, request: Request, user: CurrentUser, search: str | None = None, status_: InvitationStatus | None = Query(None, alias="status"),
-                     provider_type: ProviderType | None = None, date_from: datetime | None = None, date_to: datetime | None = None,
-                     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100)):
-    rows, total = svc.list(search=search, status=status_, provider_type=provider_type, date_from=date_from, date_to=date_to, page=page, page_size=page_size)
+def list_invitations(
+    svc: _Svc,
+    request: Request,
+    user: CurrentUser,
+    db: _DB,
+    search: str | None = None,
+    status_: InvitationStatus | None = Query(None, alias="status"),
+    provider_type: ProviderType | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+):
+    if date_from and date_to and date_from > date_to:
+        raise _error(422, "invalid_date_range", "Start date must be on or before end date.")
+    start, end = local_date_bounds(
+        date_from,
+        date_to,
+        SystemSettingsRepository(db).get_or_create().timezone,
+    )
+    rows, total = svc.list(
+        search=search,
+        status=status_,
+        provider_type=provider_type,
+        date_from=start,
+        date_to=end,
+        page=page,
+        page_size=page_size,
+    )
     data = []
     for invitation, provider_name, provider_status in rows:
         item = InvitationResponse.model_validate(invitation)

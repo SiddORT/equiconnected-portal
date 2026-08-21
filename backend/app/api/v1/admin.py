@@ -33,6 +33,8 @@ from app.schemas.email_delivery_log import (
 from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.schemas.user import PublicRegistrantResponse
 from app.repositories.user_repository import UserRepository
+from app.repositories.system_settings_repository import SystemSettingsRepository
+from app.core.time_standards import system_today
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -125,7 +127,8 @@ def dashboard_stats(
         "stable_managers": public_role_counts.get("stable_manager", 0),
     }
 
-    today = datetime.now(timezone.utc).date()
+    system_settings = SystemSettingsRepository(db).get_or_create()
+    today = system_today(system_settings.timezone)
     first_visit_date = today - timedelta(days=6)
     visit_rows = db.execute(
         select(PublicVisitDaily.visit_date, PublicVisitDaily.visit_count)
@@ -310,7 +313,11 @@ def list_activity_logs(
             },
         )
     events, total = AuditRepository(db).list(
-        date_from=date_from, date_to=date_to, page=page, page_size=page_size
+        date_from=date_from,
+        date_to=date_to,
+        timezone_name=SystemSettingsRepository(db).get_or_create().timezone,
+        page=page,
+        page_size=page_size,
     )
     return AuditLogListResponse(
         data=[_audit_response(event) for event in events],
@@ -384,6 +391,7 @@ def list_email_logs(
         filter_year=year,
         date_from=date_from,
         date_to=date_to,
+        timezone_name=SystemSettingsRepository(db).get_or_create().timezone,
         page=page,
         page_size=page_size,
     )

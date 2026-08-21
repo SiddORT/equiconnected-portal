@@ -64,6 +64,7 @@ _CLEANUP_TABLES = [
     "providers",
     "specializations",
     "public_visit_daily",
+    "system_settings",
 ]
 
 

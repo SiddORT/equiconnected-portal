@@ -71,25 +71,23 @@ describe('AdminTopNav', () => {
 
     const navigation = screen.getByRole('navigation', { name: 'Admin navigation' });
     const registrationsLink = within(navigation).getByRole('link', { name: 'Registrations' });
-
     expect(registrationsLink.getAttribute('href')).toBe('/admin/users');
     expect(registrationsLink.getAttribute('aria-current')).toBe('page');
-    expect(screen.queryByRole('menuitem', { name: 'Users' })).toBeNull();
+  });
 
-    await user.click(screen.getByRole('button', { name: 'Directory Management' }));
+  it('removes Profile and links Settings to the active admin settings route', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/admin/settings']}>
+        <AdminTopNav />
+      </MemoryRouter>
+    );
 
-    expect(screen.queryByRole('menuitem', { name: 'Users' })).toBeNull();
-    expect(screen.getByRole('menuitem', { name: 'Specializations' }).getAttribute('href')).toBe(
-      '/admin/specializations'
-    );
-    expect(screen.getByRole('menuitem', { name: 'Providers' }).getAttribute('href')).toBe(
-      '/admin/providers'
-    );
-    expect(screen.getByRole('menuitem', { name: 'Invitations' }).getAttribute('href')).toBe(
-      '/admin/invitations'
-    );
-    expect(screen.getByRole('menuitem', { name: 'Reviews' }).getAttribute('href')).toBe(
-      '/admin/reviews'
-    );
+    await user.click(screen.getByRole('button', { name: 'Open profile menu' }));
+
+    expect(screen.queryByRole('menuitem', { name: 'Profile' })).toBeNull();
+    const settingsLink = screen.getByRole('menuitem', { name: 'Settings' });
+    expect(settingsLink.getAttribute('href')).toBe('/admin/settings');
+    expect(settingsLink.getAttribute('aria-current')).toBe('page');
   });
 });
