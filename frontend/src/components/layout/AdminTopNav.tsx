@@ -6,13 +6,13 @@ import styles from './AdminTopNav.module.css';
 interface NavItem { label: string; to: string; icon: string; }
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: '⊞' },
+  { label: 'Registrations', to: '/admin/users', icon: '👥' },
 ];
 
 const DIRECTORY_ITEMS: NavItem[] = [
   { label: 'Specializations', to: '/admin/specializations', icon: '⚕' },
   { label: 'Providers', to: '/admin/providers', icon: '🏥' },
   { label: 'Invitations', to: '/admin/invitations', icon: '✉' },
-  { label: 'Users', to: '/admin/users', icon: '👥' },
   { label: 'Reviews', to: '/admin/reviews', icon: '★' },
 ];
 
