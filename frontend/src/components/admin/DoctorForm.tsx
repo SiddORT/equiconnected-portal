@@ -49,6 +49,10 @@ const VISIT_STABILITY_OPTIONS = [
   { value: 'STABLE_VISIT', label: 'Stable' },
   { value: 'NOT_STABLE_VISIT', label: 'Not stable' },
 ];
+const INVITATION_VISIT_STABILITY_OPTIONS = [
+  { value: 'STABLE_VISIT', label: 'Yes' },
+  { value: 'NOT_STABLE_VISIT', label: 'No' },
+];
 const STATUS_OPTIONS = [
   { value: 'ACTIVE', label: 'Active' },
   { value: 'INACTIVE', label: 'Inactive' },
@@ -83,6 +87,9 @@ interface DoctorFormProps {
 export function DoctorForm({ initialData, invitation, onSuccess, onCancel, children }: DoctorFormProps) {
   const isEdit = Boolean(initialData);
   const inv = invitation;
+  const visitStabilityOptions = inv
+    ? INVITATION_VISIT_STABILITY_OPTIONS
+    : VISIT_STABILITY_OPTIONS;
 
   // ── Core fields ──────────────────────────────────────────────────────────────
   const [name, setName] = useState(inv?.initial.name ?? initialData?.name ?? '');
@@ -503,7 +510,7 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
           <div className={styles.grid}>
             <Select
               label="Visit Stable"
-              options={VISIT_STABILITY_OPTIONS}
+              options={visitStabilityOptions}
               placeholder="Select…"
               value={visitStability}
               onChange={(e) => setVisitStability(e.target.value)}

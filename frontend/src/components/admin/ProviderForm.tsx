@@ -56,6 +56,10 @@ const VISIT_STABILITY_OPTIONS = [
   { value: 'STABLE_VISIT', label: 'Stable' },
   { value: 'NOT_STABLE_VISIT', label: 'Not stable' },
 ];
+const INVITATION_VISIT_STABILITY_OPTIONS = [
+  { value: 'STABLE_VISIT', label: 'Yes' },
+  { value: 'NOT_STABLE_VISIT', label: 'No' },
+];
 const STATUS_OPTIONS = [
   { value: 'ACTIVE', label: 'Active' },
   { value: 'INACTIVE', label: 'Inactive' },
@@ -113,6 +117,9 @@ interface ProviderFormProps {
 export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: ProviderFormProps) {
   const isEdit = Boolean(initialData);
   const inv = invitation;
+  const visitStabilityOptions = inv
+    ? INVITATION_VISIT_STABILITY_OPTIONS
+    : VISIT_STABILITY_OPTIONS;
 
   const [providerType, setProviderType] = useState<string>(
     inv?.providerType ?? initialData?.provider_type ?? ''
@@ -759,7 +766,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           <div className={styles.grid}>
             <Select
               label="Visit Stable"
-              options={VISIT_STABILITY_OPTIONS}
+              options={visitStabilityOptions}
               placeholder="Select…"
               value={visitStability}
               onChange={(e) => setVisitStability(e.target.value)}
