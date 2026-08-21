@@ -73,12 +73,17 @@ describe('ReviewsPage', () => {
 
     const card = await screen.findByTestId('review-card');
     expect(card.textContent).toContain('Austin Equine Clinic');
-    expect(card.textContent).toContain('Amina Rider');
+    expect(card.textContent).toContain('Sent by Amina Rider');
     expect(card.textContent).toContain('amina@example.com');
     expect(card.textContent).toContain('★★★★★');
     expect(card.textContent).toContain('5/5');
     expect(card.textContent).toContain(longComment);
     expect(card.textContent).toContain('Submitted 2026-01-01T00:00:00Z');
+    const providerHeading = card.querySelector('h3');
+    const submittedAt = card.querySelector('time');
+    expect(providerHeading?.textContent).toBe('Austin Equine Clinic');
+    expect(submittedAt).toBeTruthy();
+    expect(providerHeading!.compareDocumentPosition(submittedAt!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(card.textContent).toContain('Hidden');
     expect(screen.getByRole('button', { name: 'Restore' })).toBeTruthy();
   });

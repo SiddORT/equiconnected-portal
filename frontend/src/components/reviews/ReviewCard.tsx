@@ -53,9 +53,14 @@ export function ReviewCard<T extends ReviewCardData>({
       <header className={styles.header}>
         <div className={styles.identity}>
           {isAdmin && review.provider_name && (
-            <p className={styles.providerName}>{review.provider_name}</p>
+            <h3 className={styles.providerName}>{review.provider_name}</h3>
           )}
-          <strong className={styles.reviewerName}>{review.reviewer_name}</strong>
+          <div className={styles.reviewMeta}>
+            <span>Sent by <strong className={styles.reviewerName}>{review.reviewer_name}</strong></span>
+            <time dateTime={review.created_at}>
+              Submitted {formatTimestamp(review.created_at)}
+            </time>
+          </div>
           {isAdmin && review.reviewer_email && (
             <span className={styles.email}>{review.reviewer_email}</span>
           )}
@@ -76,11 +81,8 @@ export function ReviewCard<T extends ReviewCardData>({
         </p>
       </div>
 
-      <footer className={styles.footer}>
-        <time dateTime={review.created_at}>
-          Submitted {formatTimestamp(review.created_at)}
-        </time>
-        {isAdmin && (
+      {isAdmin && (
+        <footer className={styles.footer}>
           <div className={styles.moderation}>
             <Badge size="sm" variant={review.comment_visible ? 'success' : 'neutral'}>
               {review.comment_visible ? 'Visible' : 'Hidden'}
@@ -96,8 +98,8 @@ export function ReviewCard<T extends ReviewCardData>({
               </Button>
             )}
           </div>
-        )}
-      </footer>
+        </footer>
+      )}
     </article>
   );
 }
