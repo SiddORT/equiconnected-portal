@@ -40,6 +40,16 @@ const TYPE_LABELS: Record<string, string> = {
   DOCTOR: 'Doctor',
 };
 
+const ALLOWED_PHOTO_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+]);
+const PHOTO_ACCEPT = 'image/jpeg,image/png,image/gif,image/webp';
+const MAX_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_PHOTO_SIZE_LABEL = '10 MB';
+
 interface LocationFormValues {
   name: string;
   address_line_1: string;
@@ -195,7 +205,35 @@ export function ProviderDetailPage() {
   }
 
   function addFiles(files: FileList | File[]) {
-    const arr = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    const invalidTypeNames: string[] = [];
+    const oversizedNames: string[] = [];
+    const arr = Array.from(files).filter((file) => {
+      if (!ALLOWED_PHOTO_MIME_TYPES.has(file.type)) {
+        invalidTypeNames.push(file.name);
+        return false;
+      }
+      if (file.size > MAX_PHOTO_SIZE_BYTES) {
+        oversizedNames.push(file.name);
+        return false;
+      }
+      return true;
+    });
+
+    if (invalidTypeNames.length || oversizedNames.length) {
+      const messages = [];
+      if (invalidTypeNames.length) {
+        messages.push(
+          `${invalidTypeNames.join(', ')} ${invalidTypeNames.length === 1 ? 'is' : 'are'} not a supported image type.`
+        );
+      }
+      if (oversizedNames.length) {
+        messages.push(
+          `${oversizedNames.join(', ')} ${oversizedNames.length === 1 ? 'exceeds' : 'exceed'} the ${MAX_PHOTO_SIZE_LABEL} per-photo limit.`
+        );
+      }
+      setActionError(`${messages.join(' ')} Supported types: JPEG, PNG, GIF, and WebP.`);
+    }
+
     arr.forEach((file) => {
       const id = `${Date.now()}-${Math.random()}`;
       const reader = new FileReader();
@@ -788,7 +826,7 @@ export function ProviderDetailPage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept={PHOTO_ACCEPT}
                   multiple
                   className={styles.fileInput}
                   onChange={(e) => e.target.files && addFiles(e.target.files)}
@@ -810,7 +848,12 @@ export function ProviderDetailPage() {
                   <span className={styles.dropZoneText}>
                     Drop images here or <span className={styles.dropZoneBrowse}>browse</span>
                   </span>
-                  <span className={styles.dropZoneHint}>PNG, JPG, WebP, GIF — multiple allowed</span>
+                  <span className={styles.dropZoneHint}>
+                    Supported types: JPEG, PNG, GIF, WebP · Maximum size: {MAX_PHOTO_SIZE_LABEL} per photo · Multiple allowed
+                  </span>
+                  <span className={styles.dropZoneDisclaimer}>
+                    Alt text is recommended for accessibility; captions are optional. Photos are uploaded only after you click Upload photo.
+                  </span>
                 </div>
 
                 {/* Staged photo cards */}

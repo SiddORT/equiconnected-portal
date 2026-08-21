@@ -342,6 +342,7 @@ _ALLOWED_IMAGE_TYPES: dict[str, str] = {
     "image/gif": ".gif",
     "image/webp": ".webp",
 }
+_MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
 
 # ── Photos ────────────────────────────────────────────────────────────────────
 
@@ -413,6 +414,15 @@ async def add_provider_photo(id: UUID, request: Request, svc: _Svc):
         contents = await file.read()
     finally:
         await file.close()
+
+    if len(contents) > _MAX_IMAGE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail={
+                "code": "image_too_large",
+                "message": "Images must be 10 MB or smaller.",
+            },
+        )
 
     with open(dest_path, "wb") as fh:
         fh.write(contents)

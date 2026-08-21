@@ -1,2 +1,4 @@
 - [EquiConnected Portal architecture](equiconnected-arch.md) — FastAPI + React + PostgreSQL; key decisions, known pitfalls, and conventions.
 - [New-provider invitation concurrency](invitation-concurrency.md) — reserve the logical type/email identity before a draft provider ID exists.
+- [Collapsible admin filters](collapsible-admin-filters.md) — hidden filter controls must leave the interactive page structure, not only be visually clipped.
+- [Provider photo upload policy](provider-photo-uploads.md) — allow JPEG, PNG, GIF, and WebP only, with a 10 MB per-photo limit.

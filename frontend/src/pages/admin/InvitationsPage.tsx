@@ -66,6 +66,8 @@ export function InvitationsPage() {
   // Raw invitation links are only returned by create/resend, never by the
   // list endpoint — remember them for the session so Copy Link can work.
   const [linkById, setLinkById] = useState<Record<string, string>>({});
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterPanelRef = useRef<HTMLDivElement>(null);
 
   const updateParams = useCallback((updates: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams);
@@ -163,6 +165,53 @@ export function InvitationsPage() {
   ];
 
   const hasFilters = Boolean(search || status || providerType || dateFrom || dateTo);
+  const activeChips: { label: string; onClear: () => void }[] = [];
+  if (status) {
+    activeChips.push({
+      label: `Status: ${STATUS_LABELS[status]}`,
+      onClear: () => updateParams({ status: null, page: '1' }),
+    });
+  }
+  if (providerType) {
+    activeChips.push({
+      label: `Type: ${TYPE_LABELS[providerType]}`,
+      onClear: () => updateParams({ provider_type: null, page: '1' }),
+    });
+  }
+  if (dateFrom) {
+    activeChips.push({
+      label: `Sent from: ${dateFrom}`,
+      onClear: () => updateParams({ date_from: null, page: '1' }),
+    });
+  }
+  if (dateTo) {
+    activeChips.push({
+      label: `Sent to: ${dateTo}`,
+      onClear: () => updateParams({ date_to: null, page: '1' }),
+    });
+  }
+
+  const filterGroups = [
+    {
+      label: 'Invitation status',
+      value: status ?? 'all',
+      onChange: (value: string) => updateParams({ status: value === 'all' ? null : value, page: '1' }),
+      options: [
+        { value: 'all', label: 'All' },
+        ...statuses.map((value) => ({ value, label: STATUS_LABELS[value] })),
+      ],
+    },
+    {
+      label: 'Provider type',
+      value: providerType ?? 'all',
+      onChange: (value: string) => updateParams({ provider_type: value === 'all' ? null : value, page: '1' }),
+      options: [
+        { value: 'all', label: 'All types' },
+        ...providerTypes.map((value) => ({ value, label: TYPE_LABELS[value] })),
+      ],
+    },
+  ];
+
   return (
     <div className={styles.shell}>
       <PageHeader
@@ -175,24 +224,67 @@ export function InvitationsPage() {
         {notice && <Alert variant={notice.variant} onDismiss={() => setNotice(null)}>{notice.message}</Alert>}
         <div className={styles.toolbar}>
           <SearchInput value={search} onChange={(value) => updateParams({ search: value || null, page: '1' })} placeholder="Search recipient or provider…" delay={300} containerClassName={styles.search} />
-          <FilterBar groups={[
-            { label: 'Invitation status', value: status ?? 'all', onChange: (value) => updateParams({ status: value === 'all' ? null : value, page: '1' }), options: [{ value: 'all', label: 'All' }, ...statuses.map((value) => ({ value, label: STATUS_LABELS[value] }))] },
-            { label: 'Provider type', value: providerType ?? 'all', onChange: (value) => updateParams({ provider_type: value === 'all' ? null : value, page: '1' }), options: [{ value: 'all', label: 'All types' }, ...providerTypes.map((value) => ({ value, label: TYPE_LABELS[value] }))] },
-          ]} />
-          <div className={styles.dateFilters} role="group" aria-label="Sent date range">
-            <label className={styles.dateLabel}>
-              Sent from
-              <Input type="date" value={dateFrom} onChange={(event) => updateParams({ date_from: event.target.value || null, page: '1' })} />
-            </label>
-            <label className={styles.dateLabel}>
-              to
-              <Input type="date" value={dateTo} onChange={(event) => updateParams({ date_to: event.target.value || null, page: '1' })} />
-            </label>
-          </div>
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={() => updateParams({ search: null, status: null, provider_type: null, date_from: null, date_to: null, page: null })}>
-              Clear filters
-            </Button>
+          <button
+            type="button"
+            className={`${styles.filterToggle} ${filtersOpen ? styles['filterToggle--open'] : ''} ${activeChips.length > 0 && !filtersOpen ? styles['filterToggle--active'] : ''}`}
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            aria-controls="invitation-filter-panel"
+          >
+            <span className={styles.filterToggleIcon}>⊟</span>
+            Filters
+            {activeChips.length > 0 && (
+              <span className={styles.filterCount}>{activeChips.length}</span>
+            )}
+            <span className={`${styles.chevron} ${filtersOpen ? styles['chevron--up'] : ''}`}>▾</span>
+          </button>
+
+          {!filtersOpen && activeChips.length > 0 && (
+            <div className={styles.activeChips} aria-label="Active filters">
+              {activeChips.map((chip) => (
+                <button
+                  key={chip.label}
+                  type="button"
+                  className={styles.chip}
+                  onClick={chip.onClear}
+                  title={`Remove filter: ${chip.label}`}
+                >
+                  {chip.label}
+                  <span className={styles.chipClose} aria-hidden="true">✕</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div
+          id="invitation-filter-panel"
+          ref={filterPanelRef}
+          className={`${styles.filterPanel} ${filtersOpen ? styles['filterPanel--open'] : ''}`}
+          aria-hidden={!filtersOpen}
+        >
+          {filtersOpen && (
+            <div className={styles.filterPanelInner}>
+              <FilterBar groups={filterGroups} />
+              <div className={styles.dateFilters} role="group" aria-label="Sent date range">
+                <label className={styles.dateLabel}>
+                  Sent from
+                  <Input type="date" value={dateFrom} onChange={(event) => updateParams({ date_from: event.target.value || null, page: '1' })} />
+                </label>
+                <label className={styles.dateLabel}>
+                  to
+                  <Input type="date" value={dateTo} onChange={(event) => updateParams({ date_to: event.target.value || null, page: '1' })} />
+                </label>
+              </div>
+              {hasFilters && (
+                <button
+                  type="button"
+                  className={styles.clearAll}
+                  onClick={() => updateParams({ search: null, status: null, provider_type: null, date_from: null, date_to: null, page: null })}
+                >
+                  Clear all filters
+                </button>
+              )}
+            </div>
           )}
         </div>
         <DataTable

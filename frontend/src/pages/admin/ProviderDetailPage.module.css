@@ -407,6 +407,12 @@
   font-size: var(--text-xs);
   color: var(--text-muted);
 }
+.dropZoneDisclaimer {
+  max-width: 620px;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
 
 /* Staged photo list — horizontal cards */
 .stagedList {
