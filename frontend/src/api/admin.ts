@@ -11,6 +11,8 @@ import type {
   EmailDeliveryLog,
   PaginatedResponse,
   AdminProviderReview,
+  ProviderApplication,
+  ProviderApplicationListParams,
   SystemSettings,
   SystemSettingsUpdate,
 } from '@/types';
@@ -72,6 +74,34 @@ export async function listAdminUsers(
 
 export async function getAdminUser(id: string): Promise<AdminUser> {
   const { data } = await apiClient.get<AdminUser>(`/admin/users/${id}`);
+  return data;
+}
+
+export async function listProviderApplications(
+  params?: ProviderApplicationListParams
+): Promise<PaginatedResponse<ProviderApplication>> {
+  const { data } = await apiClient.get<PaginatedResponse<ProviderApplication>>(
+    '/admin/provider-applications',
+    { params }
+  );
+  return data;
+}
+
+export async function approveProviderApplication(id: string): Promise<ProviderApplication> {
+  const { data } = await apiClient.post<ProviderApplication>(
+    `/admin/provider-applications/${id}/approve`
+  );
+  return data;
+}
+
+export async function rejectProviderApplication(
+  id: string,
+  rejection_reason?: string
+): Promise<ProviderApplication> {
+  const { data } = await apiClient.post<ProviderApplication>(
+    `/admin/provider-applications/${id}/reject`,
+    rejection_reason ? { rejection_reason } : undefined
+  );
   return data;
 }
 

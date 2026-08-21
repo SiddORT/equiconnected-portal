@@ -15,6 +15,7 @@ from app.models.base import TimestampMixin
 
 
 PUBLIC_ACCOUNT_ROLE_NAMES = ("horse_owner", "stable_manager")
+PROVIDER_ACCOUNT_ROLE_NAME = "provider"
 
 
 class User(TimestampMixin, Base):
@@ -80,6 +81,13 @@ class User(TimestampMixin, Base):
     provider_reviews: Mapped[list["ProviderReview"]] = relationship(  # noqa: F821
         "ProviderReview", back_populates="member", cascade="all, delete-orphan"
     )
+    provider_registration_application: Mapped["ProviderRegistrationApplication | None"] = relationship(  # noqa: F821
+        "ProviderRegistrationApplication",
+        foreign_keys="ProviderRegistrationApplication.user_id",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
 
     @property
     def full_name(self) -> str:
@@ -90,6 +98,11 @@ class User(TimestampMixin, Base):
     def is_public_registrant(self) -> bool:
         """Whether this account is governed by the public registration workflow."""
         return self.role.name in PUBLIC_ACCOUNT_ROLE_NAMES
+
+    @property
+    def is_provider_registrant(self) -> bool:
+        """Whether this account is governed by provider application review."""
+        return self.role.name == PROVIDER_ACCOUNT_ROLE_NAME
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email!r} role={self.role_id}>"

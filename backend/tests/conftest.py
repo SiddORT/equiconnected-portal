@@ -44,6 +44,7 @@ _CLEANUP_TABLES = [
     "horses",
     "stable_profiles",
     "provider_reviews",
+    "provider_registration_applications",
     "refresh_tokens",
     "email_verification_tokens",
     "email_delivery_logs",

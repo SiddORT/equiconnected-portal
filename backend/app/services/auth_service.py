@@ -28,9 +28,14 @@ from app.repositories.email_delivery_repository import (
 )
 from app.repositories.token_repository import TokenRepository
 from app.repositories.user_repository import UserRepository
-from app.schemas.auth import RegistrationRequest, UserProfile
+from app.schemas.auth import ProviderRegistrationRequest, RegistrationRequest, UserProfile
+from app.models.enums import (
+    EmailDeliveryStatus,
+    EmailPurpose,
+    ProviderApplicationStatus,
+)
 from app.models.user import EmailVerificationToken
-from app.models.enums import EmailDeliveryStatus, EmailPurpose
+from app.models.provider_registration import ProviderRegistrationApplication
 from app.services.email_service import EmailDeliveryError, EmailService
 
 logger = get_logger(__name__)
@@ -87,6 +92,12 @@ class LoginResult:
     refresh_token: str
     expires_in: int
     user_profile: "UserProfile"
+
+
+@dataclass(frozen=True)
+class VerificationResult:
+    email: str
+    is_provider_application: bool
 
 
 class AuthService:
@@ -185,7 +196,98 @@ class AuthService:
             self._db.rollback()
             raise
 
-    def verify_email(self, raw_token: str) -> str:
+    def register_provider(self, registration: ProviderRegistrationRequest) -> None:
+        """Create an inactive provider application and deliver a verification link."""
+        from app.core.config import get_settings
+
+        email = registration.email.lower().strip()
+        if self._users.get_by_email(email) is not None:
+            raise DuplicateEmailError("An account with this email already exists.")
+        try:
+            provider_role = self._users.get_role_by_name("provider")
+            if provider_role is None:
+                logger.error("provider_registration.configuration_missing", required_role="provider")
+                raise RegistrationUnavailableError
+
+            now = datetime.now(timezone.utc)
+            user = self._users.create_user(
+                email=email,
+                password_hash=hash_password(registration.password),
+                role=provider_role,
+                roles=[provider_role],
+                first_name=registration.first_name,
+                last_name=registration.last_name,
+                mobile_number=registration.mobile_number,
+                country=registration.country,
+                state_province=registration.state_province,
+                city=registration.city,
+                terms_accepted_at=now,
+                privacy_accepted_at=now,
+                is_active=False,
+            )
+            application = ProviderRegistrationApplication(
+                user_id=user.id,
+                provider_type=registration.provider_type,
+                provider_name=registration.provider_name,
+                visit_stability=registration.visit_stability,
+                review_status=ProviderApplicationStatus.AWAITING_EMAIL_VERIFICATION,
+            )
+            self._db.add(application)
+            raw_token = secrets.token_urlsafe(32)
+            expires_at = now + timedelta(
+                hours=get_settings().EMAIL_VERIFICATION_EXPIRE_HOURS
+            )
+            self._db.add(
+                EmailVerificationToken(
+                    user_id=user.id,
+                    token_hash=self._hash_verification_token(raw_token),
+                    expires_at=expires_at,
+                )
+            )
+            self._db.flush()
+            verification_url = (
+                f"{get_settings().PUBLIC_APP_URL.rstrip('/')}/verify-email"
+                f"?token={quote(raw_token, safe='')}"
+            )
+            attempt_id = self._email_logs.record_durable_attempt(
+                recipient_email=email,
+                purpose=EmailPurpose.ACCOUNT_VERIFICATION,
+            )
+            try:
+                self._email.send_verification_email(email, verification_url, expires_at)
+            except Exception as exc:
+                self._email_logs.complete_durable_attempt(
+                    attempt_id,
+                    status=EmailDeliveryStatus.FAILED,
+                    failure_message=safe_failure_message(exc),
+                )
+                self._db.rollback()
+                raise
+            self._email_logs.complete_durable_attempt(
+                attempt_id,
+                status=EmailDeliveryStatus.SUCCESS,
+            )
+            self._audit.log(
+                action="provider_application.registered",
+                user_id=user.id,
+                actor_type="provider_registration",
+                resource_type="provider_registration_application",
+                resource_id=str(application.id),
+                metadata={
+                    "provider_name": application.provider_name,
+                    "provider_type": application.provider_type.value,
+                },
+                summary="Submitted provider account application.",
+            )
+            self._db.commit()
+        except IntegrityError as exc:
+            self._db.rollback()
+            raise DuplicateEmailError("An account with this email already exists.") from exc
+        except RegistrationUnavailableError:
+            self._db.rollback()
+            raise
+
+    def verify_email(self, raw_token: str) -> VerificationResult:
         """Redeem a single-use verification token and return the verified email."""
         token_hash = self._hash_verification_token(raw_token)
         # Lock the token row while checking and consuming it. Under PostgreSQL's
@@ -207,8 +309,28 @@ class AuthService:
         token.used_at = datetime.now(timezone.utc)
         token.user.email_verified_at = token.used_at
         email = token.user.email
+        provider_application = self._db.query(ProviderRegistrationApplication).filter(
+            ProviderRegistrationApplication.user_id == token.user_id
+        ).with_for_update().first()
+        is_provider_application = provider_application is not None
+        if provider_application and (
+            provider_application.review_status
+            == ProviderApplicationStatus.AWAITING_EMAIL_VERIFICATION
+        ):
+            provider_application.review_status = ProviderApplicationStatus.PENDING_REVIEW
+            self._audit.log(
+                action="provider_application.email_verified",
+                user_id=token.user_id,
+                actor_type="provider_registration",
+                resource_type="provider_registration_application",
+                resource_id=str(provider_application.id),
+                summary="Provider application entered administrator review.",
+            )
         self._db.commit()
-        return email
+        return VerificationResult(
+            email=email,
+            is_provider_application=is_provider_application,
+        )
 
 
     # ── Login ────────────────────────────────────────────────────────────────
@@ -244,10 +366,10 @@ class AuthService:
             self._db.commit()
             raise AuthenticationError("Invalid email or password")
 
+        self._require_member_access(user)
         if not user.is_active:
             logger.warning("login.failed.inactive", user_id=str(user.id))
             raise InactiveUserError("Account is disabled")
-        self._require_member_access(user)
 
         # Optional: rehash if Argon2 parameters are outdated
         if password_needs_rehash(user.password_hash):

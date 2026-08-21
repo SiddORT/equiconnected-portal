@@ -17,7 +17,11 @@ class UserRepository:
     def get_by_id(self, user_id: uuid.UUID) -> User | None:
         stmt = (
             select(User)
-            .options(joinedload(User.role), selectinload(User.role_assignments).joinedload(UserRole.role))
+            .options(
+                joinedload(User.role),
+                selectinload(User.role_assignments).joinedload(UserRole.role),
+                joinedload(User.provider_registration_application),
+            )
             .where(User.id == user_id)
         )
         return self._db.scalars(stmt).first()
@@ -25,7 +29,11 @@ class UserRepository:
     def get_by_email(self, email: str) -> User | None:
         stmt = (
             select(User)
-            .options(joinedload(User.role), selectinload(User.role_assignments).joinedload(UserRole.role))
+            .options(
+                joinedload(User.role),
+                selectinload(User.role_assignments).joinedload(UserRole.role),
+                joinedload(User.provider_registration_application),
+            )
             .where(User.email == email.lower().strip())
         )
         return self._db.scalars(stmt).first()

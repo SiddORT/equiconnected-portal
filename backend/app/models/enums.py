@@ -28,6 +28,13 @@ class PublicationStatus(str, enum.Enum):
     PUBLISHED = "PUBLISHED"
 
 
+class ProviderApplicationStatus(str, enum.Enum):
+    AWAITING_EMAIL_VERIFICATION = "AWAITING_EMAIL_VERIFICATION"
+    PENDING_REVIEW = "PENDING_REVIEW"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
 class DoctorOrganizationStatus(str, enum.Enum):
     PENDING = "PENDING"
     REJECTED = "REJECTED"

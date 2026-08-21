@@ -11,3 +11,4 @@
 - [Transactional email delivery accounting](transactional-email-delivery-accounting.md) — commit a pending attempt before SMTP and finalize its safe outcome independently.
 - [Provider review concurrency](provider-review-concurrency.md) — member review writes must use an atomic provider/member upsert, not a read-then-insert.
 - [Destructive user maintenance locking](destructive-user-maintenance-locking.md) — user resets must lock the authorization and restrictive-reference boundary before calculating deletion scope.
+- [PostgreSQL locking with eager relationships](postgres-locking-eager-relationships.md) — lock only the root row when optional eager joins are present.

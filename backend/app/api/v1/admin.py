@@ -15,6 +15,7 @@ from app.auth.dependencies import require_role, CurrentUser
 from app.db.session import get_db
 from app.models.enums import (
     InvitationStatus,
+    ProviderApplicationStatus,
     ProviderStatus,
     ProviderType,
 )
@@ -32,6 +33,16 @@ from app.schemas.email_delivery_log import (
 )
 from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.schemas.user import PublicRegistrantResponse
+from app.schemas.provider_registration import (
+    ProviderApplicationDecisionRequest,
+    ProviderApplicationResponse,
+)
+from app.repositories.provider_registration_repository import ProviderRegistrationRepository
+from app.services.provider_registration_service import (
+    ProviderApplicationDecisionError,
+    ProviderApplicationNotFoundError,
+    ProviderRegistrationService,
+)
 from app.repositories.user_repository import UserRepository
 from app.repositories.system_settings_repository import SystemSettingsRepository
 from app.core.time_standards import system_today
@@ -263,6 +274,145 @@ def get_public_registrant(
             detail={"code": "registrant_not_found", "message": "Public registrant not found."},
         )
     return _public_registrant_response(user)
+
+
+def _provider_application_response(application) -> ProviderApplicationResponse:
+    user = application.user
+    reviewer = application.reviewer
+    return ProviderApplicationResponse(
+        id=application.id,
+        user_id=application.user_id,
+        provider_id=application.provider_id,
+        provider_type=application.provider_type,
+        provider_name=application.provider_name,
+        visit_stability=application.visit_stability,
+        review_status=application.review_status,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        full_name=user.full_name,
+        email=user.email,
+        mobile_number=user.mobile_number,
+        country=user.country,
+        state_province=user.state_province,
+        city=user.city,
+        email_verified_at=user.email_verified_at,
+        reviewed_by_user_id=application.reviewed_by_user_id,
+        reviewed_by_name=reviewer.full_name if reviewer else None,
+        reviewed_at=application.reviewed_at,
+        rejection_reason=application.rejection_reason,
+        created_at=application.created_at,
+    )
+
+
+def _provider_application_service(db: Session) -> ProviderRegistrationService:
+    return ProviderRegistrationService(ProviderRegistrationRepository(db))
+
+
+@router.get(
+    "/provider-applications",
+    response_model=PaginatedResponse[ProviderApplicationResponse],
+    dependencies=[Depends(require_role("admin"))],
+)
+def list_provider_applications(
+    db: Annotated[Session, Depends(get_db)],
+    search: str | None = Query(None, max_length=100),
+    provider_type: ProviderType | None = Query(None),
+    email_verified: bool | None = Query(None),
+    review_status: ProviderApplicationStatus | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+) -> PaginatedResponse[ProviderApplicationResponse]:
+    applications, total = _provider_application_service(db).list(
+        search=search,
+        provider_type=provider_type,
+        email_verified=email_verified,
+        review_status=review_status,
+        page=page,
+        page_size=page_size,
+    )
+    return PaginatedResponse(
+        data=[_provider_application_response(application) for application in applications],
+        meta=PaginationMeta(
+            page=page,
+            page_size=page_size,
+            total=total,
+            total_pages=max(1, ceil(total / page_size)),
+        ),
+    )
+
+
+@router.get(
+    "/provider-applications/{application_id}",
+    response_model=ProviderApplicationResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+def get_provider_application(
+    application_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> ProviderApplicationResponse:
+    try:
+        application = _provider_application_service(db).get(application_id)
+    except ProviderApplicationNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "provider_application_not_found", "message": "Provider application not found."},
+        )
+    return _provider_application_response(application)
+
+
+@router.post(
+    "/provider-applications/{application_id}/approve",
+    response_model=ProviderApplicationResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+def approve_provider_application(
+    application_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[Session, Depends(get_db)],
+) -> ProviderApplicationResponse:
+    try:
+        application = _provider_application_service(db).approve(application_id, current_user.id)
+    except ProviderApplicationNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "provider_application_not_found", "message": "Provider application not found."},
+        )
+    except ProviderApplicationDecisionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "provider_application_not_pending", "message": str(exc)},
+        )
+    return _provider_application_response(application)
+
+
+@router.post(
+    "/provider-applications/{application_id}/reject",
+    response_model=ProviderApplicationResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+def reject_provider_application(
+    application_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[Session, Depends(get_db)],
+    body: ProviderApplicationDecisionRequest | None = None,
+) -> ProviderApplicationResponse:
+    try:
+        application = _provider_application_service(db).reject(
+            application_id,
+            current_user.id,
+            body.rejection_reason if body else None,
+        )
+    except ProviderApplicationNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "provider_application_not_found", "message": "Provider application not found."},
+        )
+    except ProviderApplicationDecisionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "provider_application_not_pending", "message": str(exc)},
+        )
+    return _provider_application_response(application)
 
 
 def _audit_response(event) -> AuditLogResponse:

@@ -17,6 +17,7 @@ export function VerifyEmailPage() {
   const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [state, setState] = useState<VerificationState>('verifying');
   const [message, setMessage] = useState('We are securely verifying your email address.');
+  const [redirectPath, setRedirectPath] = useState<'/login' | '/provider/login'>('/login');
 
   useEffect(() => {
     isMounted.current = true;
@@ -44,9 +45,11 @@ export function VerifyEmailPage() {
         if (!isMounted.current) return;
         setState('verified');
         setMessage(response.message);
+        setRedirectPath(response.redirect_to ?? '/login');
         redirectTimer.current = setTimeout(() => {
           if (!isMounted.current) return;
-          navigate('/login', {
+          const redirectTo = response.redirect_to ?? '/login';
+          navigate(redirectTo, {
             replace: true,
             state: {
               verifiedEmail: response.email,
@@ -89,7 +92,7 @@ export function VerifyEmailPage() {
           {state === 'verified' && (
             <>
               <p className={styles.redirectMessage} role="status">
-                Redirecting you to member sign in…
+                Redirecting you to {redirectPath === '/provider/login' ? 'provider' : 'member'} sign in…
               </p>
               <div className={styles.redirectTrack} aria-hidden="true">
                 <span />

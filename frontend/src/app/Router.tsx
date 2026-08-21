@@ -31,6 +31,11 @@ import { ProviderDirectoryPage } from '@/pages/ProviderDirectoryPage';
 import { MemberProviderDetailPage } from '@/pages/MemberProviderDetailPage';
 import { ReviewsPage } from '@/pages/admin/ReviewsPage';
 import { SettingsPage } from '@/pages/admin/SettingsPage';
+import { ProviderSignupPage } from '@/pages/ProviderSignupPage';
+import { ProviderLoginPage } from '@/pages/ProviderLoginPage';
+import { ProviderAccountPage } from '@/pages/ProviderAccountPage';
+import { ProviderAuthGuard } from '@/features/provider/ProviderAuthGuard';
+import { ProviderApplicationsPage } from '@/pages/admin/ProviderApplicationsPage';
 
 export function AppRouter() {
   return (
@@ -43,8 +48,10 @@ export function AppRouter() {
         {/* Emailed links use /provider/invitations/{token} — same page. */}
         <Route path="/provider/invitations/:token" element={<InvitationPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/provider/signup" element={<ProviderSignupPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/login" element={<MemberLoginPage />} />
+        <Route path="/provider/login" element={<ProviderLoginPage />} />
         <Route path="/terms-of-service" element={<LegalPage kind="terms" />} />
         <Route path="/privacy-policy" element={<LegalPage kind="privacy" />} />
 
@@ -74,11 +81,17 @@ export function AppRouter() {
             <Route path="/admin/doctors/:id/edit" element={<LegacyDoctorRedirect edit />} />
             <Route path="/admin/invitations" element={<InvitationsPage />} />
             <Route path="/admin/users" element={<UsersPage />} />
+            <Route path="/admin/provider-applications" element={<ProviderApplicationsPage />} />
             <Route path="/admin/reviews" element={<ReviewsPage />} />
             <Route path="/admin/activity-logs" element={<ActivityLogsPage />} />
             <Route path="/admin/email-logs" element={<EmailLogsPage />} />
             <Route path="/admin/settings" element={<SettingsPage />} />
           </Route>
+        </Route>
+
+        {/* ── Approved provider account ────────────────────────────── */}
+        <Route element={<ProviderAuthGuard />}>
+          <Route path="/provider/account" element={<ProviderAccountPage />} />
         </Route>
 
         {/* ── Verified member profile ─────────────────────────────── */}

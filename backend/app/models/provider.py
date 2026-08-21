@@ -83,6 +83,9 @@ class Provider(TimestampMixin, Base):
     reviews: Mapped[list["ProviderReview"]] = relationship(
         back_populates="provider", cascade="all, delete-orphan"
     )
+    provider_registration_application: Mapped["ProviderRegistrationApplication | None"] = relationship(  # noqa: F821
+        "ProviderRegistrationApplication", back_populates="provider", uselist=False
+    )
 
     # ── Doctor extensions (populated only when provider_type == DOCTOR) ────────
     doctor_profile: Mapped["app.models.doctor.DoctorProfile | None"] = relationship(  # type: ignore[name-defined]

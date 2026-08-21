@@ -22,6 +22,7 @@ from app.models.provider import (  # noqa: F401, E402
     ProviderReview,
     ProviderSpecialization,
 )
+from app.models.provider_registration import ProviderRegistrationApplication  # noqa: F401, E402
 from app.models.doctor import DoctorOrganization, DoctorProfile, DoctorQualification  # noqa: F401, E402
 from app.models.invitation import ProviderInvitation  # noqa: F401, E402
 from app.models.organization_request import OrganizationRequest  # noqa: F401, E402

@@ -26,6 +26,7 @@ from app.schemas.auth import (
     EmailVerificationResponse,
     LoginRequest,
     LoginResponse,
+    ProviderRegistrationRequest,
     RegistrationRequest,
     UserProfile,
 )
@@ -111,8 +112,51 @@ def register(
 
 
 @router.post(
+    "/provider-register",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(check_registration_rate_limit)],
+)
+def register_provider(
+    body: ProviderRegistrationRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> MessageResponse:
+    """Submit a provider account application and send email verification."""
+    try:
+        AuthService(db).register_provider(body)
+    except DuplicateEmailError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "email_already_registered",
+                "message": "An account with this email already exists.",
+            },
+        )
+    except RegistrationUnavailableError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "registration_unavailable",
+                "message": "Registration is temporarily unavailable. Please try again later.",
+            },
+        )
+    except EmailDeliveryError:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "code": "verification_email_failed",
+                "message": "We could not send your verification email. Please try again.",
+            },
+        )
+    return MessageResponse(
+        message="Provider application submitted. Please check your email to verify it."
+    )
+
+
+@router.post(
     "/verify-email",
     response_model=EmailVerificationResponse,
+    response_model_exclude_none=True,
     dependencies=[Depends(check_email_verification_rate_limit)],
 )
 def verify_email(
@@ -121,7 +165,7 @@ def verify_email(
 ) -> EmailVerificationResponse:
     """Verify a public account using the token delivered in its email link."""
     try:
-        email = AuthService(db).verify_email(body.token)
+        result = AuthService(db).verify_email(body.token)
     except VerificationTokenNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -138,8 +182,13 @@ def verify_email(
             detail={"code": "verification_link_expired", "message": "Verification link has expired."},
         )
     return EmailVerificationResponse(
-        message="Your email has been verified. You can now sign in.",
-        email=email,
+        message=(
+            "Your email has been verified. Your provider application is now awaiting administrator review."
+            if result.is_provider_application
+            else "Your email has been verified. You can now sign in."
+        ),
+        email=result.email,
+        redirect_to="/provider/login" if result.is_provider_application else None,
     )
 
 

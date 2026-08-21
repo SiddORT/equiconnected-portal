@@ -59,6 +59,31 @@ export interface MessageResponse {
 
 export interface EmailVerificationResponse extends MessageResponse {
   email: string;
+  redirect_to?: '/login' | '/provider/login';
+}
+
+export type ProviderApplicationStatus =
+  | 'AWAITING_EMAIL_VERIFICATION'
+  | 'PENDING_REVIEW'
+  | 'APPROVED'
+  | 'REJECTED';
+
+export interface ProviderRegistrationRequest {
+  first_name: string;
+  last_name: string;
+  email: string;
+  mobile_number: string;
+  country: string;
+  state_province: string;
+  city: string;
+  password: string;
+  password_confirmation: string;
+  role: 'PROVIDER';
+  provider_type: ProviderType;
+  provider_name: string;
+  visit_stability: VisitStability;
+  accept_terms: boolean;
+  accept_privacy: boolean;
 }
 
 // ── Member profile ───────────────────────────────────────────────────────────
@@ -599,6 +624,39 @@ export interface AdminUserListParams {
   search?: string;
   role?: string;
   email_verified?: boolean;
+  page?: number;
+  page_size?: number;
+}
+
+export interface ProviderApplication {
+  id: string;
+  user_id: string;
+  provider_id: string | null;
+  provider_type: ProviderType;
+  provider_name: string;
+  visit_stability: VisitStability;
+  review_status: ProviderApplicationStatus;
+  first_name: string | null;
+  last_name: string | null;
+  full_name: string;
+  email: string;
+  mobile_number: string | null;
+  country: string | null;
+  state_province: string | null;
+  city: string | null;
+  email_verified_at: string | null;
+  reviewed_by_user_id: string | null;
+  reviewed_by_name: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+}
+
+export interface ProviderApplicationListParams {
+  search?: string;
+  provider_type?: ProviderType;
+  email_verified?: boolean;
+  review_status?: ProviderApplicationStatus;
   page?: number;
   page_size?: number;
 }

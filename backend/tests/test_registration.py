@@ -92,7 +92,7 @@ class TestPublicRegistration:
 
         roles = {role.name: role for role in db.query(Role).all()}
         restored_user = db.query(User).filter(User.id == existing_user.id).one()
-        assert set(roles) == {"horse_owner", "stable_manager"}
+        assert {"horse_owner", "stable_manager"} <= set(roles)
         assert roles["horse_owner"].description == "Existing horse owner description"
         assert restored_user.role_id == horse_owner.id
         assert (

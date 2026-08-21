@@ -7,6 +7,8 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
+from app.models.enums import ProviderType, VisitStability
+
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 
@@ -111,6 +113,23 @@ class RegistrationRequest(BaseModel):
         return self
 
 
+class ProviderRegistrationRequest(RegistrationRequest):
+    """Public provider account registration; listing is created only after approval."""
+
+    provider_type: ProviderType
+    provider_name: str = Field(min_length=1, max_length=300)
+    visit_stability: VisitStability
+    role: Literal["PROVIDER"] = "PROVIDER"
+
+    @field_validator("provider_name")
+    @classmethod
+    def trim_provider_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Provider or practice name is required.")
+        return value
+
+
 class EmailVerificationRequest(BaseModel):
     token: str = Field(min_length=20, max_length=512)
 
@@ -120,3 +139,4 @@ class EmailVerificationResponse(BaseModel):
 
     message: str
     email: EmailStr
+    redirect_to: Literal["/provider/login"] | None = None

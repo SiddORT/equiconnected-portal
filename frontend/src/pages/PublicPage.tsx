@@ -126,7 +126,11 @@ export function PublicPage() {
         {/* ── Admin link ───────────────────────────────────────── */}
         <div className={styles.adminLink}>
           <Link to="/signup" className={styles.signupCta}>
-            Create account
+            Register as a member
+          </Link>
+          <span className={styles.linkSeparator} aria-hidden="true">·</span>
+          <Link to="/provider/signup" className={styles.signupCta}>
+            Register as a provider
           </Link>
           <span className={styles.linkSeparator} aria-hidden="true">·</span>
           <Link to="/admin/login" className={styles.adminAnchor}>

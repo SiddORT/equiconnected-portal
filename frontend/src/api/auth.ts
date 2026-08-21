@@ -7,6 +7,7 @@ import type {
   LoginResponse,
   EmailVerificationResponse,
   MessageResponse,
+  ProviderRegistrationRequest,
   RegistrationRequest,
   UserProfile,
 } from '@/types';
@@ -32,6 +33,13 @@ export async function getMe(): Promise<UserProfile> {
 
 export async function register(payload: RegistrationRequest): Promise<MessageResponse> {
   const { data } = await apiClient.post<MessageResponse>('/auth/register', payload);
+  return data;
+}
+
+export async function registerProvider(
+  payload: ProviderRegistrationRequest
+): Promise<MessageResponse> {
+  const { data } = await apiClient.post<MessageResponse>('/auth/provider-register', payload);
   return data;
 }
 

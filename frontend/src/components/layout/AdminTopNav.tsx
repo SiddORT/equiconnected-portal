@@ -7,6 +7,7 @@ interface NavItem { label: string; to: string; icon: string; }
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: '⊞' },
   { label: 'Registrations', to: '/admin/users', icon: '👥' },
+  { label: 'Provider applications', to: '/admin/provider-applications', icon: '✓' },
 ];
 
 const DIRECTORY_ITEMS: NavItem[] = [
