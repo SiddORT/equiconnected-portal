@@ -15,6 +15,7 @@ from app.api.v1.public import router as public_router
 from app.api.v1.profile import router as profile_router
 from app.api.v1.member_providers import router as member_providers_router
 from app.api.v1.reviews import router as reviews_router
+from app.api.v1.provider_portal import router as provider_portal_router
 from app.api.v1.system_settings import (
     admin_router as system_settings_admin_router,
     public_router as system_settings_public_router,
@@ -35,5 +36,6 @@ api_v1_router.include_router(public_router)
 api_v1_router.include_router(profile_router)
 api_v1_router.include_router(member_providers_router)
 api_v1_router.include_router(reviews_router)
+api_v1_router.include_router(provider_portal_router)
 api_v1_router.include_router(system_settings_public_router)
 api_v1_router.include_router(system_settings_admin_router)

@@ -4,11 +4,11 @@ Covers admin users for Phase 1.
 Future phases extend roles to cover hospital and visitor users.
 """
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, event, inspect, update
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from app.db.base_class import Base
 from app.models.base import TimestampMixin
@@ -53,6 +53,12 @@ class User(TimestampMixin, Base):
         DateTime(timezone=True), nullable=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Only invitation-created provider accounts use this temporary state. It is
+    # intentionally distinct from account activation so an admin-disabled user
+    # can never be activated by redeeming an old public setup URL.
+    provider_portal_setup_pending: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     role_id: Mapped[int] = mapped_column(
         ForeignKey("roles.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -87,6 +93,15 @@ class User(TimestampMixin, Base):
         back_populates="user",
         cascade="all, delete-orphan",
         uselist=False,
+    )
+    provider_portal_invitation: Mapped["ProviderInvitation | None"] = relationship(  # noqa: F821
+        "ProviderInvitation",
+        foreign_keys="ProviderInvitation.portal_user_id",
+        back_populates="portal_user",
+        uselist=False,
+    )
+    provider_portal_setup_tokens: Mapped[list["ProviderPortalSetupToken"]] = relationship(  # noqa: F821
+        "ProviderPortalSetupToken", back_populates="user", cascade="all, delete-orphan"
     )
 
     @property
@@ -128,6 +143,34 @@ class UserRole(Base):
 
     user: Mapped[User] = relationship("User", back_populates="role_assignments")
     role: Mapped["Role"] = relationship("Role", back_populates="user_assignments")  # noqa: F821
+
+
+@event.listens_for(Session, "before_flush")
+def invalidate_provider_setup_tokens_on_deactivation(session, _flush_context, _instances):
+    """A real account disable revokes public setup URLs in the same transaction."""
+    for candidate in session.dirty:
+        if not isinstance(candidate, User):
+            continue
+        state = inspect(candidate)
+        if (
+            candidate.is_active is False
+            and state.attrs.is_active.history.has_changes()
+            and state.persistent
+        ):
+            candidate.provider_portal_setup_pending = False
+            # Import lazily to keep the bidirectional model relationship free
+            # of module-import cycles.
+            from app.models.invitation import ProviderPortalSetupToken
+
+            session.execute(
+                update(ProviderPortalSetupToken)
+                .where(
+                    ProviderPortalSetupToken.user_id == candidate.id,
+                    ProviderPortalSetupToken.used_at.is_(None),
+                    ProviderPortalSetupToken.invalidated_at.is_(None),
+                )
+                .values(invalidated_at=datetime.now(timezone.utc))
+            )
 
 
 class EmailVerificationToken(TimestampMixin, Base):

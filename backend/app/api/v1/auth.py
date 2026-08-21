@@ -27,6 +27,7 @@ from app.schemas.auth import (
     LoginRequest,
     LoginResponse,
     ProviderRegistrationRequest,
+    ProviderPortalPasswordSetupRequest,
     RegistrationRequest,
     UserProfile,
 )
@@ -43,6 +44,9 @@ from app.services.auth_service import (
     VerificationTokenExpiredError,
     VerificationTokenNotFoundError,
     VerificationTokenUsedError,
+    ProviderPortalSetupTokenExpiredError,
+    ProviderPortalSetupTokenNotFoundError,
+    ProviderPortalSetupTokenUsedError,
 )
 from app.services.email_service import EmailDeliveryError
 
@@ -189,6 +193,47 @@ def verify_email(
         ),
         email=result.email,
         redirect_to="/provider/login" if result.is_provider_application else None,
+    )
+
+
+@router.post(
+    "/provider-portal/setup-password",
+    response_model=MessageResponse,
+    dependencies=[Depends(check_email_verification_rate_limit)],
+)
+def setup_provider_portal_password(
+    body: ProviderPortalPasswordSetupRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> MessageResponse:
+    """Redeem an invited provider's single-use first-password link."""
+    try:
+        AuthService(db).set_provider_portal_password(body.token, body.password)
+    except ProviderPortalSetupTokenNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "provider_portal_link_invalid",
+                "message": "This provider portal link is invalid.",
+            },
+        )
+    except ProviderPortalSetupTokenUsedError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "provider_portal_link_used",
+                "message": "This provider portal link has already been used or replaced.",
+            },
+        )
+    except ProviderPortalSetupTokenExpiredError:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "code": "provider_portal_link_expired",
+                "message": "This provider portal link has expired. Ask an administrator for a new link.",
+            },
+        )
+    return MessageResponse(
+        message="Your password has been set. Sign in to access your provider portal."
     )
 
 

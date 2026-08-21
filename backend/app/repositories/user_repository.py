@@ -21,6 +21,7 @@ class UserRepository:
                 joinedload(User.role),
                 selectinload(User.role_assignments).joinedload(UserRole.role),
                 joinedload(User.provider_registration_application),
+                joinedload(User.provider_portal_invitation),
             )
             .where(User.id == user_id)
         )
@@ -33,6 +34,7 @@ class UserRepository:
                 joinedload(User.role),
                 selectinload(User.role_assignments).joinedload(UserRole.role),
                 joinedload(User.provider_registration_application),
+                joinedload(User.provider_portal_invitation),
             )
             .where(User.email == email.lower().strip())
         )
@@ -66,6 +68,7 @@ class UserRepository:
         terms_accepted_at=None,
         privacy_accepted_at=None,
         is_active: bool = True,
+        provider_portal_setup_pending: bool = False,
         roles: list[Role] | None = None,
     ) -> User:
         user = User(
@@ -81,6 +84,7 @@ class UserRepository:
             terms_accepted_at=terms_accepted_at,
             privacy_accepted_at=privacy_accepted_at,
             is_active=is_active,
+            provider_portal_setup_pending=provider_portal_setup_pending,
         )
         self._db.add(user)
         self._db.flush()

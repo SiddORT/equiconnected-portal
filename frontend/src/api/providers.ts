@@ -25,7 +25,27 @@ import type {
   MemberProviderListItem,
   MemberProviderListParams,
   MemberProviderReview,
+  ProviderPortalProfile,
+  ProviderPortalUpdate,
+  ProviderSpecializationBrief,
 } from '@/types';
+
+export async function getProviderPortalProfile(): Promise<ProviderPortalProfile> {
+  const { data } = await apiClient.get<ProviderPortalProfile>('/provider/portal/profile');
+  return data;
+}
+
+export async function updateProviderPortalProfile(
+  body: ProviderPortalUpdate
+): Promise<ProviderPortalProfile> {
+  const { data } = await apiClient.patch<ProviderPortalProfile>('/provider/portal/profile', body);
+  return data;
+}
+
+export async function getProviderPortalSpecializations(): Promise<ProviderSpecializationBrief[]> {
+  const { data } = await apiClient.get<ProviderSpecializationBrief[]>('/provider/portal/specializations');
+  return data;
+}
 
 // ── Member directory ────────────────────────────────────────────────────────
 

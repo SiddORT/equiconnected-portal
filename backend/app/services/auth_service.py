@@ -35,6 +35,8 @@ from app.models.enums import (
     ProviderApplicationStatus,
 )
 from app.models.user import EmailVerificationToken
+from app.models.invitation import ProviderInvitation, ProviderPortalSetupToken
+from app.models.enums import InvitationStatus
 from app.models.provider_registration import ProviderRegistrationApplication
 from app.services.email_service import EmailDeliveryError, EmailService
 
@@ -76,6 +78,18 @@ class VerificationTokenExpiredError(Exception):
 
 class VerificationTokenUsedError(Exception):
     """Raised when a verification token was already redeemed."""
+
+
+class ProviderPortalSetupTokenNotFoundError(Exception):
+    """Raised when a provider portal setup link is invalid."""
+
+
+class ProviderPortalSetupTokenExpiredError(Exception):
+    """Raised when a provider portal setup link is expired."""
+
+
+class ProviderPortalSetupTokenUsedError(Exception):
+    """Raised when a provider portal setup link was already redeemed or replaced."""
 
 
 @dataclass
@@ -331,6 +345,65 @@ class AuthService:
             email=email,
             is_provider_application=is_provider_application,
         )
+
+    def set_provider_portal_password(self, raw_token: str, password: str) -> None:
+        """Atomically consume a first-password token and activate its linked user."""
+        token_hash = self._hash_verification_token(raw_token)
+        token = (
+            self._db.query(ProviderPortalSetupToken)
+            .filter(ProviderPortalSetupToken.token_hash == token_hash)
+            .with_for_update()
+            .first()
+        )
+        if token is None:
+            raise ProviderPortalSetupTokenNotFoundError("Provider portal link is invalid.")
+        if token.invalidated_at is not None or token.used_at is not None:
+            raise ProviderPortalSetupTokenUsedError(
+                "This provider portal link has already been used or replaced."
+            )
+        now = datetime.now(timezone.utc)
+        if token.expires_at <= now:
+            raise ProviderPortalSetupTokenExpiredError("Provider portal link has expired.")
+
+        invitation = (
+            self._db.query(ProviderInvitation)
+            .filter(ProviderInvitation.id == token.invitation_id)
+            .with_for_update()
+            .first()
+        )
+        if (
+            invitation is None
+            or invitation.status != InvitationStatus.COMPLETED
+            or invitation.portal_user_id != token.user_id
+        ):
+            raise ProviderPortalSetupTokenUsedError(
+                "This provider portal link is no longer available."
+            )
+        user = self._users.get_by_id(token.user_id)
+        if user is None or user.email != invitation.recipient_email:
+            raise ProviderPortalSetupTokenUsedError(
+                "This provider portal link is no longer available."
+            )
+        if not user.provider_portal_setup_pending:
+            raise ProviderPortalSetupTokenUsedError(
+                "This provider portal link is no longer available."
+            )
+
+        user.password_hash = hash_password(password)
+        user.is_active = True
+        user.provider_portal_setup_pending = False
+        user.email_verified_at = now
+        token.used_at = now
+        self._audit.log(
+            action="provider_portal.password_setup",
+            user_id=user.id,
+            actor_type="provider_portal",
+            resource_type="provider_invitation",
+            resource_id=str(invitation.id),
+            summary="Set an initial provider portal password.",
+            metadata={"provider_id": str(invitation.provider_id)},
+        )
+        self._db.commit()
 
 
     # ── Login ────────────────────────────────────────────────────────────────

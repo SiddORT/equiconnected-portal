@@ -43,6 +43,11 @@ export async function cancelInvitation(id: string): Promise<Invitation> {
   return data;
 }
 
+export async function sendPortalAccess(id: string): Promise<Invitation> {
+  const { data } = await apiClient.post<Invitation>(`/admin/invitations/${id}/portal-access`);
+  return data;
+}
+
 const publicClient: AxiosInstance = axios.create({
   baseURL: '/api/v1',
   withCredentials: false,

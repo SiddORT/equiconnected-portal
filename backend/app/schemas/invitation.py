@@ -35,6 +35,8 @@ class InvitationResponse(BaseModel):
     sent_at: datetime
     accepted_at: datetime | None
     completed_at: datetime | None
+    portal_user_id: UUID | None = None
+    portal_access_sent_at: datetime | None = None
     created_by: UUID
     created_at: datetime
     updated_at: datetime

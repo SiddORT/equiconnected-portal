@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { cancelInvitation, listInvitations, resendInvitation } from '@/api/invitations';
+import { cancelInvitation, listInvitations, resendInvitation, sendPortalAccess } from '@/api/invitations';
 import { extractErrorMessage } from '@/api/client';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { CreateInvitationDialog } from '@/components/admin/CreateInvitationDialog';
@@ -129,6 +129,27 @@ export function InvitationsPage() {
     }
   }
 
+  async function sendAccess(invitation: Invitation) {
+    setActionId(invitation.id);
+    try {
+      const updated = await sendPortalAccess(invitation.id);
+      setNotice({
+        message: updated.portal_access_sent_at
+          ? `Provider portal access was sent to ${invitation.recipient_email}.`
+          : 'Provider portal access was prepared.',
+        variant: 'success',
+      });
+      void load();
+    } catch (err) {
+      setNotice({
+        message: extractErrorMessage(err, 'Unable to send provider portal access.'),
+        variant: 'error',
+      });
+    } finally {
+      setActionId(null);
+    }
+  }
+
   async function copyLink(invitation: Invitation) {
     const url = linkById[invitation.id] ?? invitation.invitation_url;
     if (!url) {
@@ -159,6 +180,15 @@ export function InvitationsPage() {
             label: 'View submitted details',
             icon: '👁',
             onSelect: () => navigate(`/admin/providers/${item.provider_id}`),
+          });
+          actions.push({
+            label: actionId === item.id
+              ? 'Sending portal access…'
+              : item.portal_access_sent_at
+                ? 'Resend portal access'
+                : 'Send portal access',
+            disabled: actionId === item.id,
+            onSelect: () => void sendAccess(item),
           });
         }
         if (item.status === 'PENDING' || item.status === 'EXPIRED') actions.push({ label: actionId === item.id ? 'Resending…' : 'Resend', disabled: actionId === item.id, onSelect: () => void resend(item) });
@@ -350,6 +380,7 @@ function InvitationDetailDialog({ invitation, onClose }: { invitation: Invitatio
         <dt>Expires</dt><dd>{formatTimestamp(invitation.expires_at)}</dd>
         {invitation.accepted_at && <><dt>Accepted</dt><dd>{formatTimestamp(invitation.accepted_at)}</dd></>}
         {invitation.completed_at && <><dt>Completed</dt><dd>{formatTimestamp(invitation.completed_at)}</dd></>}
+        {invitation.portal_access_sent_at && <><dt>Portal access</dt><dd>Sent {formatTimestamp(invitation.portal_access_sent_at)}</dd></>}
       </dl>
       <footer><Button variant="primary" onClick={onClose}>Close</Button></footer>
     </div>

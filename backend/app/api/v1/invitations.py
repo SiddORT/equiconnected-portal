@@ -23,7 +23,7 @@ from app.services.email_service import EmailDeliveryError
 from app.services.invitation_service import (
     DuplicateInvitationError, InvitationCancelledError, InvitationCompletedError, InvitationExpiredError,
     InvitationNotFoundError, InvitationService, InvalidInvitationStateError, InvalidProviderDataError,
-    ProviderTypeMismatchError,
+    PortalAccessAccountConflictError, PortalAccessUnavailableError, ProviderTypeMismatchError,
 )
 from app.services.provider_service import ProviderNotFoundError
 from app.repositories.organization_request_repository import OrganizationRequestRepository
@@ -125,6 +125,27 @@ def cancel_invitation(invitation_id: UUID, request: Request, user: CurrentUser, 
     ))
     except InvitationNotFoundError: raise _error(404, "invitation_not_found", "Invitation was not found.")
     except InvalidInvitationStateError as exc: raise _error(409, "invalid_invitation_state", str(exc))
+
+
+@admin_router.post("/{invitation_id}/portal-access", response_model=InvitationResponse)
+def send_portal_access(invitation_id: UUID, request: Request, user: CurrentUser, svc: _Svc):
+    try:
+        return InvitationResponse.model_validate(svc.send_portal_access(
+            invitation_id, audit_context=context_from_request(request, user.id)
+        ))
+    except InvitationNotFoundError:
+        raise _error(404, "invitation_not_found", "Invitation was not found.")
+    except PortalAccessUnavailableError as exc:
+        raise _error(409, "portal_access_unavailable", str(exc))
+    except PortalAccessAccountConflictError:
+        # Do not identify the unrelated account; the admin gets a safe conflict.
+        raise _error(
+            409,
+            "portal_access_account_conflict",
+            "Portal access could not be sent for this recipient. Please contact support.",
+        )
+    except EmailDeliveryError as exc:
+        raise _error(502, "email_delivery_failed", str(exc))
 
 @public_router.get("/{token}", response_model=InvitationTokenResponse)
 def get_invitation(token: str, svc: _Svc):

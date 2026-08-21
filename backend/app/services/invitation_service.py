@@ -15,7 +15,10 @@ from sqlalchemy.exc import IntegrityError
 from app.core.config import get_settings
 from app.models.enums import InvitationStatus, ProviderStatus, ProviderType, PublicationStatus
 from app.models.doctor import DoctorProfile, DoctorQualification
-from app.models.invitation import ProviderInvitation
+from app.models.invitation import ProviderInvitation, ProviderPortalSetupToken
+from app.models.user import User
+from app.core.security import hash_password
+from app.repositories.user_repository import UserRepository
 from app.models.provider import (
     ProviderEmail,
     ProviderLocation,
@@ -71,6 +74,14 @@ class InvalidProviderDataError(InvitationError):
     pass
 
 
+class PortalAccessAccountConflictError(InvitationError):
+    """The invitee email is already owned by an unrelated account."""
+
+
+class PortalAccessUnavailableError(InvitationError):
+    """Portal access is available only once an invitation has been completed."""
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -111,6 +122,8 @@ class InvitationService:
             "provider_invitation.submitted": "Submitted an invitation response.",
             "provider_invitation.viewed": "Viewed a provider invitation.",
             "provider_invitation.list_viewed": "Viewed provider invitations.",
+            "provider_invitation.portal_access_sent": "Sent provider portal access.",
+            "provider_invitation.portal_access_delivery_failed": "Provider portal access email delivery failed.",
         }
         self._audit.record(
             event,
@@ -128,6 +141,9 @@ class InvitationService:
 
     def _url(self, token: str) -> str:
         return f"{get_settings().PUBLIC_APP_URL.rstrip('/')}/provider/invitations/{token}"
+
+    def _portal_setup_url(self, token: str) -> str:
+        return f"{get_settings().PUBLIC_APP_URL.rstrip('/')}/provider/setup-password?token={token}"
 
     @staticmethod
     def _expires_at(sent_at: datetime) -> datetime:
@@ -297,6 +313,112 @@ class InvitationService:
             raise InvalidInvitationStateError("This invitation can no longer be cancelled.")
         invitation.status = InvitationStatus.CANCELLED
         self._emit_event("provider_invitation.cancelled", invitation, context=audit_context)
+        self._repo.commit()
+        return invitation
+
+    def send_portal_access(
+        self, invitation_id: UUID, *, audit_context: AuditContext | None = None
+    ) -> ProviderInvitation:
+        """Issue a fresh first-password link for a completed invitation.
+
+        The account identity is persisted on the invitation before mail is sent.
+        That both survives resend attempts and prevents a pre-existing unrelated
+        account with the same email from being attached to the provider.
+        """
+        invitation = self._require_id(invitation_id)
+        if invitation.status != InvitationStatus.COMPLETED or invitation.provider_id is None:
+            raise PortalAccessUnavailableError(
+                "Portal access can only be sent for a completed invitation."
+            )
+
+        users = UserRepository(self._repo._db)
+        existing = users.get_by_email(invitation.recipient_email)
+        if invitation.portal_user_id is not None:
+            user = self._repo._db.get(User, invitation.portal_user_id)
+            if user is None:
+                raise PortalAccessUnavailableError("The linked provider account is unavailable.")
+            if existing is not None and existing.id != user.id:
+                raise PortalAccessAccountConflictError(
+                    "This recipient email is already associated with another account."
+                )
+            if user.is_active or not user.provider_portal_setup_pending:
+                raise PortalAccessUnavailableError(
+                    "Portal access has already been set up for this recipient."
+                )
+        else:
+            if existing is not None:
+                raise PortalAccessAccountConflictError(
+                    "This recipient email is already associated with another account."
+                )
+            provider_role = users.get_role_by_name("provider")
+            if provider_role is None:
+                raise PortalAccessUnavailableError(
+                    "Provider portal access is temporarily unavailable."
+                )
+            # A random unusable credential and explicit pending state keep the
+            # account disabled until the recipient proves control of the setup
+            # token and chooses a password.
+            user = users.create_user(
+                email=invitation.recipient_email,
+                password_hash=hash_password(secrets.token_urlsafe(48)),
+                role=provider_role,
+                roles=[provider_role],
+                is_active=False,
+                provider_portal_setup_pending=True,
+            )
+            invitation.portal_user_id = user.id
+
+        now = _now()
+        raw_token = self._new_token()
+        self._repo._db.query(ProviderPortalSetupToken).filter(
+            ProviderPortalSetupToken.invitation_id == invitation.id,
+            ProviderPortalSetupToken.used_at.is_(None),
+            ProviderPortalSetupToken.invalidated_at.is_(None),
+        ).update({"invalidated_at": now}, synchronize_session=False)
+        setup_token = ProviderPortalSetupToken(
+            invitation_id=invitation.id,
+            user_id=user.id,
+            token_hash=self._hash(raw_token),
+            expires_at=now + timedelta(
+                hours=get_settings().PROVIDER_PORTAL_SETUP_EXPIRE_HOURS
+            ),
+        )
+        self._repo._db.add(setup_token)
+        invitation.portal_access_sent_at = now
+        self._emit_event(
+            "provider_invitation.portal_access_sent",
+            invitation,
+            context=audit_context,
+            metadata={"portal_user_id": str(user.id)},
+        )
+        self._repo.commit()
+
+        attempt_id = self._email_logs.record_durable_attempt(
+            recipient_email=invitation.recipient_email,
+            purpose=EmailPurpose.PROVIDER_PORTAL_ACCESS,
+        )
+        try:
+            self._email.send_provider_portal_access_email(
+                invitation.recipient_email,
+                self._portal_setup_url(raw_token),
+                setup_token.expires_at,
+            )
+        except Exception as exc:
+            self._emit_event(
+                "provider_invitation.portal_access_delivery_failed",
+                invitation,
+                context=audit_context,
+            )
+            self._email_logs.complete_durable_attempt(
+                attempt_id,
+                status=EmailDeliveryStatus.FAILED,
+                failure_message=safe_failure_message(exc),
+            )
+            self._repo.commit()
+            raise
+        self._email_logs.complete_durable_attempt(
+            attempt_id, status=EmailDeliveryStatus.SUCCESS
+        )
         self._repo.commit()
         return invitation
 

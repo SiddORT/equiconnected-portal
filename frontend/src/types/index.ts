@@ -475,6 +475,66 @@ export interface Provider extends ProviderListItem {
   emails: ProviderEmail[];
 }
 
+export interface ProviderPortalVisibleReview {
+  id: string;
+  rating: number;
+  comment: string;
+  reviewer_name: string;
+  created_at: string;
+}
+
+export interface ProviderPortalProfile {
+  id: string;
+  name: string;
+  description: string | null;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  visit_stability: VisitStability;
+  specializations: ProviderSpecializationBrief[];
+  locations: ProviderLocation[];
+  photos: ProviderPhoto[];
+  phones: ProviderPhone[];
+  emails: ProviderEmail[];
+  doctor_profile: DoctorProfileInfo | null;
+  doctor_fields_available: boolean;
+  qualifications: Array<{
+    title: string;
+    institution: string | null;
+    year_obtained: number | null;
+    description: string | null;
+    display_order: number;
+  }>;
+  average_rating: number | null;
+  review_count: number;
+  visible_reviews: ProviderPortalVisibleReview[];
+}
+
+export interface ProviderPortalUpdate {
+  name?: string;
+  description?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  visit_stability?: VisitStability;
+  specialization_ids?: string[];
+  locations?: Array<Omit<ProviderLocationCreate, 'is_primary'> & { is_primary?: boolean }>;
+  phones?: ProviderPhoneCreate[];
+  emails?: ProviderEmailCreate[];
+  photos?: ProviderPhotoCreate[];
+  professional_title?: string | null;
+  biography?: string | null;
+  years_experience?: number | null;
+  experience_description?: string | null;
+  qualifications?: Array<{
+    title: string;
+    institution?: string | null;
+    year_obtained?: number | null;
+    description?: string | null;
+    display_order?: number;
+  }>;
+}
+
 export interface ProviderLocationCreate {
   name?: string | null;
   address_line_1: string;
@@ -573,6 +633,8 @@ export interface Invitation {
   /** Present only when an API implementation safely elects to expose a link. */
   is_new_provider?: boolean;
   invitation_url?: string | null;
+  portal_user_id?: string | null;
+  portal_access_sent_at?: string | null;
 }
 
 export interface InvitationCreate {

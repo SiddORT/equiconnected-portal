@@ -47,3 +47,16 @@ export async function verifyEmail(token: string): Promise<EmailVerificationRespo
   const { data } = await apiClient.post<EmailVerificationResponse>('/auth/verify-email', { token });
   return data;
 }
+
+export async function setupProviderPortalPassword(
+  token: string,
+  password: string,
+  password_confirmation: string
+): Promise<MessageResponse> {
+  const { data } = await apiClient.post<MessageResponse>('/auth/provider-portal/setup-password', {
+    token,
+    password,
+    password_confirmation,
+  });
+  return data;
+}

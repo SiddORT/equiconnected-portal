@@ -59,6 +59,7 @@ class OrganizationRequestStatus(str, enum.Enum):
 class EmailPurpose(str, enum.Enum):
     PROVIDER_INVITATION = "provider_invitation"
     ACCOUNT_VERIFICATION = "account_verification"
+    PROVIDER_PORTAL_ACCESS = "provider_portal_access"
 
 
 class EmailDeliveryStatus(str, enum.Enum):

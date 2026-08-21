@@ -133,6 +133,23 @@ class EmailService:
             ),
         )
 
+    @classmethod
+    def _portal_access_html(cls, setup_url: str, expiry: str) -> str:
+        return cls._branded_html(
+            headline="Your provider portal<br>is ready.",
+            body_html=(
+                "An EquiConnected administrator has enabled access to the provider "
+                "profile you submitted. Choose a password to begin maintaining your "
+                "profile and viewing member feedback."
+            ),
+            action_label="Set your password",
+            action_url=setup_url,
+            security_html=(
+                f"This one-time setup link expires on {escape(expiry)}.<br>"
+                "If you were not expecting this email, you can safely ignore it."
+            ),
+        )
+
     @staticmethod
     def _build_message(
         *,
@@ -216,5 +233,26 @@ class EmailService:
             subject="Verify your EquiConnected email",
             plain=plain,
             html=self._verification_html(verification_url, expiry),
+        )
+        self._deliver(message, recipient)
+
+    def send_provider_portal_access_email(
+        self, recipient: str, setup_url: str, expires_at: datetime
+    ) -> None:
+        """Send an invited provider's first-password link."""
+        expiry = expires_at.strftime("%B %d, %Y at %H:%M UTC")
+        plain = (
+            "Your EquiConnected provider portal is ready.\n\n"
+            "An administrator has enabled access to the provider profile you submitted. "
+            "Set your password to maintain the profile and view member feedback.\n\n"
+            f"Set your password securely before {expiry}:\n{setup_url}\n\n"
+            "This link can only be used once. If you were not expecting this email, "
+            "you can safely ignore it.\n"
+        )
+        message = self._build_message(
+            recipient=recipient,
+            subject="Set up your EquiConnected provider portal access",
+            plain=plain,
+            html=self._portal_access_html(setup_url, expiry),
         )
         self._deliver(message, recipient)

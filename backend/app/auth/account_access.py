@@ -25,6 +25,10 @@ def public_account_access_issue(user: User) -> PublicAccountAccessIssue | None:
             code="email_not_verified",
             message="Please verify your email address before signing in.",
         )
+    # Administrator-invited providers are linked directly to a completed
+    # invitation rather than to the self-service application workflow.
+    if user.provider_portal_invitation is not None:
+        return None
     application = user.provider_registration_application
     if application is None:
         return PublicAccountAccessIssue(

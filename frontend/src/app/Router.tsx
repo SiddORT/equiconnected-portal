@@ -36,6 +36,7 @@ import { ProviderLoginPage } from '@/pages/ProviderLoginPage';
 import { ProviderAccountPage } from '@/pages/ProviderAccountPage';
 import { ProviderAuthGuard } from '@/features/provider/ProviderAuthGuard';
 import { ProviderApplicationsPage } from '@/pages/admin/ProviderApplicationsPage';
+import { ProviderPasswordSetupPage } from '@/pages/ProviderPasswordSetupPage';
 
 export function AppRouter() {
   return (
@@ -52,6 +53,7 @@ export function AppRouter() {
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/login" element={<MemberLoginPage />} />
         <Route path="/provider/login" element={<ProviderLoginPage />} />
+        <Route path="/provider/setup-password" element={<ProviderPasswordSetupPage />} />
         <Route path="/terms-of-service" element={<LegalPage kind="terms" />} />
         <Route path="/privacy-policy" element={<LegalPage kind="privacy" />} />
 

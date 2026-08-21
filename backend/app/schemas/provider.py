@@ -13,6 +13,7 @@ from app.models.enums import (
     PublicationStatus,
     VisitStability,
 )
+from app.schemas.doctor import QualificationCreate
 
 
 def _strip(v: object) -> object:
@@ -319,6 +320,7 @@ class ProviderResponse(ProviderListItem):
     phones: list[PhoneResponse] = []
     emails: list[EmailResponse] = []
     doctor_profile: DoctorProfileOut | None = None
+    doctor_fields_available: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -330,6 +332,7 @@ class ProviderResponse(ProviderListItem):
                 if getattr(provider, "doctor_profile", None) is not None
                 else None
             ),
+            doctor_fields_available=provider.provider_type == ProviderType.DOCTOR,
             id=provider.id,
             provider_type=provider.provider_type,
             name=provider.name,
@@ -361,4 +364,97 @@ class ProviderResponse(ProviderListItem):
                 EmailResponse.model_validate(em)
                 for em in sorted(provider.emails, key=lambda em: (not em.is_primary, em.created_at))
             ],
+        )
+
+
+class ProviderPortalUpdate(BaseModel):
+    """Editable fields for the account owner of a completed invitation.
+
+    Administrative lifecycle fields deliberately do not appear here.
+    """
+
+    name: str | None = Field(None, min_length=1, max_length=300)
+    description: str | None = Field(None, max_length=5000)
+    email: str | None = Field(None, max_length=254)
+    phone: str | None = Field(None, max_length=50)
+    website: str | None = Field(None, max_length=500)
+    visit_stability: VisitStability | None = None
+    specialization_ids: list[UUID] | None = None
+    locations: list[LocationCreate] | None = None
+    phones: list[PhoneCreate] | None = None
+    emails: list[EmailCreate] | None = None
+    photos: list[PhotoCreate] | None = None
+    professional_title: str | None = Field(None, max_length=200)
+    biography: str | None = Field(None, max_length=10000)
+    years_experience: int | None = Field(None, ge=0, le=100)
+    experience_description: str | None = Field(None, max_length=5000)
+    qualifications: list[QualificationCreate] | None = None
+
+    _strip_name = field_validator("name", mode="before")(_strip)
+    _strip_title = field_validator("professional_title", mode="before")(_strip)
+
+
+class ProviderPortalResponse(BaseModel):
+    """Provider-owned profile data, excluding admin-only lifecycle attributes."""
+
+    id: UUID
+    name: str
+    description: str | None
+    email: str | None
+    phone: str | None
+    website: str | None
+    visit_stability: VisitStability
+    specializations: list[ProviderSpecializationBrief] = []
+    locations: list[LocationResponse] = []
+    photos: list[PhotoResponse] = []
+    phones: list[PhoneResponse] = []
+    emails: list[EmailResponse] = []
+    doctor_profile: DoctorProfileOut | None = None
+    # This capability flag lets the portal render clinical fields without
+    # exposing the provider's administrative provider_type.
+    doctor_fields_available: bool = False
+    qualifications: list[QualificationCreate] = []
+    average_rating: float | None = None
+    review_count: int = 0
+    visible_reviews: list[dict] = []
+
+    @classmethod
+    def from_provider(
+        cls, provider, *, average_rating: float | None, review_count: int, visible_reviews: list[dict]
+    ) -> "ProviderPortalResponse":
+        return cls(
+            id=provider.id,
+            name=provider.name,
+            description=provider.description,
+            email=provider.email,
+            phone=provider.phone,
+            website=provider.website,
+            visit_stability=provider.visit_stability,
+            specializations=[
+                ProviderSpecializationBrief.model_validate(link.specialization)
+                for link in provider.provider_specializations
+            ],
+            locations=[LocationResponse.model_validate(row) for row in provider.locations],
+            photos=[PhotoResponse.model_validate(row) for row in provider.photos],
+            phones=[PhoneResponse.model_validate(row) for row in provider.phones],
+            emails=[EmailResponse.model_validate(row) for row in provider.emails],
+            doctor_profile=(
+                DoctorProfileOut.model_validate(provider.doctor_profile)
+                if provider.doctor_profile is not None
+                else None
+            ),
+            doctor_fields_available=provider.provider_type == ProviderType.DOCTOR,
+            qualifications=[
+                QualificationCreate(
+                    title=row.title,
+                    institution=row.institution,
+                    year_obtained=row.year_obtained,
+                    description=row.description,
+                    display_order=row.display_order,
+                )
+                for row in provider.qualifications
+            ],
+            average_rating=average_rating,
+            review_count=review_count,
+            visible_reviews=visible_reviews,
         )
