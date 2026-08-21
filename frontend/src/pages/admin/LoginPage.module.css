@@ -172,6 +172,16 @@
   border-top: 1px solid var(--border-default);
 }
 
+.signupLink {
+  color: var(--color-primary-700);
+  font-weight: var(--font-semibold);
+  text-decoration: none;
+}
+
+.signupLink:hover {
+  text-decoration: underline;
+}
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .page { grid-template-columns: 1fr; }

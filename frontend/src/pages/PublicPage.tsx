@@ -118,6 +118,10 @@ export function PublicPage() {
 
         {/* ── Admin link ───────────────────────────────────────── */}
         <div className={styles.adminLink}>
+          <a href="/signup" className={styles.signupAnchor}>
+            Create a public account
+          </a>
+          <span className={styles.linkSeparator} aria-hidden="true">·</span>
           <a href="/admin/login" className={styles.adminAnchor}>
             Admin Portal →
           </a>

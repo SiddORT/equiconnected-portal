@@ -181,7 +181,8 @@ export function LoginPage() {
           <p className={styles.noRegister}>
             This portal is for authorised administrators only.
             <br />
-            No public registration is available.
+            Joining as a horse owner or stable manager?{' '}
+            <Link to="/signup" className={styles.signupLink}>Create a public account</Link>
           </p>
         </div>
       </main>
