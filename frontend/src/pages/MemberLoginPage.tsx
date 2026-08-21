@@ -111,6 +111,10 @@ export function MemberLoginPage() {
   return (
     <div className={styles.page}>
       <section className={styles.story} aria-labelledby="member-story-heading">
+        <div className={styles.storyImages} aria-hidden="true">
+          <img className={styles.stableImage} src="/stable-panel.jpg" alt="" />
+          <img className={styles.horseImage} src="/horse-panel.jpg" alt="" />
+        </div>
         <div className={styles.storyOverlay} aria-hidden="true" />
         <div className={styles.storyContent}>
           <Link className={styles.storyBrand} to="/" aria-label="EquiConnected home">

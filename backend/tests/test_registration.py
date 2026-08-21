@@ -253,13 +253,33 @@ class TestEmailVerification:
         assert login.status_code == 200
         assert login.json()["user"]["email"] == "amina@example.com"
         assert "approval_status" not in login.json()["user"]
+        last_sign_in = login.json()["user"]["last_successful_login_at"]
+        assert last_sign_in is not None
+        assert datetime.fromisoformat(last_sign_in.replace("Z", "+00:00")).tzinfo is not None
         user = db.query(User).filter(User.email == "amina@example.com").one()
         assert user.is_active is True
         assert user.email_verified_at is not None
+        assert user.last_successful_login_at is not None
         token = db.query(EmailVerificationToken).filter(
             EmailVerificationToken.user_id == user.id
         ).one()
         assert token.used_at is not None
+
+        # Session restoration returns the persisted sign-in event without
+        # recording a new credential authentication.
+        refresh_token = login.cookies.get("refresh_token")
+        assert refresh_token
+        client.cookies.set("refresh_token", refresh_token)
+        refresh = client.post(f"{BASE}/refresh")
+        assert refresh.status_code == 200
+        assert refresh.json()["user"]["last_successful_login_at"] == last_sign_in
+
+        me = client.get(
+            f"{BASE}/me",
+            headers={"Authorization": f"Bearer {refresh.json()['access_token']}"},
+        )
+        assert me.status_code == 200
+        assert me.json()["last_successful_login_at"] == last_sign_in
 
     def test_expired_token_is_not_accepted(self, client: TestClient, db, monkeypatch):
         _seed_public_roles(db)

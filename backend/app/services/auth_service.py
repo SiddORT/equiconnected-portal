@@ -253,6 +253,9 @@ class AuthService:
         if password_needs_rehash(user.password_hash):
             user.password_hash = hash_password(password)
 
+        # Refreshes restore an existing session and must not be represented as
+        # another successful password sign-in.
+        user.last_successful_login_at = datetime.now(timezone.utc)
         pair = self._issue_token_pair(user.id)
 
         self._audit.log(
@@ -397,6 +400,7 @@ class AuthService:
             role=user.role.name,
             roles=sorted({assignment.role.name for assignment in user.role_assignments} or {user.role.name}),
             email_verified_at=user.email_verified_at,
+            last_successful_login_at=user.last_successful_login_at,
             is_active=user.is_active,
         )
 

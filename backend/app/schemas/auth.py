@@ -36,6 +36,7 @@ class UserProfile(BaseModel):
     role: str
     roles: list[str] = []
     email_verified_at: datetime | None = None
+    last_successful_login_at: datetime | None = None
     is_active: bool
 
     model_config = {"from_attributes": True}

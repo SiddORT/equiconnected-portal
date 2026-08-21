@@ -9,6 +9,23 @@ vi.mock('@/api/providers', () => ({
   listMemberProviders: vi.fn(),
 }));
 
+vi.mock('@/app/AuthContext', () => ({
+  useAuth: () => ({
+    user: {
+      id: 'member-1',
+      email: 'amina@example.com',
+      first_name: 'Amina',
+      last_name: 'Rider',
+      full_name: 'Amina Rider',
+      role: 'horse_owner',
+      roles: ['horse_owner'],
+      email_verified_at: '2026-08-21T00:00:00Z',
+      last_successful_login_at: '2026-08-21T15:30:00Z',
+      is_active: true,
+    },
+  }),
+}));
+
 const response = {
   data: [{
     id: 'provider-1',
@@ -36,6 +53,21 @@ afterEach(() => {
 });
 
 describe('ProviderDirectoryPage', () => {
+  it('welcomes the signed-in member and shows the last successful sign-in', async () => {
+    vi.mocked(providersApi.listMemberProviders).mockResolvedValue(response);
+
+    render(
+      <MemoryRouter initialEntries={['/providers']}>
+        <ProviderDirectoryPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('heading', { name: 'Welcome back, Amina.' })).toBeTruthy();
+    expect(screen.getByText(/Last successful sign-in:/)).toBeTruthy();
+    expect(document.querySelector('time')?.getAttribute('dateTime')).toBe('2026-08-21T15:30:00Z');
+    expect(await screen.findByRole('heading', { name: 'Austin Equine Clinic' })).toBeTruthy();
+  });
+
   it('loads URL-backed filters and keeps providers available when location access is unavailable', async () => {
     vi.mocked(providersApi.listMemberProviders).mockResolvedValue(response);
     Object.defineProperty(navigator, 'geolocation', { configurable: true, value: undefined });

@@ -47,6 +47,9 @@ describe('MemberLoginPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Sign in to your care community' })).toBeTruthy();
     expect(screen.getByText('Discover trusted hospitals, clinics, and doctors for the horses who rely on you.')).toBeTruthy();
+    const decorativeImages = document.querySelectorAll('img[alt=""]');
+    expect(Array.from(decorativeImages).some((image) => image.getAttribute('src') === '/horse-panel.jpg')).toBe(true);
+    expect(Array.from(decorativeImages).some((image) => image.getAttribute('src') === '/stable-panel.jpg')).toBe(true);
     expect(screen.getByLabelText('Email address').getAttribute('id')).toBe('member-email');
     expect(screen.getByLabelText('Password').getAttribute('id')).toBe('member-password');
     expect(screen.queryByText('Admin sign in')).toBeNull();

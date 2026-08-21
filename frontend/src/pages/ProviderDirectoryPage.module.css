@@ -1,8 +1,12 @@
 .page { max-width: 1180px; margin: 0 auto; padding: var(--space-8) var(--space-5) var(--space-10); display: grid; gap: var(--space-6); }
 .header, .detailHeader { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-5); }
+.header { position: relative; overflow: hidden; padding: clamp(1.5rem, 4vw, 2.75rem); border: 1px solid #dac4a4; border-radius: var(--radius-xl); background: linear-gradient(118deg, #f8eddd 0%, #fffaf3 55%, #e9d7bd 100%); box-shadow: var(--shadow-sm); }
+.header::after { content: '✦'; position: absolute; right: clamp(1.5rem, 6vw, 5rem); bottom: -1.4rem; color: rgba(139, 99, 64, .14); font-size: clamp(6rem, 18vw, 12rem); line-height: 1; pointer-events: none; }
+.header > * { position: relative; z-index: 1; }
 .header h1, .detailHeader h1 { margin: var(--space-1) 0; font-size: var(--text-4xl); }
 .header p:not(.eyebrow), .detailHeader p { color: var(--text-secondary); max-width: 650px; }
 .eyebrow { color: var(--color-accent, #9c6f26); font-size: var(--text-sm); font-weight: var(--font-semibold); letter-spacing: .08em; text-transform: uppercase; margin: 0; }
+.signInTime { display: inline-flex; margin: var(--space-4) 0 0; padding: .4rem .7rem; border: 1px solid rgba(139, 99, 64, .25); border-radius: var(--radius-full); color: #6b4c2a; background: rgba(255, 255, 255, .56); font-size: var(--text-sm); }
 .profileLink, .backLink, .detailLink { color: var(--color-primary, #465c34); font-weight: var(--font-semibold); text-decoration: none; }
 .profileLink { border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: .6rem .9rem; white-space: nowrap; }
 .backLink { width: fit-content; }

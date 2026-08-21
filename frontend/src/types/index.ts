@@ -14,6 +14,7 @@ export interface UserProfile {
   role: string;
   roles: string[];
   email_verified_at: string | null;
+  last_successful_login_at: string | null;
   is_active: boolean;
 }
 

@@ -21,6 +21,7 @@ const memberAuth = {
     role: 'horse_owner',
     roles: ['horse_owner'],
     email_verified_at: '2026-08-21T00:00:00Z',
+    last_successful_login_at: '2026-08-21T00:00:00Z',
     is_active: true,
   },
   login: vi.fn(),

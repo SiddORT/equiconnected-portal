@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useAuth } from '@/app/AuthContext';
 import * as providersApi from '@/api/providers';
 import { extractErrorMessage } from '@/api/client';
 import { Alert } from '@/components/ui/Alert';
@@ -36,6 +37,7 @@ function Stars({ rating }: { rating: number | null }) {
 }
 
 export function ProviderDirectoryPage() {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [result, setResult] = useState<PaginatedResponse<MemberProviderListItem> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,6 +51,11 @@ export function ProviderDirectoryPage() {
   const longitude = searchParams.get('longitude');
   const page = Math.max(1, Number(searchParams.get('page') ?? 1));
   const pageSize = Math.min(50, Math.max(1, Number(searchParams.get('page_size') ?? 20)));
+  const lastSignIn = user?.last_successful_login_at
+    ? new Date(user.last_successful_login_at)
+    : null;
+  const hasLastSignIn = lastSignIn !== null && !Number.isNaN(lastSignIn.getTime());
+  const firstName = user?.first_name?.trim() || user?.full_name?.split(' ')[0] || 'there';
 
   const updateParams = useCallback((updates: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams);
@@ -116,11 +123,18 @@ export function ProviderDirectoryPage() {
     <main className={styles.page}>
       <header className={styles.header}>
         <div>
-          <p className={styles.eyebrow}>Verified member area</p>
-          <h1 className="text-display">Find horse care providers</h1>
-          <p>Browse active providers, compare feedback, and share your experience.</p>
+          <p className={styles.eyebrow}>Your EquiConnected circle</p>
+          <h1 className="text-display">Welcome back, {firstName}.</h1>
+          <p>Find the care team that keeps every ride, recovery, and routine moving forward.</p>
+          <p className={styles.signInTime}>
+            {hasLastSignIn ? (
+              <>Last successful sign-in: <time dateTime={user!.last_successful_login_at!}>{lastSignIn.toLocaleString()}</time></>
+            ) : (
+              'Your member session is ready.'
+            )}
+          </p>
         </div>
-        <Link to="/profile" className={styles.profileLink}>Your profile</Link>
+        <Link to="/profile" className={styles.profileLink}>View profile</Link>
       </header>
 
       {locationNotice && <Alert variant="info" onDismiss={() => setLocationNotice(null)}>{locationNotice}</Alert>}
