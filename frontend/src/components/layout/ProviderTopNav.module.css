@@ -1,0 +1,130 @@
+.nav {
+  border-bottom: 1px solid var(--color-primary-700);
+  background: var(--color-primary-800);
+  color: var(--text-inverse);
+}
+
+.inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  width: min(100% - (var(--space-8) * 2), var(--container-max));
+  min-height: var(--topnav-height);
+  margin: 0 auto;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+  color: var(--text-inverse);
+  text-decoration: none;
+}
+
+.logo {
+  width: 42px;
+  height: 42px;
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+
+.brand span {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand strong {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+}
+
+.brand small {
+  color: var(--color-accent-200);
+  font-size: var(--text-xs);
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.welcome {
+  overflow: hidden;
+  color: var(--color-primary-100);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.welcome strong {
+  color: var(--text-inverse);
+  font-weight: var(--font-semibold);
+}
+
+.logout {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-primary-300);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-inverse);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  white-space: nowrap;
+}
+
+.brand:focus-visible,
+.logout:focus-visible {
+  outline: 3px solid var(--color-accent-300);
+  outline-offset: 3px;
+}
+
+.logout:hover:not(:disabled) {
+  border-color: var(--color-accent-300);
+  background: var(--color-primary-700);
+}
+
+.logout:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+@media (max-width: 640px) {
+  .inner {
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .account {
+    gap: var(--space-2);
+  }
+
+  .welcome {
+    max-width: 42vw;
+    font-size: var(--text-xs);
+  }
+
+  .logout {
+    padding: 0 var(--space-3);
+  }
+}
+
+@media (max-width: 430px) {
+  .brand small,
+  .welcome {
+    display: none;
+  }
+
+  .logout {
+    padding: 0 var(--space-3);
+  }
+}

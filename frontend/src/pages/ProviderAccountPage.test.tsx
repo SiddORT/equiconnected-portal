@@ -1,14 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import * as providersApi from '@/api/providers';
 import { ProviderAccountPage } from './ProviderAccountPage';
 import type { ProviderPortalProfile } from '@/types';
+
+const mockLogout = vi.hoisted(() => vi.fn());
 
 vi.mock('@/api/providers', () => ({
   getProviderPortalProfile: vi.fn(),
   getProviderPortalSpecializations: vi.fn(),
   updateProviderPortalProfile: vi.fn(),
+  discardProviderPortalProfileUpdate: vi.fn(),
 }));
 vi.mock('@/api/client', () => ({
   getApiErrorCode: () => 'provider_portal_unavailable',
@@ -17,7 +21,7 @@ vi.mock('@/api/client', () => ({
 vi.mock('@/app/AuthContext', () => ({
   useAuth: () => ({
     user: { full_name: 'Approved Provider' },
-    logout: vi.fn(),
+    logout: mockLogout,
   }),
 }));
 vi.mock('@/app/TimeSettingsContext', () => ({
@@ -73,6 +77,11 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}</output>;
+}
+
 describe('ProviderAccountPage', () => {
   it('preserves the approved self-registered provider account view outside the invitation portal', async () => {
     vi.mocked(providersApi.getProviderPortalProfile).mockRejectedValue(new Error('not invitation-linked'));
@@ -117,5 +126,63 @@ describe('ProviderAccountPage', () => {
     expect(screen.queryByRole('button', { name: 'Restore' })).toBeNull();
     expect(screen.queryByText('Visible')).toBeNull();
     expect(screen.queryByText('Hidden')).toBeNull();
+  });
+
+  it('welcomes the provider and returns to provider sign in after logout', async () => {
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(portalProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+
+    render(
+      <MemoryRouter initialEntries={['/provider/account']}>
+        <ProviderAccountPage />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Welcome,')).toBeTruthy();
+    expect(screen.getByText('Approved Provider')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Logout' }));
+
+    await waitFor(() => expect(mockLogout).toHaveBeenCalledOnce());
+    expect(screen.getByTestId('location').textContent).toBe('/provider/login');
+  });
+
+  it('opens the feedback drawer, moves focus to close, and closes on Escape', async () => {
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(portalProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    const trigger = await screen.findByRole('button', { name: 'Member feedback' });
+    const drawer = screen.getByTestId('feedback-drawer');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(drawer.hasAttribute('hidden')).toBe(true);
+
+    await user.click(trigger);
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(drawer.hasAttribute('hidden')).toBe(false);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close member feedback' }));
+    expect(screen.getByText('Thoughtful and thorough care.')).toBeTruthy();
+
+    await user.keyboard('{Escape}');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(drawer.hasAttribute('hidden')).toBe(true);
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('keeps profile submission working with the full-width workspace', async () => {
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(portalProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(portalProfile);
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await screen.findByRole('heading', { name: 'Your profile' });
+    expect(screen.getByTestId('provider-workspace').className).toContain('workspace');
+    await userEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledOnce());
+    expect(screen.getByText('Your unpublished provider profile has been saved.')).toBeTruthy();
   });
 });

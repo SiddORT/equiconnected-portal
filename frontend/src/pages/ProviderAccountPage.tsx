@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
 import { extractErrorMessage, getApiErrorCode } from '@/api/client';
@@ -8,6 +8,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { ProviderTopNav } from '@/components/layout/ProviderTopNav';
 import { ReviewCardList } from '@/components/reviews/ReviewCard';
 import type { ProviderPortalProfile, ProviderPortalUpdate, ProviderSpecializationBrief } from '@/types';
 import styles from './ProviderAccountPage.module.css';
@@ -33,6 +34,10 @@ export function ProviderAccountPage() {
   const [legacyApprovedAccount, setLegacyApprovedAccount] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const feedbackTriggerRef = useRef<HTMLButtonElement>(null);
+  const feedbackCloseRef = useRef<HTMLButtonElement>(null);
+  const feedbackWasOpen = useRef(false);
 
   function populate(next: ProviderPortalProfile) {
     setProfile(next);
@@ -145,14 +150,46 @@ export function ProviderAccountPage() {
     }
   }
 
+  useEffect(() => {
+    if (feedbackOpen) {
+      feedbackWasOpen.current = true;
+      feedbackCloseRef.current?.focus();
+      return;
+    }
+    if (feedbackWasOpen.current) {
+      feedbackWasOpen.current = false;
+      feedbackTriggerRef.current?.focus();
+    }
+  }, [feedbackOpen]);
+
+  useEffect(() => {
+    if (!feedbackOpen) return;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setFeedbackOpen(false);
+      }
+    }
+
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [feedbackOpen]);
+
   if (loading) {
-    return <main className={styles.page}><div className={styles.loading} role="status"><LoadingSpinner /> Loading your provider portal…</div></main>;
+    return (
+      <div className={styles.page}>
+        <ProviderTopNav />
+        <main className={styles.state}><div className={styles.loading} role="status"><LoadingSpinner /> Loading your provider portal…</div></main>
+      </div>
+    );
   }
   if (!profile) {
     if (legacyApprovedAccount) {
       return (
-        <main className={styles.page}>
-          <section className={styles.card}>
+        <div className={styles.page}>
+          <ProviderTopNav />
+          <main className={styles.state}><section className={styles.card}>
             <p className={styles.eyebrow}>Provider account</p>
             <h1 className="text-display">Your provider account is approved.</h1>
             <p className={styles.empty}>
@@ -162,22 +199,31 @@ export function ProviderAccountPage() {
               Profile editing is currently available through administrator review. We’ll let you know when more account tools are ready.
             </p>
             <Button type="button" variant="secondary" onClick={() => void logout()}>Sign out</Button>
-          </section>
-        </main>
+          </section></main>
+        </div>
       );
     }
-    return <main className={styles.page}><section className={styles.card}><Alert variant="error">{notice?.text ?? 'Provider portal access is unavailable.'}</Alert><Link to="/provider/login">Return to provider sign in</Link></section></main>;
+    return (
+      <div className={styles.page}>
+        <ProviderTopNav />
+        <main className={styles.state}><section className={styles.card}>
+          <Alert variant="error">{notice?.text ?? 'Provider portal access is unavailable.'}</Alert>
+          <Link to="/provider/login">Return to provider sign in</Link>
+        </section></main>
+      </div>
+    );
   }
 
   return (
-    <main className={styles.page}>
-      <div className={styles.shell}>
+    <div className={styles.page}>
+      <ProviderTopNav />
+      <main className={styles.shell}>
         <header className={styles.header}>
           <div>
             <p className={styles.eyebrow}>Provider portal</p>
             <h1 className="text-display">Manage your submitted profile</h1>
+            <p className={styles.headerIntro}>Keep your public listing current and easy for members to understand.</p>
           </div>
-          <Button type="button" variant="secondary" onClick={() => void logout()}>Sign out</Button>
         </header>
         {notice && <Alert variant={notice.variant} onDismiss={() => setNotice(null)}>{notice.text}</Alert>}
         {profile.profile_update?.review_status === 'PENDING_REVIEW' && (
@@ -189,7 +235,55 @@ export function ProviderAccountPage() {
         {profile.profile_update?.review_status === 'APPROVED' && (
           <Alert variant="success">Your most recent profile update was approved{profile.profile_update.reviewed_at ? ` on ${new Date(profile.profile_update.reviewed_at).toLocaleDateString()}` : ''}.</Alert>
         )}
-        <div className={styles.grid}>
+        <div className={styles.workspace} data-testid="provider-workspace">
+          <div className={styles.feedbackDock}>
+            <button
+              ref={feedbackTriggerRef}
+              type="button"
+              className={styles.feedbackTrigger}
+              aria-controls="provider-feedback-drawer"
+              aria-expanded={feedbackOpen}
+              onClick={() => setFeedbackOpen((open) => !open)}
+            >
+              <span aria-hidden="true">★</span>
+              Member feedback
+              <span className={styles.triggerChevron} aria-hidden="true">{feedbackOpen ? '⌃' : '⌄'}</span>
+            </button>
+            <aside
+              id="provider-feedback-drawer"
+              className={styles.feedbackDrawer}
+              role="dialog"
+              aria-labelledby="provider-feedback-heading"
+              hidden={!feedbackOpen}
+              data-testid="feedback-drawer"
+            >
+              <div className={styles.drawerHeader}>
+                <div>
+                  <p className={styles.drawerEyebrow}>Member feedback</p>
+                  <h2 id="provider-feedback-heading">What members are saying</h2>
+                </div>
+                <button
+                  ref={feedbackCloseRef}
+                  type="button"
+                  className={styles.drawerClose}
+                  aria-label="Close member feedback"
+                  onClick={() => setFeedbackOpen(false)}
+                >
+                  <span aria-hidden="true">×</span>
+                  <span>Close</span>
+                </button>
+              </div>
+              <p className={styles.rating}>
+                {profile.average_rating?.toFixed(1) ?? '—'} ★ · {profile.review_count} review{profile.review_count === 1 ? '' : 's'}
+              </p>
+              <ReviewCardList
+                reviews={profile.visible_reviews}
+                formatTimestamp={formatTimestamp}
+                emptyTitle="No member-visible review comments yet."
+                emptyDescription="Visible member feedback will appear here after it has been submitted."
+              />
+            </aside>
+          </div>
           <form className={styles.card + ' ' + styles.form} onSubmit={save}>
             <h2>Your profile</h2>
             <p className={styles.hint}>Welcome, {user?.full_name ?? 'provider'}. Unpublished listings save immediately. Changes to published listings are held for administrator review; publication and operational controls are never available here.</p>
@@ -230,18 +324,8 @@ export function ProviderAccountPage() {
               {profile.profile_update?.review_status !== 'APPROVED' && profile.profile_update && <Button type="button" variant="secondary" disabled={saving} onClick={() => void discardDraft()}>Discard draft and reload approved listing</Button>}
             </div>
           </form>
-          <aside className={styles.card + ' ' + styles.reviews}>
-            <h2>Member feedback</h2>
-            <p className={styles.rating}>{profile.average_rating?.toFixed(1) ?? '—'} ★ · {profile.review_count} review{profile.review_count === 1 ? '' : 's'}</p>
-            <ReviewCardList
-              reviews={profile.visible_reviews}
-              formatTimestamp={formatTimestamp}
-              emptyTitle="No member-visible review comments yet."
-              emptyDescription="Visible member feedback will appear here after it has been submitted."
-            />
-          </aside>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
