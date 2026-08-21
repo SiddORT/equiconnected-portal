@@ -54,6 +54,40 @@ account's refresh sessions. Never configure the recovery confirmation in
 automated deployment or post-merge environments; changing `ADMIN_PASSWORD`
 alone never resets an existing account.
 
+## Resetting non-admin accounts
+
+This is a destructive, operator-only maintenance action against the database
+selected by `DATABASE_URL`. It is preview-first and must never be added to
+deployment, startup, or demo-seeding automation.
+
+```bash
+cd backend
+
+# Preview only — lists retained administrators, targeted users, and dependent records.
+python scripts/reset_non_admin_users.py
+
+# Re-check the current scope transactionally, then delete the targeted accounts.
+python scripts/reset_non_admin_users.py --confirm DELETE_NON_ADMIN_USERS
+```
+
+The command preserves every account with the `admin` role, whether that role is
+the account's primary role or a relational role assignment. It refuses the
+confirmed run if no active administrator would remain. It removes every other
+user and their database-cascaded sessions, role assignments, verification
+tokens, stable profiles, horses, and provider reviews. Audit history remains,
+with references to deleted users cleared. Providers, locations, specializations,
+roles, and other master data are not removed.
+
+The reset also stops before making changes if a targeted user created provider
+invitations, because that reference is intentionally restrictive. Resolve those
+invitation records first, rerun the preview, and only then repeat the confirmed
+command. The confirmed command locks the user, role, and invitation boundary
+while it re-checks its scope, so treat the preview as an audit aid rather than a
+guarantee that a changing database will have the identical account list at
+confirmation time. After a successful reset, sign in with a retained active administrator.
+If that administrator needs credential recovery, use the explicitly guarded
+bootstrap recovery command documented above.
+
 ## Seeding demo data (development)
 
 ```bash

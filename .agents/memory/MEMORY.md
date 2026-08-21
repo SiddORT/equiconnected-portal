@@ -9,3 +9,4 @@
 - [Dashboard registration metrics](dashboard-registration-metrics.md) — public-account dashboard counts use roles and verification state, not invitation data.
 - [Transactional email delivery accounting](transactional-email-delivery-accounting.md) — commit a pending attempt before SMTP and finalize its safe outcome independently.
 - [Provider review concurrency](provider-review-concurrency.md) — member review writes must use an atomic provider/member upsert, not a read-then-insert.
+- [Destructive user maintenance locking](destructive-user-maintenance-locking.md) — user resets must lock the authorization and restrictive-reference boundary before calculating deletion scope.
