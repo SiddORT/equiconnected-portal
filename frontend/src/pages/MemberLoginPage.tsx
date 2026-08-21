@@ -1,16 +1,19 @@
 /**
- * Admin login page — /admin/login
- * Redirects to dashboard if already authenticated.
+ * Member login page — /login.
+ *
+ * This intentionally lives apart from the administrative sign-in page. The
+ * authentication flow is the same, but the member journey is about finding
+ * trusted equine care rather than operating the portal.
  */
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
 import { extractErrorMessage } from '@/api/client';
+import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Alert } from '@/components/ui/Alert';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
-import styles from './LoginPage.module.css';
+import styles from './MemberLoginPage.module.css';
 
 interface FormState {
   email: string;
@@ -43,12 +46,12 @@ function validate(form: FormState): FormErrors {
   return errors;
 }
 
-export function LoginPage() {
+export function MemberLoginPage() {
   const { isAuthenticated, isLoading, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const loginState = location.state as LoginLocationState | null;
-  const from = loginState?.from?.pathname ?? '/admin/dashboard';
+  const from = loginState?.from?.pathname ?? '/providers';
 
   const [form, setForm] = useState<FormState>(() => ({
     email: loginState?.verifiedEmail ?? '',
@@ -64,13 +67,10 @@ export function LoginPage() {
 
   useEffect(() => {
     if (loginState?.verifiedEmail || loginState?.verifiedNotice) {
-      // Keep the success notice in component state while removing the
-      // one-time handoff data from browser history.
       navigate('/login', { replace: true, state: null });
     }
   }, [loginState?.verifiedEmail, loginState?.verifiedNotice, navigate]);
 
-  // Already authenticated — go straight to dashboard
   if (!isLoading && isAuthenticated) {
     return <Navigate to={from} replace />;
   }
@@ -80,15 +80,15 @@ export function LoginPage() {
   }
 
   function handleChange(field: keyof FormState, value: string) {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm((previous) => ({ ...previous, [field]: value }));
     if (fieldErrors[field]) {
-      setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+      setFieldErrors((previous) => ({ ...previous, [field]: undefined }));
     }
     if (globalError) setGlobalError(null);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
     setGlobalError(null);
 
     const errors = validate(form);
@@ -101,8 +101,8 @@ export function LoginPage() {
     try {
       await login(form.email.trim().toLowerCase(), form.password);
       navigate(from, { replace: true });
-    } catch (err) {
-      setGlobalError(extractErrorMessage(err, 'Login failed. Please check your credentials.'));
+    } catch (error) {
+      setGlobalError(extractErrorMessage(error, 'Login failed. Please check your credentials.'));
     } finally {
       setSubmitting(false);
     }
@@ -110,38 +110,44 @@ export function LoginPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.leftPanel} aria-hidden="true">
-        <div className={styles.leftContent}>
-          <img src="/logo.png" alt="" className={styles.logoMark} aria-hidden="true" />
-          <h1 className={`text-display ${styles.leftTitle}`}>EquiConnected</h1>
-          <p className={styles.leftSubtitle}>
-            Secure healthcare coordination for the modern era.
+      <section className={styles.story} aria-labelledby="member-story-heading">
+        <div className={styles.storyOverlay} aria-hidden="true" />
+        <div className={styles.storyContent}>
+          <Link className={styles.storyBrand} to="/" aria-label="EquiConnected home">
+            <img src="/logo.png" alt="" className={styles.storyLogo} />
+            <span>
+              <strong>EquiConnected</strong>
+              <small>Exceptional equine care</small>
+            </span>
+          </Link>
+          <p className={styles.storyEyebrow}>For horse owners &amp; stable managers</p>
+          <h1 id="member-story-heading">The right care for every chapter.</h1>
+          <p className={styles.storyCopy}>
+            Discover trusted hospitals, clinics, and doctors for the horses who rely on you.
           </p>
-          <ul className={styles.leftFeatures} role="list">
-            {[
-              'Role-based access control',
-              'Full audit trail',
-              'End-to-end encryption',
-              'Real-time coordination',
-            ].map((f) => (
-              <li key={f} className={styles.leftFeature}>
-                <span className={styles.leftCheck} aria-hidden="true">✓</span>
-                {f}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
-      <main className={styles.rightPanel}>
-        <div className={styles.formCard}>
-          <div className={styles.formHeader}>
-<div className={styles.formIcon} aria-hidden="true">🔐</div>
-            <h2 className={`text-display ${styles.formTitle}`}>Admin sign in</h2>
-            <p className={styles.formSubtitle}>
-              Enter your administrator credentials to access the portal.
-            </p>
+          <div className={styles.storyQuote}>
+            <span aria-hidden="true">“</span>
+            <p>Better care starts with feeling connected.</p>
           </div>
+        </div>
+      </section>
+
+      <main className={styles.main}>
+        <div className={styles.formCard}>
+          <div className={styles.mobileBrand}>
+            <Link className={styles.mobileBrandLink} to="/" aria-label="EquiConnected home">
+              <img src="/logo.png" alt="" />
+              <span><strong>EquiConnected</strong><small>Exceptional equine care</small></span>
+            </Link>
+          </div>
+
+          <header className={styles.formHeader}>
+            <p className={styles.eyebrow}>Welcome back</p>
+            <h2 className="text-display">Sign in to your care community</h2>
+            <p>
+              Your trusted provider directory is ready when you are.
+            </p>
+          </header>
 
           {successNotice && (
             <Alert variant="success" onDismiss={() => setSuccessNotice(null)}>
@@ -160,11 +166,11 @@ export function LoginPage() {
               label="Email address"
               type="email"
               name="email"
-              id="admin-email"
+              id="member-email"
               autoComplete="username email"
-              placeholder="you@organisation.com"
+              placeholder="you@example.com"
               value={form.email}
-              onChange={(e) => handleChange('email', e.target.value)}
+              onChange={(event) => handleChange('email', event.target.value)}
               error={fieldErrors.email}
               disabled={submitting}
               required
@@ -174,11 +180,11 @@ export function LoginPage() {
               label="Password"
               type={showPassword ? 'text' : 'password'}
               name="password"
-              id="admin-password"
+              id="member-password"
               autoComplete="current-password"
-              placeholder="••••••••"
+              placeholder="Enter your password"
               value={form.password}
-              onChange={(e) => handleChange('password', e.target.value)}
+              onChange={(event) => handleChange('password', event.target.value)}
               error={fieldErrors.password}
               disabled={submitting}
               required
@@ -186,30 +192,26 @@ export function LoginPage() {
                 <button
                   type="button"
                   className={styles.showHide}
-                  onClick={() => setShowPassword((v) => !v)}
+                  onClick={() => setShowPassword((visible) => !visible)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
                 >
                   {showPassword ? '🙈' : '👁'}
                 </button>
               }
             />
 
-            <Button
-              type="submit"
-              variant="primary"
-              fullWidth
-              size="lg"
-              loading={submitting}
-            >
+            <Button type="submit" variant="primary" fullWidth size="lg" loading={submitting}>
               {submitting ? 'Signing in…' : 'Sign in'}
             </Button>
           </form>
 
           <p className={styles.noRegister}>
-            This portal is for authorised administrators only.
-            <br />
-            Joining as a horse owner or stable manager?{' '}
-            <Link to="/signup" className={styles.signupLink}>Create a public account</Link>
+            New to EquiConnected?{' '}
+            <Link to="/signup" className={styles.signupLink}>Create your public account</Link>
+          </p>
+          <p className={styles.securityNote}>
+            Your account is for verified horse owners and stable managers.
           </p>
         </div>
       </main>

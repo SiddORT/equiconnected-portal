@@ -7,6 +7,7 @@ import { AuthGuard } from '@/features/admin/AuthGuard';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { PublicPage } from '@/pages/PublicPage';
 import { LoginPage } from '@/pages/admin/LoginPage';
+import { MemberLoginPage } from '@/pages/MemberLoginPage';
 import { DashboardPage } from '@/pages/admin/DashboardPage';
 import { SpecializationsPage } from '@/pages/admin/SpecializationsPage';
 import { ProvidersPage } from '@/pages/admin/ProvidersPage';
@@ -41,7 +42,7 @@ export function AppRouter() {
         <Route path="/provider/invitations/:token" element={<InvitationPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={<MemberLoginPage />} />
         <Route path="/terms-of-service" element={<LegalPage kind="terms" />} />
         <Route path="/privacy-policy" element={<LegalPage kind="privacy" />} />
 
