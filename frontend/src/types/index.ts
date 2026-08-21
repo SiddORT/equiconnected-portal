@@ -508,6 +508,8 @@ export interface ProviderPortalProfile {
   average_rating: number | null;
   review_count: number;
   visible_reviews: ProviderPortalVisibleReview[];
+  editable_profile: ProviderPortalEditableProfile;
+  profile_update: ProviderProfileUpdateState | null;
 }
 
 export interface ProviderPortalUpdate {
@@ -533,6 +535,28 @@ export interface ProviderPortalUpdate {
     description?: string | null;
     display_order?: number;
   }>;
+}
+
+export interface ProviderPortalEditableProfile extends ProviderPortalUpdate {
+  name: string;
+  visit_stability: VisitStability;
+  specialization_ids: string[];
+  locations: Array<Omit<ProviderLocationCreate, 'is_primary'> & { is_primary?: boolean }>;
+  phones: ProviderPhoneCreate[];
+  emails: ProviderEmailCreate[];
+  photos: ProviderPhotoCreate[];
+  qualifications: NonNullable<ProviderPortalUpdate['qualifications']>;
+}
+
+export type ProviderProfileUpdateStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
+
+export interface ProviderProfileUpdateState {
+  id: string;
+  review_status: ProviderProfileUpdateStatus;
+  submitted_at: string;
+  reviewed_at: string | null;
+  reviewed_by_name: string | null;
+  rejection_reason: string | null;
 }
 
 export interface ProviderLocationCreate {
@@ -721,6 +745,29 @@ export interface ProviderApplicationListParams {
   provider_type?: ProviderType;
   email_verified?: boolean;
   review_status?: ProviderApplicationStatus;
+  page?: number;
+  page_size?: number;
+}
+
+export interface ProviderProfileUpdate {
+  id: string;
+  provider_id: string;
+  provider_name: string;
+  provider_type: ProviderType;
+  review_status: ProviderProfileUpdateStatus;
+  proposed_profile: ProviderPortalEditableProfile;
+  current_profile: ProviderPortalEditableProfile;
+  submitted_at: string;
+  reviewed_by_user_id: string | null;
+  reviewed_by_name: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+}
+
+export interface ProviderProfileUpdateListParams {
+  search?: string;
+  review_status?: ProviderProfileUpdateStatus;
   page?: number;
   page_size?: number;
 }

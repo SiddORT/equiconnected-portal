@@ -35,6 +35,14 @@ class ProviderApplicationStatus(str, enum.Enum):
     REJECTED = "REJECTED"
 
 
+class ProviderProfileUpdateStatus(str, enum.Enum):
+    """Review lifecycle for a provider-owned edit to a published listing."""
+
+    PENDING_REVIEW = "PENDING_REVIEW"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
 class DoctorOrganizationStatus(str, enum.Enum):
     PENDING = "PENDING"
     REJECTED = "REJECTED"

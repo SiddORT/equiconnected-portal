@@ -16,6 +16,7 @@ from app.db.session import get_db
 from app.models.enums import (
     InvitationStatus,
     ProviderApplicationStatus,
+    ProviderProfileUpdateStatus,
     ProviderStatus,
     ProviderType,
 )
@@ -37,11 +38,21 @@ from app.schemas.provider_registration import (
     ProviderApplicationDecisionRequest,
     ProviderApplicationResponse,
 )
+from app.schemas.provider import ProviderProfileUpdateAdminResponse
 from app.repositories.provider_registration_repository import ProviderRegistrationRepository
+from app.repositories.provider_profile_update_repository import ProviderProfileUpdateRepository
+from app.repositories.provider_repository import ProviderRepository
 from app.services.provider_registration_service import (
     ProviderApplicationDecisionError,
     ProviderApplicationNotFoundError,
     ProviderRegistrationService,
+)
+from app.services.provider_profile_update_service import (
+    ProviderProfileUpdateDecisionError,
+    ProviderProfileUpdateConflictError,
+    ProviderProfileUpdateNotFoundError,
+    ProviderProfileUpdateService,
+    editable_profile_from_provider,
 )
 from app.repositories.user_repository import UserRepository
 from app.repositories.system_settings_repository import SystemSettingsRepository
@@ -306,6 +317,149 @@ def _provider_application_response(application) -> ProviderApplicationResponse:
 
 def _provider_application_service(db: Session) -> ProviderRegistrationService:
     return ProviderRegistrationService(ProviderRegistrationRepository(db))
+
+
+def _provider_profile_update_service(db: Session) -> ProviderProfileUpdateService:
+    return ProviderProfileUpdateService(
+        ProviderProfileUpdateRepository(db), ProviderRepository(db)
+    )
+
+
+def _provider_profile_update_response(
+    profile_update, db: Session
+) -> ProviderProfileUpdateAdminResponse:
+    provider = ProviderRepository(db).get_by_id(profile_update.provider_id)
+    if provider is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "provider_profile_update_not_found", "message": "Provider profile update not found."},
+        )
+    return ProviderProfileUpdateAdminResponse(
+        id=profile_update.id,
+        provider_id=provider.id,
+        provider_name=provider.name,
+        provider_type=provider.provider_type,
+        review_status=profile_update.review_status,
+        proposed_profile=profile_update.proposed_profile,
+        current_profile=editable_profile_from_provider(provider),
+        submitted_at=profile_update.submitted_at,
+        reviewed_by_user_id=profile_update.reviewed_by_user_id,
+        reviewed_by_name=(
+            profile_update.reviewer.full_name if profile_update.reviewer else None
+        ),
+        reviewed_at=profile_update.reviewed_at,
+        rejection_reason=profile_update.rejection_reason,
+        created_at=profile_update.created_at,
+    )
+
+
+@router.get(
+    "/provider-profile-updates",
+    response_model=PaginatedResponse[ProviderProfileUpdateAdminResponse],
+    dependencies=[Depends(require_role("admin"))],
+)
+def list_provider_profile_updates(
+    db: Annotated[Session, Depends(get_db)],
+    search: str | None = Query(None, max_length=100),
+    review_status: ProviderProfileUpdateStatus | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+) -> PaginatedResponse[ProviderProfileUpdateAdminResponse]:
+    profile_updates, total = _provider_profile_update_service(db).list(
+        search=search,
+        review_status=review_status,
+        page=page,
+        page_size=page_size,
+    )
+    return PaginatedResponse(
+        data=[_provider_profile_update_response(item, db) for item in profile_updates],
+        meta=PaginationMeta(
+            page=page,
+            page_size=page_size,
+            total=total,
+            total_pages=max(1, ceil(total / page_size)),
+        ),
+    )
+
+
+@router.get(
+    "/provider-profile-updates/{update_id}",
+    response_model=ProviderProfileUpdateAdminResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+def get_provider_profile_update(
+    update_id: UUID, db: Annotated[Session, Depends(get_db)]
+) -> ProviderProfileUpdateAdminResponse:
+    try:
+        update = _provider_profile_update_service(db).get(update_id)
+    except ProviderProfileUpdateNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "provider_profile_update_not_found", "message": "Provider profile update not found."},
+        )
+    return _provider_profile_update_response(update, db)
+
+
+@router.post(
+    "/provider-profile-updates/{update_id}/approve",
+    response_model=ProviderProfileUpdateAdminResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+def approve_provider_profile_update(
+    update_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[Session, Depends(get_db)],
+) -> ProviderProfileUpdateAdminResponse:
+    try:
+        update = _provider_profile_update_service(db).approve(update_id, current_user.id)
+    except ProviderProfileUpdateNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "provider_profile_update_not_found", "message": "Provider profile update not found."},
+        )
+    except ProviderProfileUpdateDecisionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": (
+                    "provider_profile_update_conflict"
+                    if isinstance(exc, ProviderProfileUpdateConflictError)
+                    else "provider_profile_update_not_pending"
+                ),
+                "message": str(exc),
+            },
+        )
+    return _provider_profile_update_response(update, db)
+
+
+@router.post(
+    "/provider-profile-updates/{update_id}/reject",
+    response_model=ProviderProfileUpdateAdminResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+def reject_provider_profile_update(
+    update_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[Session, Depends(get_db)],
+    body: ProviderApplicationDecisionRequest | None = None,
+) -> ProviderProfileUpdateAdminResponse:
+    try:
+        update = _provider_profile_update_service(db).reject(
+            update_id,
+            current_user.id,
+            body.rejection_reason if body else None,
+        )
+    except ProviderProfileUpdateNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "provider_profile_update_not_found", "message": "Provider profile update not found."},
+        )
+    except ProviderProfileUpdateDecisionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "provider_profile_update_not_pending", "message": str(exc)},
+        )
+    return _provider_profile_update_response(update, db)
 
 
 @router.get(

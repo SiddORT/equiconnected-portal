@@ -36,24 +36,25 @@ export function ProviderAccountPage() {
 
   function populate(next: ProviderPortalProfile) {
     setProfile(next);
+    const editable = next.editable_profile;
     setForm({
-      name: next.name,
-      description: next.description,
-      email: next.email,
-      phone: next.phone,
-      website: next.website,
-      visit_stability: next.visit_stability,
-      specialization_ids: next.specializations.map((item) => item.id),
-      professional_title: next.doctor_profile?.professional_title ?? null,
-      biography: next.doctor_profile?.biography ?? null,
-      years_experience: next.doctor_profile?.years_experience ?? null,
-      experience_description: next.doctor_profile?.experience_description ?? null,
+      name: editable.name,
+      description: editable.description,
+      email: editable.email,
+      phone: editable.phone,
+      website: editable.website,
+      visit_stability: editable.visit_stability,
+      specialization_ids: editable.specialization_ids,
+      professional_title: editable.professional_title ?? null,
+      biography: editable.biography ?? null,
+      years_experience: editable.years_experience ?? null,
+      experience_description: editable.experience_description ?? null,
     });
-    setLocations(formattedList(next.locations.map(({ id, provider_id, created_at, updated_at, ...item }) => item)));
-    setPhones(formattedList(next.phones.map(({ id, provider_id, created_at, updated_at, ...item }) => item)));
-    setEmails(formattedList(next.emails.map(({ id, provider_id, created_at, updated_at, ...item }) => item)));
-    setPhotos(formattedList(next.photos.map(({ id, provider_id, created_at, updated_at, ...item }) => item)));
-    setQualifications(formattedList(next.qualifications));
+    setLocations(formattedList(editable.locations));
+    setPhones(formattedList(editable.phones));
+    setEmails(formattedList(editable.emails));
+    setPhotos(formattedList(editable.photos));
+    setQualifications(formattedList(editable.qualifications));
   }
 
   useEffect(() => {
@@ -115,9 +116,30 @@ export function ProviderAccountPage() {
       setNotice(null);
       const updated = await providersApi.updateProviderPortalProfile(body);
       populate(updated);
-      setNotice({ variant: 'success', text: 'Your provider profile has been saved.' });
+      setNotice({
+        variant: 'success',
+        text: updated.profile_update?.review_status === 'PENDING_REVIEW'
+          ? 'Your proposed profile update is awaiting administrator review. Your live listing is unchanged until approval.'
+          : 'Your unpublished provider profile has been saved.',
+      });
     } catch (err) {
       setNotice({ variant: 'error', text: err instanceof Error ? err.message : extractErrorMessage(err, 'Your profile could not be saved.') });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function discardDraft() {
+    try {
+      setSaving(true);
+      setNotice(null);
+      populate(await providersApi.discardProviderPortalProfileUpdate());
+      setNotice({
+        variant: 'success',
+        text: 'Your draft was discarded and the latest approved listing has been reloaded. You can make a new proposal when ready.',
+      });
+    } catch (err) {
+      setNotice({ variant: 'error', text: extractErrorMessage(err, 'Your draft could not be discarded.') });
     } finally {
       setSaving(false);
     }
@@ -158,10 +180,19 @@ export function ProviderAccountPage() {
           <Button type="button" variant="secondary" onClick={() => void logout()}>Sign out</Button>
         </header>
         {notice && <Alert variant={notice.variant} onDismiss={() => setNotice(null)}>{notice.text}</Alert>}
+        {profile.profile_update?.review_status === 'PENDING_REVIEW' && (
+          <Alert variant="warning">A profile update is awaiting review. You can keep revising this draft; members continue to see your last approved listing.</Alert>
+        )}
+        {profile.profile_update?.review_status === 'REJECTED' && (
+          <Alert variant="error">Your last profile update was declined{profile.profile_update.rejection_reason ? `: ${profile.profile_update.rejection_reason}` : '.'} Revise the draft below and save it to resubmit.</Alert>
+        )}
+        {profile.profile_update?.review_status === 'APPROVED' && (
+          <Alert variant="success">Your most recent profile update was approved{profile.profile_update.reviewed_at ? ` on ${new Date(profile.profile_update.reviewed_at).toLocaleDateString()}` : ''}.</Alert>
+        )}
         <div className={styles.grid}>
           <form className={styles.card + ' ' + styles.form} onSubmit={save}>
             <h2>Your profile</h2>
-            <p className={styles.hint}>Welcome, {user?.full_name ?? 'provider'}. Your changes are saved to your submitted profile. Publication and review decisions remain with the EquiConnected team.</p>
+            <p className={styles.hint}>Welcome, {user?.full_name ?? 'provider'}. Unpublished listings save immediately. Changes to published listings are held for administrator review; publication and operational controls are never available here.</p>
             <Input label="Provider or practice name" id="portal-name" value={form.name ?? ''} onChange={(e) => update('name', e.target.value)} disabled={saving} required />
             <label className={styles.field}>Description
               <textarea className={styles.textarea} rows={5} value={form.description ?? ''} onChange={(e) => update('description', e.target.value || null)} disabled={saving} maxLength={5000} />
@@ -194,7 +225,10 @@ export function ProviderAccountPage() {
               <textarea className={styles.textarea} rows={5} value={value} onChange={(e) => setter(e.target.value)} disabled={saving} spellCheck={false} />
               <span className={styles.hint}>{hint}</span>
             </label>)}
-            <Button type="submit" loading={saving}>Save profile</Button>
+            <div className={styles.choice}>
+              <Button type="submit" loading={saving}>{profile.profile_update?.review_status === 'REJECTED' ? 'Revise and resubmit' : 'Save profile'}</Button>
+              {profile.profile_update?.review_status !== 'APPROVED' && profile.profile_update && <Button type="button" variant="secondary" disabled={saving} onClick={() => void discardDraft()}>Discard draft and reload approved listing</Button>}
+            </div>
           </form>
           <aside className={styles.card + ' ' + styles.reviews}>
             <h2>Member feedback</h2>

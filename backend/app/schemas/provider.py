@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.models.enums import (
     ProviderStatus,
     ProviderType,
+    ProviderProfileUpdateStatus,
     PublicationStatus,
     VisitStability,
 )
@@ -394,6 +395,28 @@ class ProviderPortalUpdate(BaseModel):
     _strip_title = field_validator("professional_title", mode="before")(_strip)
 
 
+class ProviderPortalEditableProfile(ProviderPortalUpdate):
+    """Complete provider-editable profile used for draft snapshots and review."""
+
+    name: str = Field(..., min_length=1, max_length=300)
+    visit_stability: VisitStability
+    specialization_ids: list[UUID] = Field(default_factory=list)
+    locations: list[LocationCreate] = Field(default_factory=list)
+    phones: list[PhoneCreate] = Field(default_factory=list)
+    emails: list[EmailCreate] = Field(default_factory=list)
+    photos: list[PhotoCreate] = Field(default_factory=list)
+    qualifications: list[QualificationCreate] = Field(default_factory=list)
+
+
+class ProviderProfileUpdateState(BaseModel):
+    id: UUID
+    review_status: ProviderProfileUpdateStatus
+    submitted_at: datetime
+    reviewed_at: datetime | None = None
+    reviewed_by_name: str | None = None
+    rejection_reason: str | None = None
+
+
 class ProviderPortalResponse(BaseModel):
     """Provider-owned profile data, excluding admin-only lifecycle attributes."""
 
@@ -417,10 +440,19 @@ class ProviderPortalResponse(BaseModel):
     average_rating: float | None = None
     review_count: int = 0
     visible_reviews: list[dict] = []
+    editable_profile: ProviderPortalEditableProfile
+    profile_update: ProviderProfileUpdateState | None = None
 
     @classmethod
     def from_provider(
-        cls, provider, *, average_rating: float | None, review_count: int, visible_reviews: list[dict]
+        cls,
+        provider,
+        *,
+        average_rating: float | None,
+        review_count: int,
+        visible_reviews: list[dict],
+        editable_profile: ProviderPortalEditableProfile,
+        profile_update: ProviderProfileUpdateState | None = None,
     ) -> "ProviderPortalResponse":
         return cls(
             id=provider.id,
@@ -457,4 +489,22 @@ class ProviderPortalResponse(BaseModel):
             average_rating=average_rating,
             review_count=review_count,
             visible_reviews=visible_reviews,
+            editable_profile=editable_profile,
+            profile_update=profile_update,
         )
+
+
+class ProviderProfileUpdateAdminResponse(BaseModel):
+    id: UUID
+    provider_id: UUID
+    provider_name: str
+    provider_type: ProviderType
+    review_status: ProviderProfileUpdateStatus
+    proposed_profile: ProviderPortalEditableProfile
+    current_profile: ProviderPortalEditableProfile
+    submitted_at: datetime
+    reviewed_by_user_id: UUID | None
+    reviewed_by_name: str | None
+    reviewed_at: datetime | None
+    rejection_reason: str | None
+    created_at: datetime

@@ -42,6 +42,11 @@ export async function updateProviderPortalProfile(
   return data;
 }
 
+export async function discardProviderPortalProfileUpdate(): Promise<ProviderPortalProfile> {
+  const { data } = await apiClient.post<ProviderPortalProfile>('/provider/portal/profile-update/discard');
+  return data;
+}
+
 export async function getProviderPortalSpecializations(): Promise<ProviderSpecializationBrief[]> {
   const { data } = await apiClient.get<ProviderSpecializationBrief[]>('/provider/portal/specializations');
   return data;

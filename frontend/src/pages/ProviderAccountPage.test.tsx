@@ -51,6 +51,21 @@ const portalProfile: ProviderPortalProfile = {
     reviewer_name: 'Amina Rider',
     created_at: '2026-01-02T03:04:05Z',
   }],
+  editable_profile: {
+    name: 'Austin Equine Clinic',
+    description: 'Trusted care',
+    email: 'clinic@example.com',
+    phone: null,
+    website: null,
+    visit_stability: 'STABLE_VISIT',
+    specialization_ids: [],
+    locations: [],
+    phones: [],
+    emails: [],
+    photos: [],
+    qualifications: [],
+  },
+  profile_update: null,
 };
 
 afterEach(() => {

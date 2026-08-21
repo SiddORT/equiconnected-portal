@@ -48,6 +48,14 @@ class ProviderRepository:
             )
         )
 
+    def lock_provider(self, provider_id: UUID) -> Provider | None:
+        """Lock only the root provider row; related rows load separately."""
+        return self._db.scalar(
+            select(Provider)
+            .where(Provider.id == provider_id)
+            .with_for_update(of=Provider)
+        )
+
     def list(
         self,
         *,

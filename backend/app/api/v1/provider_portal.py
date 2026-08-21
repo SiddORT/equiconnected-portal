@@ -9,11 +9,16 @@ from app.auth.dependencies import CurrentUser, require_role
 from app.db.session import get_db
 from app.models.specialization import Specialization
 from app.repositories.audit_repository import context_from_request
+from app.repositories.provider_profile_update_repository import ProviderProfileUpdateRepository
 from app.repositories.provider_repository import ProviderRepository
 from app.repositories.review_repository import ReviewRepository
 from app.schemas.provider import ProviderPortalResponse, ProviderPortalUpdate
 from app.services.invitation_service import InvalidProviderDataError
-from app.services.provider_portal_service import ProviderPortalService, ProviderPortalUnavailableError
+from app.services.provider_portal_service import (
+    ProviderPortalService,
+    ProviderPortalUnavailableError,
+    ProviderProfileUpdateDiscardError,
+)
 
 router = APIRouter(
     prefix="/provider/portal",
@@ -24,7 +29,11 @@ _DB = Annotated[Session, Depends(get_db)]
 
 
 def _svc(db: _DB) -> ProviderPortalService:
-    return ProviderPortalService(ProviderRepository(db), ReviewRepository(db))
+    return ProviderPortalService(
+        ProviderRepository(db),
+        ReviewRepository(db),
+        ProviderProfileUpdateRepository(db),
+    )
 
 
 _Svc = Annotated[ProviderPortalService, Depends(_svc)]
@@ -78,4 +87,31 @@ def update_profile(
         raise HTTPException(
             status_code=422,
             detail={"code": "provider_profile_invalid", "message": str(exc)},
+        )
+
+
+@router.post("/profile-update/discard", response_model=ProviderPortalResponse)
+def discard_profile_update(
+    request: Request, current_user: CurrentUser, svc: _Svc
+) -> ProviderPortalResponse:
+    try:
+        return svc.discard_profile_update(
+            current_user,
+            audit_context=context_from_request(request, current_user.id),
+        )
+    except ProviderPortalUnavailableError:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "provider_profile_update_unavailable",
+                "message": "There is no profile update draft to discard.",
+            },
+        )
+    except ProviderProfileUpdateDiscardError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "provider_profile_update_not_discardable",
+                "message": str(exc),
+            },
         )

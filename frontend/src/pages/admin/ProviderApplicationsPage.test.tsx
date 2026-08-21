@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import * as adminApi from '@/api/admin';
@@ -7,8 +7,11 @@ import { ProviderApplicationsPage } from './ProviderApplicationsPage';
 
 vi.mock('@/api/admin', () => ({
   approveProviderApplication: vi.fn(),
+  approveProviderProfileUpdate: vi.fn(),
   listProviderApplications: vi.fn(),
+  listProviderProfileUpdates: vi.fn(),
   rejectProviderApplication: vi.fn(),
+  rejectProviderProfileUpdate: vi.fn(),
 }));
 
 vi.mock('@/app/TimeSettingsContext', () => ({
@@ -34,6 +37,40 @@ const application = {
   state_province: 'Texas',
   city: 'Austin',
   email_verified_at: '2026-08-21T12:00:00Z',
+  reviewed_by_user_id: null,
+  reviewed_by_name: null,
+  reviewed_at: null,
+  rejection_reason: null,
+  created_at: '2026-08-21T12:00:00Z',
+};
+
+const profileUpdate = {
+  id: 'profile-update-1',
+  provider_id: 'provider-1',
+  provider_name: 'Austin Equine Clinic',
+  provider_type: 'CLINIC' as const,
+  review_status: 'PENDING_REVIEW' as const,
+  proposed_profile: {
+    name: 'Austin Equine Specialists',
+    visit_stability: 'STABLE_VISIT' as const,
+    specialization_ids: [],
+    locations: [],
+    phones: [],
+    emails: [],
+    photos: [],
+    qualifications: [],
+  },
+  current_profile: {
+    name: 'Austin Equine Clinic',
+    visit_stability: 'STABLE_VISIT' as const,
+    specialization_ids: [],
+    locations: [],
+    phones: [],
+    emails: [],
+    photos: [],
+    qualifications: [],
+  },
+  submitted_at: '2026-08-21T12:00:00Z',
   reviewed_by_user_id: null,
   reviewed_by_name: null,
   reviewed_at: null,
@@ -102,5 +139,77 @@ describe('ProviderApplicationsPage', () => {
     expect(screen.getByRole('button', { name: 'Filters' })).toBeTruthy();
     expect(screen.getByLabelText('Pagination')).toBeTruthy();
     expect(screen.getByLabelText('Rows per page')).toBeTruthy();
+  });
+
+  it('separates published profile updates into the Updates tab', async () => {
+    vi.mocked(adminApi.listProviderApplications).mockResolvedValue(response([]));
+    vi.mocked(adminApi.listProviderProfileUpdates).mockResolvedValue({
+      data: [profileUpdate],
+      meta: { page: 1, page_size: 100, total: 1, total_pages: 1 },
+    });
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={['/admin/provider-applications?tab=updates']}>
+        <ProviderApplicationsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByLabelText('Actions for Austin Equine Clinic update')).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Updates' }).getAttribute('aria-selected')).toBe('true');
+    await user.click(screen.getByLabelText('Actions for Austin Equine Clinic update'));
+    await user.click(await screen.findByText('Compare profiles'));
+    expect(await screen.findByText('Current approved')).toBeTruthy();
+    expect(screen.getAllByText('Austin Equine Clinic').length).toBeGreaterThan(1);
+    expect(screen.getByText('Austin Equine Specialists')).toBeTruthy();
+  });
+
+  it('approves a pending provider profile update from its comparison dialog', async () => {
+    vi.mocked(adminApi.listProviderProfileUpdates).mockResolvedValue({
+      data: [profileUpdate],
+      meta: { page: 1, page_size: 100, total: 1, total_pages: 1 },
+    });
+    vi.mocked(adminApi.approveProviderProfileUpdate).mockResolvedValue({
+      ...profileUpdate,
+      review_status: 'APPROVED',
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/admin/provider-applications?tab=updates']}><ProviderApplicationsPage /></MemoryRouter>);
+
+    await user.click(await screen.findByLabelText('Actions for Austin Equine Clinic update'));
+    await user.click(await screen.findByText('Compare profiles'));
+    const review = await screen.findByRole('dialog', { name: 'Review provider profile update' });
+    await user.click(within(review).getByRole('button', { name: 'Approve update' }));
+    const confirmation = await screen.findByRole('dialog', { name: 'Approve profile update?' });
+    await user.click(within(confirmation).getByRole('button', { name: 'Approve update' }));
+
+    await waitFor(() => expect(adminApi.approveProviderProfileUpdate).toHaveBeenCalledWith('profile-update-1'));
+  });
+
+  it('records administrator feedback when rejecting a provider profile update', async () => {
+    vi.mocked(adminApi.listProviderProfileUpdates).mockResolvedValue({
+      data: [profileUpdate],
+      meta: { page: 1, page_size: 100, total: 1, total_pages: 1 },
+    });
+    vi.mocked(adminApi.rejectProviderProfileUpdate).mockResolvedValue({
+      ...profileUpdate,
+      review_status: 'REJECTED',
+      rejection_reason: 'Please verify the new location details.',
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/admin/provider-applications?tab=updates']}><ProviderApplicationsPage /></MemoryRouter>);
+
+    await user.click(await screen.findByLabelText('Actions for Austin Equine Clinic update'));
+    await user.click(await screen.findByText('Compare profiles'));
+    const review = await screen.findByRole('dialog', { name: 'Review provider profile update' });
+    await user.click(within(review).getByRole('button', { name: 'Reject update' }));
+    const confirmation = await screen.findByRole('dialog', { name: 'Reject profile update?' });
+    await user.type(within(confirmation).getByRole('textbox'), 'Please verify the new location details.');
+    await user.click(within(confirmation).getByRole('button', { name: 'Reject update' }));
+
+    await waitFor(() => expect(adminApi.rejectProviderProfileUpdate).toHaveBeenCalledWith(
+      'profile-update-1',
+      'Please verify the new location details.',
+    ));
   });
 });

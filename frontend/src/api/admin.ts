@@ -13,6 +13,8 @@ import type {
   AdminProviderReview,
   ProviderApplication,
   ProviderApplicationListParams,
+  ProviderProfileUpdate,
+  ProviderProfileUpdateListParams,
   SystemSettings,
   SystemSettingsUpdate,
 } from '@/types';
@@ -100,6 +102,34 @@ export async function rejectProviderApplication(
 ): Promise<ProviderApplication> {
   const { data } = await apiClient.post<ProviderApplication>(
     `/admin/provider-applications/${id}/reject`,
+    rejection_reason ? { rejection_reason } : undefined
+  );
+  return data;
+}
+
+export async function listProviderProfileUpdates(
+  params?: ProviderProfileUpdateListParams
+): Promise<PaginatedResponse<ProviderProfileUpdate>> {
+  const { data } = await apiClient.get<PaginatedResponse<ProviderProfileUpdate>>(
+    '/admin/provider-profile-updates',
+    { params }
+  );
+  return data;
+}
+
+export async function approveProviderProfileUpdate(id: string): Promise<ProviderProfileUpdate> {
+  const { data } = await apiClient.post<ProviderProfileUpdate>(
+    `/admin/provider-profile-updates/${id}/approve`
+  );
+  return data;
+}
+
+export async function rejectProviderProfileUpdate(
+  id: string,
+  rejection_reason?: string
+): Promise<ProviderProfileUpdate> {
+  const { data } = await apiClient.post<ProviderProfileUpdate>(
+    `/admin/provider-profile-updates/${id}/reject`,
     rejection_reason ? { rejection_reason } : undefined
   );
   return data;

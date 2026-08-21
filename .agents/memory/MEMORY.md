@@ -7,6 +7,7 @@
 - [Email verification redemption](email-verification-redemption.md) — single-use verification needs both transactional token locking and a Strict Mode-safe client request.
 - [Role-aware auth redirects](role-aware-auth-redirects.md) — guards and sign-in pages must agree on each role’s destination to avoid redirect loops.
 - [Alembic migration heads](alembic-migration-heads.md) — reconcile sibling migrations before delivery so normal upgrades retain one canonical head.
+- [PostgreSQL enum migrations](postgresql-enum-migrations.md) — named enums need explicit check-first lifecycle handling so migration round-trips remain safe.
 - [Dashboard registration metrics](dashboard-registration-metrics.md) — public-account dashboard counts use roles and verification state, not invitation data.
 - [Transactional email delivery accounting](transactional-email-delivery-accounting.md) — commit a pending attempt before SMTP and finalize its safe outcome independently.
 - [Provider review concurrency](provider-review-concurrency.md) — member review writes must use an atomic provider/member upsert, not a read-then-insert.

@@ -20,7 +20,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
@@ -29,6 +29,7 @@ from app.models.enums import (
     ProviderStatus,
     ProviderType,
     PublicationStatus,
+    ProviderProfileUpdateStatus,
     VisitStability,
 )
 
@@ -85,6 +86,12 @@ class Provider(TimestampMixin, Base):
     )
     provider_registration_application: Mapped["ProviderRegistrationApplication | None"] = relationship(  # noqa: F821
         "ProviderRegistrationApplication", back_populates="provider", uselist=False
+    )
+    profile_update: Mapped["ProviderProfileUpdate | None"] = relationship(  # noqa: F821
+        "ProviderProfileUpdate",
+        back_populates="provider",
+        uselist=False,
+        cascade="all, delete-orphan",
     )
 
     # ── Doctor extensions (populated only when provider_type == DOCTOR) ────────
@@ -158,6 +165,47 @@ class ProviderReview(TimestampMixin, Base):
         Index("ix_provider_reviews_provider_id", "provider_id"),
         Index("ix_provider_reviews_comment_visible", "comment_visible"),
         Index("ix_provider_reviews_created_at", "created_at"),
+    )
+
+
+class ProviderProfileUpdate(TimestampMixin, Base):
+    """One private, reviewable profile snapshot for a published provider."""
+
+    __tablename__ = "provider_profile_updates"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("providers.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    proposed_profile: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    base_profile: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    review_status: Mapped[ProviderProfileUpdateStatus] = mapped_column(
+        Enum(
+            ProviderProfileUpdateStatus,
+            name="provider_profile_update_status",
+            native_enum=True,
+        ),
+        nullable=False,
+        default=ProviderProfileUpdateStatus.PENDING_REVIEW,
+        server_default=ProviderProfileUpdateStatus.PENDING_REVIEW.value,
+    )
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reviewed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rejection_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    provider: Mapped["Provider"] = relationship(back_populates="profile_update")
+    reviewer: Mapped["User | None"] = relationship("User", foreign_keys=[reviewed_by_user_id])
+
+    __table_args__ = (
+        Index("ix_provider_profile_updates_review_status", "review_status", "submitted_at"),
     )
 
 
