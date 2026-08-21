@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models.specialization import Specialization
 from app.repositories.specialization_repository import SpecializationRepository
+from app.repositories.audit_repository import AuditContext, AuditRepository
 
 
 # ── Domain exceptions ─────────────────────────────────────────────────────────
@@ -24,6 +25,22 @@ class SpecializationNotFoundError(Exception):
 class SpecializationService:
     def __init__(self, repo: SpecializationRepository) -> None:
         self._repo = repo
+        self._audit = AuditRepository(repo._db)
+
+    def _record(
+        self, action: str, spec: Specialization, summary: str, *,
+        context: AuditContext | None = None, changes: list[dict] | None = None,
+        metadata: dict | None = None,
+    ) -> None:
+        self._audit.record(
+            action,
+            context=context,
+            resource_type="specialization",
+            resource_id=str(spec.id),
+            summary=summary,
+            changes=changes,
+            metadata={"specialization_name": spec.name, **(metadata or {})},
+        )
 
     def list(
         self,
@@ -49,12 +66,22 @@ class SpecializationService:
         name: str,
         description: str | None = None,
         is_active: bool = True,
+        audit_context: AuditContext | None = None,
     ) -> Specialization:
         try:
             spec = self._repo.create(
                 name=name.strip(),
                 description=description,
                 is_active=is_active,
+            )
+            self._record(
+                "specialization.created", spec, f"Created specialization “{spec.name}”.",
+                context=audit_context,
+                changes=[
+                    {"field": "name", "before": None, "after": spec.name},
+                    {"field": "description", "before": None, "after": spec.description},
+                    {"field": "is_active", "before": None, "after": spec.is_active},
+                ],
             )
             self._repo.commit()
             return spec
@@ -69,22 +96,35 @@ class SpecializationService:
         id: UUID,
         *,
         update_fields: dict,
+        audit_context: AuditContext | None = None,
     ) -> Specialization:
         """
         Partial update — only keys present in update_fields are applied.
         Accepts: name, description.
         """
         spec = self.get(id)
+        changes = []
 
         if "name" in update_fields:
             new_name = update_fields["name"]
             if new_name is not None:
+                if spec.name != new_name.strip():
+                    changes.append({"field": "name", "before": spec.name, "after": new_name.strip()})
                 spec.name = new_name.strip()
 
         if "description" in update_fields:
+            if spec.description != update_fields["description"]:
+                changes.append(
+                    {"field": "description", "before": spec.description, "after": update_fields["description"]}
+                )
             spec.description = update_fields["description"]
 
         try:
+            if changes:
+                self._record(
+                    "specialization.updated", spec, f"Updated specialization “{spec.name}”.",
+                    context=audit_context, changes=changes,
+                )
             self._repo.commit()
             return spec
         except IntegrityError:
@@ -93,8 +133,17 @@ class SpecializationService:
                 f"A specialization named '{update_fields.get('name')}' already exists."
             )
 
-    def set_status(self, id: UUID, *, is_active: bool) -> Specialization:
+    def set_status(self, id: UUID, *, is_active: bool,
+                   audit_context: AuditContext | None = None) -> Specialization:
         spec = self.get(id)
+        before = spec.is_active
         spec.is_active = is_active
+        self._record(
+            "specialization.status_changed",
+            spec,
+            f"{'Activated' if is_active else 'Deactivated'} specialization “{spec.name}”.",
+            context=audit_context,
+            changes=[{"field": "is_active", "before": before, "after": is_active}],
+        )
         self._repo.commit()
         return spec

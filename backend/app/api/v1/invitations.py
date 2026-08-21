@@ -4,7 +4,7 @@ from math import ceil
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser, require_role
@@ -14,6 +14,7 @@ from app.models.enums import InvitationStatus, ProviderType
 from app.models.specialization import Specialization
 from app.repositories.invitation_repository import InvitationRepository
 from app.repositories.provider_repository import ProviderRepository
+from app.repositories.audit_repository import context_from_request
 from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.schemas.invitation import DraftSaveRequest, InvitationCreate, InvitationListResponse, InvitationResponse, InvitationTokenResponse, SubmitRequest
 from app.services.email_service import EmailDeliveryError
@@ -54,7 +55,7 @@ def _unavailable_error(exc: Exception) -> HTTPException:
         return _error(409, "invitation_completed", "This invitation has already been completed.")
     return _error(409, "invitation_cancelled", "This invitation has been cancelled.")
 @admin_router.get("", response_model=InvitationListResponse)
-def list_invitations(svc: _Svc, search: str | None = None, status_: InvitationStatus | None = Query(None, alias="status"),
+def list_invitations(svc: _Svc, request: Request, user: CurrentUser, search: str | None = None, status_: InvitationStatus | None = Query(None, alias="status"),
                      provider_type: ProviderType | None = None, date_from: datetime | None = None, date_to: datetime | None = None,
                      page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100)):
     rows, total = svc.list(search=search, status=status_, provider_type=provider_type, date_from=date_from, date_to=date_to, page=page, page_size=page_size)
@@ -64,34 +65,46 @@ def list_invitations(svc: _Svc, search: str | None = None, status_: InvitationSt
         item.provider_name = provider_name
         item.is_new_provider = getattr(provider_status, "value", provider_status) == "DRAFT"
         data.append(item)
-    return PaginatedResponse(data=data,
-                             meta=PaginationMeta(page=page, page_size=page_size, total=total, total_pages=max(1, ceil(total/page_size))))
+    response = PaginatedResponse(data=data,
+                                 meta=PaginationMeta(page=page, page_size=page_size, total=total, total_pages=max(1, ceil(total/page_size))))
+    svc.record_list_view(context=context_from_request(request, user.id))
+    return response
 
 @admin_router.post("", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)
-def create_invitation(body: InvitationCreate, user: CurrentUser, svc: _Svc):
-    try: return InvitationResponse.model_validate(svc.create_invitation(fields=body.model_dump(), created_by=user.id))
+def create_invitation(body: InvitationCreate, request: Request, user: CurrentUser, svc: _Svc):
+    try: return InvitationResponse.model_validate(svc.create_invitation(
+        fields=body.model_dump(), created_by=user.id,
+        audit_context=context_from_request(request, user.id),
+    ))
     except DuplicateInvitationError as exc: raise _error(409, "duplicate_invitation", str(exc))
     except (ProviderNotFoundError,): raise _error(404, "provider_not_found", "Provider was not found.")
     except ProviderTypeMismatchError as exc: raise _error(422, "provider_type_mismatch", str(exc))
     except EmailDeliveryError as exc: raise _error(502, "email_delivery_failed", str(exc))
 
 @admin_router.post("/{invitation_id}/resend", response_model=InvitationResponse)
-def resend_invitation(invitation_id: UUID, svc: _Svc):
-    try: return InvitationResponse.model_validate(svc.resend_invitation(invitation_id))
+def resend_invitation(invitation_id: UUID, request: Request, user: CurrentUser, svc: _Svc):
+    try: return InvitationResponse.model_validate(svc.resend_invitation(
+        invitation_id, audit_context=context_from_request(request, user.id)
+    ))
     except InvitationNotFoundError: raise _error(404, "invitation_not_found", "Invitation was not found.")
     except DuplicateInvitationError as exc: raise _error(409, "duplicate_invitation", str(exc))
     except InvalidInvitationStateError as exc: raise _error(409, "invalid_invitation_state", str(exc))
     except EmailDeliveryError as exc: raise _error(502, "email_delivery_failed", str(exc))
 
 @admin_router.post("/{invitation_id}/cancel", response_model=InvitationResponse)
-def cancel_invitation(invitation_id: UUID, svc: _Svc):
-    try: return InvitationResponse.model_validate(svc.cancel_invitation(invitation_id))
+def cancel_invitation(invitation_id: UUID, request: Request, user: CurrentUser, svc: _Svc):
+    try: return InvitationResponse.model_validate(svc.cancel_invitation(
+        invitation_id, audit_context=context_from_request(request, user.id)
+    ))
     except InvitationNotFoundError: raise _error(404, "invitation_not_found", "Invitation was not found.")
     except InvalidInvitationStateError as exc: raise _error(409, "invalid_invitation_state", str(exc))
 
 @public_router.get("/{token}", response_model=InvitationTokenResponse)
 def get_invitation(token: str, svc: _Svc):
-    try: return InvitationTokenResponse.model_validate(svc.token_payload(svc.validate_token(token)))
+    try:
+        invitation = svc.validate_token(token)
+        svc.record_view(invitation)
+        return InvitationTokenResponse.model_validate(svc.token_payload(invitation))
     except InvitationNotFoundError: raise _error(404, "invitation_not_found", "Invitation link is invalid.")
     except InvitationExpiredError: raise _error(410, "invitation_expired", "Invitation link has expired.")
     except (InvitationCompletedError, InvitationCancelledError) as exc: raise _unavailable_error(exc)

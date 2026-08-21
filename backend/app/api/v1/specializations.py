@@ -11,13 +11,14 @@ from math import ceil
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import require_role
+from app.auth.dependencies import CurrentUser, require_role
 from app.db.session import get_db
 from app.repositories.specialization_repository import SpecializationRepository
+from app.repositories.audit_repository import AuditRepository, context_from_request
 from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.schemas.specialization import (
     ImportConfirmRequest,
@@ -62,6 +63,8 @@ _Svc = Annotated[SpecializationService, Depends(_svc)]
 @router.get("", response_model=PaginatedResponse[SpecializationResponse])
 def list_specializations(
     svc: _Svc,
+    request: Request,
+    user: CurrentUser,
     search: str | None = Query(None, max_length=200, description="Name substring search"),
     is_active: bool | None = Query(None, description="Filter by active status"),
     page: int = Query(1, ge=1, description="Page number (1-based)"),
@@ -71,23 +74,35 @@ def list_specializations(
         search=search, is_active=is_active, page=page, page_size=page_size
     )
     total_pages = max(1, ceil(total / page_size))
-    return PaginatedResponse(
+    response = PaginatedResponse(
         data=[SpecializationResponse.model_validate(s) for s in items],
         meta=PaginationMeta(
             page=page, page_size=page_size, total=total, total_pages=total_pages
         ),
     )
+    AuditRepository(svc._repo._db).record(
+        "specialization.list_viewed",
+        context=context_from_request(request, user.id),
+        resource_type="specialization",
+        summary="Viewed the specialization directory.",
+        metadata={"result_count": len(items)},
+    )
+    svc._repo.commit()
+    return response
 
 
 # ── Create ────────────────────────────────────────────────────────────────────
 
 @router.post("", response_model=SpecializationResponse, status_code=status.HTTP_201_CREATED)
-def create_specialization(body: SpecializationCreate, svc: _Svc):
+def create_specialization(
+    body: SpecializationCreate, request: Request, user: CurrentUser, svc: _Svc
+):
     try:
         spec = svc.create(
             name=body.name,
             description=body.description,
             is_active=body.is_active,
+            audit_context=context_from_request(request, user.id),
         )
         return SpecializationResponse.model_validate(spec)
     except DuplicateSpecializationError as exc:
@@ -103,10 +118,21 @@ def create_specialization(body: SpecializationCreate, svc: _Svc):
 @router.get("/export")
 def export_specializations(
     db: _DB,
+    request: Request,
+    user: CurrentUser,
     search: str | None = Query(None, max_length=200),
     is_active: bool | None = Query(None),
 ):
     filename = ie_svc.export_filename()
+    count = ie_svc.count_export_rows(db, search=search, is_active=is_active)
+    AuditRepository(db).record(
+        "specialization.exported",
+        context=context_from_request(request, user.id),
+        resource_type="specialization",
+        summary="Exported specializations.",
+        metadata={"filters": {"search": search, "is_active": is_active}, "exported_count": count},
+    )
+    db.commit()
     return StreamingResponse(
         ie_svc.export_csv(db, search=search, is_active=is_active),
         media_type="text/csv; charset=utf-8",
@@ -149,7 +175,7 @@ def _validate_upload(file: UploadFile) -> None:
 
 
 @router.post("/import/preview", response_model=ImportPreviewResponse)
-async def preview_import(file: UploadFile, db: _DB):
+async def preview_import(file: UploadFile, db: _DB, request: Request, user: CurrentUser):
     _validate_upload(file)
     contents = await file.read(MAX_FILE_SIZE_BYTES + 1)
     try:
@@ -169,13 +195,27 @@ async def preview_import(file: UploadFile, db: _DB):
 
 
 @router.post("/import", response_model=ImportResult)
-def confirm_import(body: ImportConfirmRequest, db: _DB):
+def confirm_import(
+    body: ImportConfirmRequest, db: _DB, request: Request, user: CurrentUser
+):
     validated = [ImportRowResult(**r.model_dump()) for r in body.rows]
     # Re-run canonical field validation server-side: never trust client 'state'.
     for r in validated:
         if r.state == "valid":
             ie_svc.validate_row_fields(r)
     result = ie_svc.commit_import(db, validated)
+    AuditRepository(db).record(
+        "specialization.imported",
+        context=context_from_request(request, user.id),
+        resource_type="specialization",
+        summary="Imported specializations from CSV.",
+        metadata={
+            "imported_count": result.imported,
+            "skipped_count": result.skipped,
+            "error_count": result.errors,
+        },
+    )
+    db.commit()
     return ImportResult(
         imported=result.imported,
         skipped=result.skipped,
@@ -187,9 +227,19 @@ def confirm_import(body: ImportConfirmRequest, db: _DB):
 # ── Get single ────────────────────────────────────────────────────────────────
 
 @router.get("/{id}", response_model=SpecializationResponse)
-def get_specialization(id: UUID, svc: _Svc):
+def get_specialization(id: UUID, request: Request, user: CurrentUser, svc: _Svc):
     try:
-        return SpecializationResponse.model_validate(svc.get(id))
+        spec = svc.get(id)
+        AuditRepository(svc._repo._db).record(
+            "specialization.viewed",
+            context=context_from_request(request, user.id),
+            resource_type="specialization",
+            resource_id=str(spec.id),
+            summary=f"Viewed specialization “{spec.name}”.",
+            metadata={"specialization_name": spec.name},
+        )
+        svc._repo.commit()
+        return SpecializationResponse.model_validate(spec)
     except SpecializationNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -200,9 +250,15 @@ def get_specialization(id: UUID, svc: _Svc):
 # ── Update ────────────────────────────────────────────────────────────────────
 
 @router.patch("/{id}", response_model=SpecializationResponse)
-def update_specialization(id: UUID, body: SpecializationUpdate, svc: _Svc):
+def update_specialization(
+    id: UUID, body: SpecializationUpdate, request: Request, user: CurrentUser, svc: _Svc
+):
     try:
-        spec = svc.update(id, update_fields=body.model_dump(exclude_unset=True))
+        spec = svc.update(
+            id,
+            update_fields=body.model_dump(exclude_unset=True),
+            audit_context=context_from_request(request, user.id),
+        )
         return SpecializationResponse.model_validate(spec)
     except SpecializationNotFoundError:
         raise HTTPException(
@@ -219,9 +275,13 @@ def update_specialization(id: UUID, body: SpecializationUpdate, svc: _Svc):
 # ── Status toggle ─────────────────────────────────────────────────────────────
 
 @router.patch("/{id}/status", response_model=SpecializationResponse)
-def update_specialization_status(id: UUID, body: SpecializationStatusUpdate, svc: _Svc):
+def update_specialization_status(
+    id: UUID, body: SpecializationStatusUpdate, request: Request, user: CurrentUser, svc: _Svc
+):
     try:
-        spec = svc.set_status(id, is_active=body.is_active)
+        spec = svc.set_status(
+            id, is_active=body.is_active, audit_context=context_from_request(request, user.id)
+        )
         return SpecializationResponse.model_validate(spec)
     except SpecializationNotFoundError:
         raise HTTPException(

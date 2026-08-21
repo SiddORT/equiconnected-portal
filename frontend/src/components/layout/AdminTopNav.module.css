@@ -304,6 +304,11 @@
   background: var(--bg-subtle);
 }
 
+.dropdownItem--active {
+  background: var(--bg-subtle);
+  color: var(--color-primary-700);
+}
+
 .dropdownItem--danger {
   color: var(--color-error);
 }

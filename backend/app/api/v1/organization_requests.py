@@ -3,13 +3,14 @@ from math import ceil
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser, require_role
 from app.db.session import get_db
 from app.models.enums import OrganizationRequestStatus, ProviderType
 from app.repositories.organization_request_repository import OrganizationRequestRepository
+from app.repositories.audit_repository import context_from_request
 from app.schemas.common import PaginationMeta
 from app.schemas.organization_request import (
     OrganizationSearchResponse, OrganizationSearchResult, OrgRequestListResponse, OrgRequestResponse,
@@ -70,9 +71,11 @@ def list_requests(
 
 
 @admin_router.post("/{request_id}/approve", response_model=OrgRequestResponse)
-def approve_request(request_id: UUID, user: CurrentUser, svc: _Svc):
+def approve_request(request_id: UUID, request: Request, user: CurrentUser, svc: _Svc):
     try:
-        return svc.approve(request_id, user.id)
+        return svc.approve(
+            request_id, user.id, audit_context=context_from_request(request, user.id)
+        )
     except OrganizationRequestNotFoundError:
         raise HTTPException(status_code=404, detail="Organization request not found")
     except InvalidOrganizationRequestStateError as exc:
@@ -80,9 +83,9 @@ def approve_request(request_id: UUID, user: CurrentUser, svc: _Svc):
 
 
 @admin_router.post("/{request_id}/reject", response_model=OrgRequestResponse)
-def reject_request(request_id: UUID, svc: _Svc):
+def reject_request(request_id: UUID, request: Request, user: CurrentUser, svc: _Svc):
     try:
-        return svc.reject(request_id)
+        return svc.reject(request_id, audit_context=context_from_request(request, user.id))
     except OrganizationRequestNotFoundError:
         raise HTTPException(status_code=404, detail="Organization request not found")
     except InvalidOrganizationRequestStateError as exc:

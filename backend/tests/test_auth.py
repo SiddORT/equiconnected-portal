@@ -333,8 +333,7 @@ class TestAdminDashboard:
         assert resp.status_code == 200
         data = resp.json()
         assert "total_users" in data
-        assert "recent_audit_events" in data
-        assert isinstance(data["recent_audit_events"], list)
+        assert "recent_audit_events" not in data
 
 
 # ── 9. Unauthorized access ────────────────────────────────────────────────────

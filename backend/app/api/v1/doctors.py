@@ -20,13 +20,14 @@ from math import ceil
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import require_role
+from app.auth.dependencies import CurrentUser, require_role
 from app.db.session import get_db
 from app.models.enums import ProviderStatus, ProviderType, PublicationStatus, VisitStability
 from app.repositories.doctor_repository import DoctorRepository
+from app.repositories.audit_repository import AuditRepository, context_from_request
 from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.schemas.doctor import (
     DoctorCreate,
@@ -69,6 +70,8 @@ def get_svc(db: Annotated[Session, Depends(get_db)]) -> DoctorService:
 
 @router.get("", response_model=PaginatedResponse[DoctorListItem])
 def list_doctors(
+    request: Request,
+    user: CurrentUser,
     search: str | None = Query(None),
     specialization_id: UUID | None = Query(None),
     organization_id: UUID | None = Query(None),
@@ -89,7 +92,7 @@ def list_doctors(
         page=page,
         page_size=page_size,
     )
-    return PaginatedResponse(
+    response = PaginatedResponse(
         data=[DoctorListItem.from_doctor(d) for d in doctors],
         meta=PaginationMeta(
             page=page,
@@ -98,12 +101,20 @@ def list_doctors(
             total_pages=max(1, ceil(total / page_size)),
         ),
     )
+    AuditRepository(svc._repo._db).record(
+        "provider.list_viewed", context=context_from_request(request, user.id),
+        resource_type="provider", summary="Viewed the doctor directory.",
+        metadata={"result_count": len(doctors), "provider_type": "DOCTOR"},
+    )
+    svc._repo.commit()
+    return response
 
 
 # ── Create ────────────────────────────────────────────────────────────────────
 
 @router.post("", response_model=DoctorResponse, status_code=status.HTTP_201_CREATED)
-def create_doctor(body: DoctorCreate, svc: DoctorService = Depends(get_svc)):
+def create_doctor(body: DoctorCreate, request: Request, user: CurrentUser,
+                  svc: DoctorService = Depends(get_svc)):
     try:
         doctor = svc.create(
             name=body.name,
@@ -120,6 +131,7 @@ def create_doctor(body: DoctorCreate, svc: DoctorService = Depends(get_svc)):
             primary_organization_id=body.primary_organization_id,
             phones=body.phones,
             emails=body.emails,
+            audit_context=context_from_request(request, user.id),
         )
     except SpecializationNotFoundError as e:
         raise HTTPException(status_code=404, detail=f"Specialization not found: {e}")
@@ -133,9 +145,18 @@ def create_doctor(body: DoctorCreate, svc: DoctorService = Depends(get_svc)):
 # ── Detail ────────────────────────────────────────────────────────────────────
 
 @router.get("/{doctor_id}", response_model=DoctorResponse)
-def get_doctor(doctor_id: UUID, svc: DoctorService = Depends(get_svc)):
+def get_doctor(doctor_id: UUID, request: Request, user: CurrentUser,
+               svc: DoctorService = Depends(get_svc)):
     try:
-        return DoctorResponse.from_doctor(svc.get(doctor_id))
+        doctor = svc.get(doctor_id)
+        AuditRepository(svc._repo._db).record(
+            "provider.viewed", context=context_from_request(request, user.id),
+            resource_type="provider", resource_id=str(doctor.id),
+            summary=f"Viewed provider “{doctor.name}”.",
+            metadata={"provider_name": doctor.name, "provider_type": "DOCTOR"},
+        )
+        svc._repo.commit()
+        return DoctorResponse.from_doctor(doctor)
     except DoctorNotFoundError:
         raise HTTPException(status_code=404, detail="Doctor not found")
 
@@ -143,10 +164,12 @@ def get_doctor(doctor_id: UUID, svc: DoctorService = Depends(get_svc)):
 # ── Update ────────────────────────────────────────────────────────────────────
 
 @router.patch("/{doctor_id}", response_model=DoctorResponse)
-def update_doctor(doctor_id: UUID, body: DoctorUpdate, svc: DoctorService = Depends(get_svc)):
+def update_doctor(doctor_id: UUID, body: DoctorUpdate, request: Request, user: CurrentUser,
+                  svc: DoctorService = Depends(get_svc)):
     try:
         update_fields = body.model_dump(exclude_unset=True)
-        doctor = svc.update(doctor_id, update_fields=update_fields)
+        doctor = svc.update(doctor_id, update_fields=update_fields,
+                            audit_context=context_from_request(request, user.id))
         return DoctorResponse.from_doctor(doctor)
     except DoctorNotFoundError:
         raise HTTPException(status_code=404, detail="Doctor not found")
@@ -158,13 +181,16 @@ def update_doctor(doctor_id: UUID, body: DoctorUpdate, svc: DoctorService = Depe
 def set_status(
     doctor_id: UUID,
     body: dict,
+    request: Request,
+    user: CurrentUser,
     svc: DoctorService = Depends(get_svc),
 ):
     new_status = body.get("status")
     if new_status not in (s.value for s in ProviderStatus):
         raise HTTPException(status_code=422, detail="Invalid status value")
     try:
-        doctor = svc.set_status(doctor_id, status=ProviderStatus(new_status))
+        doctor = svc.set_status(doctor_id, status=ProviderStatus(new_status),
+                                audit_context=context_from_request(request, user.id))
         return DoctorResponse.from_doctor(doctor)
     except DoctorNotFoundError:
         raise HTTPException(status_code=404, detail="Doctor not found")
@@ -174,13 +200,17 @@ def set_status(
 def set_publication(
     doctor_id: UUID,
     body: dict,
+    request: Request,
+    user: CurrentUser,
     svc: DoctorService = Depends(get_svc),
 ):
     new_pub = body.get("publication_status")
     if new_pub not in (s.value for s in PublicationStatus):
         raise HTTPException(status_code=422, detail="Invalid publication_status value")
     try:
-        doctor = svc.set_publication(doctor_id, publication_status=PublicationStatus(new_pub))
+        doctor = svc.set_publication(
+            doctor_id, publication_status=PublicationStatus(new_pub),
+            audit_context=context_from_request(request, user.id))
         return DoctorResponse.from_doctor(doctor)
     except DoctorNotFoundError:
         raise HTTPException(status_code=404, detail="Doctor not found")
@@ -190,13 +220,15 @@ def set_publication(
 
 @router.post("/{doctor_id}/specializations", response_model=DoctorResponse)
 def add_specialization(
-    doctor_id: UUID, body: dict, svc: DoctorService = Depends(get_svc)
+    doctor_id: UUID, body: dict, request: Request, user: CurrentUser,
+    svc: DoctorService = Depends(get_svc)
 ):
     spec_id = body.get("specialization_id")
     if not spec_id:
         raise HTTPException(status_code=422, detail="specialization_id required")
     try:
-        doctor = svc.add_specialization(doctor_id, UUID(str(spec_id)))
+        doctor = svc.add_specialization(doctor_id, UUID(str(spec_id)),
+                                        audit_context=context_from_request(request, user.id))
         return DoctorResponse.from_doctor(doctor)
     except DoctorNotFoundError:
         raise HTTPException(status_code=404, detail="Doctor not found")
@@ -208,10 +240,12 @@ def add_specialization(
 
 @router.delete("/{doctor_id}/specializations/{spec_id}", response_model=DoctorResponse)
 def remove_specialization(
-    doctor_id: UUID, spec_id: UUID, svc: DoctorService = Depends(get_svc)
+    doctor_id: UUID, spec_id: UUID, request: Request, user: CurrentUser,
+    svc: DoctorService = Depends(get_svc)
 ):
     try:
-        doctor = svc.remove_specialization(doctor_id, spec_id)
+        doctor = svc.remove_specialization(doctor_id, spec_id,
+                                           audit_context=context_from_request(request, user.id))
         return DoctorResponse.from_doctor(doctor)
     except DoctorNotFoundError:
         raise HTTPException(status_code=404, detail="Doctor not found")
@@ -223,10 +257,12 @@ def remove_specialization(
 
 @router.post("/{doctor_id}/qualifications", response_model=QualificationResponse, status_code=201)
 def add_qualification(
-    doctor_id: UUID, body: QualificationCreate, svc: DoctorService = Depends(get_svc)
+    doctor_id: UUID, body: QualificationCreate, request: Request, user: CurrentUser,
+    svc: DoctorService = Depends(get_svc)
 ):
     try:
-        q = svc.add_qualification(doctor_id, fields=body.model_dump())
+        q = svc.add_qualification(doctor_id, fields=body.model_dump(),
+                                  audit_context=context_from_request(request, user.id))
         return QualificationResponse.model_validate(q)
     except DoctorNotFoundError:
         raise HTTPException(status_code=404, detail="Doctor not found")
@@ -234,10 +270,13 @@ def add_qualification(
 
 @router.patch("/{doctor_id}/qualifications/{q_id}", response_model=QualificationResponse)
 def update_qualification(
-    doctor_id: UUID, q_id: UUID, body: QualificationUpdate, svc: DoctorService = Depends(get_svc)
+    doctor_id: UUID, q_id: UUID, body: QualificationUpdate, request: Request, user: CurrentUser,
+    svc: DoctorService = Depends(get_svc)
 ):
     try:
-        q = svc.update_qualification(doctor_id, q_id, fields=body.model_dump(exclude_unset=True))
+        q = svc.update_qualification(
+            doctor_id, q_id, fields=body.model_dump(exclude_unset=True),
+            audit_context=context_from_request(request, user.id))
         return QualificationResponse.model_validate(q)
     except DoctorNotFoundError:
         raise HTTPException(status_code=404, detail="Doctor not found")
@@ -247,10 +286,11 @@ def update_qualification(
 
 @router.delete("/{doctor_id}/qualifications/{q_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_qualification(
-    doctor_id: UUID, q_id: UUID, svc: DoctorService = Depends(get_svc)
+    doctor_id: UUID, q_id: UUID, request: Request, user: CurrentUser,
+    svc: DoctorService = Depends(get_svc)
 ):
     try:
-        svc.delete_qualification(doctor_id, q_id)
+        svc.delete_qualification(doctor_id, q_id, audit_context=context_from_request(request, user.id))
     except DoctorNotFoundError:
         raise HTTPException(status_code=404, detail="Doctor not found")
     except QualificationNotFoundError:
@@ -261,7 +301,8 @@ def delete_qualification(
 
 @router.post("/{doctor_id}/organizations", response_model=DoctorResponse, status_code=201)
 def add_org_relationship(
-    doctor_id: UUID, body: DoctorOrgCreate, svc: DoctorService = Depends(get_svc)
+    doctor_id: UUID, body: DoctorOrgCreate, request: Request, user: CurrentUser,
+    svc: DoctorService = Depends(get_svc)
 ):
     try:
         doctor = svc.add_org_relationship(
@@ -269,6 +310,7 @@ def add_org_relationship(
             organization_id=body.organization_id,
             status=body.status,
             is_primary=body.is_primary,
+            audit_context=context_from_request(request, user.id),
         )
         return DoctorResponse.from_doctor(doctor)
     except DoctorNotFoundError:
@@ -283,11 +325,13 @@ def add_org_relationship(
 
 @router.patch("/{doctor_id}/organizations/{rel_id}", response_model=DoctorResponse)
 def update_org_relationship(
-    doctor_id: UUID, rel_id: UUID, body: DoctorOrgUpdate, svc: DoctorService = Depends(get_svc)
+    doctor_id: UUID, rel_id: UUID, body: DoctorOrgUpdate, request: Request, user: CurrentUser,
+    svc: DoctorService = Depends(get_svc)
 ):
     try:
         doctor = svc.update_org_relationship(
-            doctor_id, rel_id, fields=body.model_dump(exclude_unset=True)
+            doctor_id, rel_id, fields=body.model_dump(exclude_unset=True),
+            audit_context=context_from_request(request, user.id)
         )
         return DoctorResponse.from_doctor(doctor)
     except DoctorNotFoundError:
@@ -298,10 +342,12 @@ def update_org_relationship(
 
 @router.delete("/{doctor_id}/organizations/{rel_id}", response_model=DoctorResponse)
 def remove_org_relationship(
-    doctor_id: UUID, rel_id: UUID, svc: DoctorService = Depends(get_svc)
+    doctor_id: UUID, rel_id: UUID, request: Request, user: CurrentUser,
+    svc: DoctorService = Depends(get_svc)
 ):
     try:
-        doctor = svc.remove_org_relationship(doctor_id, rel_id)
+        doctor = svc.remove_org_relationship(
+            doctor_id, rel_id, audit_context=context_from_request(request, user.id))
         return DoctorResponse.from_doctor(doctor)
     except DoctorNotFoundError:
         raise HTTPException(status_code=404, detail="Doctor not found")

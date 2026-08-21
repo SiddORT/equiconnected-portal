@@ -68,13 +68,6 @@ export interface ApiErrorResponse {
 
 // ── Admin Dashboard ───────────────────────────────────────────────────────────
 
-export interface AuditEvent {
-  id: string;
-  action: string;
-  user_id: string | null;
-  created_at: string;
-}
-
 export interface ProviderCounts {
   hospitals: number;
   clinics: number;
@@ -112,7 +105,6 @@ export interface DashboardStats {
   invitation_counts: InvitationCounts;
   visitor_visits: DailyVisit[];
   location_markers: LocationMarker[];
-  recent_audit_events: AuditEvent[];
 }
 
 // ── Pagination ────────────────────────────────────────────────────────────────
@@ -127,6 +119,33 @@ export interface PaginationMeta {
 export interface PaginatedResponse<T> {
   data: T[];
   meta: PaginationMeta;
+}
+
+// ── Activity logs ────────────────────────────────────────────────────────────
+
+export interface AuditActor {
+  id: string | null;
+  name: string;
+  email: string | null;
+  kind: 'admin' | 'system' | 'public_invitation' | string;
+}
+
+export interface AuditChange {
+  field: string;
+  before: unknown;
+  after: unknown;
+}
+
+export interface ActivityLog {
+  id: string;
+  action: string;
+  resource_type: string | null;
+  resource_id: string | null;
+  actor: AuditActor;
+  created_at: string;
+  summary: string;
+  changes: AuditChange[];
+  metadata: Record<string, unknown>;
 }
 
 // ── Common ────────────────────────────────────────────────────────────────────

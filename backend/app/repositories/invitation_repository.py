@@ -35,18 +35,22 @@ class InvitationRepository:
             .with_for_update()
         )
 
-    def expire_due(self) -> None:
-        self._db.execute(
-            update(ProviderInvitation)
+    def expire_due(self) -> list[ProviderInvitation]:
+        """Lock and return every invitation transitioned to EXPIRED."""
+        rows = list(self._db.scalars(
+            select(ProviderInvitation)
             .where(
                 ProviderInvitation.status.in_(
                     [InvitationStatus.PENDING, InvitationStatus.ACCEPTED]
                 ),
                 ProviderInvitation.expires_at <= datetime.now(timezone.utc),
             )
-            .values(status=InvitationStatus.EXPIRED)
-        )
+            .with_for_update()
+        ).all())
+        for invitation in rows:
+            invitation.status = InvitationStatus.EXPIRED
         self._db.flush()
+        return rows
 
     def lock_new_provider_invitation(
         self, provider_type: ProviderType, email: str

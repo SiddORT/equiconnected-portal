@@ -135,6 +135,18 @@ def export_csv(
     # ACTIVITY_LOG_HOOK: record specialization CSV export (filters, row count, actor)
 
 
+def count_export_rows(
+    db: Session, *, search: str | None = None, is_active: bool | None = None
+) -> int:
+    """Count matching rows for the audit summary without materializing CSV data."""
+    stmt = select(func.count()).select_from(Specialization)
+    if search:
+        stmt = stmt.where(Specialization.name.ilike(f"%{search.strip()}%"))
+    if is_active is not None:
+        stmt = stmt.where(Specialization.is_active == is_active)
+    return db.scalar(stmt) or 0
+
+
 def template_csv() -> str:
     buf = io.StringIO()
     writer = csv.writer(buf)

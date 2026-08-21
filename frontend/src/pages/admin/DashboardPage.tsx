@@ -8,7 +8,6 @@ import { extractErrorMessage } from '@/api/client';
 import { useAuth } from '@/app/AuthContext';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -108,54 +107,6 @@ export function DashboardPage() {
                 <h2 id="map-heading" className={styles.sectionTitle}>Provider Locations</h2>
                 <Card padding="md" shadow="sm">
                   <DashboardMap markers={stats.location_markers} />
-                </Card>
-              </section>
-
-              {/* ── Recent audit events ───────────────────────────────── */}
-              <section aria-labelledby="audit-heading">
-                <h2 id="audit-heading" className={styles.sectionTitle}>Recent Activity</h2>
-                <Card padding="none" shadow="sm">
-                  {stats.recent_audit_events.length === 0 ? (
-                    <EmptyState
-                      icon="📋"
-                      title="No activity yet"
-                      description="Audit events will appear here as actions are performed."
-                    />
-                  ) : (
-                    <div
-                      role="table"
-                      aria-label="Recent audit events"
-                      className={styles.auditTable}
-                    >
-                      <div role="rowgroup">
-                        <div role="row" className={`${styles.auditRow} ${styles.auditHeader}`}>
-                          <span role="columnheader">Action</span>
-                          <span role="columnheader">User</span>
-                          <span role="columnheader">Time</span>
-                        </div>
-                      </div>
-                      <div role="rowgroup">
-                        {stats.recent_audit_events.map((event) => (
-                          <div key={event.id} role="row" className={styles.auditRow}>
-                            <span role="cell">
-                              <Badge variant={event.action.includes('fail') ? 'error' : 'success'} size="sm">
-                                {event.action}
-                              </Badge>
-                            </span>
-                            <span role="cell" className={styles.auditUserId}>
-                              {event.user_id
-                                ? event.user_id.slice(0, 8) + '…'
-                                : <span className={styles.muted}>System</span>
-                              }
-                            </span>
-                            <span role="cell" className={styles.auditTime}>
-                              {new Date(event.created_at).toLocaleString()}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </Card>
               </section>
 

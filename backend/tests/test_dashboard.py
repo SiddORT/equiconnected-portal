@@ -87,7 +87,7 @@ class TestDashboard:
         assert all(visit["count"] == 0 for visit in data["visitor_visits"])
         assert data["location_markers"] == []
         assert "total_users" in data
-        assert "recent_audit_events" in data
+        assert "recent_audit_events" not in data
 
     def test_mixed_provider_type_counts(self, client: TestClient, admin_token: str):
         _create_provider(client, admin_token, "H1", "HOSPITAL")
@@ -126,10 +126,9 @@ class TestDashboard:
         assert {m["provider_type"] for m in markers} == {"HOSPITAL", "CLINIC"}
         assert len([m for m in markers if m["provider_id"] == p1["id"]]) == 2
 
-    def test_audit_events_still_present(self, client: TestClient, admin_token: str):
+    def test_dashboard_does_not_include_audit_feed(self, client: TestClient, admin_token: str):
         data = client.get(URL, headers=_auth(admin_token)).json()
-        # Login above produced at least one audit event
-        assert isinstance(data["recent_audit_events"], list)
+        assert "recent_audit_events" not in data
 
     def test_public_visit_is_reflected_in_dashboard(self, client: TestClient, admin_token: str):
         response = client.post("/api/v1/public/visits")

@@ -25,6 +25,7 @@ from app.models.provider import (
 )
 from app.repositories.invitation_repository import InvitationRepository
 from app.repositories.provider_repository import ProviderRepository
+from app.repositories.audit_repository import AuditContext, AuditRepository
 from app.services.email_service import EmailService
 from app.services.provider_service import ProviderNotFoundError
 
@@ -72,6 +73,7 @@ def _now() -> datetime:
 class InvitationService:
     def __init__(self, repo: InvitationRepository, provider_repo: ProviderRepository, email: EmailService | None = None) -> None:
         self._repo, self._providers, self._email = repo, provider_repo, email or EmailService()
+        self._audit = AuditRepository(repo._db)
 
     @staticmethod
     def _hash(token: str) -> str:
@@ -81,9 +83,42 @@ class InvitationService:
     def _new_token() -> str:
         return secrets.token_urlsafe(48)
 
-    def _emit_event(self, event: str, invitation: ProviderInvitation) -> None:
-        """Stable audit integration seam; intentionally no-op until audit phase."""
-        return None
+    def _emit_event(
+        self,
+        event: str,
+        invitation: ProviderInvitation,
+        *,
+        context: AuditContext | None = None,
+        summary: str | None = None,
+        metadata: dict | None = None,
+    ) -> None:
+        """Record a safe invitation event; raw tokens and URLs never enter metadata."""
+        labels = {
+            "provider_invitation.created": "Created a provider invitation.",
+            "provider_invitation.resent": "Resent a provider invitation.",
+            "provider_invitation.delivered": "Delivered a provider invitation email.",
+            "provider_invitation.delivery_failed": "Provider invitation email delivery failed.",
+            "provider_invitation.cancelled": "Cancelled a provider invitation.",
+            "provider_invitation.accepted": "Opened and accepted a provider invitation.",
+            "provider_invitation.expired": "Provider invitation expired.",
+            "provider_invitation.draft_saved": "Saved an invitation draft.",
+            "provider_invitation.submitted": "Submitted an invitation response.",
+            "provider_invitation.viewed": "Viewed a provider invitation.",
+            "provider_invitation.list_viewed": "Viewed provider invitations.",
+        }
+        self._audit.record(
+            event,
+            context=context or AuditContext(actor_type="public_invitation"),
+            resource_type="provider_invitation",
+            resource_id=str(invitation.id),
+            summary=summary or labels.get(event, event.replace("_", " ").replace(".", " ").title()),
+            metadata={
+                "provider_id": str(invitation.provider_id) if invitation.provider_id else None,
+                "provider_type": invitation.provider_type.value,
+                "status": invitation.status.value,
+                **(metadata or {}),
+            },
+        )
 
     def _url(self, token: str) -> str:
         return f"{get_settings().PUBLIC_APP_URL.rstrip('/')}/provider/invitations/{token}"
@@ -92,9 +127,20 @@ class InvitationService:
     def _expires_at(sent_at: datetime) -> datetime:
         return sent_at + timedelta(days=get_settings().INVITATION_EXPIRE_DAYS)
 
-    def create_invitation(self, *, fields: dict, created_by: UUID) -> ProviderInvitation:
-        self._repo.expire_due()
+    def _expire_due(self) -> None:
+        expired = self._repo.expire_due()
+        for invitation in expired:
+            self._emit_event(
+                "provider_invitation.expired",
+                invitation,
+                context=AuditContext(actor_type="system"),
+            )
         self._repo.commit()
+
+    def create_invitation(
+        self, *, fields: dict, created_by: UUID, audit_context: AuditContext | None = None
+    ) -> ProviderInvitation:
+        self._expire_due()
         recipient = str(fields["recipient_email"]).strip().lower()
         provider_id = fields.get("provider_id")
         if not provider_id:
@@ -135,6 +181,7 @@ class InvitationService:
                 sent_at=sent_at,
                 created_by=created_by,
             )
+            self._emit_event("provider_invitation.created", invitation, context=audit_context)
             self._repo.commit()
         except IntegrityError as exc:
             self._repo.rollback()
@@ -144,7 +191,6 @@ class InvitationService:
         except Exception:
             self._repo.rollback()
             raise
-        self._emit_event("provider_invitation.created", invitation)
         try:
             self._email.send_invitation_email(
                 recipient,
@@ -155,20 +201,23 @@ class InvitationService:
         except Exception:
             # The committed PENDING record is deliberately retained so the
             # administrator sees the error and can retry with resend.
-            self._emit_event("provider_invitation.delivery_failed", invitation)
+            self._emit_event("provider_invitation.delivery_failed", invitation, context=audit_context)
+            self._repo.commit()
             raise
-        self._emit_event("provider_invitation.delivered", invitation)
+        self._emit_event("provider_invitation.delivered", invitation, context=audit_context)
+        self._repo.commit()
         # Transient, non-persisted convenience for the admin UI: the raw link
         # is only known here, immediately after generation.
         invitation.invitation_url = self._url(token)
         return invitation
 
     def list(self, **filters) -> tuple[list[ProviderInvitation], int]:
-        self._repo.expire_due()
-        self._repo.commit()
+        self._expire_due()
         return self._repo.list(**filters)
 
-    def resend_invitation(self, invitation_id: UUID) -> ProviderInvitation:
+    def resend_invitation(
+        self, invitation_id: UUID, *, audit_context: AuditContext | None = None
+    ) -> ProviderInvitation:
         invitation = self._require_id(invitation_id)
         self._refresh_expiry(invitation)
         if invitation.status not in (InvitationStatus.PENDING, InvitationStatus.EXPIRED):
@@ -185,11 +234,11 @@ class InvitationService:
         invitation.token_hash, invitation.status = self._hash(token), InvitationStatus.PENDING
         invitation.expires_at, invitation.sent_at, invitation.accepted_at = self._expires_at(sent_at), sent_at, None
         try:
+            self._emit_event("provider_invitation.resent", invitation, context=audit_context)
             self._repo.commit()
         except Exception:
             self._repo.rollback()
             raise
-        self._emit_event("provider_invitation.resent", invitation)
         try:
             self._email.send_invitation_email(
                 invitation.recipient_email,
@@ -198,21 +247,25 @@ class InvitationService:
                 invitation.expires_at,
             )
         except Exception:
-            self._emit_event("provider_invitation.delivery_failed", invitation)
+            self._emit_event("provider_invitation.delivery_failed", invitation, context=audit_context)
+            self._repo.commit()
             raise
-        self._emit_event("provider_invitation.delivered", invitation)
+        self._emit_event("provider_invitation.delivered", invitation, context=audit_context)
+        self._repo.commit()
         # Transient, non-persisted convenience for the admin UI (see create).
         invitation.invitation_url = self._url(token)
         return invitation
 
-    def cancel_invitation(self, invitation_id: UUID) -> ProviderInvitation:
+    def cancel_invitation(
+        self, invitation_id: UUID, *, audit_context: AuditContext | None = None
+    ) -> ProviderInvitation:
         invitation = self._require_id(invitation_id)
         self._refresh_expiry(invitation)
         if invitation.status in (InvitationStatus.CANCELLED, InvitationStatus.COMPLETED):
             raise InvalidInvitationStateError("This invitation can no longer be cancelled.")
         invitation.status = InvitationStatus.CANCELLED
+        self._emit_event("provider_invitation.cancelled", invitation, context=audit_context)
         self._repo.commit()
-        self._emit_event("provider_invitation.cancelled", invitation)
         return invitation
 
     def _require_id(self, invitation_id: UUID) -> ProviderInvitation:
@@ -231,6 +284,11 @@ class InvitationService:
             raise InvitationNotFoundError()
         self._refresh_expiry(invitation)
         if invitation.status == InvitationStatus.EXPIRED:
+            self._emit_event(
+                "provider_invitation.expired",
+                invitation,
+                context=AuditContext(actor_type="system"),
+            )
             self._repo.commit()
             raise InvitationExpiredError()
         if invitation.status == InvitationStatus.COMPLETED:
@@ -239,8 +297,8 @@ class InvitationService:
             raise InvitationCancelledError()
         if accept and invitation.status == InvitationStatus.PENDING:
             invitation.status, invitation.accepted_at = InvitationStatus.ACCEPTED, _now()
-            self._repo.commit()
             self._emit_event("provider_invitation.accepted", invitation)
+            self._repo.commit()
         return invitation
 
     def _apply_provider_fields(
@@ -357,8 +415,12 @@ class InvitationService:
         invitation = self.validate_token(token)
         provider = self._apply_provider_fields(invitation, fields)
         provider.status, provider.publication_status = ProviderStatus.DRAFT, PublicationStatus.UNPUBLISHED
+        self._emit_event(
+            "provider_invitation.draft_saved",
+            invitation,
+            metadata={"updated_fields": sorted(fields.keys())},
+        )
         self._repo.commit()
-        self._emit_event("provider_invitation.draft_saved", invitation)
         return invitation
 
     def token_payload(self, invitation: ProviderInvitation) -> dict:
@@ -467,9 +529,26 @@ class InvitationService:
             self._reconcile_organizations(invitation, organization_ids)
         provider.status, provider.publication_status = ProviderStatus.UNDER_REVIEW, PublicationStatus.UNPUBLISHED
         invitation.status, invitation.completed_at = InvitationStatus.COMPLETED, _now()
+        self._emit_event(
+            "provider_invitation.submitted",
+            invitation,
+            metadata={"updated_fields": sorted(fields.keys())},
+        )
         self._repo.commit()
-        self._emit_event("provider_invitation.submitted", invitation)
         return invitation
+
+    def record_view(self, invitation: ProviderInvitation) -> None:
+        self._emit_event("provider_invitation.viewed", invitation)
+        self._repo.commit()
+
+    def record_list_view(self, *, context: AuditContext) -> None:
+        self._audit.record(
+            "provider_invitation.list_viewed",
+            context=context,
+            resource_type="provider_invitation",
+            summary="Viewed provider invitations.",
+        )
+        self._repo.commit()
 
     def _reconcile_organizations(self, invitation: ProviderInvitation, organization_ids: list) -> None:
         """Sync the doctor's PENDING organization relationships to `organization_ids`.

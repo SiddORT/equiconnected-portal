@@ -1,8 +1,4 @@
-"""
-Audit log model — structured record of important actions.
-Phase 1: logs admin login, logout.
-Future: hospital invitations, user changes, permission changes, etc.
-"""
+"""Durable, display-safe record of meaningful portal actions."""
 import uuid
 
 from sqlalchemy import ForeignKey, Index, String, Text
@@ -18,6 +14,7 @@ class AuditLog(TimestampMixin, Base):
     __table_args__ = (
         Index("ix_audit_logs_action", "action"),
         Index("ix_audit_logs_resource", "resource_type", "resource_id"),
+        Index("ix_audit_logs_created_at_id", "created_at", "id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -31,6 +28,9 @@ class AuditLog(TimestampMixin, Base):
         index=True,
     )
     action: Mapped[str] = mapped_column(String(100), nullable=False)
+    actor_type: Mapped[str] = mapped_column(
+        String(40), nullable=False, default="admin", server_default="admin"
+    )
     resource_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(INET, nullable=True)

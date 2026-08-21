@@ -9,6 +9,7 @@ from app.models.enums import (
 )
 from app.models.organization_request import OrganizationRequest
 from app.repositories.organization_request_repository import OrganizationRequestRepository
+from app.repositories.audit_repository import AuditContext, AuditRepository
 
 
 class OrganizationRequestNotFoundError(Exception):
@@ -35,6 +36,7 @@ class InvalidOrganizationRequestStateError(Exception):
 class OrganizationRequestService:
     def __init__(self, repo: OrganizationRequestRepository) -> None:
         self._repo = repo
+        self._audit = AuditRepository(repo._db)
 
     @staticmethod
     def _require_org_type(organization_type: ProviderType) -> None:
@@ -48,7 +50,10 @@ class OrganizationRequestService:
         self._require_org_type(organization_type)
         return self._repo.duplicate_suggestions(name, organization_type)
 
-    def associate_existing(self, doctor_id: UUID, organization_id: UUID):
+    def associate_existing(
+        self, doctor_id: UUID, organization_id: UUID, *,
+        audit_context: AuditContext | None = None,
+    ):
         doctor = self._repo.get_provider(doctor_id)
         target = self._repo.get_provider(organization_id)
         if not doctor or doctor.provider_type != ProviderType.DOCTOR:
@@ -63,13 +68,24 @@ class OrganizationRequestService:
             relationship = self._repo.create_relationship(
                 doctor_id, organization_id, status=DoctorOrganizationStatus.PENDING
             )
+            self._audit.record(
+                "provider.organization_requested",
+                context=audit_context or AuditContext(actor_type="public_invitation"),
+                resource_type="provider",
+                resource_id=str(doctor_id),
+                summary="Requested a doctor organization relationship.",
+                metadata={"organization_id": str(organization_id)},
+            )
             self._repo.commit()
             return relationship
         except IntegrityError as exc:
             self._repo.rollback()
             raise DuplicateOrganizationRelationshipError() from exc
 
-    def create_request(self, doctor_id: UUID, data: dict) -> OrganizationRequest:
+    def create_request(
+        self, doctor_id: UUID, data: dict, *,
+        audit_context: AuditContext | None = None,
+    ) -> OrganizationRequest:
         data = dict(data)
         self._require_org_type(data["organization_type"])
         doctor = self._repo.get_provider(doctor_id)
@@ -80,13 +96,25 @@ class OrganizationRequestService:
             raise DuplicateOrganizationSuggestionsError(suggestions)
         data.pop("confirm_no_match", None)
         request = self._repo.create(doctor_provider_id=doctor_id, **data)
+        self._audit.record(
+            "organization_request.created",
+            context=audit_context or AuditContext(actor_type="public_invitation"),
+            resource_type="organization_request",
+            resource_id=str(request.id),
+            summary="Submitted an organization request.",
+            metadata={
+                "organization_name": request.organization_name,
+                "provider_type": request.organization_type.value,
+            },
+        )
         self._repo.commit()
         return request
 
     def list(self, **kwargs):
         return self._repo.list(**kwargs)
 
-    def approve(self, request_id: UUID, admin_id: UUID | None = None) -> OrganizationRequest:
+    def approve(self, request_id: UUID, admin_id: UUID | None = None,
+                audit_context: AuditContext | None = None) -> OrganizationRequest:
         request = self._repo.get(request_id)
         if not request:
             raise OrganizationRequestNotFoundError()
@@ -103,13 +131,33 @@ class OrganizationRequestService:
             )
             relationship.status = DoctorOrganizationStatus.ACTIVE
             request.status = OrganizationRequestStatus.APPROVED
+            self._audit.record(
+                "organization_request.approved",
+                context=audit_context,
+                resource_type="organization_request",
+                resource_id=str(request.id),
+                summary="Approved an organization request.",
+                metadata={
+                    "organization_name": request.organization_name,
+                    "provider_type": request.organization_type.value,
+                    "organization_id": str(provider.id),
+                },
+            )
+            self._audit.record(
+                "provider.created",
+                context=audit_context,
+                resource_type="provider",
+                resource_id=str(provider.id),
+                summary=f"Created {provider.provider_type.value.title()} provider from an organization request.",
+                metadata={"provider_name": provider.name, "provider_type": provider.provider_type.value},
+            )
             self._repo.commit()
         except Exception:
             self._repo.rollback()
             raise
         return request
 
-    def reject(self, request_id: UUID) -> OrganizationRequest:
+    def reject(self, request_id: UUID, *, audit_context: AuditContext | None = None) -> OrganizationRequest:
         request = self._repo.get(request_id)
         if not request:
             raise OrganizationRequestNotFoundError()
@@ -117,6 +165,14 @@ class OrganizationRequestService:
             raise InvalidOrganizationRequestStateError("Only pending requests can be rejected.")
         try:
             request.status = OrganizationRequestStatus.REJECTED
+            self._audit.record(
+                "organization_request.rejected",
+                context=audit_context,
+                resource_type="organization_request",
+                resource_id=str(request.id),
+                summary="Rejected an organization request.",
+                metadata={"organization_name": request.organization_name},
+            )
             self._repo.commit()
         except Exception:
             self._repo.rollback()

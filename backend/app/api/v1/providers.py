@@ -29,7 +29,7 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import require_role
+from app.auth.dependencies import CurrentUser, require_role
 from app.db.session import get_db
 from app.models.enums import (
     ProviderStatus,
@@ -38,6 +38,7 @@ from app.models.enums import (
     VisitStability,
 )
 from app.repositories.provider_repository import ProviderRepository
+from app.repositories.audit_repository import AuditRepository, context_from_request
 from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.schemas.provider import (
     EmailCreate,
@@ -104,6 +105,8 @@ def _409(code: str, message: str) -> HTTPException:
 @router.get("", response_model=PaginatedResponse[ProviderListItem])
 def list_providers(
     svc: _Svc,
+    request: Request,
+    user: CurrentUser,
     search: str | None = Query(None, max_length=300, description="Name substring search"),
     provider_type: ProviderType | None = Query(None),
     visit_stability: VisitStability | None = Query(None),
@@ -122,18 +125,27 @@ def list_providers(
         page_size=page_size,
     )
     total_pages = max(1, ceil(total / page_size))
-    return PaginatedResponse(
+    response = PaginatedResponse(
         data=[ProviderListItem.from_provider_row(p) for p in items],
         meta=PaginationMeta(
             page=page, page_size=page_size, total=total, total_pages=total_pages
         ),
     )
+    AuditRepository(svc._repo._db).record(
+        "provider.list_viewed",
+        context=context_from_request(request, user.id),
+        resource_type="provider",
+        summary="Viewed the provider directory.",
+        metadata={"result_count": len(items)},
+    )
+    svc._repo.commit()
+    return response
 
 
 # ── Create ────────────────────────────────────────────────────────────────────
 
 @router.post("", response_model=ProviderResponse, status_code=status.HTTP_201_CREATED)
-def create_provider(body: ProviderCreate, svc: _Svc):
+def create_provider(body: ProviderCreate, request: Request, user: CurrentUser, svc: _Svc):
     _PROFILE_FIELDS = {
         "professional_title", "biography", "years_experience", "experience_description"
     }
@@ -151,6 +163,7 @@ def create_provider(body: ProviderCreate, svc: _Svc):
             phones=[p.model_dump() for p in body.phones],
             emails=[e.model_dump() for e in body.emails],
             doctor_profile=body.model_dump(include=_PROFILE_FIELDS),
+            audit_context=context_from_request(request, user.id),
         )
         return ProviderResponse.from_provider(provider)
     except SpecializationNotFoundError as exc:
@@ -162,9 +175,17 @@ def create_provider(body: ProviderCreate, svc: _Svc):
 # ── Get detail ────────────────────────────────────────────────────────────────
 
 @router.get("/{id}", response_model=ProviderResponse)
-def get_provider(id: UUID, svc: _Svc):
+def get_provider(id: UUID, request: Request, user: CurrentUser, svc: _Svc):
     try:
-        return ProviderResponse.from_provider(svc.get(id))
+        provider = svc.get(id)
+        AuditRepository(svc._repo._db).record(
+            "provider.viewed", context=context_from_request(request, user.id),
+            resource_type="provider", resource_id=str(provider.id),
+            summary=f"Viewed provider “{provider.name}”.",
+            metadata={"provider_name": provider.name},
+        )
+        svc._repo.commit()
+        return ProviderResponse.from_provider(provider)
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
 
@@ -172,14 +193,15 @@ def get_provider(id: UUID, svc: _Svc):
 # ── Update core fields ────────────────────────────────────────────────────────
 
 @router.patch("/{id}", response_model=ProviderResponse)
-def update_provider(id: UUID, body: ProviderUpdate, svc: _Svc):
+def update_provider(id: UUID, body: ProviderUpdate, request: Request, user: CurrentUser, svc: _Svc):
     _PROFILE_FIELDS = {
         "professional_title", "biography", "years_experience", "experience_description"
     }
     fields = body.model_dump(exclude_unset=True)
     doctor_profile = {k: fields.pop(k) for k in list(fields) if k in _PROFILE_FIELDS}
     try:
-        provider = svc.update(id, update_fields=fields, doctor_profile=doctor_profile)
+        provider = svc.update(id, update_fields=fields, doctor_profile=doctor_profile,
+                              audit_context=context_from_request(request, user.id))
         return ProviderResponse.from_provider(provider)
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
@@ -188,18 +210,20 @@ def update_provider(id: UUID, body: ProviderUpdate, svc: _Svc):
 # ── Status / publication toggles ──────────────────────────────────────────────
 
 @router.patch("/{id}/status", response_model=ProviderResponse)
-def update_provider_status(id: UUID, body: ProviderStatusUpdate, svc: _Svc):
+def update_provider_status(id: UUID, body: ProviderStatusUpdate, request: Request, user: CurrentUser, svc: _Svc):
     try:
-        return ProviderResponse.from_provider(svc.set_status(id, status=body.status))
+        return ProviderResponse.from_provider(svc.set_status(
+            id, status=body.status, audit_context=context_from_request(request, user.id)))
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
 
 
 @router.patch("/{id}/publication", response_model=ProviderResponse)
-def update_provider_publication(id: UUID, body: ProviderPublicationUpdate, svc: _Svc):
+def update_provider_publication(id: UUID, body: ProviderPublicationUpdate, request: Request, user: CurrentUser, svc: _Svc):
     try:
         return ProviderResponse.from_provider(
-            svc.set_publication(id, publication_status=body.publication_status)
+            svc.set_publication(id, publication_status=body.publication_status,
+                                audit_context=context_from_request(request, user.id))
         )
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
@@ -212,10 +236,11 @@ def update_provider_publication(id: UUID, body: ProviderPublicationUpdate, svc: 
     response_model=ProviderResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def add_provider_specialization(id: UUID, body: ProviderSpecializationAdd, svc: _Svc):
+def add_provider_specialization(id: UUID, body: ProviderSpecializationAdd, request: Request, user: CurrentUser, svc: _Svc):
     try:
         return ProviderResponse.from_provider(
-            svc.add_specialization(id, body.specialization_id)
+            svc.add_specialization(id, body.specialization_id,
+                                   audit_context=context_from_request(request, user.id))
         )
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
@@ -226,9 +251,10 @@ def add_provider_specialization(id: UUID, body: ProviderSpecializationAdd, svc: 
 
 
 @router.delete("/{id}/specializations/{spec_id}", response_model=ProviderResponse)
-def remove_provider_specialization(id: UUID, spec_id: UUID, svc: _Svc):
+def remove_provider_specialization(id: UUID, spec_id: UUID, request: Request, user: CurrentUser, svc: _Svc):
     try:
-        return ProviderResponse.from_provider(svc.remove_specialization(id, spec_id))
+        return ProviderResponse.from_provider(svc.remove_specialization(
+            id, spec_id, audit_context=context_from_request(request, user.id)))
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
     except SpecializationNotFoundError:
@@ -245,21 +271,23 @@ def remove_provider_specialization(id: UUID, spec_id: UUID, svc: _Svc):
     response_model=LocationResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def add_provider_location(id: UUID, body: LocationCreate, svc: _Svc):
+def add_provider_location(id: UUID, body: LocationCreate, request: Request, user: CurrentUser, svc: _Svc):
     try:
         return LocationResponse.model_validate(
-            svc.add_location(id, fields=body.model_dump())
+            svc.add_location(id, fields=body.model_dump(),
+                             audit_context=context_from_request(request, user.id))
         )
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
 
 
 @router.patch("/{id}/locations/{loc_id}", response_model=LocationResponse)
-def update_provider_location(id: UUID, loc_id: UUID, body: LocationUpdate, svc: _Svc):
+def update_provider_location(id: UUID, loc_id: UUID, body: LocationUpdate, request: Request, user: CurrentUser, svc: _Svc):
     try:
         return LocationResponse.model_validate(
             svc.update_location(
-                id, loc_id, update_fields=body.model_dump(exclude_unset=True)
+                id, loc_id, update_fields=body.model_dump(exclude_unset=True),
+                audit_context=context_from_request(request, user.id)
             )
         )
     except ProviderNotFoundError:
@@ -269,9 +297,9 @@ def update_provider_location(id: UUID, loc_id: UUID, body: LocationUpdate, svc: 
 
 
 @router.delete("/{id}/locations/{loc_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_provider_location(id: UUID, loc_id: UUID, svc: _Svc):
+def delete_provider_location(id: UUID, loc_id: UUID, request: Request, user: CurrentUser, svc: _Svc):
     try:
-        svc.delete_location(id, loc_id)
+        svc.delete_location(id, loc_id, audit_context=context_from_request(request, user.id))
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
     except LocationNotFoundError:
@@ -285,19 +313,20 @@ def delete_provider_location(id: UUID, loc_id: UUID, svc: _Svc):
     response_model=PhoneResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def add_provider_phone(id: UUID, body: PhoneCreate, svc: _Svc):
+def add_provider_phone(id: UUID, body: PhoneCreate, request: Request, user: CurrentUser, svc: _Svc):
     try:
         return PhoneResponse.model_validate(
-            svc.add_provider_phone(id, fields=body.model_dump())
+            svc.add_provider_phone(id, fields=body.model_dump(),
+                                   audit_context=context_from_request(request, user.id))
         )
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
 
 
 @router.delete("/{id}/phones/{phone_id}", status_code=status.HTTP_204_NO_CONTENT)
-def remove_provider_phone(id: UUID, phone_id: UUID, svc: _Svc):
+def remove_provider_phone(id: UUID, phone_id: UUID, request: Request, user: CurrentUser, svc: _Svc):
     try:
-        svc.remove_provider_phone(id, phone_id)
+        svc.remove_provider_phone(id, phone_id, audit_context=context_from_request(request, user.id))
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
     except PhoneNotFoundError:
@@ -311,19 +340,20 @@ def remove_provider_phone(id: UUID, phone_id: UUID, svc: _Svc):
     response_model=EmailResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def add_provider_email(id: UUID, body: EmailCreate, svc: _Svc):
+def add_provider_email(id: UUID, body: EmailCreate, request: Request, user: CurrentUser, svc: _Svc):
     try:
         return EmailResponse.model_validate(
-            svc.add_provider_email(id, fields=body.model_dump())
+            svc.add_provider_email(id, fields=body.model_dump(),
+                                   audit_context=context_from_request(request, user.id))
         )
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
 
 
 @router.delete("/{id}/emails/{email_id}", status_code=status.HTTP_204_NO_CONTENT)
-def remove_provider_email(id: UUID, email_id: UUID, svc: _Svc):
+def remove_provider_email(id: UUID, email_id: UUID, request: Request, user: CurrentUser, svc: _Svc):
     try:
-        svc.remove_provider_email(id, email_id)
+        svc.remove_provider_email(id, email_id, audit_context=context_from_request(request, user.id))
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
     except EmailNotFoundError:
@@ -351,7 +381,7 @@ _MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024
     response_model=PhotoResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def add_provider_photo(id: UUID, request: Request, svc: _Svc):
+async def add_provider_photo(id: UUID, request: Request, user: CurrentUser, svc: _Svc):
     """Create a photo record from JSON metadata or upload a multipart image.
 
     JSON metadata is retained for existing integrations that store an externally
@@ -364,7 +394,8 @@ async def add_provider_photo(id: UUID, request: Request, svc: _Svc):
         except ValidationError as exc:
             raise RequestValidationError(exc.errors()) from exc
         try:
-            return PhotoResponse.model_validate(svc.add_photo(id, fields=fields))
+            return PhotoResponse.model_validate(svc.add_photo(
+                id, fields=fields, audit_context=context_from_request(request, user.id)))
         except ProviderNotFoundError:
             raise _404("provider_not_found", "Provider not found")
 
@@ -438,7 +469,7 @@ async def add_provider_photo(id: UUID, request: Request, svc: _Svc):
                 "caption": metadata.caption,
                 "display_order": metadata.display_order,
                 "is_thumbnail": metadata.is_thumbnail,
-            })
+            }, audit_context=context_from_request(request, user.id))
         )
     except ProviderNotFoundError:
         os.remove(dest_path)
@@ -446,11 +477,12 @@ async def add_provider_photo(id: UUID, request: Request, svc: _Svc):
 
 
 @router.patch("/{id}/photos/{photo_id}", response_model=PhotoResponse)
-def update_provider_photo(id: UUID, photo_id: UUID, body: PhotoUpdate, svc: _Svc):
+def update_provider_photo(id: UUID, photo_id: UUID, body: PhotoUpdate, request: Request, user: CurrentUser, svc: _Svc):
     try:
         return PhotoResponse.model_validate(
             svc.update_photo(
-                id, photo_id, update_fields=body.model_dump(exclude_unset=True)
+                id, photo_id, update_fields=body.model_dump(exclude_unset=True),
+                audit_context=context_from_request(request, user.id)
             )
         )
     except ProviderNotFoundError:
@@ -460,9 +492,9 @@ def update_provider_photo(id: UUID, photo_id: UUID, body: PhotoUpdate, svc: _Svc
 
 
 @router.delete("/{id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_provider_photo(id: UUID, photo_id: UUID, svc: _Svc):
+def delete_provider_photo(id: UUID, photo_id: UUID, request: Request, user: CurrentUser, svc: _Svc):
     try:
-        svc.delete_photo(id, photo_id)
+        svc.delete_photo(id, photo_id, audit_context=context_from_request(request, user.id))
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
     except PhotoNotFoundError:
@@ -470,9 +502,10 @@ def delete_provider_photo(id: UUID, photo_id: UUID, svc: _Svc):
 
 
 @router.patch("/{id}/photos/{photo_id}/thumbnail", response_model=PhotoResponse)
-def set_provider_thumbnail(id: UUID, photo_id: UUID, svc: _Svc):
+def set_provider_thumbnail(id: UUID, photo_id: UUID, request: Request, user: CurrentUser, svc: _Svc):
     try:
-        return PhotoResponse.model_validate(svc.set_thumbnail(id, photo_id))
+        return PhotoResponse.model_validate(svc.set_thumbnail(
+            id, photo_id, audit_context=context_from_request(request, user.id)))
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
     except PhotoNotFoundError:
