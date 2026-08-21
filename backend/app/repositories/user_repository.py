@@ -6,7 +6,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.role import Role
 
 
@@ -34,6 +34,10 @@ class UserRepository:
         stmt = select(Role).where(Role.name == name)
         return self._db.scalars(stmt).first()
 
+    def get_roles_by_names(self, names: list[str]) -> list[Role]:
+        stmt = select(Role).where(Role.name.in_(names))
+        return list(self._db.scalars(stmt).all())
+
     def create_role(self, name: str, description: str | None = None) -> Role:
         role = Role(name=name, description=description)
         self._db.add(role)
@@ -47,6 +51,13 @@ class UserRepository:
         role: Role,
         first_name: str | None = None,
         last_name: str | None = None,
+        mobile_number: str | None = None,
+        country: str | None = None,
+        city: str | None = None,
+        terms_accepted_at=None,
+        privacy_accepted_at=None,
+        is_active: bool = True,
+        roles: list[Role] | None = None,
     ) -> User:
         user = User(
             email=email.lower().strip(),
@@ -54,9 +65,17 @@ class UserRepository:
             role=role,
             first_name=first_name,
             last_name=last_name,
-            is_active=True,
+            mobile_number=mobile_number,
+            country=country,
+            city=city,
+            terms_accepted_at=terms_accepted_at,
+            privacy_accepted_at=privacy_accepted_at,
+            is_active=is_active,
         )
         self._db.add(user)
+        self._db.flush()
+        for assigned_role in roles or [role]:
+            self._db.add(UserRole(user_id=user.id, role_id=assigned_role.id))
         self._db.flush()
         return user
 

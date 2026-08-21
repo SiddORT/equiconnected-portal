@@ -18,7 +18,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.core.rate_limit import check_login_rate_limit
+from app.core.rate_limit import (
+    check_email_verification_rate_limit,
+    check_login_rate_limit,
+    check_registration_rate_limit,
+)
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
@@ -155,6 +159,8 @@ def client(db):
 
     app.dependency_overrides[get_db] = _override_get_db
     app.dependency_overrides[check_login_rate_limit] = _no_rate_limit
+    app.dependency_overrides[check_registration_rate_limit] = _no_rate_limit
+    app.dependency_overrides[check_email_verification_rate_limit] = _no_rate_limit
 
     with TestClient(app) as c:
         yield c

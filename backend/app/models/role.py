@@ -19,6 +19,9 @@ class Role(TimestampMixin, Base):
 
     # Relationships
     users: Mapped[list["User"]] = relationship("User", back_populates="role")  # noqa: F821
+    user_assignments: Mapped[list["UserRole"]] = relationship(  # noqa: F821
+        "UserRole", back_populates="role", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<Role id={self.id} name={self.name!r}>"

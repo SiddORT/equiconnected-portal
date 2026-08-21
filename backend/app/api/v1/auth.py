@@ -14,18 +14,33 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import CurrentUser
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.core.rate_limit import check_login_rate_limit
+from app.core.rate_limit import (
+    check_email_verification_rate_limit,
+    check_login_rate_limit,
+    check_registration_rate_limit,
+)
 from app.core.security import decode_token
 from app.db.session import get_db
-from app.schemas.auth import LoginRequest, LoginResponse, UserProfile
+from app.schemas.auth import (
+    EmailVerificationRequest,
+    LoginRequest,
+    LoginResponse,
+    RegistrationRequest,
+    UserProfile,
+)
 from app.schemas.common import MessageResponse
 from app.services.auth_service import (
     AuthService,
     AuthenticationError,
+    DuplicateEmailError,
     InactiveUserError,
     InvalidTokenError,
     LoginResult,
+    VerificationTokenExpiredError,
+    VerificationTokenNotFoundError,
+    VerificationTokenUsedError,
 )
+from app.services.email_service import EmailDeliveryError
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 logger = get_logger(__name__)
@@ -48,6 +63,70 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
 
 def _clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(key=REFRESH_COOKIE, path="/api/v1/auth")
+
+
+@router.post(
+    "/register",
+    response_model=MessageResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(check_registration_rate_limit)],
+)
+def register(
+    body: RegistrationRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> MessageResponse:
+    """Create a public account and send its email-verification link."""
+    try:
+        AuthService(db).register(body)
+    except DuplicateEmailError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "email_already_registered",
+                "message": "An account with this email already exists.",
+            },
+        )
+    except EmailDeliveryError:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "code": "verification_email_failed",
+                "message": "We could not send your verification email. Please try again.",
+            },
+        )
+    return MessageResponse(
+        message="Account created. Please check your email to verify your account."
+    )
+
+
+@router.post(
+    "/verify-email",
+    response_model=MessageResponse,
+    dependencies=[Depends(check_email_verification_rate_limit)],
+)
+def verify_email(
+    body: EmailVerificationRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> MessageResponse:
+    """Verify a public account using the token delivered in its email link."""
+    try:
+        AuthService(db).verify_email(body.token)
+    except VerificationTokenNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "verification_link_invalid", "message": "Verification link is invalid."},
+        )
+    except VerificationTokenUsedError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "verification_link_used", "message": "This email is already verified."},
+        )
+    except VerificationTokenExpiredError:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={"code": "verification_link_expired", "message": "Verification link has expired."},
+        )
+    return MessageResponse(message="Your email has been verified. You can now sign in.")
 
 
 @router.post("/login", response_model=LoginResponse, dependencies=[Depends(check_login_rate_limit)])

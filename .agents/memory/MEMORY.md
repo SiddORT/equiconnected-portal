@@ -4,3 +4,4 @@
 - [Provider photo upload policy](provider-photo-uploads.md) — allow JPEG, PNG, GIF, and WebP only, with a 10 MB per-photo limit.
 - [Invitation email presentation](invitation-email-presentation.md) — use the dark, warm-gold launch aesthetic while keeping invitation CTA and security details prominent.
 - [Dashboard invitation analytics](dashboard-invitation-analytics.md) — accepted and rejected metrics are derived from the workflow’s existing invitation states.
+- [Email verification redemption](email-verification-redemption.md) — single-use verification needs both transactional token locking and a Strict Mode-safe client request.

@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     EMAIL_TLS: bool = True
     PUBLIC_APP_URL: str = "http://localhost:5000"
     INVITATION_EXPIRE_DAYS: int = 7
+    EMAIL_VERIFICATION_EXPIRE_HOURS: int = 24
 
     @property
     def resolved_email_from(self) -> str:

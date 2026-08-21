@@ -17,6 +17,8 @@ import { LegacyDoctorRedirect } from '@/pages/admin/LegacyDoctorRedirect';
 import { InvitationsPage } from '@/pages/admin/InvitationsPage';
 import { InvitationPage } from '@/pages/InvitationPage';
 import { SubmissionSuccessPage } from '@/pages/SubmissionSuccessPage';
+import { SignupPage } from '@/pages/SignupPage';
+import { VerifyEmailPage } from '@/pages/VerifyEmailPage';
 
 export function AppRouter() {
   return (
@@ -28,6 +30,8 @@ export function AppRouter() {
         <Route path="/provider/invite/:token" element={<InvitationPage />} />
         {/* Emailed links use /provider/invitations/{token} — same page. */}
         <Route path="/provider/invitations/:token" element={<InvitationPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
 
         {/* ── Admin auth ──────────────────────────────────────────── */}
         <Route path="/admin/login" element={<LoginPage />} />

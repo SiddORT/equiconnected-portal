@@ -4,8 +4,9 @@ Covers admin users for Phase 1.
 Future phases extend roles to cover hospital and visitor users.
 """
 import uuid
+from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -29,6 +30,18 @@ class User(TimestampMixin, Base):
 
     first_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    mobile_number: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    country: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    privacy_accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     role_id: Mapped[int] = mapped_column(
@@ -43,6 +56,12 @@ class User(TimestampMixin, Base):
     audit_logs: Mapped[list["AuditLog"]] = relationship(  # noqa: F821
         "AuditLog", back_populates="user"
     )
+    role_assignments: Mapped[list["UserRole"]] = relationship(  # noqa: F821
+        "UserRole", back_populates="user", cascade="all, delete-orphan"
+    )
+    email_verification_tokens: Mapped[list["EmailVerificationToken"]] = relationship(  # noqa: F821
+        "EmailVerificationToken", back_populates="user", cascade="all, delete-orphan"
+    )
 
     @property
     def full_name(self) -> str:
@@ -51,3 +70,46 @@ class User(TimestampMixin, Base):
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email!r} role={self.role_id}>"
+
+
+class UserRole(Base):
+    """Relational role assignments for public accounts that may hold multiple roles."""
+
+    __tablename__ = "user_roles"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    role_id: Mapped[int] = mapped_column(
+        ForeignKey("roles.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+    )
+
+    user: Mapped[User] = relationship("User", back_populates="role_assignments")
+    role: Mapped["Role"] = relationship("Role", back_populates="user_assignments")  # noqa: F821
+
+
+class EmailVerificationToken(TimestampMixin, Base):
+    """Hashed, expiring, single-use token used to activate a public account."""
+
+    __tablename__ = "email_verification_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped[User] = relationship("User", back_populates="email_verification_tokens")

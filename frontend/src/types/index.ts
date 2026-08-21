@@ -33,6 +33,26 @@ export interface TokenResponse {
   expires_in: number;
 }
 
+export type PublicRoleSelection = 'HORSE_OWNER' | 'STABLE_MANAGER' | 'BOTH';
+
+export interface RegistrationRequest {
+  first_name: string;
+  last_name: string;
+  email: string;
+  mobile_number: string;
+  country: string;
+  city: string;
+  password: string;
+  password_confirmation: string;
+  role: PublicRoleSelection;
+  accept_terms: boolean;
+  accept_privacy: boolean;
+}
+
+export interface MessageResponse {
+  message: string;
+}
+
 // ── API Error ─────────────────────────────────────────────────────────────────
 
 export interface ApiErrorDetail {

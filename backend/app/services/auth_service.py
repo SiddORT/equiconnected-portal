@@ -2,9 +2,14 @@
 Authentication business logic.
 All auth decisions go through this service — never directly in route handlers.
 """
+import hashlib
+import secrets
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
@@ -18,7 +23,9 @@ from app.core.security import (
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.token_repository import TokenRepository
 from app.repositories.user_repository import UserRepository
-from app.schemas.auth import LoginResponse, UserProfile
+from app.schemas.auth import RegistrationRequest, UserProfile
+from app.models.user import EmailVerificationToken
+from app.services.email_service import EmailDeliveryError, EmailService
 
 logger = get_logger(__name__)
 
@@ -33,6 +40,22 @@ class InactiveUserError(Exception):
 
 class InvalidTokenError(Exception):
     """Raised when a refresh token is invalid or expired."""
+
+
+class DuplicateEmailError(Exception):
+    """Raised when a registration attempts to reuse an account email."""
+
+
+class VerificationTokenNotFoundError(Exception):
+    """Raised when a verification token is invalid."""
+
+
+class VerificationTokenExpiredError(Exception):
+    """Raised when a verification token has expired."""
+
+
+class VerificationTokenUsedError(Exception):
+    """Raised when a verification token was already redeemed."""
 
 
 @dataclass
@@ -57,6 +80,96 @@ class AuthService:
         self._users = UserRepository(db)
         self._tokens = TokenRepository(db)
         self._audit = AuditRepository(db)
+        self._email = EmailService()
+
+    # ── Public registration and verification ───────────────────────────────────
+
+    def register(self, registration: RegistrationRequest) -> None:
+        """Create an inactive public account and deliver its verification link."""
+        from app.core.config import get_settings
+
+        email = registration.email.lower().strip()
+        if self._users.get_by_email(email) is not None:
+            raise DuplicateEmailError("An account with this email already exists.")
+
+        role_names = {
+            "HORSE_OWNER": ["horse_owner"],
+            "STABLE_MANAGER": ["stable_manager"],
+            "BOTH": ["horse_owner", "stable_manager"],
+        }[registration.role]
+        try:
+            roles = self._users.get_roles_by_names(role_names)
+            roles_by_name = {role.name: role for role in roles}
+            if set(roles_by_name) != set(role_names):
+                raise RuntimeError("Public account roles have not been configured.")
+
+            now = datetime.now(timezone.utc)
+            primary_role = roles_by_name[role_names[0]]
+            user = self._users.create_user(
+                email=email,
+                password_hash=hash_password(registration.password),
+                role=primary_role,
+                roles=[roles_by_name[name] for name in role_names],
+                first_name=registration.first_name,
+                last_name=registration.last_name,
+                mobile_number=registration.mobile_number,
+                country=registration.country,
+                city=registration.city,
+                terms_accepted_at=now,
+                privacy_accepted_at=now,
+                is_active=False,
+            )
+
+            raw_token = secrets.token_urlsafe(32)
+            expires_at = now + timedelta(
+                hours=get_settings().EMAIL_VERIFICATION_EXPIRE_HOURS
+            )
+            self._db.add(
+                EmailVerificationToken(
+                    user_id=user.id,
+                    token_hash=self._hash_verification_token(raw_token),
+                    expires_at=expires_at,
+                )
+            )
+            self._db.flush()
+
+            verification_url = (
+                f"{get_settings().PUBLIC_APP_URL.rstrip('/')}/verify-email"
+                f"?token={quote(raw_token, safe='')}"
+            )
+            self._email.send_verification_email(email, verification_url, expires_at)
+            self._db.commit()
+        except IntegrityError as exc:
+            self._db.rollback()
+            raise DuplicateEmailError("An account with this email already exists.") from exc
+        except EmailDeliveryError:
+            self._db.rollback()
+            raise
+
+    def verify_email(self, raw_token: str) -> None:
+        """Redeem a verification token and activate its account exactly once."""
+        token_hash = self._hash_verification_token(raw_token)
+        # Lock the token row while checking and consuming it. Under PostgreSQL's
+        # READ COMMITTED isolation, a concurrent redemption waits here and then
+        # observes ``used_at`` after the first request commits.
+        token = (
+            self._db.query(EmailVerificationToken)
+            .filter(EmailVerificationToken.token_hash == token_hash)
+            .with_for_update()
+            .first()
+        )
+        if token is None:
+            raise VerificationTokenNotFoundError("Verification link is invalid.")
+        if token.used_at is not None:
+            raise VerificationTokenUsedError("Verification link was already used.")
+        if token.expires_at <= datetime.now(timezone.utc):
+            raise VerificationTokenExpiredError("Verification link has expired.")
+
+        token.used_at = datetime.now(timezone.utc)
+        token.user.email_verified_at = token.used_at
+        token.user.is_active = True
+        self._db.commit()
+
 
     # ── Login ────────────────────────────────────────────────────────────────
 
@@ -197,3 +310,7 @@ class AuthService:
             refresh_token=refresh_token,
             expires_in=expires_in,
         )
+
+    @staticmethod
+    def _hash_verification_token(raw_token: str) -> str:
+        return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
