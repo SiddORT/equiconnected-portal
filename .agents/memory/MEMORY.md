@@ -16,3 +16,4 @@
 - [Provider invitation account boundary](provider-invitation-account-boundary.md) — existing EquiConnected accounts are never auto-linked to provider invitations.
 - [PostgreSQL test-schema isolation](postgresql-test-schema-isolation.md) — commit session search-path changes before pooled test connections can be reset.
 - [Homepage carousel selection](homepage-carousel-selection.md) — keep explicit card selection separate from passive rail browsing unless scroll state can be derived reliably.
+- [Scroll-driven step highlighting](scroll-step-highlighting.md) — retain visibility for every panel; one observer callback may not contain all panels currently on screen.

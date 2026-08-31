@@ -7,6 +7,7 @@ import { extractErrorMessage } from '@/api/client';
 import { recordPublicVisit, registerSubscriber } from '@/api/public';
 import { systemCalendarDate, useTimeSettings } from '@/app/TimeSettingsContext';
 import { HeroImageSlider } from '@/components/public/HeroImageSlider';
+import { HowItWorksScroll } from '@/components/public/HowItWorksScroll';
 import { SpecializationExplorer } from '@/components/public/SpecializationExplorer';
 import type { SubscriberRegistrationType } from '@/types';
 import styles from './PublicPage.module.css';
@@ -185,6 +186,7 @@ export function PublicPage() {
         </section>
 
         <SpecializationExplorer />
+        <HowItWorksScroll />
 
         {/* ── Features teaser ──────────────────────────────────── */}
         <section className={styles.features} aria-label="What's coming">

@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
@@ -23,6 +23,7 @@ afterEach(() => {
   cleanup();
   window.localStorage.clear();
   vi.resetAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('PublicPage hero', () => {
@@ -35,13 +36,14 @@ describe('PublicPage hero', () => {
     expect(screen.getAllByRole('link', { name: 'Find care' })[1].getAttribute('href')).toBe('/signup');
     expect(screen.getByRole('link', { name: 'Join as a provider' }).getAttribute('href')).toBe('/provider/signup');
     expect(screen.getByRole('region', { name: 'Equine care stories' })).toBeTruthy();
-    expect(screen.getByRole('img', { name: 'Dark horse standing in a quiet mountain pasture at sunset' })).toBeTruthy();
+    const heroStories = screen.getByRole('region', { name: 'Equine care stories' });
+    expect(within(heroStories).getByRole('img', { name: 'Dark horse standing in a quiet mountain pasture at sunset' })).toBeTruthy();
     expect(document.querySelector('#crescent-border-gradient')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'A closer look at whole-horse care.' })).toBeTruthy();
     expect(screen.getByRole('group', { name: 'Equine healthcare specializations' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Cardiology/ })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Next image' }));
-    expect(screen.getByRole('img', { name: 'Equine care professional working with a horse indoors' })).toBeTruthy();
+    expect(within(heroStories).getByRole('img', { name: 'Equine care professional working with a horse indoors' })).toBeTruthy();
     await waitFor(() => expect(publicApi.recordPublicVisit).toHaveBeenCalledOnce());
   });
 
@@ -82,5 +84,84 @@ describe('PublicPage hero', () => {
     await user.click(screen.getByRole('button', { name: /Neurology/ }));
     expect(screen.getByText('Selected Neurology')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Neurology/ }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('presents the three-step care journey with selectable content panels', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    expect(screen.getByRole('heading', { name: 'From concern to confident care.' })).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: 'How EquiConnected works' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /01.*SEARCH/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /02.*DISCOVER/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /03.*CONNECT/ })).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'Horse standing in a quiet mountain pasture' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: /03.*CONNECT/ }));
+    expect(screen.getByRole('button', { name: /03.*CONNECT/ }).getAttribute('aria-current')).toBe('step');
+    expect(screen.getByRole('heading', { name: 'Choose with confidence.' })).toBeTruthy();
+  });
+
+  it('highlights the most visible care-journey panel while scrolling', () => {
+    let observerCallback: IntersectionObserverCallback | undefined;
+
+    class MockIntersectionObserver {
+      readonly root = null;
+      readonly rootMargin = '0px';
+      readonly thresholds = [];
+
+      constructor(callback: IntersectionObserverCallback) {
+        observerCallback = callback;
+      }
+
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() { return []; }
+    }
+
+    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    const searchPanel = document.querySelector<HTMLElement>('[data-step-index="0"]');
+    const discoverPanel = document.querySelector<HTMLElement>('[data-step-index="1"]');
+    if (!searchPanel || !discoverPanel) {
+      throw new Error('Expected care-journey panels to render.');
+    }
+
+    const observerEntry = (
+      target: HTMLElement,
+      intersectionRatio: number,
+    ): IntersectionObserverEntry => ({
+      boundingClientRect: target.getBoundingClientRect(),
+      intersectionRatio,
+      intersectionRect: target.getBoundingClientRect(),
+      isIntersecting: intersectionRatio > 0,
+      rootBounds: null,
+      target,
+      time: 0,
+    });
+
+    act(() => {
+      observerCallback?.(
+        [
+          observerEntry(searchPanel, 0.7),
+          observerEntry(discoverPanel, 0.35),
+        ],
+        {} as IntersectionObserver,
+      );
+    });
+    expect(screen.getByRole('button', { name: /01.*SEARCH/ }).getAttribute('aria-current')).toBe('step');
+
+    act(() => {
+      observerCallback?.(
+        [
+          observerEntry(searchPanel, 0.4),
+          observerEntry(discoverPanel, 0.8),
+        ],
+        {} as IntersectionObserver,
+      );
+    });
+    expect(screen.getByRole('button', { name: /02.*DISCOVER/ }).getAttribute('aria-current')).toBe('step');
   });
 });
