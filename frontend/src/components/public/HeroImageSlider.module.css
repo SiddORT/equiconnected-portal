@@ -62,9 +62,9 @@
 
 .slideMeta {
   position: absolute;
-  z-index: 2;
+  z-index: 5;
   right: clamp(24px, 8vw, 130px);
-  bottom: clamp(94px, 12vh, 130px);
+  bottom: clamp(126px, 17vh, 170px);
   left: auto;
   width: min(320px, 28vw);
   display: flex;
@@ -115,9 +115,9 @@
 
 .controls {
   position: absolute;
-  z-index: 3;
+  z-index: 5;
   right: clamp(25px, 7vw, 100px);
-  bottom: clamp(76px, 9vh, 95px);
+  bottom: clamp(92px, 13vh, 125px);
   display: flex;
   gap: 7px;
 }
@@ -148,23 +148,28 @@
   outline-offset: 3px;
 }
 
-.archBorder {
+.crescentCut {
   position: absolute;
   z-index: 4;
   right: -3%;
-  bottom: 2%;
+  bottom: 0;
   left: -3%;
   width: 106%;
-  height: 18%;
+  height: 8%;
   overflow: visible;
   pointer-events: none;
 }
 
-.archBorder path {
+.crescentCut path {
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
+}
+
+.crescentCut .crescentFill {
+  fill: #faf8f1;
+  stroke: none;
 }
 
 .archShadow {
@@ -179,8 +184,9 @@
 
 .indicators {
   position: absolute;
+  z-index: 5;
   right: clamp(25px, 7vw, 100px);
-  bottom: 3%;
+  bottom: 6%;
   display: flex;
   gap: 8px;
 }
@@ -244,7 +250,7 @@
 
   .slideMeta {
     right: 22px;
-    bottom: 108px;
+    bottom: 138px;
     left: auto;
     width: min(230px, 58vw);
   }

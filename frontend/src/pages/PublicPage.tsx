@@ -77,7 +77,11 @@ export function PublicPage() {
             <span className={styles.logoMark} aria-hidden="true">EC</span>
             <span className={styles.logoName}>equiconnected</span>
           </Link>
-          <span className={styles.headerNote}>Connected care, made clear</span>
+          <nav className={styles.nav} aria-label="Primary navigation">
+            <Link to="/signup">Find care</Link>
+            <Link to="/provider/signup">For providers</Link>
+            <Link to="/admin/login" className={styles.navCta}>Admin portal</Link>
+          </nav>
         </header>
 
         {/* ── Hero ─────────────────────────────────────────────── */}

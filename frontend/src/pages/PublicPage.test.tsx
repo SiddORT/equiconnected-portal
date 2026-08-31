@@ -32,7 +32,7 @@ describe('PublicPage hero', () => {
 
     expect(screen.getByRole('heading', { name: 'Healthcare, Connected Around You.' })).toBeTruthy();
     expect(screen.getByText(/Discover doctors, clinics and hospitals/)).toBeTruthy();
-    expect(screen.getByRole('link', { name: /Find care/i }).getAttribute('href')).toBe('/signup');
+    expect(screen.getAllByRole('link', { name: 'Find care' })[1].getAttribute('href')).toBe('/signup');
     expect(screen.getByRole('link', { name: 'Join as a provider' }).getAttribute('href')).toBe('/provider/signup');
     expect(screen.getByRole('region', { name: 'Equine care stories' })).toBeTruthy();
     expect(screen.getByRole('img', { name: /Dark horse standing/i })).toBeTruthy();
