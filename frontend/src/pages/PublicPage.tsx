@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
 import { recordPublicVisit, registerSubscriber } from '@/api/public';
 import { systemCalendarDate, useTimeSettings } from '@/app/TimeSettingsContext';
-import { HeroNetwork } from '@/components/public/HeroNetwork';
+import { HeroImageSlider } from '@/components/public/HeroImageSlider';
 import type { SubscriberRegistrationType } from '@/types';
 import styles from './PublicPage.module.css';
 
@@ -174,7 +174,7 @@ export function PublicPage() {
               )}
             </div>
           </div>
-          <HeroNetwork />
+          <HeroImageSlider />
           <div className={styles.heroCurve} aria-hidden="true" />
         </section>
 

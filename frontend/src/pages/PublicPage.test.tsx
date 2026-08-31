@@ -27,13 +27,17 @@ afterEach(() => {
 
 describe('PublicPage hero', () => {
   it('presents the connected-care message and existing signup destinations', async () => {
+    const user = userEvent.setup();
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
 
     expect(screen.getByRole('heading', { name: 'Healthcare, Connected Around You.' })).toBeTruthy();
     expect(screen.getByText(/Discover doctors, clinics and hospitals/)).toBeTruthy();
     expect(screen.getByRole('link', { name: /Find care/i }).getAttribute('href')).toBe('/signup');
     expect(screen.getByRole('link', { name: 'Join as a provider' }).getAttribute('href')).toBe('/provider/signup');
-    expect(screen.getByRole('img', { name: /connected healthcare network/i })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Equine care stories' })).toBeTruthy();
+    expect(screen.getByRole('img', { name: /Dark horse standing/i })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Next image' }));
+    expect(screen.getByRole('img', { name: /Equine care professional/i })).toBeTruthy();
     await waitFor(() => expect(publicApi.recordPublicVisit).toHaveBeenCalledOnce());
   });
 

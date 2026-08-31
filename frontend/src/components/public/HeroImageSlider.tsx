@@ -1,0 +1,139 @@
+import { useEffect, useState } from 'react';
+import styles from './HeroImageSlider.module.css';
+
+type Slide = {
+  src: string;
+  alt: string;
+  label: string;
+  title: string;
+};
+
+const SLIDES: Slide[] = [
+  {
+    src: '/horse-panel.jpg',
+    alt: 'Dark horse standing in a quiet mountain pasture at sunset',
+    label: 'A considered approach to care',
+    title: 'Care that sees the whole horse.',
+  },
+  {
+    src: '/provider-veterinary-care.jpg',
+    alt: 'Equine care professional working with a horse indoors',
+    label: 'Expertise, connected',
+    title: 'The right hands, when they matter.',
+  },
+  {
+    src: '/stable-panel.jpg',
+    alt: 'Warm, well-kept stable with open doors to the paddock',
+    label: 'A trusted care community',
+    title: 'Every detail has a place.',
+  },
+];
+
+const AUTOPLAY_DELAY = 5600;
+
+export function HeroImageSlider() {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return undefined;
+
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updateMotionPreference = () => setReducedMotion(mediaQuery.matches);
+    updateMotionPreference();
+    mediaQuery.addEventListener('change', updateMotionPreference);
+    return () => mediaQuery.removeEventListener('change', updateMotionPreference);
+  }, []);
+
+  useEffect(() => {
+    if (isPaused || reducedMotion) return undefined;
+
+    const timer = window.setInterval(() => {
+      setActiveIndex((currentIndex) => (currentIndex + 1) % SLIDES.length);
+    }, AUTOPLAY_DELAY);
+
+    return () => window.clearInterval(timer);
+  }, [isPaused, reducedMotion]);
+
+  function showSlide(index: number) {
+    setActiveIndex((index + SLIDES.length) % SLIDES.length);
+  }
+
+  function handleBlur(event: React.FocusEvent<HTMLDivElement>) {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      setIsPaused(false);
+    }
+  }
+
+  const activeSlide = SLIDES[activeIndex];
+
+  return (
+    <div
+      className={`${styles.slider} ${reducedMotion ? styles.reducedMotion : ''}`}
+      aria-label="Equine care stories"
+      role="region"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocus={() => setIsPaused(true)}
+      onBlur={handleBlur}
+    >
+      <div className={styles.viewport}>
+        {SLIDES.map((slide, index) => (
+          <img
+            key={slide.src}
+            className={`${styles.slide} ${index === activeIndex ? styles.activeSlide : ''}`}
+            src={slide.src}
+            alt={index === activeIndex ? slide.alt : ''}
+            aria-hidden={index !== activeIndex}
+            loading={index === 0 ? 'eager' : 'lazy'}
+          />
+        ))}
+        <div className={styles.imageShade} aria-hidden="true" />
+        <div className={styles.slideMeta} aria-live="polite">
+          <span>{activeSlide.label}</span>
+          <strong>{activeSlide.title}</strong>
+        </div>
+        <div className={styles.slideCount} aria-hidden="true">
+          <span>0{activeIndex + 1}</span>
+          <i />
+          <span>0{SLIDES.length}</span>
+        </div>
+        <div className={styles.controls}>
+          <button
+            type="button"
+            className={styles.control}
+            aria-label="Previous image"
+            onClick={() => showSlide(activeIndex - 1)}
+          >
+            <span aria-hidden="true">←</span>
+          </button>
+          <button
+            type="button"
+            className={styles.control}
+            aria-label="Next image"
+            onClick={() => showSlide(activeIndex + 1)}
+          >
+            <span aria-hidden="true">→</span>
+          </button>
+        </div>
+      </div>
+      <svg className={styles.archBorder} viewBox="0 0 100 18" preserveAspectRatio="none" aria-hidden="true">
+        <path className={styles.archShadow} d="M0 16 Q50 -3 100 16" />
+        <path className={styles.archLine} d="M0 14 Q50 -5 100 14" />
+      </svg>
+      <div className={styles.indicators} role="group" aria-label="Choose a hero image">
+        {SLIDES.map((slide, index) => (
+          <button
+            key={slide.src}
+            type="button"
+            aria-label={`Show image ${index + 1}: ${slide.label}`}
+            aria-pressed={index === activeIndex}
+            className={`${styles.indicator} ${index === activeIndex ? styles.activeIndicator : ''}`}
+            onClick={() => showSlide(index)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
