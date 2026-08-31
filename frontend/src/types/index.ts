@@ -852,6 +852,26 @@ export interface MemberProviderDetail extends MemberProviderListItem {
   own_review: MemberProviderReview | null;
 }
 
+export interface PublicProviderLocation {
+  city: string;
+  state_province: string | null;
+  country: string | null;
+  latitude: number;
+  longitude: number;
+}
+
+export interface PublicProviderDiscovery {
+  id: string;
+  provider_type: ProviderType;
+  name: string;
+  specializations: string[];
+  location: PublicProviderLocation;
+  thumbnail_url: string | null;
+  average_rating: number | null;
+  review_count: number;
+  distance_km: number | null;
+}
+
 export interface MemberProviderListParams {
   provider_type?: ProviderType;
   minimum_rating?: number;

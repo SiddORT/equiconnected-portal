@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.enums import ProviderStatus, ProviderType, PublicationStatus
-from app.models.provider import Provider, ProviderLocation, ProviderReview
+from app.models.provider import Provider, ProviderLocation, ProviderReview, ProviderSpecialization
 from app.models.user import User
 
 
@@ -40,14 +40,22 @@ class ReviewRepository:
         latitude = (
             select(ProviderLocation.latitude)
             .where(*location_conditions)
-            .order_by(ProviderLocation.is_primary.desc(), ProviderLocation.id)
+            .order_by(
+                ProviderLocation.is_primary.desc(),
+                ProviderLocation.created_at,
+                ProviderLocation.id,
+            )
             .limit(1)
             .scalar_subquery()
         )
         longitude = (
             select(ProviderLocation.longitude)
             .where(*location_conditions)
-            .order_by(ProviderLocation.is_primary.desc(), ProviderLocation.id)
+            .order_by(
+                ProviderLocation.is_primary.desc(),
+                ProviderLocation.created_at,
+                ProviderLocation.id,
+            )
             .limit(1)
             .scalar_subquery()
         )
@@ -120,6 +128,9 @@ class ReviewRepository:
                 selectinload(Provider.photos),
                 selectinload(Provider.phones),
                 selectinload(Provider.emails),
+                selectinload(Provider.provider_specializations).selectinload(
+                    ProviderSpecialization.specialization
+                ),
             )
         )
         if distance is not None:
@@ -137,6 +148,77 @@ class ReviewRepository:
             stmt.offset((page - 1) * page_size).limit(page_size)
         ).unique().all()
         return rows, total
+
+    def list_public_discoverable(
+        self,
+        *,
+        provider_type: ProviderType | None,
+        latitude: float | None,
+        longitude: float | None,
+        limit: int,
+    ) -> list[Any]:
+        """Return a bounded, coordinate-backed provider set for public discovery."""
+        totals = self._rating_totals()
+        provider_latitude, provider_longitude = self._coordinate_subqueries()
+        conditions = [
+            Provider.status == ProviderStatus.ACTIVE,
+            Provider.publication_status == PublicationStatus.PUBLISHED,
+            provider_latitude.is_not(None),
+            provider_longitude.is_not(None),
+        ]
+        if provider_type is not None:
+            conditions.append(Provider.provider_type == provider_type)
+
+        distance = None
+        if latitude is not None and longitude is not None:
+            haversine = (
+                6371.0088
+                * 2
+                * func.asin(
+                    func.sqrt(
+                        func.power(func.sin(func.radians(provider_latitude - latitude) / 2), 2)
+                        + func.cos(func.radians(latitude))
+                        * func.cos(func.radians(provider_latitude))
+                        * func.power(
+                            func.sin(func.radians(provider_longitude - longitude) / 2), 2
+                        )
+                    )
+                )
+            )
+            distance = haversine.label("distance_km")
+
+        columns = [
+            Provider,
+            totals.c.average_rating,
+            func.coalesce(totals.c.review_count, 0).label("review_count"),
+            provider_latitude.label("latitude"),
+            provider_longitude.label("longitude"),
+            distance if distance is not None else func.cast(None, Float).label("distance_km"),
+        ]
+        stmt = (
+            select(*columns)
+            .outerjoin(totals, totals.c.provider_id == Provider.id)
+            .where(*conditions)
+            .options(
+                selectinload(Provider.locations),
+                selectinload(Provider.photos),
+                selectinload(Provider.provider_specializations).selectinload(
+                    ProviderSpecialization.specialization
+                ),
+            )
+        )
+        if distance is not None:
+            stmt = stmt.order_by(
+                distance.asc(),
+                totals.c.average_rating.desc().nulls_last(),
+                Provider.name,
+                Provider.id,
+            )
+        else:
+            stmt = stmt.order_by(
+                totals.c.average_rating.desc().nulls_last(), Provider.name, Provider.id
+            )
+        return self._db.execute(stmt.limit(limit)).unique().all()
 
     def get_discoverable(self, provider_id: UUID) -> Provider | None:
         return self._db.scalar(

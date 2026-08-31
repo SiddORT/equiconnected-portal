@@ -29,6 +29,7 @@ _lock = threading.Lock()
 _attempts: dict[str, deque[float]] = defaultdict(deque)
 _invitation_attempts: dict[str, deque[float]] = defaultdict(deque)
 _public_visit_attempts: dict[str, deque[float]] = defaultdict(deque)
+_public_provider_attempts: dict[str, deque[float]] = defaultdict(deque)
 _subscriber_attempts: dict[str, deque[float]] = defaultdict(deque)
 _registration_attempts: dict[str, deque[float]] = defaultdict(deque)
 _email_verification_attempts: dict[str, deque[float]] = defaultdict(deque)
@@ -111,6 +112,17 @@ def check_public_visit_rate_limit(request: Request) -> None:
                 headers={"Retry-After": str(window_seconds)},
             )
         q.append(now)
+
+
+def check_public_provider_rate_limit(request: Request) -> None:
+    """Bound anonymous map reads without making normal browsing feel constrained."""
+    _check_rate_limit(
+        request,
+        _public_provider_attempts,
+        window_seconds=60,
+        max_attempts=120,
+        message="Too many provider map requests. Please try again shortly.",
+    )
 
 
 def check_subscriber_rate_limit(request: Request) -> None:

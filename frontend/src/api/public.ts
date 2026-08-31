@@ -1,5 +1,10 @@
 import { apiClient } from './client';
-import type { MessageResponse, SubscriberRegistrationRequest } from '@/types';
+import type {
+  MessageResponse,
+  ProviderType,
+  PublicProviderDiscovery,
+  SubscriberRegistrationRequest,
+} from '@/types';
 
 /** Record one aggregate public landing-page visit. No visitor details are sent. */
 export async function recordPublicVisit(): Promise<void> {
@@ -10,5 +15,15 @@ export async function registerSubscriber(
   request: SubscriberRegistrationRequest
 ): Promise<MessageResponse> {
   const { data } = await apiClient.post<MessageResponse>('/public/subscribers', request);
+  return data;
+}
+
+export async function listPublicProviders(params?: {
+  provider_type?: ProviderType;
+  latitude?: number;
+  longitude?: number;
+  limit?: number;
+}): Promise<PublicProviderDiscovery[]> {
+  const { data } = await apiClient.get<PublicProviderDiscovery[]>('/public/providers', { params });
   return data;
 }

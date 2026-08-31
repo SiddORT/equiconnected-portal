@@ -9,7 +9,14 @@ from app.repositories.review_repository import ReviewRepository
 from tests.conftest import TestingSessionLocal
 from app.models.audit_log import AuditLog
 from app.models.enums import ProviderStatus, ProviderType, PublicationStatus, VisitStability
-from app.models.provider import Provider, ProviderLocation, ProviderPhoto, ProviderReview
+from app.models.provider import (
+    Provider,
+    ProviderLocation,
+    ProviderPhoto,
+    ProviderReview,
+    ProviderSpecialization,
+)
+from app.models.specialization import Specialization
 from app.repositories.user_repository import UserRepository
 
 MEMBER_BASE = "/api/v1/member/providers"
@@ -73,6 +80,76 @@ def _provider(
 
 
 class TestMemberProviderDiscoveryAndReviews:
+    def test_public_discovery_is_anonymous_bounded_and_coordinate_safe(self, client, db):
+        reviewer = _member(db, "public-reviewer@example.com")
+        visible = _provider(db, "Public Equine Doctor", provider_type=ProviderType.DOCTOR)
+        _provider(db, "Draft Map Provider", publication=PublicationStatus.UNPUBLISHED)
+        _provider(db, "Inactive Map Provider", status=ProviderStatus.INACTIVE)
+        _provider(db, "Unlocated Map Provider", latitude=None, longitude=None)
+        specialization = Specialization(name="Sports Medicine", is_active=True)
+        db.add(specialization)
+        db.flush()
+        visible_location = (
+            db.query(ProviderLocation)
+            .filter(ProviderLocation.provider_id == visible.id)
+            .one()
+        )
+        visible_location.is_primary = False
+        db.add_all(
+            [
+                ProviderLocation(
+                    provider_id=visible.id,
+                    address_line_1="Private primary address",
+                    city="Private Primary City",
+                    country="United States",
+                    latitude=None,
+                    longitude=None,
+                    is_primary=True,
+                ),
+                ProviderSpecialization(
+                    provider_id=visible.id,
+                    specialization_id=specialization.id,
+                ),
+                ProviderReview(
+                    provider_id=visible.id,
+                    member_id=reviewer.id,
+                    rating=5,
+                    comment="Excellent",
+                ),
+            ]
+        )
+        db.commit()
+
+        response = client.get("/api/v1/public/providers")
+
+        assert response.status_code == 200
+        assert len(response.json()) == 1
+        item = response.json()[0]
+        assert item["id"] == str(visible.id)
+        assert item["specializations"] == ["Sports Medicine"]
+        assert item["average_rating"] == 5.0
+        assert item["review_count"] == 1
+        assert item["location"] == {
+            "city": "Austin",
+            "state_province": None,
+            "country": "United States",
+            "latitude": 30.2672,
+            "longitude": -97.7431,
+        }
+        assert "email" not in item
+        assert "phone" not in item
+
+        nearby = client.get(
+            "/api/v1/public/providers",
+            params={"latitude": 30.2672, "longitude": -97.7431},
+        )
+        assert nearby.status_code == 200
+        assert nearby.json()[0]["distance_km"] == 0.0
+        assert client.get(
+            "/api/v1/public/providers",
+            params={"latitude": 30.2672},
+        ).status_code == 422
+
     def test_directory_has_member_boundary_and_only_published_active_providers(
         self, client, db, seeded_admin
     ):

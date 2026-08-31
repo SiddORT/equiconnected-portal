@@ -8,6 +8,7 @@ import { PublicPage } from './PublicPage';
 vi.mock('@/api/public', () => ({
   recordPublicVisit: vi.fn(() => Promise.resolve()),
   registerSubscriber: vi.fn(),
+  listPublicProviders: vi.fn(() => Promise.resolve([])),
 }));
 
 vi.mock('@/app/TimeSettingsContext', () => ({
@@ -70,7 +71,7 @@ describe('PublicPage hero', () => {
     });
 
     resolveRequest?.({ message: 'Thanks' });
-    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('team will be in touch soon'));
+    await waitFor(() => expect(screen.getByText(/team will be in touch soon/i)).toBeTruthy());
   });
 
   it('keeps specialization controls and selected state in sync', async () => {

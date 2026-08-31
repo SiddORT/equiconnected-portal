@@ -62,6 +62,26 @@ class MemberProviderDetail(MemberProviderListItem):
     own_review: MemberReviewResponse | None
 
 
+class PublicProviderLocation(BaseModel):
+    city: str
+    state_province: str | None
+    country: str | None
+    latitude: float
+    longitude: float
+
+
+class PublicProviderDiscovery(BaseModel):
+    id: UUID
+    provider_type: ProviderType
+    name: str
+    specializations: list[str] = Field(default_factory=list)
+    location: PublicProviderLocation
+    thumbnail_url: str | None = None
+    average_rating: float | None
+    review_count: int
+    distance_km: float | None = None
+
+
 class AdminReviewListItem(BaseModel):
     id: UUID
     provider_id: UUID

@@ -9,6 +9,7 @@ import { systemCalendarDate, useTimeSettings } from '@/app/TimeSettingsContext';
 import { HeroImageSlider } from '@/components/public/HeroImageSlider';
 import { HowItWorksScroll } from '@/components/public/HowItWorksScroll';
 import { SpecializationExplorer } from '@/components/public/SpecializationExplorer';
+import { CareNearYou } from '@/components/public/CareNearYou';
 import type { SubscriberRegistrationType } from '@/types';
 import styles from './PublicPage.module.css';
 
@@ -187,6 +188,7 @@ export function PublicPage() {
 
         <SpecializationExplorer />
         <HowItWorksScroll />
+        <CareNearYou />
 
         {/* ── Features teaser ──────────────────────────────────── */}
         <section className={styles.features} aria-label="What's coming">

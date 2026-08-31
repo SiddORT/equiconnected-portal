@@ -20,3 +20,4 @@
 - [Nested frontend package installs](nested-frontend-package-installs.md) — package helpers target the workspace root, so nested app manifests and locks need explicit verification.
 - [Npm integrity recovery](npm-integrity-recovery.md) — compare persistent EINTEGRITY failures with registry metadata; never disable lockfile integrity checks.
 - [Animation horse asset scope](animation-horse-asset-scope.md) — current route intentionally uses the open-source animated horse plus procedural pony; higher realism is a future upgrade.
+- [Public provider map boundary](public-provider-map-boundary.md) — published, active listings with coordinates may appear anonymously, but contact and street-address details stay private.
