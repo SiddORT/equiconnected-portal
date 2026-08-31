@@ -174,12 +174,12 @@
 
 .archShadow {
   stroke: rgba(19, 57, 74, .18);
-  stroke-width: 2.8;
+  stroke-width: 3;
 }
 
 .archLine {
-  stroke: #c49b3a;
-  stroke-width: 1.3;
+  stroke: url(#crescent-border-gradient);
+  stroke-width: 4.5;
 }
 
 .indicators {
@@ -279,5 +279,13 @@
     top: 148px;
     right: 20px;
     bottom: auto;
+  }
+
+  .archShadow {
+    stroke-width: 2.4;
+  }
+
+  .archLine {
+    stroke-width: 3.5;
   }
 }

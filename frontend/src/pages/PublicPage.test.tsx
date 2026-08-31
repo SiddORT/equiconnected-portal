@@ -36,6 +36,7 @@ describe('PublicPage hero', () => {
     expect(screen.getByRole('link', { name: 'Join as a provider' }).getAttribute('href')).toBe('/provider/signup');
     expect(screen.getByRole('region', { name: 'Equine care stories' })).toBeTruthy();
     expect(screen.getByRole('img', { name: /Dark horse standing/i })).toBeTruthy();
+    expect(document.querySelector('#crescent-border-gradient')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Next image' }));
     expect(screen.getByRole('img', { name: /Equine care professional/i })).toBeTruthy();
     await waitFor(() => expect(publicApi.recordPublicVisit).toHaveBeenCalledOnce());

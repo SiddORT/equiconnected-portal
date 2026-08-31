@@ -119,6 +119,19 @@ export function HeroImageSlider() {
         </div>
       </div>
       <svg className={styles.crescentCut} viewBox="0 0 100 18" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="crescent-border-gradient" x1="-20%" y1="0%" x2="120%" y2="0%">
+            <stop offset="0%" stopColor="#9b7427" />
+            <stop offset="50%" stopColor="#f0d98e" />
+            <stop offset="100%" stopColor="#b78b33" />
+            {!reducedMotion && (
+              <>
+                <animate attributeName="x1" values="-20%;20%;-20%" dur="8s" repeatCount="indefinite" />
+                <animate attributeName="x2" values="80%;120%;80%" dur="8s" repeatCount="indefinite" />
+              </>
+            )}
+          </linearGradient>
+        </defs>
         <path className={styles.crescentFill} d="M0 0 Q50 16 100 0 L100 18 L0 18 Z" />
         <path className={styles.archShadow} d="M0 0 Q50 16 100 0" />
         <path className={styles.archLine} d="M0 0 Q50 16 100 0" />
