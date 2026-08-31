@@ -1,0 +1,381 @@
+.section {
+  display: grid;
+  width: min(1200px, calc(100% - 48px));
+  grid-template-columns: minmax(245px, .62fr) minmax(0, 1.38fr);
+  align-items: center;
+  gap: clamp(42px, 8vw, 124px);
+  margin-top: clamp(100px, 13vw, 172px);
+  color: #12394a;
+}
+
+.eyebrow,
+.previewKicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  color: #a17425;
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+}
+
+.eyebrow span {
+  width: 26px;
+  height: 1px;
+  background: #b78b33;
+}
+
+.headingBlock h2 {
+  margin: 0;
+  color: #12394a;
+  font-family: var(--font-display);
+  font-size: clamp(2.8rem, 5vw, 5rem);
+  font-weight: 500;
+  letter-spacing: -.055em;
+  line-height: .96;
+}
+
+.headingBlock h2 em {
+  color: #a17425;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.description {
+  max-width: 310px;
+  margin: 24px 0 26px;
+  color: #527585;
+  font-size: .88rem;
+  line-height: 1.7;
+}
+
+.cta {
+  display: inline-flex;
+  min-height: 47px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 20px;
+  border: 1px solid #b78b33;
+  background: #b78b33;
+  color: #fffdf4;
+  font-size: .65rem;
+  font-weight: 800;
+  letter-spacing: .13em;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: background 180ms ease, transform 180ms ease;
+}
+
+.cta span {
+  font-size: 1rem;
+}
+
+.cta:hover {
+  background: #936b20;
+  transform: translateY(-2px);
+}
+
+.cta:focus-visible {
+  outline: 3px solid rgba(183, 139, 51, .48);
+  outline-offset: 4px;
+}
+
+.previewShell {
+  min-width: 0;
+  padding: clamp(22px, 3vw, 34px);
+  border: 1px solid rgba(18, 57, 74, .2);
+  background:
+    linear-gradient(135deg, rgba(232, 241, 235, .72), rgba(250, 245, 225, .62)),
+    #fdfcf7;
+  box-shadow: 0 24px 54px rgba(18, 57, 74, .08);
+  box-sizing: border-box;
+}
+
+.previewHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(18, 57, 74, .15);
+}
+
+.previewKicker {
+  margin-bottom: 7px;
+  color: #527585;
+  font-size: .58rem;
+  letter-spacing: .16em;
+}
+
+.previewHeader h3 {
+  margin: 0;
+  color: #12394a;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 500;
+  letter-spacing: -.035em;
+}
+
+.previewStatus {
+  padding: 6px 9px;
+  border: 1px solid rgba(183, 139, 51, .45);
+  color: #a17425;
+  font-size: .56rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: minmax(160px, .85fr) minmax(180px, 1fr);
+  gap: 30px;
+  padding: 22px 0 16px;
+}
+
+.scoreBlock {
+  display: flex;
+  align-items: start;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.scoreBlock strong {
+  color: #12394a;
+  font-family: var(--font-display);
+  font-size: 3.35rem;
+  font-weight: 500;
+  letter-spacing: -.06em;
+  line-height: .9;
+}
+
+.stars,
+.cardStars {
+  color: #b78b33;
+  letter-spacing: .16em;
+}
+
+.stars {
+  font-size: .86rem;
+}
+
+.scoreBlock > span:last-child {
+  color: #527585;
+  font-size: .67rem;
+}
+
+.ratingBars {
+  align-self: center;
+}
+
+.ratingRow {
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  align-items: center;
+  gap: 9px;
+  margin: 6px 0;
+  color: #78909a;
+  font-size: .62rem;
+}
+
+.ratingTrack {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  background: rgba(18, 57, 74, .1);
+}
+
+.ratingTrack span {
+  display: block;
+  height: 100%;
+  background: #b78b33;
+}
+
+.previewNote {
+  margin: 0;
+  padding: 11px 13px;
+  border-left: 2px solid #b78b33;
+  background: rgba(255, 255, 255, .48);
+  color: #527585;
+  font-size: .68rem;
+  line-height: 1.5;
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.reviewCard {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(18, 57, 74, .14);
+  background: rgba(255, 253, 248, .9);
+  transition: border-color 180ms ease, transform 180ms ease;
+}
+
+.reviewCard:hover {
+  border-color: rgba(183, 139, 51, .72);
+  transform: translateY(-3px);
+}
+
+.cardTopline,
+.memberRow,
+.memberRow > span:last-child {
+  display: flex;
+}
+
+.cardTopline {
+  align-items: center;
+  justify-content: space-between;
+  color: #b78b33;
+  font-size: .58rem;
+  font-weight: 800;
+  letter-spacing: .13em;
+}
+
+.cardDots {
+  color: #78909a;
+  letter-spacing: .08em;
+}
+
+.memberRow {
+  align-items: center;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.avatar {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 50%;
+  background: #12394a;
+  color: #f3e4b1;
+  font-size: .46rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.memberRow > span:last-child {
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.memberRow strong,
+.memberRow small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memberRow strong {
+  color: #12394a;
+  font-size: .62rem;
+}
+
+.memberRow small {
+  color: #78909a;
+  font-size: .57rem;
+}
+
+.cardStars {
+  margin-top: 17px;
+  font-size: .66rem;
+}
+
+.reviewCard h4 {
+  margin: 13px 0 5px;
+  color: #12394a;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: -.025em;
+}
+
+.reviewCard p {
+  min-height: 48px;
+  margin: 0;
+  color: #527585;
+  font-size: .65rem;
+  line-height: 1.5;
+}
+
+.redactedLines {
+  display: flex;
+  gap: 4px;
+  margin-top: 12px;
+  flex-direction: column;
+}
+
+.redactedLines span {
+  display: block;
+  width: 100%;
+  height: 4px;
+  background: rgba(82, 117, 133, .14);
+}
+
+.redactedLines span:last-child {
+  width: 68%;
+}
+
+@media (max-width: 980px) {
+  .section {
+    grid-template-columns: minmax(230px, .7fr) minmax(0, 1.3fr);
+    gap: 42px;
+  }
+
+  .cardGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .reviewCard p {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 700px) {
+  .section {
+    width: min(100% - 32px, 560px);
+    grid-template-columns: 1fr;
+    gap: 34px;
+    margin-top: 92px;
+  }
+
+  .headingBlock h2 {
+    font-size: clamp(2.7rem, 13vw, 4.6rem);
+  }
+
+  .description {
+    max-width: 480px;
+  }
+
+  .previewShell {
+    padding: 18px;
+  }
+
+  .summary {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .ratingBars {
+    width: min(100%, 260px);
+    justify-self: end;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cta,
+  .reviewCard {
+    transition: none;
+  }
+}

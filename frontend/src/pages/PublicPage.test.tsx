@@ -135,6 +135,28 @@ describe('PublicPage hero', () => {
     }
   });
 
+  it('explains the product advantages and previews member community insight', () => {
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    expect(screen.getByRole('heading', { name: 'The right care starts with a clearer picture.' })).toBeTruthy();
+    expect(screen.getByText('Location-first discovery')).toBeTruthy();
+    expect(screen.getByText('Find relevant care around you.')).toBeTruthy();
+    expect(screen.getByText('Specialization-based search')).toBeTruthy();
+    expect(screen.getByText('Start with the type of care you need.')).toBeTruthy();
+    expect(screen.getByText('Real community insight')).toBeTruthy();
+    expect(screen.getByText('Explore ratings, reviews and comments.')).toBeTruthy();
+    expect(screen.getByText('One connected platform')).toBeTruthy();
+    expect(screen.getByText('Doctors, clinics and hospitals in one ecosystem.')).toBeTruthy();
+
+    expect(screen.getByRole('heading', { name: 'Real experiences. Better decisions.' })).toBeTruthy();
+    expect(screen.getByText('Member view preview')).toBeTruthy();
+    expect(screen.getByText('Illustrative')).toBeTruthy();
+    expect(screen.getByText('4.8')).toBeTruthy();
+    expect(screen.getByText('126 community reviews')).toBeTruthy();
+    expect(screen.getByText(/No live review text is shown here/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Explore providers/ }).getAttribute('href')).toBe('/member');
+  });
+
   it('highlights the most visible care-journey panel while scrolling', () => {
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
 

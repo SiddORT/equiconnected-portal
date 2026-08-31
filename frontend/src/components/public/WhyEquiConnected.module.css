@@ -1,0 +1,184 @@
+.section {
+  width: min(1200px, calc(100% - 48px));
+  margin-top: clamp(92px, 12vw, 164px);
+  color: #12394a;
+}
+
+.intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.06fr) minmax(260px, .74fr);
+  align-items: end;
+  gap: clamp(32px, 8vw, 140px);
+  padding-bottom: 34px;
+  border-bottom: 1px solid rgba(18, 57, 74, .2);
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  color: #a17425;
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+}
+
+.eyebrow span {
+  width: 26px;
+  height: 1px;
+  background: #b78b33;
+}
+
+.intro h2 {
+  max-width: 720px;
+  margin: 0;
+  color: #12394a;
+  font-family: var(--font-display);
+  font-size: clamp(2.8rem, 5.2vw, 5.4rem);
+  font-weight: 500;
+  letter-spacing: -.055em;
+  line-height: .96;
+}
+
+.intro h2 em {
+  color: #a17425;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.description {
+  max-width: 405px;
+  margin: 0 0 3px;
+  color: #527585;
+  font-size: .93rem;
+  line-height: 1.75;
+}
+
+.advantageGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 1px;
+  border: 1px solid rgba(18, 57, 74, .18);
+  background: rgba(18, 57, 74, .18);
+}
+
+.advantageCard {
+  display: flex;
+  min-height: 244px;
+  padding: 26px 24px 24px;
+  flex-direction: column;
+  background: #fdfcf7;
+  box-sizing: border-box;
+  transition: background 180ms ease, transform 180ms ease;
+}
+
+.advantageCard:hover {
+  position: relative;
+  z-index: 1;
+  background: #fffdf4;
+  transform: translateY(-4px);
+}
+
+.cardTopline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.number {
+  color: #b78b33;
+  font-size: .62rem;
+  font-weight: 800;
+  letter-spacing: .16em;
+}
+
+.symbol {
+  display: grid;
+  width: 35px;
+  height: 35px;
+  place-items: center;
+  border: 1px solid rgba(183, 139, 51, .4);
+  border-radius: 50%;
+  color: #a17425;
+  font-size: 1.16rem;
+}
+
+.advantageCard h3 {
+  max-width: 190px;
+  margin: auto 0 12px;
+  color: #12394a;
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 1.7vw, 1.58rem);
+  font-weight: 500;
+  letter-spacing: -.035em;
+  line-height: 1.05;
+  text-transform: capitalize;
+}
+
+.advantageCard p {
+  max-width: 200px;
+  margin: 0;
+  color: #527585;
+  font-size: .78rem;
+  line-height: 1.55;
+}
+
+.cardRule {
+  width: 38px;
+  height: 1px;
+  margin-top: 22px;
+  background: #b78b33;
+}
+
+.advantageCard:focus-within,
+.advantageCard:focus-visible {
+  outline: 3px solid rgba(183, 139, 51, .45);
+  outline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+  .intro {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  .description {
+    max-width: 570px;
+  }
+
+  .advantageGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .section {
+    width: min(100% - 32px, 560px);
+    margin-top: 82px;
+  }
+
+  .intro h2 {
+    font-size: clamp(2.7rem, 13vw, 4.6rem);
+  }
+
+  .advantageGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .advantageCard {
+    min-height: 202px;
+  }
+
+  .advantageCard:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .advantageCard {
+    transition: none;
+  }
+}

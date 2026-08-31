@@ -10,6 +10,8 @@ import { HeroImageSlider } from '@/components/public/HeroImageSlider';
 import { HowItWorksScroll } from '@/components/public/HowItWorksScroll';
 import { SpecializationExplorer } from '@/components/public/SpecializationExplorer';
 import { CareNearYou } from '@/components/public/CareNearYou';
+import { WhyEquiConnected } from '@/components/public/WhyEquiConnected';
+import { CommunityPreview } from '@/components/public/CommunityPreview';
 import type { SubscriberRegistrationType } from '@/types';
 import styles from './PublicPage.module.css';
 
@@ -189,6 +191,8 @@ export function PublicPage() {
         <SpecializationExplorer />
         <HowItWorksScroll />
         <CareNearYou />
+        <WhyEquiConnected />
+        <CommunityPreview />
 
         {/* ── Features teaser ──────────────────────────────────── */}
         <section className={styles.features} aria-label="What's coming">

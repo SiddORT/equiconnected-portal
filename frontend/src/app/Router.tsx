@@ -66,6 +66,7 @@ export function AppRouter() {
         <Route path="/provider/signup" element={<ProviderSignupPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/login" element={<MemberLoginPage />} />
+        <Route path="/member" element={<Navigate to="/providers" replace />} />
         <Route path="/provider/login" element={<ProviderLoginPage />} />
         <Route path="/provider/setup-password" element={<ProviderPasswordSetupPage />} />
         <Route path="/terms-of-service" element={<LegalPage kind="terms" />} />
