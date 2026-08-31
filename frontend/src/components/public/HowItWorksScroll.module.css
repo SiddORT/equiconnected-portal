@@ -333,6 +333,16 @@
   }
 }
 
+@media (min-width: 1100px) {
+  .panel {
+    grid-template-columns: minmax(260px, .82fr) minmax(320px, 1.18fr);
+  }
+
+  .panelCopy {
+    max-width: 540px;
+  }
+}
+
 @media (max-width: 799px) {
   .section {
     width: min(100% - 32px, 600px);
