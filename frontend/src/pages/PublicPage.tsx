@@ -174,8 +174,9 @@ export function PublicPage() {
               )}
             </div>
           </div>
-          <HeroImageSlider />
-          <div className={styles.heroCurve} aria-hidden="true" />
+          <div className={styles.heroVisual}>
+            <HeroImageSlider />
+          </div>
         </section>
 
         {/* ── Features teaser ──────────────────────────────────── */}

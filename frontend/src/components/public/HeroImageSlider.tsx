@@ -119,8 +119,8 @@ export function HeroImageSlider() {
         </div>
       </div>
       <svg className={styles.archBorder} viewBox="0 0 100 18" preserveAspectRatio="none" aria-hidden="true">
-        <path className={styles.archShadow} d="M0 16 Q50 -3 100 16" />
-        <path className={styles.archLine} d="M0 14 Q50 -5 100 14" />
+        <path className={styles.archShadow} d="M0 17 Q50 10 100 17" />
+        <path className={styles.archLine} d="M0 16 Q50 8 100 16" />
       </svg>
       <div className={styles.indicators} role="group" aria-label="Choose a hero image">
         {SLIDES.map((slide, index) => (
