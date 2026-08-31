@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import styles from '@/pages/AnimationPage.module.css';
 
 export const ADULT_HORSE_ASSET_URL = '/models/horse-adult.glb';
 
@@ -44,6 +45,7 @@ type LoadedAsset = {
 };
 
 const TIMELINE_SECONDS = 20;
+const FALLBACK_DURATION_MS = 5200;
 const GLB_PONY_SCALE = 0.0105;
 const GLB_ADULT_SCALE = 0.015;
 
@@ -348,16 +350,126 @@ function disposeScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   renderer.forceContextLoss?.();
 }
 
+type FallbackStep = 'opening' | 'gathering' | 'transforming' | 'burst' | 'gallop' | 'complete';
+
+const FALLBACK_STEP_COPY: Record<FallbackStep, string> = {
+  opening: 'A small step enters the shallows',
+  gathering: 'The water gathers around each hoof',
+  transforming: 'Strength rises through the current',
+  burst: 'A new shape breaks the surface',
+  gallop: 'The adult horse finds open ground',
+  complete: 'The journey is complete',
+};
+
+function getFallbackStep(progress: number): FallbackStep {
+  if (progress >= 1) return 'complete';
+  if (progress < 0.2) return 'opening';
+  if (progress < 0.4) return 'gathering';
+  if (progress < 0.65) return 'transforming';
+  if (progress < 0.8) return 'burst';
+  return 'gallop';
+}
+
+function HorseFallback({
+  playToken,
+  reducedMotion,
+  onStatusChange,
+  onPhaseChange,
+}: HorseSceneProps) {
+  const [progress, setProgress] = useState(0);
+  const handledPlayTokenRef = useRef(0);
+
+  useEffect(() => {
+    onStatusChange('unsupported');
+    onPhaseChange('opening');
+  }, [onPhaseChange, onStatusChange]);
+
+  useEffect(() => {
+    if (playToken <= handledPlayTokenRef.current) return;
+    handledPlayTokenRef.current = playToken;
+    setProgress(0);
+    onPhaseChange('opening');
+
+    if (reducedMotion) {
+      setProgress(1);
+      onPhaseChange('complete');
+      onStatusChange('complete');
+      return;
+    }
+
+    onStatusChange('playing');
+    let frameId = 0;
+    const startedAt = performance.now();
+    const advance = (now: number) => {
+      const nextProgress = Math.min((now - startedAt) / FALLBACK_DURATION_MS, 1);
+      setProgress(nextProgress);
+      const nextStep = getFallbackStep(nextProgress);
+      onPhaseChange(nextStep === 'complete' ? 'complete' : nextStep);
+      if (nextProgress >= 1) {
+        onStatusChange('complete');
+        return;
+      }
+      frameId = window.requestAnimationFrame(advance);
+    };
+    frameId = window.requestAnimationFrame(advance);
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [onPhaseChange, onStatusChange, playToken, reducedMotion]);
+
+  const step = getFallbackStep(progress);
+  const isComplete = step === 'complete';
+
+  return (
+    <div
+      className={styles.fallbackScene}
+      data-testid="horse-fallback"
+      data-step={step}
+      data-progress={progress.toFixed(2)}
+      role="img"
+      aria-label="Poster-based horse transformation fallback"
+    >
+      <img
+        className={styles.fallbackImage}
+        src="/horse-panel.jpg"
+        alt="A dark horse standing in an open field beneath a wide evening sky"
+      />
+      <div className={styles.fallbackImageShade} aria-hidden="true" />
+      <div
+        className={styles.fallbackPony}
+        data-visible={step === 'opening' || step === 'gathering' || step === 'transforming'}
+        aria-hidden="true"
+      />
+      <div
+        className={styles.fallbackAdult}
+        data-visible={step === 'burst' || step === 'gallop' || isComplete}
+        aria-hidden="true"
+      />
+      <div className={styles.fallbackStory} aria-hidden="true">
+        <span className={styles.fallbackStoryKicker}>A non-WebGL study</span>
+        <span className={styles.fallbackStoryRule} />
+        <span>{FALLBACK_STEP_COPY[step]}</span>
+      </div>
+      <div className={styles.fallbackSteps} aria-hidden="true">
+        <span data-active={step === 'opening' || step === 'gathering'}>first steps</span>
+        <span data-active={step === 'transforming' || step === 'burst'}>transformation</span>
+        <span data-active={step === 'gallop' || isComplete}>open ground</span>
+      </div>
+    </div>
+  );
+}
+
 export function HorseScene({ playToken, reducedMotion, onStatusChange, onPhaseChange }: HorseSceneProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const startSequenceRef = useRef<(() => void) | null>(null);
   const handledPlayTokenRef = useRef(0);
+  const [renderMode, setRenderMode] = useState<'webgl' | 'fallback'>('webgl');
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     if (!hasWebGL(canvas)) {
+      setRenderMode('fallback');
       onStatusChange('unsupported');
       return;
     }
@@ -384,6 +496,7 @@ export function HorseScene({ playToken, reducedMotion, onStatusChange, onPhaseCh
         powerPreference: 'high-performance',
       });
     } catch {
+      setRenderMode('fallback');
       onStatusChange('unsupported');
       return;
     }
@@ -598,6 +711,17 @@ export function HorseScene({ playToken, reducedMotion, onStatusChange, onPhaseCh
     handledPlayTokenRef.current = playToken;
     startSequenceRef.current?.();
   }, [playToken]);
+
+  if (renderMode === 'fallback') {
+    return (
+      <HorseFallback
+        playToken={playToken}
+        reducedMotion={reducedMotion}
+        onStatusChange={onStatusChange}
+        onPhaseChange={onPhaseChange}
+      />
+    );
+  }
 
   return <canvas ref={canvasRef} className="horse-scene-canvas" role="img" aria-label="Cinematic horse transformation scene" />;
 }

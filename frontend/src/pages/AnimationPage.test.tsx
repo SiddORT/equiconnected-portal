@@ -49,13 +49,20 @@ describe('AnimationPage', () => {
   });
 
   it('shows a usable fallback when WebGL is unavailable', async () => {
+    const user = userEvent.setup();
     sceneMock.status = 'unsupported';
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByRole('alert').textContent).toContain('modern browser with WebGL');
+      expect(screen.getByRole('alert').textContent).toContain('story continues');
     });
-    expect(screen.getByRole('button', { name: 'Play horse transformation' })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('alert').textContent).toContain('poster-based transformation');
+    expect(screen.getAllByRole('link', { name: 'Return to EquiConnected home' })).toHaveLength(2);
+    const playButton = screen.getByRole('button', { name: 'Play horse transformation' });
+    expect(playButton).toHaveProperty('disabled', false);
+    playButton.focus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByTestId('horse-scene').getAttribute('data-play-token')).toBe('1');
   });
 
   it('keeps Play disabled until the scene and local model finish loading', async () => {

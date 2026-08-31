@@ -37,18 +37,25 @@ export function AnimationPage() {
   const [sceneStatus, setSceneStatus] = useState<SceneStatus>('loading');
   const [phase, setPhase] = useState<TimelinePhase>('opening');
   const [playToken, setPlayToken] = useState(0);
+  const [fallbackMode, setFallbackMode] = useState(false);
   const reducedMotion = useReducedMotion();
 
   const handleStatusChange = useCallback((status: SceneStatus) => {
+    if (status === 'unsupported') setFallbackMode(true);
+    if (status === 'ready') setFallbackMode(false);
     setSceneStatus(status);
   }, []);
 
-  const canPlay = sceneStatus === 'ready' || sceneStatus === 'complete';
+  const canPlay = fallbackMode
+    ? sceneStatus !== 'playing'
+    : sceneStatus === 'ready' || sceneStatus === 'complete';
   const isRunning = sceneStatus === 'playing';
   const isComplete = sceneStatus === 'complete' || phase === 'complete';
   const statusText =
+    fallbackMode && sceneStatus === 'playing' ? PHASE_COPY[phase] :
+    fallbackMode && isComplete ? 'The fallback journey is complete.' :
+    fallbackMode ? 'Interactive 3D is unavailable; the fallback sequence is ready.' :
     sceneStatus === 'loading' ? 'Preparing the water and horse…' :
-    sceneStatus === 'unsupported' ? 'WebGL is unavailable in this browser.' :
     sceneStatus === 'error' ? 'The scene could not be initialized.' :
     isComplete ? PHASE_COPY.complete :
     PHASE_COPY[phase];
@@ -116,15 +123,25 @@ export function AnimationPage() {
           </div>
         </section>
 
-        {(sceneStatus === 'unsupported' || sceneStatus === 'error') && (
+        {fallbackMode ? (
           <div className={styles.fallback} role="alert">
-            <strong>This experience needs a modern browser with WebGL.</strong>
+            <strong>The interactive 3D scene is unavailable, but the story continues.</strong>
             <p>
-              The animation cannot run here, but the EquiConnected experience is still available.
-              Try a current version of Chrome, Safari, Firefox, or Edge.
+              WebGL is not available in this browser, so a short poster-based transformation is ready
+              below. Start it whenever you like, or return home.
             </p>
+            <Link to="/" className={styles.fallbackHome}>Return to EquiConnected home</Link>
           </div>
-        )}
+        ) : sceneStatus === 'error' ? (
+          <div className={styles.fallback} role="alert">
+            <strong>The interactive scene could not be initialized.</strong>
+            <p>
+              The EquiConnected experience is still available. You can return home and continue
+              exploring the site.
+            </p>
+            <Link to="/" className={styles.fallbackHome}>Return to EquiConnected home</Link>
+          </div>
+        ) : null}
 
         <p className={styles.motionNote}>
           {reducedMotion ? 'Reduced motion is on — the sequence uses a shorter, gentler reveal.' : 'Move freely. The scene is designed to be replayed.'}
