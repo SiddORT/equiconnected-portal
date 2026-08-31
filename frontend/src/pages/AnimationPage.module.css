@@ -1,0 +1,297 @@
+.page {
+  --ink: #eef4ee;
+  --muted: rgba(220, 235, 229, 0.64);
+  --gold: #d6b87a;
+  position: relative;
+  left: 50%;
+  width: 100vw;
+  min-height: 100svh;
+  overflow: hidden;
+  transform: translateX(-50%);
+  color: var(--ink);
+  background: #071b23;
+  isolation: isolate;
+}
+
+.atmosphere {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 74% 19%, rgba(139, 191, 184, 0.19), transparent 25rem),
+    linear-gradient(145deg, #071b23 0%, #103944 48%, #0b222a 100%);
+}
+
+.header,
+.main,
+.footer {
+  width: min(1200px, calc(100% - 3rem));
+  margin-inline: auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 0;
+  border-bottom: 1px solid rgba(211, 227, 218, 0.16);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  letter-spacing: 0.03em;
+}
+
+.brand:hover { color: #fff; }
+
+.brandMark {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid rgba(214, 184, 122, 0.72);
+  color: var(--gold);
+  font: 700 0.6rem var(--font-sans);
+  letter-spacing: 0.05em;
+}
+
+.headerLabel {
+  color: var(--muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.main {
+  padding: clamp(2.5rem, 5vw, 4.5rem) 0 3rem;
+}
+
+.intro {
+  max-width: 1000px;
+  margin-bottom: clamp(2rem, 4vw, 3.4rem);
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 1.35rem;
+  color: var(--gold);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.eyebrow span {
+  display: inline-block;
+  width: 2.2rem;
+  height: 1px;
+  background: var(--gold);
+}
+
+.intro h1 {
+  margin: 0;
+  color: #f0f4ec;
+  font: 500 clamp(3rem, 6vw, 5.5rem)/0.96 var(--font-display);
+  letter-spacing: -0.045em;
+}
+
+.intro h1 em {
+  color: #b6d5cd;
+  font-style: italic;
+}
+
+.lede {
+  max-width: 34rem;
+  margin-top: 1.7rem;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.stage {
+  position: relative;
+  height: min(61vw, 680px);
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid rgba(189, 220, 211, 0.22);
+  background:
+    linear-gradient(90deg, rgba(8, 31, 38, 0.42), rgba(8, 31, 38, 0.12)),
+    url('/horse-panel.jpg') center 37% / cover no-repeat,
+    #102e38;
+  box-shadow: 0 2rem 5rem rgba(0, 0, 0, 0.2);
+}
+
+.stage :global(.horse-scene-canvas) {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.stageVignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(4, 18, 23, 0.28), transparent 32%, transparent 72%, rgba(4, 18, 23, 0.58)),
+    linear-gradient(90deg, rgba(4, 18, 23, 0.4), transparent 28%, transparent 72%, rgba(4, 18, 23, 0.18));
+}
+
+.stageCaption {
+  position: absolute;
+  right: 1.6rem;
+  bottom: 1.4rem;
+  left: 1.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: rgba(232, 241, 233, 0.7);
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.captionKicker { color: var(--gold); }
+.captionRule { width: 2.5rem; height: 1px; background: rgba(232, 241, 233, 0.4); }
+
+.progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: rgba(232, 241, 233, 0.13);
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+  transition: width 500ms ease;
+}
+
+.controls {
+  position: absolute;
+  z-index: 2;
+  top: 1.2rem;
+  right: 1.2rem;
+  left: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 0.7rem 0.8rem;
+  background: linear-gradient(90deg, rgba(5, 23, 29, 0.78), rgba(5, 23, 29, 0.18));
+  backdrop-filter: blur(5px);
+}
+
+.statusBlock {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.statusDot {
+  width: 0.55rem;
+  height: 0.55rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: rgba(214, 184, 122, 0.42);
+}
+
+.statusDot[data-active="true"] {
+  background: var(--gold);
+  box-shadow: 0 0 0 5px rgba(214, 184, 122, 0.12);
+}
+
+.statusLabel {
+  color: rgba(220, 235, 229, 0.44);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.statusText {
+  margin-top: 0.16rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.playButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 2.9rem;
+  padding: 0.7rem 1.2rem;
+  border: 1px solid rgba(214, 184, 122, 0.72);
+  border-radius: 0;
+  color: #132a2b;
+  background: var(--gold);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: background 180ms ease, transform 180ms ease;
+}
+
+.playButton:hover:not(:disabled) { background: #edd497; transform: translateY(-2px); }
+.playButton:disabled { cursor: not-allowed; opacity: 0.48; }
+
+.fallback {
+  max-width: 42rem;
+  margin-top: 1.5rem;
+  padding: 1.1rem 1.2rem;
+  border-left: 2px solid var(--gold);
+  color: var(--muted);
+  background: rgba(4, 18, 23, 0.48);
+}
+
+.fallback strong { color: var(--ink); font-weight: 600; }
+.fallback p { margin-top: 0.4rem; font-size: 0.88rem; }
+
+.motionNote {
+  margin-top: 1.3rem;
+  color: rgba(220, 235, 229, 0.42);
+  font-size: 0.75rem;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 1.4rem 0 2rem;
+  border-top: 1px solid rgba(211, 227, 218, 0.16);
+  color: rgba(220, 235, 229, 0.5);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.footer a { color: var(--gold); }
+
+@media (max-width: 700px) {
+  .header,
+  .main,
+  .footer { width: min(100% - 2rem, 1200px); }
+  .header { padding: 1rem 0; }
+  .headerLabel { display: none; }
+  .main { padding-top: 3rem; }
+  .stage { height: 72vw; min-height: 340px; }
+  .stageCaption { right: 0.9rem; bottom: 0.9rem; left: 0.9rem; gap: 0.45rem; font-size: 0.54rem; }
+  .captionRule { width: 1.2rem; }
+  .controls { right: 0.8rem; left: 0.8rem; align-items: flex-start; flex-direction: column; gap: 0.8rem; }
+  .playButton { width: 100%; justify-content: center; }
+  .footer { flex-wrap: wrap; gap: 0.7rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playButton,
+  .progress span { transition: none; }
+}

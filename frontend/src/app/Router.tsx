@@ -2,6 +2,7 @@
  * Application router.
  * Adding new module routes (hospital, visitor) happens here — deliberately.
  */
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthGuard } from '@/features/admin/AuthGuard';
 import { AdminLayout } from '@/components/layout/AdminLayout';
@@ -39,12 +40,24 @@ import { ProviderApplicationsPage } from '@/pages/admin/ProviderApplicationsPage
 import { ProviderPasswordSetupPage } from '@/pages/ProviderPasswordSetupPage';
 import { SubscribersPage } from '@/pages/admin/SubscribersPage';
 
+const AnimationPage = lazy(() =>
+  import('@/pages/AnimationPage').then((module) => ({ default: module.AnimationPage }))
+);
+
 export function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
         {/* ── Public ──────────────────────────────────────────────── */}
         <Route path="/" element={<PublicPage />} />
+        <Route
+          path="/animation"
+          element={(
+            <Suspense fallback={<p role="status">Loading cinematic experience…</p>}>
+              <AnimationPage />
+            </Suspense>
+          )}
+        />
         <Route path="/provider/invite/success" element={<SubmissionSuccessPage />} />
         <Route path="/provider/invite/:token" element={<InvitationPage />} />
         {/* Emailed links use /provider/invitations/{token} — same page. */}

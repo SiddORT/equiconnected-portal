@@ -17,3 +17,5 @@
 - [PostgreSQL test-schema isolation](postgresql-test-schema-isolation.md) — commit session search-path changes before pooled test connections can be reset.
 - [Homepage carousel selection](homepage-carousel-selection.md) — keep explicit card selection separate from passive rail browsing unless scroll state can be derived reliably.
 - [Scroll-driven step highlighting](scroll-step-highlighting.md) — retain visibility for every panel; one observer callback may not contain all panels currently on screen.
+- [Nested frontend package installs](nested-frontend-package-installs.md) — package helpers target the workspace root, so nested app manifests and locks need explicit verification.
+- [Animation horse asset scope](animation-horse-asset-scope.md) — current route intentionally uses the open-source animated horse plus procedural pony; higher realism is a future upgrade.
