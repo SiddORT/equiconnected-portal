@@ -59,7 +59,10 @@
 .stepRail {
   position: sticky;
   top: 124px;
-  padding-top: 8px;
+  padding: 28px 24px 30px;
+  border: 1px solid rgba(18, 57, 74, .16);
+  background: #fffdf8;
+  box-shadow: 0 18px 38px rgba(18, 57, 74, .08);
 }
 
 .railLabel {
@@ -173,12 +176,42 @@
 }
 
 .panel {
+  position: relative;
   display: grid;
   min-height: min(66vh, 600px);
   grid-template-columns: minmax(240px, .9fr) minmax(240px, 1fr);
   align-items: center;
   gap: clamp(28px, 5vw, 72px);
+  padding: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(18, 57, 74, .16);
+  background: #fffdf8;
+  box-shadow: 0 18px 38px rgba(18, 57, 74, .07);
   scroll-margin-top: 140px;
+  transition: border-color 350ms ease, box-shadow 350ms ease;
+}
+
+.panel::before {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  left: -45%;
+  width: 24%;
+  background: linear-gradient(90deg, transparent, rgba(243, 228, 177, .22), transparent);
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  transform: skewX(-18deg);
+}
+
+.activePanel {
+  border-color: rgba(183, 139, 51, .58);
+  box-shadow: 0 24px 48px rgba(18, 57, 74, .12), 0 0 0 4px rgba(183, 139, 51, .06);
+}
+
+.activePanel::before {
+  animation: cardSweep 900ms cubic-bezier(.2, .7, .2, 1) both;
 }
 
 .panelImageFrame {
@@ -223,7 +256,10 @@
 }
 
 .panelCopy {
+  position: relative;
+  z-index: 1;
   max-width: 430px;
+  padding: 18px clamp(10px, 2vw, 26px) 18px 0;
   color: var(--hero-navy-soft);
   font-family: var(--font-sans);
   font-size: 1rem;
@@ -268,6 +304,20 @@
   background: var(--hero-gold);
 }
 
+@keyframes cardSweep {
+  from {
+    left: -45%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  to {
+    left: 125%;
+    opacity: 0;
+  }
+}
+
 @media (max-width: 799px) {
   .section {
     width: min(100% - 32px, 600px);
@@ -283,7 +333,7 @@
     z-index: 2;
     top: 76px;
     margin: 0 -4px 28px;
-    padding: 12px 4px 10px;
+    padding: 14px 12px 12px;
     background: rgba(250, 248, 241, .96);
     backdrop-filter: blur(10px);
   }
@@ -332,6 +382,7 @@
     grid-template-columns: 1fr;
     gap: 24px;
     scroll-margin-top: 152px;
+    padding: 10px;
   }
 
   .panelImageFrame {
@@ -341,6 +392,7 @@
 
   .panelCopy {
     max-width: none;
+    padding: 4px 12px 14px;
     opacity: 1;
     transform: none;
   }
@@ -355,7 +407,9 @@
   .stepButton,
   .stepNumber,
   .panelImage,
-  .panelCopy {
+  .panelCopy,
+  .activePanel::before {
     transition: none;
+    animation: none;
   }
 }
