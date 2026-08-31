@@ -9,8 +9,9 @@ vi.mock('@/api/public', () => ({
   recordPublicVisit: vi.fn(() => Promise.resolve()),
   registerSubscriber: vi.fn(),
 }));
+
 vi.mock('@/app/TimeSettingsContext', () => ({
-  systemCalendarDate: () => '2026-08-21',
+  systemCalendarDate: () => '2026-08-31',
   useTimeSettings: () => ({
     settings: { timezone: 'UTC' },
     isLoading: false,
@@ -20,11 +21,23 @@ vi.mock('@/app/TimeSettingsContext', () => ({
 
 afterEach(() => {
   cleanup();
+  window.localStorage.clear();
   vi.resetAllMocks();
 });
 
-describe('PublicPage subscriber registration', () => {
-  it('validates the selection and submits a typed subscriber request', async () => {
+describe('PublicPage hero', () => {
+  it('presents the connected-care message and existing signup destinations', async () => {
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    expect(screen.getByRole('heading', { name: 'Healthcare, Connected Around You.' })).toBeTruthy();
+    expect(screen.getByText(/Discover doctors, clinics and hospitals/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Find care/i }).getAttribute('href')).toBe('/signup');
+    expect(screen.getByRole('link', { name: 'Join as a provider' }).getAttribute('href')).toBe('/provider/signup');
+    expect(screen.getByRole('img', { name: /connected healthcare network/i })).toBeTruthy();
+    await waitFor(() => expect(publicApi.recordPublicVisit).toHaveBeenCalledOnce());
+  });
+
+  it('keeps the subscriber enrollment flow with validation and submission', async () => {
     const user = userEvent.setup();
     let resolveRequest: ((value: { message: string }) => void) | undefined;
     vi.mocked(publicApi.registerSubscriber).mockImplementation(
@@ -32,14 +45,14 @@ describe('PublicPage subscriber registration', () => {
     );
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
 
-    await user.click(screen.getByRole('button', { name: 'Register' }));
+    await user.click(screen.getByRole('button', { name: 'Keep me posted' }));
     expect(screen.getByRole('alert').textContent).toContain('choose how you would like to register');
     expect(screen.getByLabelText('Register as')).toHaveProperty('required', true);
     expect(screen.getByLabelText('Register as').getAttribute('aria-invalid')).toBe('true');
 
     await user.selectOptions(screen.getByLabelText('Register as'), 'VET');
     await user.type(screen.getByLabelText('Email address'), 'vet@example.com');
-    await user.click(screen.getByRole('button', { name: 'Register' }));
+    await user.click(screen.getByRole('button', { name: 'Keep me posted' }));
     expect(screen.getByRole('button', { name: 'Submitting…' })).toBeTruthy();
     expect(publicApi.registerSubscriber).toHaveBeenCalledWith({
       email: 'vet@example.com',

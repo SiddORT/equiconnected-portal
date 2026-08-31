@@ -1,11 +1,12 @@
 /**
- * Public "Coming Soon" page for the EquiConnected portal.
+ * Public landing page for the EquiConnected portal.
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
 import { recordPublicVisit, registerSubscriber } from '@/api/public';
 import { systemCalendarDate, useTimeSettings } from '@/app/TimeSettingsContext';
+import { HeroNetwork } from '@/components/public/HeroNetwork';
 import type { SubscriberRegistrationType } from '@/types';
 import styles from './PublicPage.module.css';
 
@@ -34,8 +35,8 @@ export function PublicPage() {
     });
   }, [settings.timezone, settingsError, settingsLoading]);
 
-  async function handleNotify(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleNotify(event: React.FormEvent) {
+    event.preventDefault();
     if (!registrationType) {
       setRegistrationTypeError('Please choose how you would like to register.');
       return;
@@ -44,6 +45,7 @@ export function PublicPage() {
       setEmailError('Please enter a valid email address.');
       return;
     }
+
     setEmailError('');
     setRegistrationTypeError('');
     setFormError('');
@@ -66,106 +68,114 @@ export function PublicPage() {
   return (
     <div className={styles.page}>
       {/* ── Background decorative elements ──────────────────────── */}
-      <div className={styles.bgCircle1} aria-hidden="true" />
-      <div className={styles.bgCircle2} aria-hidden="true" />
+      <div className={styles.bgGlow} aria-hidden="true" />
 
       <main className={styles.main} id="main-content">
-        {/* ── Logo ─────────────────────────────────────────────── */}
+        {/* ── Logo / Header ────────────────────────────────────── */}
         <header className={styles.header}>
-          <div className={styles.logoMark} aria-hidden="true">
-            <img src="/logo.png" alt="" />
-          </div>
-          <div className={styles.logoText}>
+          <Link to="/" className={styles.brand} aria-label="EquiConnected home">
+            <span className={styles.logoMark} aria-hidden="true">EC</span>
             <span className={styles.logoName}>equiconnected</span>
-            <span className={styles.logoTagline}>CONNECTING HORSES WITH THE RIGHT CARE</span>
-          </div>
+          </Link>
+          <span className={styles.headerNote}>Connected care, made clear</span>
         </header>
 
         {/* ── Hero ─────────────────────────────────────────────── */}
-        <section className={styles.hero} aria-labelledby="coming-soon-heading">
-          <p className={styles.preTitle}>We're getting ready</p>
-          <h1 id="coming-soon-heading" className={`text-display ${styles.heading}`}>
-            Something beautiful
-            <span className={styles.headingAccent}> is on its way.</span>
-          </h1>
-          <p className={styles.subtitle}>
-            The EquiConnected portal is launching soon — bringing hospitals, 
-            care teams, and visitors together through secure, elegant technology.
-          </p>
-
-          {/* ── Notify form ──────────────────────────────────────── */}
-          <div className={styles.notifyBlock}>
-            {submitted ? (
-              <div className={styles.successMessage} role="status">
-                <span className={styles.successIcon} aria-hidden="true">✓</span>
-                <p>
-                  <strong>You're on the list.</strong><br />
-                  The EquiConnected team will be in touch soon.
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleNotify} className={styles.form} noValidate>
-                <label htmlFor="registration-type" className={styles.formLabel}>
-                  Register as
-                </label>
-                <select
-                  id="registration-type"
-                  value={registrationType}
-                  onChange={(e) => {
-                    setRegistrationType(e.target.value as SubscriberRegistrationType | '');
-                    setRegistrationTypeError('');
-                    setFormError('');
-                  }}
-                  className={`${styles.registrationSelect} ${registrationTypeError ? styles['registrationSelect--error'] : ''}`}
-                  aria-describedby={registrationTypeError ? 'registration-type-error' : undefined}
-                  aria-invalid={!!registrationTypeError}
-                  required
-                  disabled={submitting}
-                >
-                  <option value="">Choose your role</option>
-                  {REGISTRATION_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                </select>
-                <label htmlFor="notify-email" className={styles.formLabel}>
-                  Email address
-                </label>
-                <div className={styles.formRow}>
-                  <input
-                    id="notify-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      setEmailError('');
-                      setFormError('');
-                    }}
-                    placeholder="your@email.com"
-                    className={`${styles.emailInput} ${emailError ? styles['emailInput--error'] : ''}`}
-                    aria-describedby={emailError ? 'notify-email-error' : undefined}
-                    aria-invalid={!!emailError}
-                    autoComplete="email"
-                    required
-                    disabled={submitting}
-                  />
-                  <button type="submit" className={styles.notifyBtn} disabled={submitting}>
-                    {submitting ? 'Submitting…' : 'Register'}
-                  </button>
+        <section className={styles.hero} aria-labelledby="hero-heading">
+          <div className={styles.heroContent}>
+            <p className={styles.eyebrow}><span className={styles.eyebrowRule} />EquiConnected</p>
+            <h1 id="hero-heading" className={styles.heading}>
+              Healthcare,{' '}
+              <span>Connected Around You.</span>
+            </h1>
+            <p className={styles.subtitle}>
+              Discover doctors, clinics and hospitals based on your specialization, location and care needs.
+            </p>
+            <div className={styles.ctas}>
+              <Link to="/signup" className={styles.primaryCta}>
+                Find care <span aria-hidden="true">↗</span>
+              </Link>
+              <Link to="/provider/signup" className={styles.secondaryCta}>
+                Join as a provider
+              </Link>
+            </div>
+            <p className={styles.trustLine}><span aria-hidden="true" />A clearer path to the right care</p>
+            <div className={styles.notifyBlock}>
+              <p className={styles.notifyHeading}>Not ready to sign up yet?</p>
+              {submitted ? (
+                <div className={styles.successMessage} role="status">
+                  <span className={styles.successIcon} aria-hidden="true">✓</span>
+                  <p>
+                    <strong>You&apos;re on the list.</strong><br />
+                    The EquiConnected team will be in touch soon.
+                  </p>
                 </div>
-                {registrationTypeError && (
-                  <p id="registration-type-error" className={styles.errorMsg} role="alert">
-                    {registrationTypeError}
-                  </p>
-                )}
-                {emailError && (
-                  <p id="notify-email-error" className={styles.errorMsg} role="alert">
-                    {emailError}
-                  </p>
-                )}
-                {formError && <p className={styles.errorMsg} role="alert">{formError}</p>}
-              </form>
-            )}
+              ) : (
+                <form onSubmit={handleNotify} className={styles.form} noValidate aria-label="Get launch updates">
+                  <div className={styles.notifyFields}>
+                    <div className={styles.notifyField}>
+                      <label htmlFor="registration-type" className={styles.formLabel}>Register as</label>
+                      <select
+                        id="registration-type"
+                        value={registrationType}
+                        onChange={(event) => {
+                          setRegistrationType(event.target.value as SubscriberRegistrationType | '');
+                          setRegistrationTypeError('');
+                          setFormError('');
+                        }}
+                        className={`${styles.registrationSelect} ${registrationTypeError ? styles['registrationSelect--error'] : ''}`}
+                        aria-describedby={registrationTypeError ? 'registration-type-error' : undefined}
+                        aria-invalid={!!registrationTypeError}
+                        required
+                        disabled={submitting}
+                      >
+                        <option value="">Choose your role</option>
+                        {REGISTRATION_TYPES.map((type) => (
+                          <option key={type.value} value={type.value}>{type.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className={styles.notifyField}>
+                      <label htmlFor="notify-email" className={styles.formLabel}>Email address</label>
+                      <input
+                        id="notify-email"
+                        type="email"
+                        value={email}
+                        onChange={(event) => {
+                          setEmail(event.target.value);
+                          setEmailError('');
+                          setFormError('');
+                        }}
+                        placeholder="your@email.com"
+                        className={`${styles.emailInput} ${emailError ? styles['emailInput--error'] : ''}`}
+                        aria-describedby={emailError ? 'notify-email-error' : undefined}
+                        aria-invalid={!!emailError}
+                        autoComplete="email"
+                        required
+                        disabled={submitting}
+                      />
+                    </div>
+                    <button type="submit" className={styles.notifyBtn} disabled={submitting}>
+                      {submitting ? 'Submitting…' : 'Keep me posted'}
+                    </button>
+                  </div>
+                  {registrationTypeError && (
+                    <p id="registration-type-error" className={styles.errorMsg} role="alert">
+                      {registrationTypeError}
+                    </p>
+                  )}
+                  {emailError && (
+                    <p id="notify-email-error" className={styles.errorMsg} role="alert">
+                      {emailError}
+                    </p>
+                  )}
+                  {formError && <p className={styles.errorMsg} role="alert">{formError}</p>}
+                </form>
+              )}
+            </div>
           </div>
+          <HeroNetwork />
+          <div className={styles.heroCurve} aria-hidden="true" />
         </section>
 
         {/* ── Features teaser ──────────────────────────────────── */}
