@@ -1,10 +1,10 @@
 ---
-name: Scroll-driven step highlighting
-description: Reliable active-step selection for sticky rails driven by multiple scrolling content panels.
+name: Single-panel scroll stories
+description: Reliable active-step selection when multiple story steps share one visible sticky content viewport.
 ---
 
-Keep the latest intersection ratio for every observed panel and derive the active step from the complete retained set. Do not choose only among entries delivered in one observer callback.
+When story steps share one visible sticky viewport, derive the active step from progress through the outer scroll track rather than observing the overlaid panels. Include any mobile rail that occupies normal-flow space in both active-step and click-target geometry.
 
-**Why:** An IntersectionObserver callback contains elements that crossed configured thresholds, not necessarily every panel currently visible. During overlapping transitions, selecting from callback entries alone can highlight a less-visible panel.
+**Why:** Overlaid panels occupy the same geometry, so visibility observation cannot distinguish stages. Ignoring a mobile rail’s flow height misaligns transitions, while recomputing immediately during smooth click navigation can visibly revert the requested step.
 
-**How to apply:** Use sufficiently granular thresholds, update stored ratios for each delivered entry, and select the greatest ratio across all panels. Cover both scroll directions and overlapping panels in a deterministic test.
+**How to apply:** Give the outer shell one scroll segment per step, keep the content viewport sticky, map traveled distance to an index, and hold explicit click selection until its segment is reached or the user interrupts. Reset desktop minimum sizes in mobile overrides so sticky controls cannot cover content.

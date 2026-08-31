@@ -42,52 +42,93 @@ const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
 
 export function HowItWorksScroll() {
   const [activeStep, setActiveStep] = useState(0);
-  const panelRefs = useRef<Array<HTMLElement | null>>([]);
-  const visibilityRatios = useRef<number[]>(HOW_IT_WORKS_STEPS.map(() => 0));
+  const storyRef = useRef<HTMLDivElement>(null);
+  const stepRailRef = useRef<HTMLElement>(null);
+  const scrollTargetRef = useRef<number | null>(null);
+  const scrollTargetTimerRef = useRef<number | null>(null);
+
+  function getScrollGeometry() {
+    const story = storyRef.current;
+    if (!story || story.offsetHeight === 0) return null;
+
+    const isMobile = window.innerWidth <= 799;
+    const stickyOffset = isMobile ? 154 : 124;
+    const railHeight = isMobile ? (stepRailRef.current?.offsetHeight ?? 0) + 28 : 0;
+    const scrollHeight = Math.max(1, story.offsetHeight - railHeight);
+
+    return {
+      story,
+      stickyOffset,
+      railHeight,
+      stepDistance: scrollHeight / HOW_IT_WORKS_STEPS.length,
+    };
+  }
+
+  function clearScrollTarget() {
+    scrollTargetRef.current = null;
+    if (scrollTargetTimerRef.current !== null) {
+      window.clearTimeout(scrollTargetTimerRef.current);
+      scrollTargetTimerRef.current = null;
+    }
+  }
 
   useEffect(() => {
-    if (typeof IntersectionObserver === 'undefined') return;
+    function updateActiveStep() {
+      const geometry = getScrollGeometry();
+      if (!geometry) return;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          const index = Number((entry.target as HTMLElement).dataset.stepIndex);
-          if (!Number.isNaN(index)) {
-            visibilityRatios.current[index] = entry.isIntersecting ? entry.intersectionRatio : 0;
-          }
-        });
+      const { story, stickyOffset, railHeight, stepDistance } = geometry;
+      const stageTop = story.getBoundingClientRect().top + railHeight;
+      const passedDistance = Math.max(0, stickyOffset - stageTop);
+      const nextStep = Math.min(
+        HOW_IT_WORKS_STEPS.length - 1,
+        Math.floor(passedDistance / stepDistance),
+      );
 
-        const highestRatio = Math.max(...visibilityRatios.current);
-        if (highestRatio <= 0) return;
-        setActiveStep(visibilityRatios.current.indexOf(highestRatio));
-      },
-      {
-        threshold: Array.from({ length: 21 }, (_, index) => index / 20),
-        rootMargin: '-12% 0px -30% 0px',
-      },
-    );
+      if (scrollTargetRef.current !== null) {
+        if (nextStep !== scrollTargetRef.current) return;
+        clearScrollTarget();
+      }
+      setActiveStep(nextStep);
+    }
 
-    panelRefs.current.forEach((panel) => {
-      if (panel) observer.observe(panel);
-    });
+    updateActiveStep();
+    window.addEventListener('scroll', updateActiveStep, { passive: true });
+    window.addEventListener('resize', updateActiveStep);
+    window.addEventListener('wheel', clearScrollTarget, { passive: true });
+    window.addEventListener('touchstart', clearScrollTarget, { passive: true });
+    window.addEventListener('keydown', clearScrollTarget);
 
-    return () => observer.disconnect();
+    return () => {
+      window.removeEventListener('scroll', updateActiveStep);
+      window.removeEventListener('resize', updateActiveStep);
+      window.removeEventListener('wheel', clearScrollTarget);
+      window.removeEventListener('touchstart', clearScrollTarget);
+      window.removeEventListener('keydown', clearScrollTarget);
+      clearScrollTarget();
+    };
   }, []);
 
   function focusStep(index: number) {
-    setActiveStep(index);
-    const panel = panelRefs.current[index];
-    if (!panel) return;
+    const nextIndex = (index + HOW_IT_WORKS_STEPS.length) % HOW_IT_WORKS_STEPS.length;
+    setActiveStep(nextIndex);
+    const geometry = getScrollGeometry();
+    if (!geometry || typeof window.scrollTo !== 'function') return;
 
-    if (typeof panel.scrollIntoView === 'function') {
-      const reduceMotion =
-        typeof window.matchMedia === 'function'
-        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      panel.scrollIntoView({
-        behavior: reduceMotion ? 'auto' : 'smooth',
-        block: 'center',
-      });
-    }
+    const { story, stickyOffset, railHeight, stepDistance } = geometry;
+    const storyTop = story.getBoundingClientRect().top + window.scrollY;
+    const targetTop = storyTop + railHeight - stickyOffset + stepDistance * nextIndex;
+    const reduceMotion =
+      typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    clearScrollTarget();
+    scrollTargetRef.current = nextIndex;
+    scrollTargetTimerRef.current = window.setTimeout(clearScrollTarget, 1400);
+    window.scrollTo({
+      top: Math.max(0, targetTop),
+      behavior: reduceMotion ? 'auto' : 'smooth',
+    });
   }
 
   return (
@@ -103,8 +144,8 @@ export function HowItWorksScroll() {
         </h2>
       </div>
 
-      <div className={styles.story}>
-        <nav className={styles.stepRail} aria-label="How EquiConnected works">
+      <div className={styles.story} ref={storyRef}>
+        <nav ref={stepRailRef} className={styles.stepRail} aria-label="How EquiConnected works">
           <p className={styles.railLabel}>Your path to care</p>
           <ol className={styles.steps}>
             {HOW_IT_WORKS_STEPS.map((step, index) => (
@@ -129,11 +170,9 @@ export function HowItWorksScroll() {
           {HOW_IT_WORKS_STEPS.map((step, index) => (
             <article
               key={step.label}
-              ref={(panel) => {
-                panelRefs.current[index] = panel;
-              }}
               className={`${styles.panel} ${index === activeStep ? styles.activePanel : ''}`}
               data-step-index={index}
+              aria-hidden={index !== activeStep}
               aria-labelledby={`how-it-works-${step.label.toLowerCase()}`}
             >
               <div className={styles.panelImageFrame}>

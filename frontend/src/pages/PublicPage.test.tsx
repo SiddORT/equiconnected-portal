@@ -103,64 +103,40 @@ describe('PublicPage hero', () => {
   });
 
   it('highlights the most visible care-journey panel while scrolling', () => {
-    let observerCallback: IntersectionObserverCallback | undefined;
-
-    class MockIntersectionObserver {
-      readonly root = null;
-      readonly rootMargin = '0px';
-      readonly thresholds = [];
-
-      constructor(callback: IntersectionObserverCallback) {
-        observerCallback = callback;
-      }
-
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-      takeRecords() { return []; }
-    }
-
-    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
 
-    const searchPanel = document.querySelector<HTMLElement>('[data-step-index="0"]');
-    const discoverPanel = document.querySelector<HTMLElement>('[data-step-index="1"]');
-    if (!searchPanel || !discoverPanel) {
-      throw new Error('Expected care-journey panels to render.');
+    const story = screen.getByRole('navigation', { name: 'How EquiConnected works' }).parentElement;
+    if (!story) {
+      throw new Error('Expected care-journey story shell to render.');
     }
 
-    const observerEntry = (
-      target: HTMLElement,
-      intersectionRatio: number,
-    ): IntersectionObserverEntry => ({
-      boundingClientRect: target.getBoundingClientRect(),
-      intersectionRatio,
-      intersectionRect: target.getBoundingClientRect(),
-      isIntersecting: intersectionRatio > 0,
-      rootBounds: null,
-      target,
-      time: 0,
-    });
+    let storyTop = 124;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
+    Object.defineProperty(story, 'offsetHeight', { configurable: true, value: 1800 });
+    vi.spyOn(story, 'getBoundingClientRect').mockImplementation(
+      () => ({ top: storyTop } as DOMRect),
+    );
 
     act(() => {
-      observerCallback?.(
-        [
-          observerEntry(searchPanel, 0.7),
-          observerEntry(discoverPanel, 0.35),
-        ],
-        {} as IntersectionObserver,
-      );
+      window.dispatchEvent(new Event('scroll'));
     });
     expect(screen.getByRole('button', { name: /01.*SEARCH/ }).getAttribute('aria-current')).toBe('step');
 
+    storyTop = -476;
     act(() => {
-      observerCallback?.(
-        [
-          observerEntry(searchPanel, 0.4),
-          observerEntry(discoverPanel, 0.8),
-        ],
-        {} as IntersectionObserver,
-      );
+      window.dispatchEvent(new Event('scroll'));
+    });
+    expect(screen.getByRole('button', { name: /02.*DISCOVER/ }).getAttribute('aria-current')).toBe('step');
+
+    storyTop = -1076;
+    act(() => {
+      window.dispatchEvent(new Event('scroll'));
+    });
+    expect(screen.getByRole('button', { name: /03.*CONNECT/ }).getAttribute('aria-current')).toBe('step');
+
+    storyTop = -476;
+    act(() => {
+      window.dispatchEvent(new Event('scroll'));
     });
     expect(screen.getByRole('button', { name: /02.*DISCOVER/ }).getAttribute('aria-current')).toBe('step');
   });
