@@ -334,6 +334,49 @@ def test_portal_rejects_photo_references_outside_the_owner_uploads(client, db, s
     assert response.json()["detail"]["code"] == "provider_profile_invalid"
 
 
+def test_portal_rejects_owner_prefixed_photo_path_traversal(client, db, seeded_admin):
+    _admin, _ = seeded_admin
+    provider, account = _approved_registration_provider(db)
+    other_provider = Provider(
+        provider_type=ProviderType.HOSPITAL,
+        name="Private Photo Clinic",
+        visit_stability=VisitStability.STABLE_VISIT,
+        status=ProviderStatus.ACTIVE,
+        publication_status=PublicationStatus.UNPUBLISHED,
+    )
+    db.add(other_provider)
+    db.commit()
+    private_directory = (
+        _UPLOADS_DIR / "providers" / str(other_provider.id) / "photos"
+    )
+    private_directory.mkdir(parents=True, exist_ok=True)
+    private_photo = private_directory / "private.png"
+    private_photo.write_bytes(_ONE_PIXEL_PNG)
+    token = _login(client, account.email, "RegisteredPass9")
+    traversal_reference = (
+        f"/uploads/providers/{provider.id}/photos/"
+        f"../../{other_provider.id}/photos/private.png"
+    )
+
+    try:
+        response = client.patch(
+            "/api/v1/provider/portal/profile",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "photos": [{
+                    "storage_reference": traversal_reference,
+                    "display_order": 0,
+                    "is_thumbnail": True,
+                }],
+            },
+        )
+    finally:
+        private_photo.unlink(missing_ok=True)
+
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"]["code"] == "provider_profile_invalid"
+
+
 def test_portal_rejects_provider_account_without_an_approved_listing_link(
     client, db, seeded_admin
 ):

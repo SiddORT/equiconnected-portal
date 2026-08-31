@@ -80,6 +80,8 @@ export interface Subscriber {
 export interface SubscriberListParams {
   search?: string;
   registration_type?: SubscriberRegistrationType;
+  date_from?: string;
+  date_to?: string;
   page?: number;
   page_size?: number;
 }

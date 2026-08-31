@@ -2,12 +2,15 @@
 Admin-only endpoints.
 GET /api/v1/admin/dashboard/stats
 """
+import csv
+import io
 from datetime import date, datetime, timedelta, timezone
 from math import ceil
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -26,7 +29,7 @@ from app.models.public_visit import PublicVisitDaily
 from app.models.provider import Provider, ProviderLocation
 from app.models.role import Role
 from app.models.user import PUBLIC_ACCOUNT_ROLE_NAMES, User, UserRole
-from app.repositories.audit_repository import AuditRepository
+from app.repositories.audit_repository import AuditRepository, context_from_request
 from app.schemas.audit_log import AuditActor, AuditChange, AuditLogListResponse, AuditLogResponse
 from app.repositories.email_delivery_repository import EmailDeliveryRepository
 from app.schemas.email_delivery_log import (
@@ -281,13 +284,27 @@ def list_subscribers(
     db: Annotated[Session, Depends(get_db)],
     search: str | None = Query(None, max_length=100),
     registration_type: SubscriberRegistrationType | None = Query(None),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
 ) -> SubscriberListResponse:
     """Newest-first subscriber registrations for administrators."""
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "invalid_date_range",
+                "message": "Start date must be on or before end date.",
+            },
+        )
+    timezone_name = SystemSettingsRepository(db).get_or_create().timezone
     subscribers, total = SubscriberRepository(db).list(
         search=search,
         registration_type=registration_type,
+        date_from=date_from,
+        date_to=date_to,
+        timezone_name=timezone_name,
         page=page,
         page_size=page_size,
     )
@@ -299,6 +316,83 @@ def list_subscribers(
             total=total,
             total_pages=max(1, ceil(total / page_size)),
         ),
+    )
+
+
+def _spreadsheet_safe(value: str) -> str:
+    """Prevent CSV cells from being interpreted as spreadsheet formulas."""
+    return f"'{value}" if value.startswith(("=", "+", "-", "@")) else value
+
+
+def _subscriber_csv_rows(rows: list[tuple[str, str, str]]):
+    buffer = io.StringIO(newline="")
+    writer = csv.writer(buffer)
+    writer.writerow(["Email address", "Registration type", "Submitted timestamp"])
+    yield "\ufeff" + buffer.getvalue()
+    buffer.seek(0)
+    buffer.truncate(0)
+    for email, registration_type, submitted_at in rows:
+        writer.writerow([_spreadsheet_safe(email), registration_type, submitted_at])
+        yield buffer.getvalue()
+        buffer.seek(0)
+        buffer.truncate(0)
+
+
+@router.get(
+    "/subscribers/export",
+    dependencies=[Depends(require_role("admin"))],
+)
+def export_subscribers(
+    request: Request,
+    current_user: CurrentUser,
+    db: Annotated[Session, Depends(get_db)],
+    search: str | None = Query(None, max_length=100),
+    registration_type: SubscriberRegistrationType | None = Query(None),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
+) -> StreamingResponse:
+    """Download every subscriber matching the active administrator filters."""
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "invalid_date_range",
+                "message": "Start date must be on or before end date.",
+            },
+        )
+    timezone_name = SystemSettingsRepository(db).get_or_create().timezone
+    subscribers = SubscriberRepository(db).list_all(
+        search=search,
+        registration_type=registration_type,
+        date_from=date_from,
+        date_to=date_to,
+        timezone_name=timezone_name,
+    )
+    rows = [
+        (
+            subscriber.email,
+            (
+                subscriber.registration_type.value
+                if isinstance(subscriber.registration_type, SubscriberRegistrationType)
+                else str(subscriber.registration_type)
+            ),
+            subscriber.submitted_at.astimezone(timezone.utc).isoformat(),
+        )
+        for subscriber in subscribers
+    ]
+    AuditRepository(db).record(
+        "subscriber.exported",
+        context=context_from_request(request, current_user.id),
+        resource_type="subscriber",
+        summary="Exported the subscriber directory.",
+        metadata={"exported_count": len(rows)},
+    )
+    db.commit()
+    filename = f"equiconnected-subscribers-{system_today(timezone_name).isoformat()}.csv"
+    return StreamingResponse(
+        _subscriber_csv_rows(rows),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

@@ -1,4 +1,6 @@
 """Public subscriber registration and administrator directory coverage."""
+import csv
+import io
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event, Lock
@@ -15,6 +17,7 @@ from tests.conftest import TestingSessionLocal
 
 PUBLIC_URL = "/api/v1/public/subscribers"
 ADMIN_URL = "/api/v1/admin/subscribers"
+EXPORT_URL = f"{ADMIN_URL}/export"
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -182,6 +185,7 @@ def test_public_registration_validates_email_and_registration_type(client):
 
 def test_subscriber_directory_requires_an_administrator(client, db, seeded_admin):
     assert client.get(ADMIN_URL).status_code == 401
+    assert client.get(EXPORT_URL).status_code == 401
     repo = UserRepository(db)
     role = repo.get_role_by_name("horse_owner") or repo.create_role(
         "horse_owner", "Horse owner"
@@ -201,6 +205,7 @@ def test_subscriber_directory_requires_an_administrator(client, db, seeded_admin
     )
     assert login.status_code == 200
     assert client.get(ADMIN_URL, headers=_auth(login.json()["access_token"])).status_code == 403
+    assert client.get(EXPORT_URL, headers=_auth(login.json()["access_token"])).status_code == 403
 
 
 def test_admin_can_search_filter_and_page_subscribers(client, db, seeded_admin):
@@ -229,3 +234,143 @@ def test_admin_can_search_filter_and_page_subscribers(client, db, seeded_admin):
     assert payload["meta"] == {"page": 1, "page_size": 10, "total": 1, "total_pages": 1}
     assert payload["data"][0]["email"] == "vet@example.com"
     assert payload["data"][0]["registration_type"] == "VET"
+
+
+def test_admin_directory_filters_submission_dates_in_the_system_timezone(
+    client, db, seeded_admin
+):
+    token = _admin_token(client, seeded_admin)
+    settings = client.patch(
+        "/api/v1/admin/system-settings",
+        json={
+            "timezone": "America/New_York",
+            "date_format": "month_day_year",
+            "time_format": "12_hour",
+        },
+        headers=_auth(token),
+    )
+    assert settings.status_code == 200, settings.text
+    db.add_all(
+        [
+            Subscriber(
+                email="before@example.com",
+                registration_type=SubscriberRegistrationType.OTHER.value,
+                submitted_at=datetime(2026, 1, 2, 4, 59, tzinfo=timezone.utc),
+            ),
+            Subscriber(
+                email="start@example.com",
+                registration_type=SubscriberRegistrationType.VET.value,
+                submitted_at=datetime(2026, 1, 2, 5, 0, tzinfo=timezone.utc),
+            ),
+            Subscriber(
+                email="end@example.com",
+                registration_type=SubscriberRegistrationType.CLINIC.value,
+                submitted_at=datetime(2026, 1, 3, 4, 59, tzinfo=timezone.utc),
+            ),
+            Subscriber(
+                email="after@example.com",
+                registration_type=SubscriberRegistrationType.HOSPITAL.value,
+                submitted_at=datetime(2026, 1, 3, 5, 0, tzinfo=timezone.utc),
+            ),
+        ]
+    )
+    db.commit()
+
+    selected_day = client.get(
+        ADMIN_URL,
+        params={"date_from": "2026-01-02", "date_to": "2026-01-02", "page_size": 100},
+        headers=_auth(token),
+    )
+    assert selected_day.status_code == 200, selected_day.text
+    assert [row["email"] for row in selected_day.json()["data"]] == [
+        "end@example.com",
+        "start@example.com",
+    ]
+
+    from_only = client.get(
+        ADMIN_URL,
+        params={"date_from": "2026-01-02", "page_size": 100},
+        headers=_auth(token),
+    )
+    assert [row["email"] for row in from_only.json()["data"]] == [
+        "after@example.com",
+        "end@example.com",
+        "start@example.com",
+    ]
+
+    to_only = client.get(
+        ADMIN_URL,
+        params={"date_to": "2026-01-02", "page_size": 100},
+        headers=_auth(token),
+    )
+    assert [row["email"] for row in to_only.json()["data"]] == [
+        "end@example.com",
+        "start@example.com",
+        "before@example.com",
+    ]
+
+
+def test_subscriber_date_range_validation_applies_to_directory_and_export(
+    client, seeded_admin
+):
+    headers = _auth(_admin_token(client, seeded_admin))
+    for url in (ADMIN_URL, EXPORT_URL):
+        response = client.get(
+            url,
+            params={"date_from": "2026-02-01", "date_to": "2026-01-31"},
+            headers=headers,
+        )
+        assert response.status_code == 422
+        assert response.json()["detail"] == {
+            "code": "invalid_date_range",
+            "message": "Start date must be on or before end date.",
+        }
+
+
+def test_admin_can_export_every_matching_subscriber_as_a_csv(client, db, seeded_admin):
+    db.add_all(
+        [
+            Subscriber(
+                email="vet-older@example.com",
+                registration_type=SubscriberRegistrationType.VET.value,
+                submitted_at=datetime(2026, 8, 20, 12, tzinfo=timezone.utc),
+            ),
+            Subscriber(
+                email="vet-newer@example.com",
+                registration_type=SubscriberRegistrationType.VET.value,
+                submitted_at=datetime(2026, 8, 21, 12, tzinfo=timezone.utc),
+            ),
+            Subscriber(
+                email="clinic@example.com",
+                registration_type=SubscriberRegistrationType.CLINIC.value,
+                submitted_at=datetime(2026, 8, 21, 13, tzinfo=timezone.utc),
+            ),
+        ]
+    )
+    db.commit()
+
+    response = client.get(
+        EXPORT_URL,
+        params={
+            "search": "vet",
+            "registration_type": "VET",
+            "date_from": "2026-08-20",
+            "date_to": "2026-08-21",
+        },
+        headers=_auth(_admin_token(client, seeded_admin)),
+    )
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("text/csv; charset=utf-8")
+    assert response.headers["content-disposition"].startswith(
+        'attachment; filename="equiconnected-subscribers-'
+    )
+    rows = list(csv.reader(io.StringIO(response.content.decode("utf-8-sig"))))
+    assert rows == [
+        ["Email address", "Registration type", "Submitted timestamp"],
+        ["vet-newer@example.com", "VET", "2026-08-21T12:00:00+00:00"],
+        ["vet-older@example.com", "VET", "2026-08-20T12:00:00+00:00"],
+    ]
+    from app.models.audit_log import AuditLog
+
+    audit_event = db.query(AuditLog).filter_by(action="subscriber.exported").one()
+    assert audit_event.event_metadata["exported_count"] == 2

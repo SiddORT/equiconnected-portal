@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { listSubscribers } from '@/api/admin';
+import { exportSubscribers, listSubscribers } from '@/api/admin';
 import { extractErrorMessage } from '@/api/client';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { FilterBar } from '@/components/ui/FilterBar';
+import { Input } from '@/components/ui/Input';
 import { Pagination } from '@/components/ui/Pagination';
 import { SearchInput } from '@/components/ui/SearchInput';
 import type {
@@ -37,9 +38,11 @@ export function SubscribersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.get('search') ?? '';
   const rawType = searchParams.get('registration_type');
-  const registrationType = TYPE_OPTIONS.some((option) => option.value === rawType)
+  const registrationType = rawType !== 'all' && TYPE_OPTIONS.some((option) => option.value === rawType)
     ? (rawType as SubscriberRegistrationType)
     : '';
+  const dateFrom = searchParams.get('date_from') ?? '';
+  const dateTo = searchParams.get('date_to') ?? '';
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
   const pageSize = [10, 25, 50, 100].includes(Number(searchParams.get('page_size')))
     ? Number(searchParams.get('page_size'))
@@ -47,8 +50,10 @@ export function SubscribersPage() {
   const [result, setResult] = useState<PaginatedResponse<Subscriber> | null>(null);
   const [loadState, setLoadState] = useState<LoadingState>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(Boolean(registrationType || dateFrom || dateTo));
   const filterPanelRef = useRef<HTMLDivElement>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const updateParams = useCallback(
     (updates: Record<string, string | null>) => {
@@ -69,6 +74,8 @@ export function SubscribersPage() {
       const response = await listSubscribers({
         search: search || undefined,
         registration_type: registrationType || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
         page,
         page_size: pageSize,
       });
@@ -82,7 +89,7 @@ export function SubscribersPage() {
       setErrorMessage(extractErrorMessage(error, 'Failed to load subscribers.'));
       setLoadState('error');
     }
-  }, [page, pageSize, registrationType, search, updateParams]);
+  }, [dateFrom, dateTo, page, pageSize, registrationType, search, updateParams]);
 
   useEffect(() => {
     void load();
@@ -118,7 +125,25 @@ export function SubscribersPage() {
     },
   ];
 
-  const hasFilters = Boolean(search || registrationType);
+  const hasFilters = Boolean(search || registrationType || dateFrom || dateTo);
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    setExportError(null);
+    try {
+      await exportSubscribers({
+        search: search || undefined,
+        registration_type: registrationType || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+      });
+    } catch (error) {
+      setExportError(extractErrorMessage(error, 'Unable to prepare the subscriber export. Please try again.'));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className={styles.shell}>
       <PageHeader
@@ -142,9 +167,16 @@ export function SubscribersPage() {
           >
             Filters
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => void handleExport()}
+            loading={isExporting}
+          >
+            {isExporting ? 'Preparing export…' : 'Export CSV'}
+          </Button>
         </div>
         {filtersOpen && (
-          <div id="subscriber-filters" ref={filterPanelRef}>
+          <div id="subscriber-filters" ref={filterPanelRef} className={styles.filterPanel}>
             <FilterBar
               groups={[
                 {
@@ -159,8 +191,38 @@ export function SubscribersPage() {
                 },
               ]}
             />
+            <div className={styles.dateFilters}>
+              <Input
+                type="date"
+                label="Submitted from"
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(event) =>
+                  updateParams({ date_from: event.target.value || null, page: '1' })
+                }
+              />
+              <Input
+                type="date"
+                label="Submitted to"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(event) =>
+                  updateParams({ date_to: event.target.value || null, page: '1' })
+                }
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!dateFrom && !dateTo}
+                onClick={() => updateParams({ date_from: null, date_to: null, page: '1' })}
+              >
+                Clear dates
+              </Button>
+            </div>
           </div>
         )}
+        {exportError && <p className={styles.exportError} role="alert">{exportError}</p>}
         <DataTable
           columns={columns}
           data={result?.data ?? []}
@@ -178,7 +240,7 @@ export function SubscribersPage() {
             icon: '✉',
             title: hasFilters ? 'No subscribers found' : 'No subscribers yet',
             description: hasFilters
-              ? 'Try adjusting your search or filter.'
+              ? 'Try adjusting or clearing your search, type, or submitted-date filters.'
               : 'New launch registrations will appear here.',
           }}
           ariaLabel="Subscribers"

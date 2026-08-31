@@ -17,6 +17,30 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.filterPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.dateFilters {
+  display: flex;
+  align-items: end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.dateFilters > div {
+  min-width: 180px;
+}
+
+.exportError {
+  margin: 0;
+  color: var(--color-error-700);
+  font-size: var(--text-sm);
 }
 
 .emailCell {
@@ -27,4 +51,5 @@
 @media (max-width: 768px) {
   .body { padding: var(--space-5); }
   .toolbar { align-items: stretch; flex-direction: column; }
+  .dateFilters { align-items: stretch; }
 }

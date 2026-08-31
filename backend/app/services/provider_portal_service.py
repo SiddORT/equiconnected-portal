@@ -229,6 +229,9 @@ class ProviderPortalService:
             photo.storage_reference for photo in provider.photos
         }
         owned_prefix = f"/uploads/providers/{provider.id}/photos/"
+        owned_directory = (
+            _UPLOADS_DIR / "providers" / str(provider.id) / "photos"
+        ).resolve()
         for photo in editable.photos:
             reference = photo.storage_reference
             if reference in existing_references:
@@ -237,8 +240,10 @@ class ProviderPortalService:
                 raise InvalidProviderDataError(
                     "Profile photos must be uploaded through your provider portal."
                 )
-            upload_path = _UPLOADS_DIR / reference.removeprefix("/uploads/")
-            if not upload_path.is_file():
+            upload_path = (
+                _UPLOADS_DIR / reference.removeprefix("/uploads/")
+            ).resolve()
+            if upload_path.parent != owned_directory or not upload_path.is_file():
                 raise InvalidProviderDataError(
                     "One or more selected profile photos are unavailable. Please upload them again."
                 )

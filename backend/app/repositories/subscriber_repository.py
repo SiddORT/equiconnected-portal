@@ -1,11 +1,14 @@
 """Database access for public subscribers."""
-from typing import Any
-import uuid
+from __future__ import annotations
 
-from sqlalchemy import func, or_, select
+from datetime import date
+from typing import Any
+
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.time_standards import local_date_bounds
 from app.models.enums import SubscriberRegistrationType
 from app.models.subscriber import Subscriber
 
@@ -45,24 +48,74 @@ class SubscriberRepository:
         *,
         search: str | None = None,
         registration_type: SubscriberRegistrationType | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        timezone_name: str | None = None,
         page: int = 1,
         page_size: int = 25,
     ) -> tuple[list[Subscriber], int]:
+        filters = self._filters(
+            search=search,
+            registration_type=registration_type,
+            date_from=date_from,
+            date_to=date_to,
+            timezone_name=timezone_name,
+        )
+        total = self._db.scalar(
+            select(func.count()).select_from(Subscriber).where(*filters)
+        ) or 0
+        rows = self._db.scalars(
+            self._ordered_query(filters)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        ).all()
+        return list(rows), total
+
+    def list_all(
+        self,
+        *,
+        search: str | None = None,
+        registration_type: SubscriberRegistrationType | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        timezone_name: str | None = None,
+    ) -> list[Subscriber]:
+        """Return every matching subscriber in the directory's stable order."""
+        filters = self._filters(
+            search=search,
+            registration_type=registration_type,
+            date_from=date_from,
+            date_to=date_to,
+            timezone_name=timezone_name,
+        )
+        return list(self._db.scalars(self._ordered_query(filters)).all())
+
+    def _filters(
+        self,
+        *,
+        search: str | None,
+        registration_type: SubscriberRegistrationType | None,
+        date_from: date | None,
+        date_to: date | None,
+        timezone_name: str | None,
+    ) -> list[Any]:
         filters: list[Any] = []
         if search and search.strip():
             pattern = f"%{search.strip().lower()}%"
             filters.append(func.lower(Subscriber.email).like(pattern))
         if registration_type is not None:
             filters.append(Subscriber.registration_type == registration_type.value)
+        start, end = local_date_bounds(date_from, date_to, timezone_name)
+        if start is not None:
+            filters.append(Subscriber.submitted_at >= start)
+        if end is not None:
+            filters.append(Subscriber.submitted_at < end)
+        return filters
 
-        total = self._db.scalar(
-            select(func.count()).select_from(Subscriber).where(*filters)
-        ) or 0
-        rows = self._db.scalars(
+    @staticmethod
+    def _ordered_query(filters: list[Any]):
+        return (
             select(Subscriber)
             .where(*filters)
             .order_by(Subscriber.submitted_at.desc(), Subscriber.id.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-        ).all()
-        return list(rows), total
+        )

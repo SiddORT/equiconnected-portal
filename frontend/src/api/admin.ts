@@ -2,6 +2,7 @@
  * Admin API endpoint functions.
  */
 import { apiClient } from './client';
+import { filenameFromDisposition, triggerCsvDownload } from '@/utils/csvExport';
 import type {
   ActivityLog,
   AdminUser,
@@ -84,6 +85,16 @@ export async function listSubscribers(
     { params }
   );
   return data;
+}
+
+export async function exportSubscribers(params?: SubscriberListParams): Promise<void> {
+  const response = await apiClient.get('/admin/subscribers/export', {
+    params,
+    responseType: 'blob',
+  });
+  const fallback = `equiconnected-subscribers-${new Date().toISOString().slice(0, 10)}.csv`;
+  const filename = filenameFromDisposition(response.headers['content-disposition'], fallback);
+  triggerCsvDownload(response.data as Blob, filename);
 }
 
 export async function getAdminUser(id: string): Promise<AdminUser> {
