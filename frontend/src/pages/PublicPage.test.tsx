@@ -98,9 +98,41 @@ describe('PublicPage hero', () => {
     expect(screen.getByRole('button', { name: /03.*CONNECT/ })).toBeTruthy();
     expect(screen.getByRole('img', { name: 'Horse standing in a quiet mountain pasture' })).toBeTruthy();
 
-    await user.click(screen.getByRole('button', { name: /03.*CONNECT/ }));
-    expect(screen.getByRole('button', { name: /03.*CONNECT/ }).getAttribute('aria-current')).toBe('step');
-    expect(screen.getByRole('heading', { name: 'Choose with confidence.' })).toBeTruthy();
+    const steps = [
+      {
+        button: /01.*SEARCH/,
+        heading: 'Tell us what care you’re looking for.',
+        description: 'Start with the concern, specialty, or kind of support your horse needs.',
+      },
+      {
+        button: /02.*DISCOVER/,
+        heading: 'Find care near your location.',
+        description: 'Explore doctors, clinics, and hospitals in the places that work for you',
+      },
+      {
+        button: /03.*CONNECT/,
+        heading: 'Choose with confidence.',
+        description: 'Explore profiles, reviews, and practical information',
+      },
+    ];
+    const panels = Array.from(document.querySelectorAll<HTMLElement>('[data-step-index]'));
+    expect(panels).toHaveLength(3);
+
+    for (const [index, step] of steps.entries()) {
+      await user.click(screen.getByRole('button', { name: step.button }));
+
+      expect(screen.getByRole('button', { name: step.button }).getAttribute('aria-current')).toBe('step');
+      expect(screen.getByRole('heading', { name: step.heading })).toBeTruthy();
+      expect(screen.getByText(new RegExp(step.description))).toBeTruthy();
+      expect(panels[index].getAttribute('aria-hidden')).toBe('false');
+      expect(panels[index].getAttribute('tabindex')).toBe('0');
+      panels.forEach((panel, panelIndex) => {
+        if (panelIndex !== index) {
+          expect(panel.getAttribute('aria-hidden')).toBe('true');
+          expect(panel.getAttribute('tabindex')).toBe('-1');
+        }
+      });
+    }
   });
 
   it('highlights the most visible care-journey panel while scrolling', () => {

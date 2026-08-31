@@ -174,6 +174,7 @@ export function HowItWorksScroll() {
               data-step-index={index}
               aria-hidden={index !== activeStep}
               aria-labelledby={`how-it-works-${step.label.toLowerCase()}`}
+              tabIndex={index === activeStep ? 0 : -1}
             >
               <div className={styles.panelImageFrame}>
                 <img
