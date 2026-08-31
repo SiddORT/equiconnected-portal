@@ -1,0 +1,103 @@
+Create a new 3D animation page at the route **`/animation`** in my existing project. Do not break or modify any existing routes or functionality.
+
+### Animation concept: Pony transforms into a realistic horse
+
+Build a cinematic 3D browser animation using **Three.js/WebGL**.
+
+The scene begins with a **small young pony** walking slowly through shallow water. The pony should have recognizable horse anatomy: four legs with correct joints and hooves, a proper horse head and muzzle, ears, neck, torso, mane, and tail.
+
+As the pony walks forward through the water, magical water begins swirling around its legs and body.
+
+The pony then gradually transforms into a **FULL-GROWN, REALISTIC ADULT HORSE**.
+
+### VERY IMPORTANT — final horse quality
+
+The final animal MUST clearly look like a proper real horse.
+
+Do NOT make it look like:
+
+* a fantasy monster
+* a deer
+* a dog
+* a generic quadruped
+* a cartoon horse
+* an oversized pony
+
+The adult horse must have:
+
+* realistic horse proportions
+* long, muscular legs
+* clearly defined hooves
+* large horse torso/chest
+* long natural neck
+* anatomically recognizable horse head
+* proper muzzle and nostrils
+* two horse ears
+* realistic mane
+* realistic flowing tail
+* natural horse posture and movement
+* believable muscle structure
+* realistic galloping/walking motion
+
+The transformation should make the pony visibly **grow taller and more muscular**, with its legs lengthening, chest and torso becoming larger, neck extending, and mane/tail becoming fuller.
+
+### Water effect
+
+The horse is walking through shallow realistic water.
+
+Include:
+
+* water surface
+* ripples around the hooves
+* small splashes when the hooves touch the water
+* water droplets
+* waves spreading outward
+* swirling water wrapping around the pony during transformation
+
+During the transformation, the water should temporarily cover parts of the pony and then flow away to reveal the adult horse.
+
+### Animation sequence
+
+1. Start with a cinematic view of the small pony.
+2. Pony walks naturally through shallow water.
+3. Camera slowly follows the pony.
+4. Water begins swirling around its legs.
+5. The swirling water rises around its body.
+6. The pony begins growing and transforming.
+7. Its legs become longer and more muscular.
+8. Its torso, neck, head, mane, and tail transform into adult horse proportions.
+9. Water bursts outward and reveals the completed adult horse.
+10. The adult horse pauses for a moment.
+11. It then performs a natural horse gallop through the water.
+12. Finish with a cinematic camera pull-back as the horse runs away.
+
+### Visual style
+
+Make it cinematic and realistic rather than cartoon-like.
+
+Use:
+
+* realistic lighting
+* natural shadows
+* reflections on the water
+* atmospheric environment
+* subtle fog/mist
+* realistic water movement
+* smooth animation
+* cinematic camera movement
+
+The final shot should feel like a scene from a high-quality 3D animated film.
+
+### Technical requirements
+
+* Use Three.js/WebGL.
+* Keep the animation performant in a normal desktop browser.
+* Make `/animation` responsive.
+* Add a **Play / Replay** button.
+* Add a loading state while 3D assets are loading.
+* Keep the animation isolated to `/animation`.
+* Do not remove or alter existing application functionality.
+* If a high-quality horse 3D model is required, structure the code so a GLTF/GLB horse model can easily be replaced or added later.
+* Prioritize the **quality and recognizability of the adult horse** over unnecessary visual effects.
+
+Before finishing, test `/animation` and make sure the final transformation produces a clearly recognizable **realistic adult horse**.

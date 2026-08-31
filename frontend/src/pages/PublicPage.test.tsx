@@ -35,10 +35,13 @@ describe('PublicPage hero', () => {
     expect(screen.getAllByRole('link', { name: 'Find care' })[1].getAttribute('href')).toBe('/signup');
     expect(screen.getByRole('link', { name: 'Join as a provider' }).getAttribute('href')).toBe('/provider/signup');
     expect(screen.getByRole('region', { name: 'Equine care stories' })).toBeTruthy();
-    expect(screen.getByRole('img', { name: /Dark horse standing/i })).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'Dark horse standing in a quiet mountain pasture at sunset' })).toBeTruthy();
     expect(document.querySelector('#crescent-border-gradient')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'A closer look at whole-horse care.' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Equine healthcare specializations' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Cardiology/ })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Next image' }));
-    expect(screen.getByRole('img', { name: /Equine care professional/i })).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'Equine care professional working with a horse indoors' })).toBeTruthy();
     await waitFor(() => expect(publicApi.recordPublicVisit).toHaveBeenCalledOnce());
   });
 
@@ -66,5 +69,18 @@ describe('PublicPage hero', () => {
 
     resolveRequest?.({ message: 'Thanks' });
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('team will be in touch soon'));
+  });
+
+  it('keeps specialization controls and selected state in sync', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    await user.click(screen.getByRole('button', { name: 'Next specialization' }));
+    expect(screen.getByText('Selected Dermatology')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Dermatology/ }).getAttribute('aria-pressed')).toBe('true');
+
+    await user.click(screen.getByRole('button', { name: /Neurology/ }));
+    expect(screen.getByText('Selected Neurology')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Neurology/ }).getAttribute('aria-pressed')).toBe('true');
   });
 });
