@@ -468,9 +468,13 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-.providerSection,
-.finalCta {
+.providerSection {
   width: min(1200px, calc(100% - 48px));
+  box-sizing: border-box;
+}
+
+.finalCta {
+  width: 100%;
   box-sizing: border-box;
 }
 
@@ -821,9 +825,12 @@
     width: 100%;
   }
 
-  .providerSection,
-  .finalCta {
+  .providerSection {
     width: min(100% - 40px, 1200px);
+  }
+
+  .finalCta {
+    width: 100%;
   }
 
   .providerSection {
