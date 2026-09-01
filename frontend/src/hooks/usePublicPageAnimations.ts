@@ -81,6 +81,35 @@ export function usePublicPageAnimations(rootRef: RefObject<HTMLElement | null>) 
         );
       }
 
+      const aboutSection = root.querySelector<HTMLElement>('[data-about-section]');
+      const aboutImage = aboutSection?.querySelector<HTMLElement>('[data-about-image]');
+      const aboutCopy = aboutSection?.querySelector<HTMLElement>('[data-about-copy]');
+      if (aboutSection && aboutImage && aboutCopy) {
+        const aboutTimeline = gsap.timeline({
+          defaults: { ease: 'power3.out' },
+          scrollTrigger: {
+            trigger: aboutSection,
+            start: 'top 80%',
+            once: true,
+            invalidateOnRefresh: true,
+          },
+        });
+
+        aboutTimeline
+          .fromTo(
+            aboutImage,
+            { autoAlpha: 0, y: 34, scale: 0.94 },
+            { autoAlpha: 1, y: 0, scale: 1, duration: 0.82 },
+            0,
+          )
+          .fromTo(
+            aboutCopy,
+            { autoAlpha: 0, y: 24 },
+            { autoAlpha: 1, y: 0, duration: 0.7 },
+            0.28,
+          );
+      }
+
       root.querySelectorAll<HTMLElement>('[data-scroll-reveal]').forEach((element) => {
         gsap.fromTo(
           element,

@@ -193,9 +193,9 @@ describe('PublicPage hero', () => {
       name: 'EquiConnected veterinary team caring for a horse',
     });
     expect(aboutImage.getAttribute('src')).toBe('/about-equiconnected-transparent.png');
-    expect(within(aboutSection as HTMLElement).getByRole('link', {
+    expect(within(aboutSection as HTMLElement).queryByRole('link', {
       name: /find your care network/i,
-    }).getAttribute('href')).toBe('/signup');
+    })).toBeNull();
   });
 
   it('presents the three-step care journey with selectable content panels', async () => {
