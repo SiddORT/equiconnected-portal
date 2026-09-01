@@ -56,9 +56,18 @@
   min-height: calc(3 * var(--care-story-panel-height));
   grid-template-columns: minmax(220px, .26fr) minmax(0, 1fr);
   align-items: start;
+}
+
+.panelViewport {
+  position: sticky;
+  top: 124px;
+  height: var(--care-story-panel-height);
+  min-width: 0;
+  min-height: 0;
   border: 1px solid rgba(18, 57, 74, .2);
   background: rgba(255, 253, 248, .72);
   box-shadow: 0 24px 54px rgba(18, 57, 74, .08);
+  box-sizing: border-box;
 }
 
 .stepRail {
@@ -67,7 +76,8 @@
   align-self: start;
   min-height: 380px;
   padding: 36px 30px;
-  border-right: 1px solid rgba(18, 57, 74, .14);
+  border: 1px solid rgba(18, 57, 74, .2);
+  border-right: 0;
   background: rgba(255, 253, 248, .9);
   box-sizing: border-box;
 }
@@ -177,8 +187,7 @@
 }
 
 .panels {
-  position: sticky;
-  top: 124px;
+  position: relative;
   display: flex;
   height: var(--care-story-panel-height);
   min-height: 0;
@@ -433,7 +442,7 @@
     display: none;
   }
 
-  .panels {
+  .panelViewport {
     top: 154px;
     height: calc(100svh - 166px);
     min-height: 520px;
@@ -497,7 +506,7 @@
     min-height: calc((3 * var(--care-story-panel-height)) + 128px);
   }
 
-  .panels {
+  .panelViewport {
     height: var(--care-story-panel-height);
     min-height: 0;
   }

@@ -166,33 +166,35 @@ export function HowItWorksScroll() {
           </ol>
         </nav>
 
-        <div className={styles.panels}>
-          {HOW_IT_WORKS_STEPS.map((step, index) => (
-            <article
-              key={step.label}
-              className={`${styles.panel} ${index === activeStep ? styles.activePanel : ''}`}
-              data-step-index={index}
-              aria-hidden={index !== activeStep}
-              aria-labelledby={`how-it-works-${step.label.toLowerCase()}`}
-              tabIndex={index === activeStep ? 0 : -1}
-            >
-              <div className={styles.panelImageFrame}>
-                <img
-                  className={styles.panelImage}
-                  src={step.image}
-                  alt={step.alt}
-                  loading={index === 0 ? 'eager' : 'lazy'}
-                />
-                <span className={styles.panelImageNumber} aria-hidden="true">{step.number}</span>
-              </div>
-              <div className={styles.panelCopy}>
-                <p className={styles.panelKicker}>{step.label}</p>
-                <h3 id={`how-it-works-${step.label.toLowerCase()}`}>{step.title}</h3>
-                <p>{step.description}</p>
-                <span className={styles.panelRule} aria-hidden="true" />
-              </div>
-            </article>
-          ))}
+        <div className={styles.panelViewport}>
+          <div className={styles.panels}>
+            {HOW_IT_WORKS_STEPS.map((step, index) => (
+              <article
+                key={step.label}
+                className={`${styles.panel} ${index === activeStep ? styles.activePanel : ''}`}
+                data-step-index={index}
+                aria-hidden={index !== activeStep}
+                aria-labelledby={`how-it-works-${step.label.toLowerCase()}`}
+                tabIndex={index === activeStep ? 0 : -1}
+              >
+                <div className={styles.panelImageFrame}>
+                  <img
+                    className={styles.panelImage}
+                    src={step.image}
+                    alt={step.alt}
+                    loading={index === 0 ? 'eager' : 'lazy'}
+                  />
+                  <span className={styles.panelImageNumber} aria-hidden="true">{step.number}</span>
+                </div>
+                <div className={styles.panelCopy}>
+                  <p className={styles.panelKicker}>{step.label}</p>
+                  <h3 id={`how-it-works-${step.label.toLowerCase()}`}>{step.title}</h3>
+                  <p>{step.description}</p>
+                  <span className={styles.panelRule} aria-hidden="true" />
+                </div>
+              </article>
+            ))}
+          </div>
         </div>
       </div>
     </section>
