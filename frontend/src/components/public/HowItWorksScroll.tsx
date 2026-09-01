@@ -43,24 +43,24 @@ const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
 export function HowItWorksScroll() {
   const [activeStep, setActiveStep] = useState(0);
   const storyRef = useRef<HTMLDivElement>(null);
-  const stepRailRef = useRef<HTMLElement>(null);
+  const storyTrackRef = useRef<HTMLDivElement>(null);
   const scrollTargetRef = useRef<number | null>(null);
   const scrollTargetTimerRef = useRef<number | null>(null);
 
   function getScrollGeometry() {
     const story = storyRef.current;
-    if (!story || story.offsetHeight === 0) return null;
+    const storyTrack = storyTrackRef.current;
+    if (!story || !storyTrack || storyTrack.offsetHeight === 0) return null;
 
     const isMobile = window.innerWidth <= 799;
     const stickyOffset = isMobile ? 154 : 124;
-    const railHeight = isMobile ? (stepRailRef.current?.offsetHeight ?? 0) + 28 : 0;
-    const scrollHeight = Math.max(1, story.offsetHeight - railHeight);
+    const railHeight = isMobile ? storyTrack.offsetTop : 0;
 
     return {
       story,
       stickyOffset,
       railHeight,
-      stepDistance: scrollHeight / HOW_IT_WORKS_STEPS.length,
+      stepDistance: storyTrack.offsetHeight / HOW_IT_WORKS_STEPS.length,
     };
   }
 
@@ -145,7 +145,7 @@ export function HowItWorksScroll() {
       </div>
 
       <div className={styles.story} ref={storyRef}>
-        <nav ref={stepRailRef} className={styles.stepRail} aria-label="How EquiConnected works">
+        <nav className={styles.stepRail} aria-label="How EquiConnected works">
           <p className={styles.railLabel}>Your path to care</p>
           <ol className={styles.steps}>
             {HOW_IT_WORKS_STEPS.map((step, index) => (
@@ -166,34 +166,36 @@ export function HowItWorksScroll() {
           </ol>
         </nav>
 
-        <div className={styles.panelViewport}>
-          <div className={styles.panels}>
-            {HOW_IT_WORKS_STEPS.map((step, index) => (
-              <article
-                key={step.label}
-                className={`${styles.panel} ${index === activeStep ? styles.activePanel : ''}`}
-                data-step-index={index}
-                aria-hidden={index !== activeStep}
-                aria-labelledby={`how-it-works-${step.label.toLowerCase()}`}
-                tabIndex={index === activeStep ? 0 : -1}
-              >
-                <div className={styles.panelImageFrame}>
-                  <img
-                    className={styles.panelImage}
-                    src={step.image}
-                    alt={step.alt}
-                    loading={index === 0 ? 'eager' : 'lazy'}
-                  />
-                  <span className={styles.panelImageNumber} aria-hidden="true">{step.number}</span>
-                </div>
-                <div className={styles.panelCopy}>
-                  <p className={styles.panelKicker}>{step.label}</p>
-                  <h3 id={`how-it-works-${step.label.toLowerCase()}`}>{step.title}</h3>
-                  <p>{step.description}</p>
-                  <span className={styles.panelRule} aria-hidden="true" />
-                </div>
-              </article>
-            ))}
+        <div className={styles.storyTrack} ref={storyTrackRef} data-care-journey-track>
+          <div className={styles.panelViewport} data-care-journey-viewport>
+            <div className={styles.panels}>
+              {HOW_IT_WORKS_STEPS.map((step, index) => (
+                <article
+                  key={step.label}
+                  className={`${styles.panel} ${index === activeStep ? styles.activePanel : ''}`}
+                  data-step-index={index}
+                  aria-hidden={index !== activeStep}
+                  aria-labelledby={`how-it-works-${step.label.toLowerCase()}`}
+                  tabIndex={index === activeStep ? 0 : -1}
+                >
+                  <div className={styles.panelImageFrame}>
+                    <img
+                      className={styles.panelImage}
+                      src={step.image}
+                      alt={step.alt}
+                      loading={index === 0 ? 'eager' : 'lazy'}
+                    />
+                    <span className={styles.panelImageNumber} aria-hidden="true">{step.number}</span>
+                  </div>
+                  <div className={styles.panelCopy}>
+                    <p className={styles.panelKicker}>{step.label}</p>
+                    <h3 id={`how-it-works-${step.label.toLowerCase()}`}>{step.title}</h3>
+                    <p>{step.description}</p>
+                    <span className={styles.panelRule} aria-hidden="true" />
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
         </div>
       </div>

@@ -175,6 +175,16 @@ describe('PublicPage hero', () => {
     expect(screen.getByRole('button', { name: /03.*CONNECT/ })).toBeTruthy();
     expect(screen.getByRole('img', { name: 'Horse standing in a quiet mountain pasture' })).toBeTruthy();
 
+    const story = screen.getByRole('navigation', { name: 'How EquiConnected works' }).parentElement;
+    if (!story) {
+      throw new Error('Expected care-journey story shell to render.');
+    }
+    const storyTrack = story.querySelector<HTMLElement>('[data-care-journey-track]');
+    if (!storyTrack) {
+      throw new Error('Expected care-journey scroll track to render.');
+    }
+    expect(storyTrack.querySelector('[data-care-journey-viewport]')).toBeTruthy();
+
     const steps = [
       {
         button: /01.*SEARCH/,
@@ -344,10 +354,13 @@ describe('PublicPage hero', () => {
     if (!story) {
       throw new Error('Expected care-journey story shell to render.');
     }
-
+    const storyTrack = story.querySelector<HTMLElement>('[data-care-journey-track]');
+    if (!storyTrack) {
+      throw new Error('Expected care-journey scroll track to render.');
+    }
     let storyTop = 124;
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
-    Object.defineProperty(story, 'offsetHeight', { configurable: true, value: 1800 });
+    Object.defineProperty(storyTrack, 'offsetHeight', { configurable: true, value: 1800 });
     vi.spyOn(story, 'getBoundingClientRect').mockImplementation(
       () => ({ top: storyTop } as DOMRect),
     );
@@ -364,6 +377,12 @@ describe('PublicPage hero', () => {
     expect(screen.getByRole('button', { name: /02.*DISCOVER/ }).getAttribute('aria-current')).toBe('step');
 
     storyTop = -1076;
+    act(() => {
+      window.dispatchEvent(new Event('scroll'));
+    });
+    expect(screen.getByRole('button', { name: /03.*CONNECT/ }).getAttribute('aria-current')).toBe('step');
+
+    storyTop = -1676;
     act(() => {
       window.dispatchEvent(new Event('scroll'));
     });

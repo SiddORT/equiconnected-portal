@@ -65,6 +65,13 @@
   align-items: start;
 }
 
+.storyTrack {
+  position: relative;
+  grid-column: 2;
+  height: calc(3 * var(--care-story-panel-height));
+  min-height: 0;
+}
+
 .panelViewport {
   position: sticky;
   top: 124px;
@@ -435,7 +442,7 @@
   .story {
     display: block;
     --care-story-panel-height: clamp(520px, calc(100svh - 166px), 680px);
-    min-height: calc((3 * var(--care-story-panel-height)) + 128px);
+    min-height: 0;
   }
 
   .stepRail {
@@ -573,7 +580,7 @@
 @media (max-width: 799px) and (max-height: 720px) {
   .story {
     --care-story-panel-height: clamp(480px, calc(100svh - 154px), 560px);
-    min-height: calc((3 * var(--care-story-panel-height)) + 128px);
+    min-height: 0;
   }
 
   .panelViewport {
