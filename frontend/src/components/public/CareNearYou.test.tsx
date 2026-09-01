@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import type { PublicProviderDiscovery } from '@/types';
 import * as publicApi from '@/api/public';
+import styles from './CareNearYou.module.css';
 
 const leaflet = vi.hoisted(() => {
   const mapInstance = {
@@ -109,6 +110,18 @@ describe('CareNearYou', () => {
       [19.076, 72.8777],
       expect.objectContaining({ fillColor: '#2d68a0' }),
     );
+  });
+
+  it('keeps the care discovery action full width without changing its destination', () => {
+    vi.mocked(publicApi.listPublicProviders).mockResolvedValue([]);
+    render(<MemoryRouter><CareNearYou /></MemoryRouter>);
+
+    const actions = document.querySelector(`.${styles.introActions}`) as HTMLElement;
+    const findCareLink = screen.getByRole('link', { name: /FIND CARE NEAR ME/ });
+
+    expect(actions).toBeTruthy();
+    expect(findCareLink.getAttribute('href')).toBe('/member');
+    expect(findCareLink.classList.contains(styles.primaryCta)).toBe(true);
   });
 
   it('requests location only after consent and refreshes provider distances', async () => {

@@ -52,6 +52,7 @@
 
 .introActions {
   display: flex;
+  width: min(100%, 360px);
   flex-shrink: 0;
   align-items: stretch;
   flex-direction: column;
@@ -73,6 +74,7 @@
 }
 
 .locationButton {
+  align-self: flex-start;
   border: 1px solid rgba(18, 57, 74, .2);
   background: rgba(255, 255, 255, .62);
   color: #527585;
@@ -98,6 +100,7 @@
 
 .primaryCta {
   display: inline-flex;
+  width: 100%;
   align-items: center;
   justify-content: center;
   gap: 12px;
@@ -429,12 +432,6 @@
 
   .introActions {
     width: min(100%, 360px);
-    flex-direction: row;
-  }
-
-  .locationButton,
-  .primaryCta {
-    flex: 1;
   }
 }
 
@@ -450,7 +447,10 @@
 
   .introActions {
     width: 100%;
-    flex-direction: column;
+  }
+
+  .locationButton {
+    align-self: stretch;
   }
 
   .explorer {

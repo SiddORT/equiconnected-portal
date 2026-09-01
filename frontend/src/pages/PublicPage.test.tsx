@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import * as publicApi from '@/api/public';
 import { PublicPage } from './PublicPage';
+import styles from './PublicPage.module.css';
 
 vi.mock('@/api/public', () => ({
   recordPublicVisit: vi.fn(() => Promise.resolve()),
@@ -100,6 +101,42 @@ describe('PublicPage hero', () => {
     await waitFor(() => expect(screen.getByText(/team will be in touch soon/i)).toBeTruthy());
   });
 
+  it('uses full-width action groups while preserving conversion destinations', () => {
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    const hero = screen.getByRole('heading', {
+      name: 'Healthcare, Connected Around You.',
+    }).closest('section') as HTMLElement;
+    const heroActions = hero.querySelector(`.${styles.ctas}`) as HTMLElement;
+    expect(heroActions).toBeTruthy();
+    expect(heroActions.classList.contains(styles.ctas)).toBe(true);
+    expect(Array.from(heroActions.querySelectorAll('a')).map((link) => link.getAttribute('href')))
+      .toEqual(['/signup', '/provider/signup']);
+    expect(Array.from(heroActions.querySelectorAll('a')).every((link) => (
+      link.classList.contains(styles.primaryCta) || link.classList.contains(styles.secondaryCta)
+    ))).toBe(true);
+
+    const providerSection = screen.getByRole('heading', {
+      name: 'Grow your presence with EquiConnected.',
+    }).closest('section') as HTMLElement;
+    const providerCta = within(providerSection).getByRole('link', {
+      name: /join as a provider/i,
+    });
+    expect(providerCta.getAttribute('href')).toBe('/provider/signup');
+    expect(providerCta.classList.contains(styles.providerCta)).toBe(true);
+
+    const finalSection = screen.getByRole('heading', {
+      name: 'Your healthcare network starts here.',
+    }).closest('section') as HTMLElement;
+    const finalActions = finalSection.querySelector(`.${styles.finalCtaActions}`) as HTMLElement;
+    expect(finalActions).toBeTruthy();
+    expect(Array.from(finalActions.querySelectorAll('a')).map((link) => link.getAttribute('href')))
+      .toEqual(['/signup', '/provider/signup']);
+    expect(Array.from(finalActions.querySelectorAll('a')).every((link) => (
+      link.classList.contains(styles.finalPrimaryCta) || link.classList.contains(styles.finalSecondaryCta)
+    ))).toBe(true);
+  });
+
   it('keeps specialization controls and selected state in sync', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
@@ -189,12 +226,13 @@ describe('PublicPage hero', () => {
     expect(within(providerSection as HTMLElement).getByText('Doctors')).toBeTruthy();
     expect(within(providerSection as HTMLElement).getByText('Clinics')).toBeTruthy();
     expect(within(providerSection as HTMLElement).getByText('Hospitals')).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Designed around better healthcare discovery.' })).toBeTruthy();
-    expect(screen.getByText('Clear provider information')).toBeTruthy();
-    expect(screen.getByText('Transparent community reviews')).toBeTruthy();
-    expect(screen.getByText('Location-based discovery')).toBeTruthy();
-    expect(screen.getByText('Secure member accounts')).toBeTruthy();
-    expect(screen.getByText('Provider profiles')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Designed around better healthcare discovery.' })).toBeNull();
+    expect(screen.queryByText('A clearer way to discover care')).toBeNull();
+    expect(screen.queryByText('Clear provider information')).toBeNull();
+    expect(screen.queryByText('Transparent community reviews')).toBeNull();
+    expect(screen.queryByText('Location-based discovery')).toBeNull();
+    expect(screen.queryByText('Secure member accounts')).toBeNull();
+    expect(screen.queryByText('Provider profiles')).toBeNull();
     expect(screen.getByRole('heading', { name: 'Your healthcare network starts here.' })).toBeTruthy();
     expect(screen.getByText('Find the care you need. Discover providers around you.')).toBeTruthy();
     expect(screen.queryByText(/verified|certified/i)).toBeNull();
@@ -209,20 +247,15 @@ describe('PublicPage hero', () => {
     const providerSection = screen.getByRole('heading', {
       name: 'Grow your presence with EquiConnected.',
     }).closest('section');
-    const trustSection = screen.getByRole('heading', {
-      name: 'Designed around better healthcare discovery.',
-    }).closest('section');
     const finalSection = screen.getByRole('heading', {
       name: 'Your healthcare network starts here.',
     }).closest('section');
 
     expect(providerSection).toBeTruthy();
-    expect(trustSection).toBeTruthy();
     expect(finalSection).toBeTruthy();
     expect(Array.from(main.children).indexOf(providerSection as HTMLElement))
-      .toBeLessThan(Array.from(main.children).indexOf(trustSection as HTMLElement));
-    expect(Array.from(main.children).indexOf(trustSection as HTMLElement))
       .toBeLessThan(Array.from(main.children).indexOf(finalSection as HTMLElement));
+    expect(document.querySelector('#trust-and-transparency')).toBeNull();
 
     expect(within(providerSection as HTMLElement).getByRole('link', {
       name: /join as a provider/i,

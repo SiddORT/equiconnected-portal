@@ -249,26 +249,6 @@ export function PublicPage() {
           </ul>
         </section>
 
-        <section id="trust-and-transparency" className={styles.trustSection} aria-labelledby="trust-heading">
-          <div className={styles.trustIntro}>
-            <p className={styles.sectionEyebrow}><span aria-hidden="true" />A clearer way to discover care</p>
-            <h2 id="trust-heading">Designed around better healthcare discovery.</h2>
-            <p>
-              The details you need to make a considered next choice, brought together
-              in one calm, connected place.
-            </p>
-          </div>
-          <div className={styles.trustGrid}>
-            {TRUST_SIGNALS.map((signal) => (
-              <article className={styles.trustCard} key={signal.title}>
-                <span className={styles.trustIcon} aria-hidden="true">{signal.icon}</span>
-                <h3>{signal.title}</h3>
-                <p>{signal.description}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
         <section id="get-started" className={styles.finalCta} aria-labelledby="final-cta-heading">
           <div className={styles.finalCtaCopy}>
             <p className={styles.sectionEyebrow}><span aria-hidden="true" />Keep moving forward</p>
@@ -300,34 +280,6 @@ export function PublicPage() {
 }
 
 const PROVIDER_TYPES = ['Doctors', 'Clinics', 'Hospitals'];
-
-const TRUST_SIGNALS = [
-  {
-    icon: '01',
-    title: 'Clear provider information',
-    description: 'Review the practice details providers choose to share before you reach out.',
-  },
-  {
-    icon: '02',
-    title: 'Transparent community reviews',
-    description: 'See ratings and reviews from the EquiConnected community alongside each profile.',
-  },
-  {
-    icon: '03',
-    title: 'Location-based discovery',
-    description: 'Find care options around the places that work for you and your horse.',
-  },
-  {
-    icon: '04',
-    title: 'Secure member accounts',
-    description: 'Keep your member experience and care-seeking activity in a secure account.',
-  },
-  {
-    icon: '05',
-    title: 'Provider profiles',
-    description: 'Explore a dedicated view of each doctor, clinic, or hospital in the network.',
-  },
-];
 
 const REGISTRATION_TYPES: Array<{ value: SubscriberRegistrationType; label: string }> = [
   { value: 'VET', label: 'Vet' },
