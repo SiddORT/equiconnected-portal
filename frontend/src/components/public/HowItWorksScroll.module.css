@@ -414,6 +414,52 @@
   }
 }
 
+@media (min-width: 800px) {
+  .panelViewport {
+    overflow: hidden;
+  }
+
+  .panels {
+    width: 300%;
+    flex-direction: row;
+    overflow: visible;
+    will-change: transform;
+  }
+
+  .panel {
+    position: relative;
+    inset: auto;
+    width: 33.333333%;
+    flex: 0 0 33.333333%;
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+    transition: none;
+  }
+
+  .reducedMotion .panels {
+    width: 100%;
+    flex-direction: column;
+    overflow: hidden;
+    transform: none !important;
+    will-change: auto;
+  }
+
+  .reducedMotion .panel {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    flex: none;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .reducedMotion .activePanel {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 @media (min-width: 1100px) {
   .panelCopy {
     width: min(660px, 58%);

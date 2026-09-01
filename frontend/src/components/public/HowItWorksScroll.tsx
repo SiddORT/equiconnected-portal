@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import styles from './HowItWorksScroll.module.css';
 
 type HowItWorksStep = {
@@ -40,12 +42,33 @@ const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
   },
 ];
 
+if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+  gsap.registerPlugin(ScrollTrigger);
+}
+
 export function HowItWorksScroll() {
   const [activeStep, setActiveStep] = useState(0);
+  const [reducedMotion, setReducedMotion] = useState(() => (
+    typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ));
   const storyRef = useRef<HTMLDivElement>(null);
   const storyTrackRef = useRef<HTMLDivElement>(null);
   const scrollTargetRef = useRef<number | null>(null);
   const scrollTargetTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return undefined;
+
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updateMotionPreference = () => setReducedMotion(mediaQuery.matches);
+    updateMotionPreference();
+
+    if (typeof mediaQuery.addEventListener !== 'function') return undefined;
+    mediaQuery.addEventListener('change', updateMotionPreference);
+    return () => mediaQuery.removeEventListener('change', updateMotionPreference);
+  }, []);
 
   function getScrollGeometry() {
     const story = storyRef.current;
@@ -109,6 +132,37 @@ export function HowItWorksScroll() {
     };
   }, []);
 
+  useEffect(() => {
+    const storyTrack = storyTrackRef.current;
+    const panels = storyTrack?.querySelector<HTMLElement>(`.${styles.panels}`);
+    const panelViewport = storyTrack?.querySelector<HTMLElement>(`.${styles.panelViewport}`);
+    if (
+      !storyTrack
+      || !panels
+      || !panelViewport
+      || window.innerWidth <= 799
+      || reducedMotion
+      || storyTrack.offsetHeight === 0
+      || panelViewport.offsetHeight === 0
+    ) return undefined;
+
+    const context = gsap.context(() => {
+      gsap.to(panels, {
+        xPercent: -((HOW_IT_WORKS_STEPS.length - 1) / HOW_IT_WORKS_STEPS.length) * 100,
+        ease: 'none',
+        scrollTrigger: {
+          trigger: storyTrack,
+          start: 'top top+=124',
+          end: () => `+=${Math.max(1, storyTrack.offsetHeight - panelViewport.offsetHeight)}`,
+          scrub: true,
+          invalidateOnRefresh: true,
+        },
+      });
+    }, storyTrack);
+
+    return () => context.revert();
+  }, [reducedMotion]);
+
   function focusStep(index: number) {
     const nextIndex = (index + HOW_IT_WORKS_STEPS.length) % HOW_IT_WORKS_STEPS.length;
     setActiveStep(nextIndex);
@@ -144,7 +198,11 @@ export function HowItWorksScroll() {
         </h2>
       </div>
 
-      <div className={styles.story} ref={storyRef} data-care-journey-story>
+      <div
+        className={`${styles.story} ${reducedMotion ? styles.reducedMotion : ''}`}
+        ref={storyRef}
+        data-care-journey-story
+      >
         <nav
           className={styles.stepRail}
           aria-label="How EquiConnected works"
