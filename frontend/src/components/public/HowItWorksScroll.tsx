@@ -48,6 +48,9 @@ if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
 
 export function HowItWorksScroll() {
   const [activeStep, setActiveStep] = useState(0);
+  const [isDesktop, setIsDesktop] = useState(() => (
+    typeof window !== 'undefined' && window.innerWidth > 799
+  ));
   const [reducedMotion, setReducedMotion] = useState(() => (
     typeof window !== 'undefined'
     && typeof window.matchMedia === 'function'
@@ -59,15 +62,33 @@ export function HowItWorksScroll() {
   const scrollTargetTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return undefined;
+    if (typeof window === 'undefined') return undefined;
 
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const updateMotionPreference = () => setReducedMotion(mediaQuery.matches);
-    updateMotionPreference();
+    const desktopQuery = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(min-width: 800px)')
+      : null;
+    const motionQuery = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)')
+      : null;
 
-    if (typeof mediaQuery.addEventListener !== 'function') return undefined;
-    mediaQuery.addEventListener('change', updateMotionPreference);
-    return () => mediaQuery.removeEventListener('change', updateMotionPreference);
+    const updateViewportState = () => {
+      setIsDesktop(desktopQuery ? desktopQuery.matches : window.innerWidth > 799);
+      setReducedMotion(motionQuery?.matches ?? false);
+    };
+    const updateDesktopState = () => {
+      setIsDesktop(desktopQuery ? desktopQuery.matches : window.innerWidth > 799);
+    };
+
+    updateViewportState();
+    window.addEventListener('resize', updateDesktopState);
+    desktopQuery?.addEventListener?.('change', updateDesktopState);
+    motionQuery?.addEventListener?.('change', updateViewportState);
+
+    return () => {
+      window.removeEventListener('resize', updateDesktopState);
+      desktopQuery?.removeEventListener?.('change', updateDesktopState);
+      motionQuery?.removeEventListener?.('change', updateViewportState);
+    };
   }, []);
 
   function getScrollGeometry() {
@@ -140,7 +161,7 @@ export function HowItWorksScroll() {
       !storyTrack
       || !panels
       || !panelViewport
-      || window.innerWidth <= 799
+      || !isDesktop
       || reducedMotion
       || storyTrack.offsetHeight === 0
       || panelViewport.offsetHeight === 0
@@ -161,7 +182,7 @@ export function HowItWorksScroll() {
     }, storyTrack);
 
     return () => context.revert();
-  }, [reducedMotion]);
+  }, [isDesktop, reducedMotion]);
 
   function focusStep(index: number) {
     const nextIndex = (index + HOW_IT_WORKS_STEPS.length) % HOW_IT_WORKS_STEPS.length;

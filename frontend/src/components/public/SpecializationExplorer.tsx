@@ -1,4 +1,6 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import styles from './SpecializationExplorer.module.css';
 
 type Specialization = {
@@ -68,9 +70,21 @@ const SPECIALIZATIONS: Specialization[] = [
   },
 ];
 
+const DESKTOP_BREAKPOINT = 1100;
+
 export function SpecializationExplorer() {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isDesktop, setIsDesktop] = useState(() => (
+    typeof window !== 'undefined' && window.innerWidth >= DESKTOP_BREAKPOINT
+  ));
+  const [reducedMotion, setReducedMotion] = useState(() => (
+    typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ));
   const trackRef = useRef<HTMLDivElement>(null);
+  const premiumStageRef = useRef<HTMLDivElement>(null);
+  const premiumTrackRef = useRef<HTMLDivElement>(null);
 
   function chooseSpecialization(index: number) {
     const nextIndex = (index + SPECIALIZATIONS.length) % SPECIALIZATIONS.length;
@@ -87,6 +101,143 @@ export function SpecializationExplorer() {
       });
     }
   }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const desktopQuery = typeof window.matchMedia === 'function'
+      ? window.matchMedia(`(min-width: ${DESKTOP_BREAKPOINT}px)`)
+      : null;
+    const motionQuery = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)')
+      : null;
+
+    function updateViewportState() {
+      setIsDesktop(desktopQuery ? desktopQuery.matches : window.innerWidth >= DESKTOP_BREAKPOINT);
+      setReducedMotion(motionQuery?.matches ?? false);
+    }
+
+    function updateDesktopState() {
+      setIsDesktop(desktopQuery ? desktopQuery.matches : window.innerWidth >= DESKTOP_BREAKPOINT);
+    }
+
+    updateViewportState();
+    window.addEventListener('resize', updateDesktopState);
+
+    if (desktopQuery && typeof desktopQuery.addEventListener === 'function') {
+      desktopQuery.addEventListener('change', updateDesktopState);
+    } else if (desktopQuery && typeof desktopQuery.addListener === 'function') {
+      desktopQuery.addListener(updateDesktopState);
+    }
+
+    if (motionQuery && typeof motionQuery.addEventListener === 'function') {
+      motionQuery.addEventListener('change', updateViewportState);
+    } else if (motionQuery && typeof motionQuery.addListener === 'function') {
+      motionQuery.addListener(updateViewportState);
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateDesktopState);
+      if (desktopQuery && typeof desktopQuery.removeEventListener === 'function') {
+        desktopQuery.removeEventListener('change', updateDesktopState);
+      } else if (desktopQuery && typeof desktopQuery.removeListener === 'function') {
+        desktopQuery.removeListener(updateDesktopState);
+      }
+      if (motionQuery && typeof motionQuery.removeEventListener === 'function') {
+        motionQuery.removeEventListener('change', updateViewportState);
+      } else if (motionQuery && typeof motionQuery.removeListener === 'function') {
+        motionQuery.removeListener(updateViewportState);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const stage = premiumStageRef.current;
+    const premiumTrack = premiumTrackRef.current;
+    if (!stage || !premiumTrack || !isDesktop || reducedMotion) return undefined;
+
+    const viewport = stage.querySelector<HTMLElement>(`.${styles.premiumViewport}`);
+    const cards = Array.from(
+      premiumTrack.querySelectorAll<HTMLElement>(`.${styles.premiumCard}`),
+    );
+    const images = cards.map((card) => card.querySelector<HTMLElement>(`.${styles.premiumImage}`));
+    const copies = cards.map((card) => card.querySelector<HTMLElement>(`.${styles.premiumCardCopy}`));
+    const links = cards.map((card) => card.querySelector<HTMLAnchorElement>(`.${styles.premiumExplore}`));
+    if (!viewport || cards.length === 0) return undefined;
+
+    gsap.registerPlugin(ScrollTrigger);
+
+    const removeFocusListeners: Array<() => void> = [];
+    const context = gsap.context(() => {
+      const setCardProgress = (progress: number) => {
+        const cardPosition = progress * (cards.length - 1);
+        const currentIndex = Math.min(
+          cards.length - 1,
+          Math.max(0, Math.round(cardPosition)),
+        );
+
+        cards.forEach((card, index) => {
+          const state = index < currentIndex
+            ? 'passed'
+            : index === currentIndex
+              ? 'active'
+              : 'upcoming';
+          card.dataset.premiumState = state;
+          const distanceFromCurrent = index - cardPosition;
+          const image = images[index];
+          const copy = copies[index];
+          if (image) {
+            gsap.set(image, {
+              xPercent: Math.max(-3, Math.min(3, distanceFromCurrent * 3)),
+              scale: index === currentIndex ? 1.04 : 1,
+            });
+          }
+          if (copy) {
+            gsap.set(copy, { y: index === currentIndex ? -6 : 0 });
+          }
+        });
+      };
+
+      setCardProgress(0);
+      const tween = gsap.to(premiumTrack, {
+        x: () => -Math.max(0, premiumTrack.scrollWidth - viewport.clientWidth),
+        ease: 'none',
+        scrollTrigger: {
+          trigger: stage,
+          pin: true,
+          start: 'top top+=112',
+          end: () => `+=${Math.max(1, premiumTrack.scrollWidth - viewport.clientWidth)}`,
+          scrub: 0.8,
+          invalidateOnRefresh: true,
+          anticipatePin: 1,
+          onUpdate: (self) => setCardProgress(self.progress),
+        },
+      });
+
+      links.forEach((link, index) => {
+        if (!link) return;
+        const revealFocusedCard = () => {
+          const trigger = tween.scrollTrigger;
+          if (!trigger || typeof window.scrollTo !== 'function') return;
+          const progress = cards.length === 1 ? 0 : index / (cards.length - 1);
+          window.scrollTo({
+            top: trigger.start + ((trigger.end - trigger.start) * progress),
+            behavior: 'auto',
+          });
+        };
+        link.addEventListener('focus', revealFocusedCard);
+        removeFocusListeners.push(() => link.removeEventListener('focus', revealFocusedCard));
+      });
+    }, stage);
+
+    return () => {
+      removeFocusListeners.forEach((removeListener) => removeListener());
+      context.revert();
+      cards.forEach((card, index) => {
+        card.dataset.premiumState = index === 0 ? 'active' : 'upcoming';
+      });
+    };
+  }, [isDesktop, reducedMotion]);
 
   return (
     <section
@@ -195,6 +346,65 @@ export function SpecializationExplorer() {
       <p className={styles.carouselStatus} aria-live="polite">
         Selected {SPECIALIZATIONS[activeIndex].title}
       </p>
+
+      <section
+        className={`${styles.premiumExperience} ${reducedMotion ? styles.premiumReducedMotion : ''}`}
+        aria-labelledby="premium-specializations-heading"
+        data-premium-specializations
+        data-premium-motion={reducedMotion ? 'reduced' : 'scroll'}
+      >
+        <div className={styles.premiumHeader}>
+          <div>
+            <p className={styles.premiumKicker}>A deeper view</p>
+            <h3 id="premium-specializations-heading">Care, in focus.</h3>
+          </div>
+          <p className={styles.premiumIntro}>
+            A considered approach for every chapter of the horse&apos;s life.
+          </p>
+        </div>
+
+        <div
+          className={styles.premiumStage}
+          ref={premiumStageRef}
+          data-premium-stage
+          data-premium-pinning={isDesktop && !reducedMotion ? 'enabled' : 'disabled'}
+        >
+          <div className={styles.premiumViewport} data-premium-viewport>
+            <div className={styles.premiumTrack} ref={premiumTrackRef} data-premium-track>
+              {SPECIALIZATIONS.map((specialization, index) => (
+                <article
+                  className={styles.premiumCard}
+                  data-premium-card
+                  data-premium-state={index === 0 ? 'active' : 'upcoming'}
+                  key={`premium-${specialization.title}`}
+                >
+                  <div className={styles.premiumImageFrame}>
+                    <img
+                      className={styles.premiumImage}
+                      src={specialization.image}
+                      alt={specialization.alt}
+                      style={{ objectPosition: specialization.position }}
+                      loading={index === 0 ? 'eager' : 'lazy'}
+                    />
+                  </div>
+                  <div className={styles.premiumCardCopy}>
+                    <span className={styles.premiumNumber}>0{index + 1}</span>
+                    <h4>{specialization.title}</h4>
+                    <p>{specialization.description}</p>
+                    <a
+                      className={styles.premiumExplore}
+                      href="/signup"
+                      aria-label={`Explore ${specialization.title} care options`}
+                    >
+                      EXPLORE <span aria-hidden="true">→</span>
+                    </a>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
     </section>
   );
 }

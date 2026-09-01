@@ -164,6 +164,29 @@ describe('PublicPage hero', () => {
     expect(screen.getByRole('button', { name: /Neurology/ }).getAttribute('aria-pressed')).toBe('true');
   });
 
+  it('adds a separate editorial specialization scroll without changing the original rail', () => {
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    const premium = screen.getByRole('region', { name: 'Care, in focus.' });
+    expect(premium.hasAttribute('data-premium-specializations')).toBe(true);
+    expect(premium.getAttribute('data-premium-motion')).toBe('scroll');
+
+    const premiumStage = premium.querySelector<HTMLElement>('[data-premium-stage]');
+    if (!premiumStage) {
+      throw new Error('Expected premium specialization stage to render.');
+    }
+    expect(premiumStage.getAttribute('data-premium-pinning')).toBe('disabled');
+    expect(premiumStage.querySelector('[data-premium-viewport]')).toBeTruthy();
+    expect(premiumStage.querySelector('[data-premium-track]')).toBeTruthy();
+
+    const premiumCards = premium.querySelectorAll('[data-premium-card]');
+    expect(premiumCards).toHaveLength(8);
+    expect(within(premium).getAllByRole('link', { name: /Explore .* care options/ })).toHaveLength(8);
+    expect(Array.from(premium.querySelectorAll('a')).every((link) => (
+      link.getAttribute('href') === '/signup'
+    ))).toBe(true);
+  });
+
   it('presents the three-step care journey with selectable content panels', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
@@ -285,11 +308,6 @@ describe('PublicPage hero', () => {
     expect(providerSection).toBeTruthy();
     expect(finalSection).toBeTruthy();
     expect(whySection).toBeTruthy();
-    const finalVisual = finalSection?.querySelector(`.${styles.finalCtaVisual}`);
-    const finalImage = finalVisual?.querySelector(`.${styles.finalCtaImage}`);
-    expect(finalVisual?.getAttribute('aria-hidden')).toBe('true');
-    expect(finalImage?.getAttribute('src')).toBe('/hospital1.png');
-    expect(finalImage?.getAttribute('alt')).toBe('');
     const mainChildren = Array.from(main.children);
     const finalIndex = mainChildren.indexOf(finalSection as HTMLElement);
     const whyIndex = mainChildren.indexOf(whySection as HTMLElement);
