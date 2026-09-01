@@ -1,7 +1,7 @@
 .section {
   width: 100%;
   margin-top: clamp(0px, 1.5vw, 20px);
-  padding: clamp(56px, 7vw, 92px) 0 clamp(80px, 10vw, 140px);
+  padding: clamp(56px, 7vw, 92px) 0 0;
   border-top: 1px solid rgba(18, 57, 74, .12);
   background:
     linear-gradient(115deg, rgba(255, 253, 248, .74), rgba(222, 236, 230, .62) 52%, rgba(243, 228, 177, .26)),
@@ -85,13 +85,12 @@
 }
 
 .stepRail {
-  position: sticky;
-  top: 124px;
+  position: relative;
   align-self: start;
-  height: var(--care-story-panel-height);
+  height: calc(3 * var(--care-story-panel-height));
   min-height: 0;
-  padding: 36px 30px;
-  overflow: hidden;
+  padding: 0;
+  overflow: clip;
   isolation: isolate;
   border: 1px solid rgba(18, 57, 74, .28);
   border-right: 0;
@@ -99,6 +98,13 @@
     linear-gradient(155deg, rgba(8, 42, 59, .96), rgba(18, 57, 74, .84)),
     url('/horse-panel.jpg') center / cover;
   box-sizing: border-box;
+}
+
+.stepRailContent {
+  position: sticky;
+  z-index: 1;
+  top: 124px;
+  padding: 36px 30px;
 }
 
 .stepRail::after {
@@ -115,7 +121,7 @@
   pointer-events: none;
 }
 
-.stepRail > * {
+.stepRailContent > * {
   position: relative;
   z-index: 1;
 }
@@ -459,6 +465,11 @@
       linear-gradient(155deg, rgba(8, 42, 59, .96), rgba(18, 57, 74, .9)),
       url('/horse-panel.jpg') center / cover;
     backdrop-filter: blur(10px);
+  }
+
+  .stepRailContent {
+    position: static;
+    padding: 0;
   }
 
   .railLabel {

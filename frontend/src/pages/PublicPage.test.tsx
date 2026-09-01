@@ -179,6 +179,10 @@ describe('PublicPage hero', () => {
     if (!story) {
       throw new Error('Expected care-journey story shell to render.');
     }
+    expect(story.hasAttribute('data-care-journey-story')).toBe(true);
+    const rail = within(story).getByRole('navigation', { name: 'How EquiConnected works' });
+    expect(rail.hasAttribute('data-care-journey-rail')).toBe(true);
+    expect(rail.querySelector('[data-care-journey-rail-controls]')).toBeTruthy();
     const storyTrack = story.querySelector<HTMLElement>('[data-care-journey-track]');
     if (!storyTrack) {
       throw new Error('Expected care-journey scroll track to render.');

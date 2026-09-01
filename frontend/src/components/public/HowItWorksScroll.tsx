@@ -144,26 +144,32 @@ export function HowItWorksScroll() {
         </h2>
       </div>
 
-      <div className={styles.story} ref={storyRef}>
-        <nav className={styles.stepRail} aria-label="How EquiConnected works">
-          <p className={styles.railLabel}>Your path to care</p>
-          <ol className={styles.steps}>
-            {HOW_IT_WORKS_STEPS.map((step, index) => (
-              <li key={step.label}>
-                <button
-                  type="button"
-                  className={`${styles.stepButton} ${index === activeStep ? styles.activeStep : ''}`}
-                  aria-current={index === activeStep ? 'step' : undefined}
-                  aria-label={`${step.number} — ${step.label}`}
-                  onClick={() => focusStep(index)}
-                >
-                  <span className={styles.stepNumber}>{step.number}</span>
-                  <span className={styles.stepLabel}>{step.label}</span>
-                  <span className={styles.stepMarker} aria-hidden="true" />
-                </button>
-              </li>
-            ))}
-          </ol>
+      <div className={styles.story} ref={storyRef} data-care-journey-story>
+        <nav
+          className={styles.stepRail}
+          aria-label="How EquiConnected works"
+          data-care-journey-rail
+        >
+          <div className={styles.stepRailContent} data-care-journey-rail-controls>
+            <p className={styles.railLabel}>Your path to care</p>
+            <ol className={styles.steps}>
+              {HOW_IT_WORKS_STEPS.map((step, index) => (
+                <li key={step.label}>
+                  <button
+                    type="button"
+                    className={`${styles.stepButton} ${index === activeStep ? styles.activeStep : ''}`}
+                    aria-current={index === activeStep ? 'step' : undefined}
+                    aria-label={`${step.number} — ${step.label}`}
+                    onClick={() => focusStep(index)}
+                  >
+                    <span className={styles.stepNumber}>{step.number}</span>
+                    <span className={styles.stepLabel}>{step.label}</span>
+                    <span className={styles.stepMarker} aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </div>
         </nav>
 
         <div className={styles.storyTrack} ref={storyTrackRef} data-care-journey-track>
