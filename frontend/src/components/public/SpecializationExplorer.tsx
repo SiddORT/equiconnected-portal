@@ -89,7 +89,12 @@ export function SpecializationExplorer() {
   }
 
   return (
-    <section id="specializations" className={styles.section} aria-labelledby="specializations-heading">
+    <section
+      id="specializations"
+      className={styles.section}
+      data-layout="full-bleed"
+      aria-labelledby="specializations-heading"
+    >
       <div className={styles.intro}>
         <p className={styles.eyebrow}>
           <span className={styles.eyebrowRule} />

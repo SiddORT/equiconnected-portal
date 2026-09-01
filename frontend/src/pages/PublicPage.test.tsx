@@ -40,7 +40,7 @@ describe('PublicPage hero', () => {
     expect(screen.getAllByRole('link', { name: 'Find care' })[1].getAttribute('href')).toBe('/signup');
     const hero = screen.getByRole('heading', {
       name: 'Healthcare, Connected Around You.',
-    }).closest('section');
+    }).closest('section') as HTMLElement;
     expect(within(hero as HTMLElement).getByRole('link', {
       name: 'Join as a provider',
     }).getAttribute('href')).toBe('/provider/signup');
@@ -118,8 +118,9 @@ describe('PublicPage hero', () => {
 
     const providerSection = screen.getByRole('heading', {
       name: 'Grow your presence with EquiConnected.',
-    }).closest('section') as HTMLElement;
-    const providerCta = within(providerSection).getByRole('link', {
+    }).closest('section');
+    expect(providerSection).toBeTruthy();
+    const providerCta = within(providerSection as HTMLElement).getByRole('link', {
       name: /join as a provider/i,
     });
     expect(providerCta.getAttribute('href')).toBe('/provider/signup');
@@ -127,8 +128,10 @@ describe('PublicPage hero', () => {
 
     const finalSection = screen.getByRole('heading', {
       name: 'Your healthcare network starts here.',
-    }).closest('section') as HTMLElement;
-    const finalActions = finalSection.querySelector(`.${styles.finalCtaActions}`) as HTMLElement;
+    }).closest('section');
+    expect(finalSection).toBeTruthy();
+    const finalActions = (finalSection as HTMLElement)
+      .querySelector(`.${styles.finalCtaActions}`) as HTMLElement;
     expect(finalActions).toBeTruthy();
     expect(Array.from(finalActions.querySelectorAll('a')).map((link) => link.getAttribute('href')))
       .toEqual(['/signup', '/provider/signup']);
@@ -140,6 +143,17 @@ describe('PublicPage hero', () => {
   it('keeps specialization controls and selected state in sync', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    const specializationSection = document.getElementById('specializations');
+    expect(specializationSection).toBeTruthy();
+    expect(specializationSection?.getAttribute('data-layout')).toBe('full-bleed');
+    expect(within(specializationSection as HTMLElement).getByRole('heading', {
+      name: 'A closer look at whole-horse care.',
+    })).toBeTruthy();
+    expect(within(specializationSection as HTMLElement).getByRole('img', {
+      name: 'Dark horse standing in a quiet mountain pasture',
+    })).toBeTruthy();
+    expect(within(specializationSection as HTMLElement).getAllByRole('button')).toHaveLength(10);
 
     await user.click(screen.getByRole('button', { name: 'Next specialization' }));
     expect(screen.getByText('Selected Dermatology')).toBeTruthy();
