@@ -105,7 +105,11 @@
   position: sticky;
   z-index: 1;
   top: 124px;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
   padding: 36px 30px;
+  box-sizing: border-box;
 }
 
 .stepRail::after {
@@ -140,17 +144,19 @@
 .steps {
   position: relative;
   display: flex;
+  flex: 1 1 auto;
   margin: 0;
   padding: 0;
   flex-direction: column;
+  justify-content: space-between;
   gap: 0;
   list-style: none;
 }
 
 .steps::before {
   position: absolute;
-  top: 19px;
-  bottom: 19px;
+  top: 38px;
+  bottom: 38px;
   left: 18px;
   width: 1px;
   background: color-mix(in srgb, var(--public-accent-pale, #f3e4b1) 50%, transparent);
@@ -516,6 +522,8 @@
 
   .stepRailContent {
     position: static;
+    display: block;
+    height: auto;
     padding: 0;
   }
 
@@ -525,7 +533,9 @@
 
   .steps {
     display: grid;
+    flex: none;
     grid-template-columns: repeat(3, 1fr);
+    justify-content: initial;
   }
 
   .steps::before {
