@@ -532,4 +532,38 @@ describe('PublicPage hero', () => {
     });
     expect(screen.getByRole('button', { name: /02.*DISCOVER/ }).getAttribute('aria-current')).toBe('step');
   });
+
+  it('offers an accessible, selectable four-stage Why EquiConnected journey', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    const whySection = screen.getByRole('heading', {
+      name: 'The right care starts with a clearer picture.',
+    }).closest('section');
+    if (!whySection) {
+      throw new Error('Expected the Why EquiConnected section to render.');
+    }
+
+    const cards = within(whySection).getAllByRole('article');
+    expect(cards).toHaveLength(4);
+    expect(whySection.querySelector('[data-why-stage]')).toBeTruthy();
+    expect(whySection.querySelector('[data-why-mode="natural"]')).toBeTruthy();
+
+    const firstTrigger = within(cards[0]).getByRole('button', {
+      name: 'Activate 01: Location-first discovery',
+    });
+    const thirdTrigger = within(cards[2]).getByRole('button', {
+      name: 'Activate 03: Real community insight',
+    });
+    expect(firstTrigger.getAttribute('aria-pressed')).toBe('true');
+
+    await user.click(thirdTrigger);
+    expect(thirdTrigger.getAttribute('aria-pressed')).toBe('true');
+    expect(cards[2].getAttribute('data-card-state')).toBe('active');
+
+    firstTrigger.focus();
+    await waitFor(() => expect(firstTrigger.getAttribute('aria-pressed')).toBe('true'));
+    expect(cards[0].getAttribute('data-card-state')).toBe('active');
+    expect(within(whySection).queryByRole('link', { name: /explore/i })).toBeNull();
+  });
 });

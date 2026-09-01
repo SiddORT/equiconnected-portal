@@ -1,6 +1,7 @@
 .section {
   width: min(1200px, calc(100% - 48px));
   margin-top: clamp(92px, 12vw, 164px);
+  scroll-margin-top: 112px;
   color: #12394a;
 }
 
@@ -56,30 +57,112 @@
   line-height: 1.75;
 }
 
+.stage {
+  position: relative;
+  min-height: min(760px, 78svh);
+  padding: 30px 0 44px;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+.journeyHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+  color: #527585;
+  font-size: .61rem;
+  font-weight: 800;
+  letter-spacing: .17em;
+  text-transform: uppercase;
+}
+
+.journeyHeader span:last-child {
+  color: #a17425;
+}
+
+.journeyLine {
+  position: relative;
+  height: 14px;
+  margin: 0 7.5% -1px;
+}
+
+.journeyLineBase,
+.journeyProgress {
+  position: absolute;
+  top: 6px;
+  right: 0;
+  left: 0;
+  height: 1px;
+}
+
+.journeyLineBase {
+  background: rgba(18, 57, 74, .23);
+}
+
+.journeyProgress {
+  right: auto;
+  width: 100%;
+  background: #b78b33;
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.journeyDots {
+  position: absolute;
+  inset: 0 -7px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.journeyDots span {
+  width: 13px;
+  height: 13px;
+  border: 1px solid rgba(18, 57, 74, .36);
+  border-radius: 50%;
+  background: #f8f7f1;
+  box-sizing: border-box;
+}
+
 .advantageGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1px;
-  margin-top: 1px;
-  border: 1px solid rgba(18, 57, 74, .18);
-  background: rgba(18, 57, 74, .18);
+  gap: 10px;
+  min-height: 460px;
+  transition: grid-template-columns .48s cubic-bezier(.22, 1, .36, 1);
 }
 
 .advantageCard {
   display: flex;
-  min-height: 244px;
-  padding: 26px 24px 24px;
+  min-width: 0;
+  min-height: 430px;
+  padding: 25px 24px 26px;
   flex-direction: column;
-  background: #fdfcf7;
+  border: 1px solid rgba(18, 57, 74, .2);
+  background: rgba(253, 252, 247, .64);
   box-sizing: border-box;
-  transition: background 180ms ease, transform 180ms ease;
+  transition: background-color .36s ease, border-color .36s ease, box-shadow .36s ease;
 }
 
-.advantageCard:hover {
-  position: relative;
-  z-index: 1;
+.advantageCard[data-card-state='active'] {
+  border-color: rgba(183, 139, 51, .72);
   background: #fffdf4;
-  transform: translateY(-4px);
+  box-shadow: 0 18px 40px rgba(18, 57, 74, .08);
+}
+
+.cardTrigger {
+  display: flex;
+  width: 100%;
+  min-height: 240px;
+  padding: 0;
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
 }
 
 .cardTopline {
@@ -97,49 +180,132 @@
 
 .symbol {
   display: grid;
-  width: 35px;
-  height: 35px;
+  width: 42px;
+  height: 42px;
   place-items: center;
   border: 1px solid rgba(183, 139, 51, .4);
   border-radius: 50%;
   color: #a17425;
-  font-size: 1.16rem;
+  transition: background-color .36s ease, color .36s ease, transform .5s cubic-bezier(.22, 1, .36, 1);
 }
 
-.advantageCard h3 {
-  max-width: 190px;
-  margin: auto 0 12px;
+.icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.25;
+}
+
+.advantageCard[data-card-state='active'] .symbol {
+  color: #fffdf4;
+  background: #a17425;
+  transform: translateY(-3px) scale(1.06);
+}
+
+.cardTitle {
+  display: block;
+  max-width: 210px;
+  margin-top: auto;
   color: #12394a;
   font-family: var(--font-display);
-  font-size: clamp(1.25rem, 1.7vw, 1.58rem);
+  font-size: clamp(1.4rem, 1.9vw, 1.82rem);
   font-weight: 500;
-  letter-spacing: -.035em;
-  line-height: 1.05;
+  letter-spacing: -.04em;
+  line-height: 1.02;
   text-transform: capitalize;
+  transition: transform .45s cubic-bezier(.22, 1, .36, 1), color .36s ease;
 }
 
-.advantageCard p {
-  max-width: 200px;
-  margin: 0;
+.advantageCard[data-card-state='active'] .cardTitle {
+  color: #1c5266;
+  transform: translateY(-12px);
+}
+
+.cardDescription {
+  max-width: 220px;
+  min-height: 50px;
+  margin: 16px 0 0;
   color: #527585;
-  font-size: .78rem;
+  font-size: .79rem;
   line-height: 1.55;
+  transition: color .36s ease, opacity .36s ease, transform .45s cubic-bezier(.22, 1, .36, 1);
+}
+
+.advantageCard:not([data-card-state='active']) .cardDescription {
+  opacity: .74;
+}
+
+.advantageCard[data-card-state='active'] .cardDescription {
+  color: #365f6e;
+  transform: translateY(-4px);
+}
+
+.cardExplore {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 18px;
+  color: #a17425;
+  font-size: .6rem;
+  font-weight: 800;
+  letter-spacing: .16em;
+  opacity: .54;
+  text-transform: uppercase;
+  transition: opacity .36s ease, transform .45s cubic-bezier(.22, 1, .36, 1);
+}
+
+.cardExplore span {
+  font-size: .9rem;
+  letter-spacing: 0;
+}
+
+.advantageCard[data-card-state='active'] .cardExplore {
+  opacity: 1;
+  transform: translateX(4px);
 }
 
 .cardRule {
   width: 38px;
-  height: 1px;
+  height: 2px;
   margin-top: 22px;
   background: #b78b33;
+  transform: scaleX(.72);
+  transform-origin: left center;
+  transition: transform .5s cubic-bezier(.22, 1, .36, 1), width .5s cubic-bezier(.22, 1, .36, 1);
 }
 
-.advantageCard:focus-within,
-.advantageCard:focus-visible {
-  outline: 3px solid rgba(183, 139, 51, .45);
-  outline-offset: 3px;
+.advantageCard[data-card-state='active'] .cardRule {
+  width: 74px;
+  transform: scaleX(1);
 }
 
-@media (max-width: 900px) {
+.cardTrigger:focus-visible {
+  outline: 3px solid rgba(183, 139, 51, .62);
+  outline-offset: 7px;
+}
+
+@media (min-width: 1100px) {
+  .advantageGrid:has(.advantageCard:nth-child(1)[data-card-state='active']) {
+    grid-template-columns: 1.24fr .92fr .92fr .92fr;
+  }
+
+  .advantageGrid:has(.advantageCard:nth-child(2)[data-card-state='active']) {
+    grid-template-columns: .92fr 1.24fr .92fr .92fr;
+  }
+
+  .advantageGrid:has(.advantageCard:nth-child(3)[data-card-state='active']) {
+    grid-template-columns: .92fr .92fr 1.24fr .92fr;
+  }
+
+  .advantageGrid:has(.advantageCard:nth-child(4)[data-card-state='active']) {
+    grid-template-columns: .92fr .92fr .92fr 1.24fr;
+  }
+}
+
+@media (max-width: 1099px) {
   .intro {
     grid-template-columns: 1fr;
     gap: 22px;
@@ -149,8 +315,28 @@
     max-width: 570px;
   }
 
+  .stage {
+    min-height: 0;
+    padding-top: 28px;
+  }
+
   .advantageGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-height: 0;
+  }
+
+  .advantageCard {
+    min-height: 350px;
+  }
+}
+
+@media (min-width: 701px) and (max-width: 1099px) {
+  .advantageGrid:has(.advantageCard:nth-child(odd)[data-card-state='active']) {
+    grid-template-columns: 1.1fr .9fr;
+  }
+
+  .advantageGrid:has(.advantageCard:nth-child(even)[data-card-state='active']) {
+    grid-template-columns: .9fr 1.1fr;
   }
 }
 
@@ -164,21 +350,56 @@
     font-size: clamp(2.7rem, 13vw, 4.6rem);
   }
 
+  .journeyHeader {
+    margin-bottom: 18px;
+    font-size: .55rem;
+  }
+
+  .journeyLine {
+    margin-inline: 4%;
+  }
+
+  .journeyProgress {
+    transform: scaleX(1);
+  }
+
   .advantageGrid {
     grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   .advantageCard {
-    min-height: 202px;
+    min-height: 0;
+    padding: 22px 20px 21px;
   }
 
-  .advantageCard:hover {
-    transform: none;
+  .cardTrigger {
+    min-height: 0;
+  }
+
+  .cardTitle {
+    margin-top: 45px;
+    font-size: clamp(1.5rem, 8vw, 2.1rem);
+  }
+
+  .cardDescription {
+    max-width: 290px;
+    min-height: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .advantageCard {
+  .journeyProgress {
+    transform: scaleX(1);
+  }
+
+  .advantageCard,
+  .advantageGrid,
+  .symbol,
+  .cardTitle,
+  .cardDescription,
+  .cardExplore,
+  .cardRule {
     transition: none;
   }
 }
