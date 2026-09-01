@@ -239,13 +239,6 @@ export function PublicPage() {
               </Link>
             </div>
           </div>
-          <div className={styles.finalCtaVisual} aria-hidden="true">
-            <img
-              className={styles.finalCtaImage}
-              src="/hospital1.png"
-              alt=""
-            />
-          </div>
           <svg className={styles.connectionMotif} viewBox="0 0 260 220" aria-hidden="true">
             <path d="M28 166C61 166 63 54 114 54s52 112 87 112 31-49 40-93" />
             <path d="M31 166h209" />

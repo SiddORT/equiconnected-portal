@@ -85,9 +85,10 @@
 }
 
 .stepRail {
-  position: relative;
+  position: sticky;
   align-self: start;
-  height: calc(3 * var(--care-story-panel-height));
+  top: 124px;
+  height: var(--care-story-panel-height);
   min-height: 0;
   padding: 0;
   overflow: clip;
