@@ -390,7 +390,7 @@ describe('PublicPage hero', () => {
     expect(footerBrand.getAttribute('href')).toBe('/');
     for (const brand of [headerBrand, footerBrand]) {
       const logo = brand.querySelector('img');
-      expect(logo?.getAttribute('src')).toBe('/equiconnected-wordmark.png');
+      expect(logo?.getAttribute('src')).toBe('/equiconnected-logo.png');
       expect(logo?.getAttribute('alt')).toBe('');
       expect(logo?.getAttribute('aria-hidden')).toBe('true');
     }

@@ -121,7 +121,7 @@ export function PublicPage() {
         <header className={styles.header} data-motion-header>
           <Link to="/" className={styles.brand} aria-label="EquiConnected home">
             <img
-              src="/equiconnected-wordmark.png"
+              src="/equiconnected-logo.png"
               alt=""
               aria-hidden="true"
               className={styles.brandLogo}
