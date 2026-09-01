@@ -96,6 +96,17 @@ describe('SpecializationExplorer premium scroll', () => {
     vi.unstubAllGlobals();
   });
 
+  it('removes redundant carousel labels while keeping controls and cards available', () => {
+    render(<SpecializationExplorer />);
+
+    expect(screen.queryByText('Find the right perspective')).toBeNull();
+    expect(screen.queryByText('Explore specializations')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Previous specialization' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Next specialization' })).toBeTruthy();
+    expect(document.querySelectorAll('[data-specialization-card]')).toHaveLength(8);
+    expect(screen.getByText('Selected Cardiology')).toBeTruthy();
+  });
+
   it('measures full desktop travel, updates progress states, and resets on reduced motion', async () => {
     render(<SpecializationExplorer />);
 

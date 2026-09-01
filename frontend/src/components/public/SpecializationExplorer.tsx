@@ -285,10 +285,6 @@ export function SpecializationExplorer() {
       </div>
 
       <div className={styles.carouselHeader}>
-        <div>
-          <p className={styles.carouselKicker}>Find the right perspective</p>
-          <h3>Explore specializations</h3>
-        </div>
         <div className={styles.carouselControls}>
           <button
             type="button"
