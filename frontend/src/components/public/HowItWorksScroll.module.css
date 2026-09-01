@@ -74,12 +74,36 @@
   position: sticky;
   top: 124px;
   align-self: start;
-  min-height: 380px;
+  height: var(--care-story-panel-height);
+  min-height: 0;
   padding: 36px 30px;
+  overflow: hidden;
+  isolation: isolate;
   border: 1px solid rgba(18, 57, 74, .2);
   border-right: 0;
-  background: rgba(255, 253, 248, .9);
+  background:
+    linear-gradient(155deg, rgba(255, 253, 248, .96), rgba(220, 234, 228, .86)),
+    url('/horse-panel.jpg') center / cover;
   box-sizing: border-box;
+}
+
+.stepRail::after {
+  position: absolute;
+  z-index: 0;
+  right: -42px;
+  bottom: -70px;
+  width: 170px;
+  height: 170px;
+  border: 1px solid rgba(183, 139, 51, .3);
+  border-radius: 50%;
+  box-shadow: 0 0 0 22px rgba(183, 139, 51, .06), 0 0 0 44px rgba(18, 57, 74, .04);
+  content: '';
+  pointer-events: none;
+}
+
+.stepRail > * {
+  position: relative;
+  z-index: 1;
 }
 
 .railLabel {
@@ -398,6 +422,7 @@
     position: sticky;
     z-index: 2;
     top: 76px;
+    height: auto;
     min-height: 0;
     margin: 0 -4px 28px;
     padding: 14px 12px 12px;
