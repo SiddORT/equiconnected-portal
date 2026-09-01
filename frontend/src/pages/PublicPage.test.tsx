@@ -332,6 +332,28 @@ describe('PublicPage hero', () => {
     }).getAttribute('href')).toBe('/provider/signup');
   });
 
+  it('uses the supplied wordmark for both public home-brand links', () => {
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    const header = document.querySelector(`.${styles.header}`);
+    const footer = screen.getByRole('contentinfo');
+    const headerBrand = within(header as HTMLElement).getByRole('link', {
+      name: 'EquiConnected home',
+    });
+    const footerBrand = within(footer).getByRole('link', {
+      name: 'EquiConnected home',
+    });
+
+    expect(headerBrand.getAttribute('href')).toBe('/');
+    expect(footerBrand.getAttribute('href')).toBe('/');
+    for (const brand of [headerBrand, footerBrand]) {
+      const logo = brand.querySelector('img');
+      expect(logo?.getAttribute('src')).toBe('/equiconnected-wordmark.png');
+      expect(logo?.getAttribute('alt')).toBe('');
+      expect(logo?.getAttribute('aria-hidden')).toBe('true');
+    }
+  });
+
   it('provides grouped footer navigation with real destinations', () => {
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
 

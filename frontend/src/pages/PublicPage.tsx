@@ -112,8 +112,12 @@ export function PublicPage() {
         {/* ── Logo / Header ────────────────────────────────────── */}
         <header className={styles.header}>
           <Link to="/" className={styles.brand} aria-label="EquiConnected home">
-            <span className={styles.logoMark} aria-hidden="true">EC</span>
-            <span className={styles.logoName}>equiconnected</span>
+            <img
+              src="/equiconnected-wordmark.png"
+              alt=""
+              aria-hidden="true"
+              className={styles.brandLogo}
+            />
           </Link>
           <nav className={styles.nav} aria-label="Primary navigation">
             <Link to="/signup">Find care</Link>

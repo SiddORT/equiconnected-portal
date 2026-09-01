@@ -8,8 +8,12 @@ export function Footer() {
       <div className={`container ${styles.inner}`}>
         <div className={styles.footerTop}>
           <Link to="/" className={styles.brand} aria-label="EquiConnected home">
-            <span className={styles.logoMark} aria-hidden="true">EC</span>
-            <span className={styles.logoText}>EquiConnected</span>
+            <img
+              src="/equiconnected-wordmark.png"
+              alt=""
+              aria-hidden="true"
+              className={styles.brandLogo}
+            />
           </Link>
           <p className={styles.tagline}>A clearer path to the right care.</p>
         </div>
