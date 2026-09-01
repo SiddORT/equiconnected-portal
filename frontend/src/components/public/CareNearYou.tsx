@@ -300,7 +300,7 @@ export function CareNearYou() {
             {providers.length > 0 && <span className={styles.resultCount}>{visibleProviders.length} shown</span>}
           </div>
           <div className={styles.cards}>
-            {visibleProviders.slice(0, 4).map((provider) => {
+            {visibleProviders.map((provider) => {
               const type = TYPE_CONFIG[provider.provider_type];
               const selected = provider.id === selectedProvider?.id;
               return (

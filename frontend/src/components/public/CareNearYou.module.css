@@ -131,21 +131,30 @@
 
 .explorer {
   display: grid;
+  height: clamp(590px, 68svh, 660px);
   grid-template-columns: minmax(0, 1.55fr) minmax(300px, .85fr);
+  align-items: stretch;
   gap: 1px;
   padding: 1px;
   border: 1px solid rgba(18, 57, 74, .18);
   background: rgba(18, 57, 74, .18);
+  box-sizing: border-box;
 }
 
 .mapColumn,
 .providerPanel {
   min-width: 0;
+  min-height: 0;
   background: #fdfcf7;
 }
 
 .mapColumn {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
   padding: clamp(20px, 3vw, 32px);
+  box-sizing: border-box;
 }
 
 .mapHeader,
@@ -287,9 +296,12 @@
 
 .providerPanel {
   display: flex;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   flex-direction: column;
   padding: clamp(20px, 3vw, 32px);
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .resultCount {
@@ -302,8 +314,13 @@
 .cards {
   display: flex;
   flex: 1;
+  min-height: 0;
   flex-direction: column;
   gap: 9px;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-color: rgba(183, 139, 51, .72) transparent;
+  scrollbar-width: thin;
 }
 
 .providerCard {
@@ -455,9 +472,12 @@
 
   .explorer {
     display: block;
+    height: auto;
   }
 
   .mapColumn {
+    height: auto;
+    overflow: visible;
     padding: 18px;
   }
 
@@ -483,8 +503,15 @@
   }
 
   .providerPanel {
+    height: auto;
     min-height: auto;
     padding: 18px;
+    overflow: visible;
+  }
+
+  .cards {
+    max-height: 360px;
+    overflow-y: auto;
   }
 
   .providerCard:hover {
