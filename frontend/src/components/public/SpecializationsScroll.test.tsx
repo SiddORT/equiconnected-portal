@@ -120,6 +120,9 @@ describe('SpecializationsScroll animation lifecycle', () => {
 
     const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-specialization-card]'));
     expect(cards[0].dataset.cardState).toBe('active');
+    expect(document.querySelectorAll('[data-specialization-reveal]')).toHaveLength(4);
+    expect(document.querySelectorAll('[data-specialization-reveal] p')).toHaveLength(4);
+    expect(document.querySelectorAll('a[aria-label^="Explore"]')).toHaveLength(4);
     act(() => trackTween.scrollTrigger.onUpdate({ progress: 1 }));
     expect(cards[cards.length - 1]?.dataset.cardState).toBe('active');
     expect(cards.slice(0, -1).every((card) => card.dataset.cardState === 'passed')).toBe(true);

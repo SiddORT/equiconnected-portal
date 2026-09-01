@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import styles from './WhyEquiConnected.module.css';
@@ -8,6 +8,8 @@ type Advantage = {
   title: string;
   description: string;
   icon: 'location' | 'specialization' | 'community' | 'connected';
+  image: string;
+  imageAlt: string;
 };
 
 const ADVANTAGES: Advantage[] = [
@@ -16,24 +18,32 @@ const ADVANTAGES: Advantage[] = [
     title: 'Location-first discovery',
     description: 'Find relevant care around you.',
     icon: 'location',
+    image: '/stable-panel.jpg',
+    imageAlt: 'Warm stable aisle opening onto a paddock',
   },
   {
     number: '02',
     title: 'Specialization-based search',
     description: 'Start with the type of care you need.',
     icon: 'specialization',
+    image: '/hospital1.png',
+    imageAlt: 'Chestnut horse moving through shallow water',
   },
   {
     number: '03',
     title: 'Real community insight',
     description: 'Explore ratings, reviews and comments.',
     icon: 'community',
+    image: '/provider-veterinary-care.jpg',
+    imageAlt: 'Equine care provider working with a horse',
   },
   {
     number: '04',
     title: 'One connected platform',
     description: 'Doctors, clinics and hospitals in one ecosystem.',
     icon: 'connected',
+    image: '/about-equiconnected-transparent.png',
+    imageAlt: 'Equine healthcare team caring for a horse',
   },
 ];
 
@@ -115,7 +125,7 @@ export function WhyEquiConnected() {
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const stage = stageRef.current;
     const progress = progressRef.current;
     if (!stage || !progress) return undefined;
@@ -144,7 +154,7 @@ export function WhyEquiConnected() {
         const safeProgress = Math.min(1, Math.max(0, value));
         const nextIndex = Math.min(
           ADVANTAGES.length - 1,
-          Math.round(safeProgress * (ADVANTAGES.length - 1)),
+          Math.floor(safeProgress * ADVANTAGES.length),
         );
         setCardStates(nextIndex);
         if (nextIndex !== activeIndexRef.current) {
@@ -162,7 +172,7 @@ export function WhyEquiConnected() {
           ease: 'none',
           scrollTrigger: {
             trigger: stage,
-            start: isDesktop ? 'top top' : 'top 78%',
+            start: isDesktop ? 'top top+=112' : 'top 78%',
             end: isDesktop
               ? () => `+=${Math.max(stage.offsetHeight * 1.8, window.innerHeight * 2.4)}`
               : 'bottom 32%',
@@ -172,11 +182,27 @@ export function WhyEquiConnected() {
             invalidateOnRefresh: true,
             onUpdate: (self) => updateProgress(self.progress),
             onRefresh: (self) => updateProgress(self.progress),
+            onEnter: () => updateProgress(0),
+            onEnterBack: (self) => updateProgress(self.progress),
+            onLeave: () => updateProgress(1),
+            onLeaveBack: () => updateProgress(0),
           },
         },
       );
 
+      const refreshFrame = window.requestAnimationFrame(refresh);
       window.addEventListener('resize', refresh);
+      const imageRefreshCleanups: Array<() => void> = [];
+      stage.querySelectorAll<HTMLImageElement>('img').forEach((image) => {
+        if (image.complete) return;
+        image.addEventListener('load', refresh, { once: true });
+        imageRefreshCleanups.push(() => image.removeEventListener('load', refresh));
+      });
+
+      return () => {
+        window.cancelAnimationFrame(refreshFrame);
+        imageRefreshCleanups.forEach((cleanup) => cleanup());
+      };
     }, stage);
 
     return () => {
@@ -247,6 +273,16 @@ export function WhyEquiConnected() {
                 data-card-state={index === activeIndex ? 'active' : index < activeIndex ? 'passed' : 'upcoming'}
                 aria-labelledby={titleId}
               >
+                <div className={styles.imageFrame}>
+                  <img
+                    className={styles.cardImage}
+                    src={advantage.image}
+                    alt={advantage.imageAlt}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span className={styles.imageShade} aria-hidden="true" />
+                </div>
                 <button
                   type="button"
                   className={styles.cardTrigger}

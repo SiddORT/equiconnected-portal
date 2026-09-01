@@ -144,6 +144,41 @@
   transition: background-color .36s ease, border-color .36s ease, box-shadow .36s ease;
 }
 
+.imageFrame {
+  position: relative;
+  height: clamp(132px, 13vw, 174px);
+  margin: -25px -24px 22px;
+  overflow: hidden;
+  background: var(--public-surface-muted, #e6e2d8);
+}
+
+.cardImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(.84) contrast(.96);
+  transform: scale(1.035);
+  transition: filter .5s ease, transform .7s cubic-bezier(.22, 1, .36, 1);
+}
+
+.imageShade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(11, 35, 47, .04), rgba(11, 35, 47, .32));
+  pointer-events: none;
+  transition: background-color .4s ease, opacity .4s ease;
+}
+
+.advantageCard[data-card-state='active'] .cardImage {
+  filter: saturate(1) contrast(1);
+  transform: scale(1.09);
+}
+
+.advantageCard[data-card-state='active'] .imageShade {
+  opacity: .72;
+}
+
 .advantageCard[data-card-state='active'] {
   border-color: color-mix(in srgb, var(--public-accent, #b78b33) 72%, transparent);
   background: var(--public-surface-hover, #fffdf4);
@@ -328,6 +363,11 @@
   .advantageCard {
     min-height: 350px;
   }
+
+  .imageFrame {
+    height: 150px;
+    margin-inline: -24px;
+  }
 }
 
 @media (min-width: 701px) and (max-width: 1099px) {
@@ -373,6 +413,11 @@
     padding: 22px 20px 21px;
   }
 
+  .imageFrame {
+    height: 172px;
+    margin: -22px -20px 20px;
+  }
+
   .cardTrigger {
     min-height: 0;
   }
@@ -394,6 +439,8 @@
   }
 
   .advantageCard,
+  .cardImage,
+  .imageShade,
   .advantageGrid,
   .symbol,
   .cardTitle,

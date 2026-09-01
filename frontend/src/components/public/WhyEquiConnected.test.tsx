@@ -70,10 +70,19 @@ describe('WhyEquiConnected editorial journey', () => {
 
     const animation = gsapMocks.fromTo.mock.calls[0][2];
     expect(animation.scrollTrigger.pin).toBe(stage);
+    expect(animation.scrollTrigger.start).toBe('top top+=112');
     expect(animation.scrollTrigger.scrub).toBe(true);
     expect(animation.scrollTrigger.invalidateOnRefresh).toBe(true);
 
     const cards = within(stage as HTMLElement).getAllByRole('article');
+    const images = within(stage as HTMLElement).getAllByRole('img');
+    expect(images).toHaveLength(4);
+    expect(images.map((image) => image.getAttribute('src'))).toEqual([
+      '/stable-panel.jpg',
+      '/hospital1.png',
+      '/provider-veterinary-care.jpg',
+      '/about-equiconnected-transparent.png',
+    ]);
     act(() => animation.scrollTrigger.onUpdate({ progress: 0.72 }));
     expect(cards[2].getAttribute('data-card-state')).toBe('active');
     expect(within(cards[2]).getByRole('button').getAttribute('aria-pressed')).toBe('true');

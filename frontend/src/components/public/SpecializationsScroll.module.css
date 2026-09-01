@@ -207,20 +207,20 @@
 
 .reveal {
   display: flex;
-  flex: 1;
+  flex: 0 0 auto;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: flex-end;
-  padding-top: 16px;
-  opacity: 0;
-  transform: translateY(12px);
+  justify-content: flex-start;
+  padding-top: clamp(42px, 4.2vw, 66px);
+  opacity: 1;
+  transform: none;
   transition: opacity 520ms ease, transform 520ms ease;
 }
 
 .card:hover .reveal,
 .card:focus-within .reveal {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(-4px);
 }
 
 .description {
@@ -397,7 +397,12 @@
   }
 
   .cardBody {
-    min-height: 210px;
+    min-height: 0;
+    padding-bottom: 22px;
+  }
+
+  .reveal {
+    padding-top: 44px;
   }
 
   .scrollHint {
