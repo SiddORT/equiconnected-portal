@@ -162,10 +162,40 @@ describe('PublicPage hero', () => {
     const careJourney = screen.getByRole('heading', {
       name: 'From concern to confident care.',
     }).closest('section');
+    const aboutSection = document.getElementById('about-us');
     expect(hero).toBeTruthy();
+    expect(aboutSection).toBeTruthy();
     expect(careJourney).toBeTruthy();
-    expect(Array.from(main.children).indexOf(careJourney as HTMLElement))
+    expect(Array.from(main.children).indexOf(aboutSection as HTMLElement))
       .toBe(Array.from(main.children).indexOf(hero as HTMLElement) + 1);
+    expect(Array.from(main.children).indexOf(careJourney as HTMLElement))
+      .toBe(Array.from(main.children).indexOf(aboutSection as HTMLElement) + 1);
+  });
+
+  it('renders the About Us section directly below the hero with its supplied image', () => {
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    const main = screen.getByRole('main');
+    const hero = screen.getByRole('heading', {
+      name: 'Healthcare, Connected Around You.',
+    }).closest('section');
+    const aboutSection = screen.getByRole('heading', {
+      name: 'Care that sees the whole horse.',
+    }).closest('section');
+
+    expect(hero).toBeTruthy();
+    expect(aboutSection).toBeTruthy();
+    expect(aboutSection?.id).toBe('about-us');
+    expect(Array.from(main.children).indexOf(aboutSection as HTMLElement))
+      .toBe(Array.from(main.children).indexOf(hero as HTMLElement) + 1);
+
+    const aboutImage = within(aboutSection as HTMLElement).getByRole('img', {
+      name: 'EquiConnected veterinary team caring for a horse',
+    });
+    expect(aboutImage.getAttribute('src')).toBe('/about-equiconnected-transparent.png');
+    expect(within(aboutSection as HTMLElement).getByRole('link', {
+      name: /find your care network/i,
+    }).getAttribute('href')).toBe('/signup');
   });
 
   it('presents the three-step care journey with selectable content panels', async () => {

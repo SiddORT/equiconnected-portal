@@ -1,0 +1,208 @@
+Redesign the "Explore Specializations" section into a premium,
+editorial-style horizontal specialization experience controlled
+by vertical scrolling.
+
+IMPORTANT:
+Do not make this look like a standard card carousel.
+The section should feel distinctive, elegant, modern, and
+high-end.
+
+SECTION LAYOUT:
+
+Create a horizontal row of specialization cards positioned
+toward the bottom of the section.
+
+Each specialization card should have a unique architectural
+shape:
+
+- The LOWER portion of the card should remain rectangular.
+- The TOP of the card should have a large smooth ARCH shape,
+  like a rounded arch/window.
+- The transition from the rectangular bottom into the arched
+  top must be seamless.
+- Avoid a simple rounded rectangle.
+- The arch should be prominent and visually intentional.
+- Keep thin, elegant borders.
+- Use the existing website's warm off-white, dark navy,
+  muted blue, and subtle gold color palette.
+
+CARD STRUCTURE:
+
+Each card should contain:
+
+TOP:
+- Large image displayed inside the arched area.
+- The image should completely follow the arch shape.
+- Use object-fit: cover.
+- Add a very subtle image zoom/parallax effect on hover.
+
+BOTTOM:
+- Keep this area rectangular.
+- Display the specialization number and title prominently.
+- Example:
+
+  01
+  CARDIOLOGY
+
+- Keep the default card state visually minimal.
+
+HOVER BEHAVIOR:
+
+The card should initially show primarily:
+- Image
+- Specialization number
+- Specialization title
+
+When the user hovers over a card:
+
+- Smoothly reveal additional content.
+- Reveal the description.
+- Reveal a small "EXPLORE →" action.
+- Slightly enlarge the card or move the content upward.
+- Slightly zoom the image.
+- Add a subtle gold border/accent.
+- The transition should be elegant and approximately
+  400–700ms.
+- Use GSAP for the hover animation.
+- Do NOT use abrupt display:none/block transitions.
+- Animate opacity, transform, clip-path, or height smoothly.
+
+The result should feel like the card is "opening" and revealing
+more information.
+
+HOVER EXAMPLE:
+
+DEFAULT:
+
+       ╭──────────────╮
+     ╭─╯              ╰─╮
+    │      IMAGE         │
+    │                    │
+    ╰────────────────────╯
+    01
+    CARDIOLOGY
+
+
+HOVERED:
+
+       ╭──────────────╮
+     ╭─╯              ╰─╮
+    │      IMAGE   ↗     │
+    │                    │
+    ╰────────────────────╯
+    01
+    CARDIOLOGY
+
+    Heart health, circulation,
+    and performance support.
+
+    EXPLORE →
+
+The content should appear naturally without making the card
+feel crowded.
+
+GSAP VERTICAL → HORIZONTAL EXPERIENCE:
+
+Use GSAP ScrollTrigger to create a horizontal scrolling
+experience controlled by the user's vertical scroll.
+
+When the user reaches the specialization section:
+
+1. Pin the section.
+2. Vertical scrolling controls horizontal movement.
+3. Move the entire card track horizontally using GSAP.
+4. Cards should enter and leave the viewport smoothly.
+5. Use scrub for natural scroll synchronization.
+6. Add subtle parallax movement to the images.
+7. Give the currently focused card slightly more visual
+   prominence.
+8. After the final specialization, release the pinned section
+   and continue normal vertical scrolling.
+
+The horizontal movement should feel cinematic and smooth,
+not like a basic slider.
+
+CARD ANIMATION:
+
+As each card enters the viewport:
+- Fade/slide it subtly into position.
+- Image can have a small scale animation.
+- The card should feel layered and dimensional.
+
+As cards leave:
+- Do not abruptly disappear.
+- Let them naturally move out of the viewport with the track.
+
+HOVER + SCROLL:
+
+Make sure hover animations and ScrollTrigger animations do
+not fight each other.
+
+The horizontal position of the card track must remain controlled
+by ScrollTrigger, while hover effects should only affect the
+individual card's internal elements.
+
+RESPONSIVE:
+
+DESKTOP:
+- Show multiple cards simultaneously.
+- Cards should be large enough to clearly see the arched image.
+- Use the horizontal GSAP scrolling experience.
+
+TABLET:
+- Show fewer cards.
+- Maintain the arch design.
+- Keep the horizontal scroll experience smooth.
+
+MOBILE:
+- Do NOT force a desktop-style pinned horizontal experience
+  if it makes usability worse.
+- Use a touch-friendly horizontal layout or simplified
+  vertical card layout.
+- Hover cannot be the only way to access the description,
+  because mobile devices do not have hover.
+- Tap/focus should reveal the same content on mobile.
+
+ACCESSIBILITY:
+
+- Support keyboard focus.
+- Focus should reveal card content just like hover.
+- Add proper aria-labels.
+- Respect prefers-reduced-motion.
+- Ensure all important information remains accessible
+  without animation.
+
+PERFORMANCE:
+
+- Use transform and opacity whenever possible.
+- Avoid expensive layout animations.
+- Do not cause horizontal page overflow.
+- Clean up GSAP ScrollTrigger instances and event listeners.
+- If using React, use gsap.context() and properly clean up
+  animations on component unmount.
+
+VISUAL DIRECTION:
+
+Think:
+"luxury equestrian editorial website + architectural arches
++ modern interactive portfolio."
+
+The design should feel:
+- sophisticated
+- calm
+- premium
+- editorial
+- architectural
+- cinematic
+
+Avoid:
+- generic SaaS cards
+- excessive rounded corners
+- glassmorphism
+- gradients
+- excessive shadows
+- bouncing animations
+- flashy effects
+- overly large buttons
+
+Keep the existing website typography and overall brand identity.

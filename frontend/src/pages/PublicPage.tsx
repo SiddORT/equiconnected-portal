@@ -228,6 +228,46 @@ export function PublicPage() {
           </div>
         </section>
 
+        <section id="about-us" className={styles.aboutSection} aria-labelledby="about-us-heading" data-scroll-reveal>
+          <div className={styles.aboutVisual}>
+            <span className={styles.aboutVisualLabel} aria-hidden="true">EC / 01</span>
+            <img
+              className={styles.aboutImage}
+              src="/about-equiconnected-transparent.png"
+              alt="EquiConnected veterinary team caring for a horse"
+              loading="lazy"
+            />
+          </div>
+          <div className={styles.aboutCopy}>
+            <p className={styles.sectionEyebrow}><span aria-hidden="true" />About us</p>
+            <h2 id="about-us-heading">
+              Care that sees the <em>whole horse.</em>
+            </h2>
+            <p>
+              EquiConnected makes equine healthcare easier to understand and easier to reach.
+              We bring trusted doctors, clinics, and hospitals together so horse owners can
+              move from concern to confident care.
+            </p>
+            <p>
+              Every connection starts with context: the right specialization, the right location,
+              and the right people around your horse.
+            </p>
+            <div className={styles.aboutFacts} data-scroll-stagger>
+              <div data-stagger-item>
+                <strong>01</strong>
+                <span>One connected care network</span>
+              </div>
+              <div data-stagger-item>
+                <strong>02</strong>
+                <span>Built around the horse</span>
+              </div>
+            </div>
+            <Link to="/signup" className={styles.aboutCta} data-gsap-hover>
+              Find your care network <span aria-hidden="true">↗</span>
+            </Link>
+          </div>
+        </section>
+
         <HowItWorksScroll />
         <CareNearYou />
 
@@ -245,7 +285,7 @@ export function PublicPage() {
               </Link>
             </div>
           </div>
-          <div className={styles.finalCtaVisual} aria-hidden="true" data-subtle-parallax>
+          <div className={styles.finalCtaVisual} aria-hidden="true">
             <img
               className={styles.finalCtaImage}
               src="/hospital1.png"

@@ -459,6 +459,156 @@
   box-sizing: border-box;
 }
 
+.aboutSection {
+  position: relative;
+  display: grid;
+  width: min(1200px, calc(100% - 48px));
+  min-height: 580px;
+  grid-template-columns: minmax(280px, .88fr) minmax(0, 1.12fr);
+  align-items: center;
+  gap: clamp(42px, 8vw, 120px);
+  margin-top: clamp(80px, 10vw, 138px);
+  color: var(--hero-navy-deep);
+}
+
+.aboutVisual {
+  position: relative;
+  display: flex;
+  min-height: 580px;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgba(18, 57, 74, .2);
+  background:
+    radial-gradient(circle at 50% 10%, rgba(221, 196, 126, .35), transparent 38%),
+    linear-gradient(150deg, #e7eee8, #f2e7c9);
+  box-shadow: 0 28px 70px rgba(18, 57, 74, .12);
+  box-sizing: border-box;
+}
+
+.aboutVisual::after {
+  position: absolute;
+  inset: 16px;
+  border: 1px solid rgba(183, 139, 51, .55);
+  content: '';
+  pointer-events: none;
+}
+
+.aboutVisualLabel {
+  position: absolute;
+  z-index: 1;
+  top: 28px;
+  left: 30px;
+  color: var(--hero-gold);
+  font-family: var(--font-sans);
+  font-size: .62rem;
+  font-weight: 800;
+  letter-spacing: .18em;
+}
+
+.aboutImage {
+  display: block;
+  width: 100%;
+  height: clamp(480px, 52vw, 660px);
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 18px 22px rgba(8, 29, 39, .2));
+}
+
+.aboutCopy {
+  max-width: 570px;
+}
+
+.aboutCopy .sectionEyebrow {
+  color: var(--hero-gold);
+}
+
+.aboutCopy h2 {
+  max-width: 580px;
+  margin: 0;
+  color: var(--hero-navy-deep);
+  font-family: var(--font-display);
+  font-size: clamp(2.8rem, 5.2vw, 5.2rem);
+  font-weight: 500;
+  letter-spacing: -.055em;
+  line-height: .95;
+}
+
+.aboutCopy h2 em {
+  color: var(--hero-navy-soft);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.aboutCopy > p:not(.sectionEyebrow) {
+  max-width: 500px;
+  margin: 24px 0 0;
+  color: var(--hero-navy-soft);
+  font-size: .98rem;
+  line-height: 1.75;
+}
+
+.aboutFacts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 30px;
+}
+
+.aboutFacts > div {
+  display: flex;
+  min-height: 74px;
+  padding-top: 14px;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid rgba(18, 57, 74, .2);
+}
+
+.aboutFacts strong {
+  color: var(--hero-gold);
+  font-family: var(--font-sans);
+  font-size: .62rem;
+  letter-spacing: .16em;
+}
+
+.aboutFacts span {
+  max-width: 140px;
+  color: var(--hero-navy-deep);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-style: italic;
+  line-height: 1.1;
+}
+
+.aboutCta {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 32px;
+  padding: 0 22px;
+  border: 1px solid var(--hero-navy-deep);
+  background: var(--hero-navy-deep);
+  color: #fffdf4;
+  font-family: var(--font-sans);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.aboutCta:hover {
+  border-color: var(--hero-gold);
+  background: var(--hero-gold);
+}
+
+.aboutCta:focus-visible {
+  outline: 3px solid var(--hero-gold-light);
+  outline-offset: 4px;
+}
+
 .providerSection {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(260px, .9fr);
@@ -784,6 +934,19 @@
     gap: 42px;
   }
 
+  .aboutSection {
+    grid-template-columns: 1fr;
+    gap: 38px;
+  }
+
+  .aboutCopy {
+    order: -1;
+  }
+
+  .aboutVisual {
+    min-height: 520px;
+  }
+
   .providerTypes {
     min-height: 0;
   }
@@ -854,6 +1017,30 @@
     width: 100%;
   }
 
+  .aboutSection {
+    width: min(100% - 32px, 560px);
+    min-height: 0;
+    margin-top: 82px;
+  }
+
+  .aboutVisual {
+    min-height: 460px;
+  }
+
+  .aboutImage {
+    height: 500px;
+  }
+
+  .aboutFacts {
+    gap: 12px;
+  }
+
+  .aboutCta {
+    width: 100%;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+
   .finalCta {
     width: 100%;
   }
@@ -917,7 +1104,8 @@
 
   .providerCta,
   .finalPrimaryCta,
-  .finalSecondaryCta {
+  .finalSecondaryCta,
+  .aboutCta {
     transition: none;
   }
 
