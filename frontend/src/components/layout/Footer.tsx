@@ -4,7 +4,7 @@ import styles from './Footer.module.css';
 export function Footer() {
   const year = new Date().getFullYear();
   return (
-    <footer id="site-footer" className={styles.footer} role="contentinfo">
+    <footer id="site-footer" className={styles.footer} role="contentinfo" data-scroll-reveal>
       <div className={`container ${styles.inner}`}>
         <div className={styles.footerTop}>
           <Link to="/" className={styles.brand} aria-label="EquiConnected home">
@@ -18,7 +18,7 @@ export function Footer() {
           <p className={styles.tagline}>A clearer path to the right care.</p>
         </div>
 
-        <nav aria-label="Footer navigation" className={styles.navigation}>
+        <nav aria-label="Footer navigation" className={styles.navigation} data-scroll-stagger>
           <FooterGroup title="Member" links={[
             { label: 'Find care', to: '/signup' },
             { label: 'Specializations', to: '/#specializations' },
@@ -58,7 +58,7 @@ type FooterLink = {
 
 function FooterGroup({ title, links }: { title: string; links: FooterLink[] }) {
   return (
-    <div className={styles.group}>
+    <div className={styles.group} data-stagger-item>
       <h2 className={styles.groupTitle}>{title}</h2>
       <ul className={styles.linkList}>
         {links.map((link) => (

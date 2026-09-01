@@ -247,18 +247,18 @@ export function SpecializationExplorer() {
       aria-labelledby="specializations-heading"
     >
       <div className={styles.intro}>
-        <p className={styles.eyebrow}>
+        <p className={styles.eyebrow} data-scroll-reveal>
           <span className={styles.eyebrowRule} />
           Care, considered
           <span className={styles.eyebrowRule} />
         </p>
-        <h2 id="specializations-heading" className={styles.heading}>
+        <h2 id="specializations-heading" className={styles.heading} data-scroll-reveal>
           A closer look at{' '}
           <span>whole-horse care.</span>
         </h2>
 
         <div className={styles.story}>
-          <div className={styles.storyImageFrame}>
+           <div className={styles.storyImageFrame} data-scroll-reveal>
             <img
               className={styles.storyImage}
               src="/horse-panel.jpg"
@@ -266,7 +266,7 @@ export function SpecializationExplorer() {
             />
             <span className={styles.storyStamp} aria-hidden="true">EC / 02</span>
           </div>
-          <div className={styles.storyCopy}>
+           <div className={styles.storyCopy} data-scroll-reveal>
             <p className={styles.storyLead}>
               The right care starts with seeing the full picture.
             </p>
@@ -284,11 +284,12 @@ export function SpecializationExplorer() {
         </div>
       </div>
 
-      <div className={styles.carouselHeader}>
+      <div className={styles.carouselHeader} data-scroll-reveal>
         <div className={styles.carouselControls}>
           <button
             type="button"
             className={styles.carouselButton}
+            data-gsap-hover
             aria-label="Previous specialization"
             onClick={() => chooseSpecialization(activeIndex - 1)}
           >
@@ -297,6 +298,7 @@ export function SpecializationExplorer() {
           <button
             type="button"
             className={styles.carouselButton}
+            data-gsap-hover
             aria-label="Next specialization"
             onClick={() => chooseSpecialization(activeIndex + 1)}
           >
@@ -308,6 +310,7 @@ export function SpecializationExplorer() {
       <div
         className={styles.track}
         ref={trackRef}
+        data-scroll-stagger
         role="group"
         aria-label="Equine healthcare specializations"
       >
@@ -317,6 +320,8 @@ export function SpecializationExplorer() {
             key={specialization.title}
             data-specialization-card
             data-specialization-index={index}
+            data-stagger-item
+            data-gsap-hover
             className={`${styles.card} ${index === activeIndex ? styles.activeCard : ''}`}
             aria-pressed={index === activeIndex}
             onClick={() => chooseSpecialization(index)}
@@ -349,7 +354,7 @@ export function SpecializationExplorer() {
         data-premium-specializations
         data-premium-motion={reducedMotion ? 'reduced' : 'scroll'}
       >
-        <div className={styles.premiumHeader}>
+        <div className={styles.premiumHeader} data-scroll-reveal>
           <div>
             <p className={styles.premiumKicker}>A deeper view</p>
             <h3 id="premium-specializations-heading">Care, in focus.</h3>

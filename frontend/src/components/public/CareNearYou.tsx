@@ -200,7 +200,7 @@ export function CareNearYou() {
 
   return (
     <section id="care-near-you" className={styles.section} aria-labelledby="care-near-you-heading">
-      <div className={styles.intro}>
+      <div className={styles.intro} data-scroll-reveal>
         <div>
           <p className={styles.eyebrow}><span aria-hidden="true" />Care near you</p>
           <h2 id="care-near-you-heading">Healthcare is closer than you think.</h2>
@@ -213,37 +213,40 @@ export function CareNearYou() {
           <button
             type="button"
             className={styles.locationButton}
+            data-gsap-hover
             onClick={requestLocation}
             disabled={locationState === 'loading'}
           >
             <span aria-hidden="true">⌖</span>
             {locationState === 'loading' ? 'Finding you…' : 'Use my location'}
           </button>
-          <Link to="/member" className={styles.primaryCta}>FIND CARE NEAR ME <span aria-hidden="true">↗</span></Link>
+          <Link to="/member" className={styles.primaryCta} data-gsap-hover>FIND CARE NEAR ME <span aria-hidden="true">↗</span></Link>
         </div>
       </div>
 
-      <div className={styles.explorer}>
-        <div className={styles.mapColumn}>
+      <div className={styles.explorer} data-scroll-reveal>
+        <div className={styles.mapColumn} data-scroll-reveal>
           <div className={styles.mapHeader}>
             <div>
               <p className={styles.panelKicker}>The care map</p>
               <h3>Trusted care, within reach.</h3>
             </div>
             <div className={styles.typeFilters} role="group" aria-label="Filter providers by type">
-              <button
+               <button
                 type="button"
                 className={`${styles.typeButton} ${selectedType === null ? styles.typeButtonActive : ''}`}
+                 data-gsap-hover
                 onClick={() => setSelectedType(null)}
                 aria-pressed={selectedType === null}
               >
                 All
               </button>
               {PROVIDER_TYPES.map((type) => (
-                <button
+                 <button
                   key={type}
                   type="button"
                   className={`${styles.typeButton} ${selectedType === type ? styles.typeButtonActive : ''}`}
+                   data-gsap-hover
                   onClick={() => setSelectedType((current) => current === type ? null : type)}
                   aria-pressed={selectedType === type}
                 >
@@ -291,7 +294,7 @@ export function CareNearYou() {
           </p>
         </div>
 
-        <aside className={styles.providerPanel} aria-labelledby="nearby-providers-heading">
+        <aside className={styles.providerPanel} aria-labelledby="nearby-providers-heading" data-scroll-reveal>
           <div className={styles.panelHeading}>
             <div>
               <p className={styles.panelKicker}>A few places to start</p>

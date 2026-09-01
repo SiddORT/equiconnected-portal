@@ -37,7 +37,7 @@ const ADVANTAGES: Advantage[] = [
 export function WhyEquiConnected() {
   return (
     <section id="why-equiconnected" className={styles.section} aria-labelledby="why-equiconnected-heading">
-      <div className={styles.intro}>
+      <div className={styles.intro} data-scroll-reveal>
         <div className={styles.introCopy}>
           <p className={styles.eyebrow}><span aria-hidden="true" />Why EquiConnected?</p>
           <h2 id="why-equiconnected-heading">
@@ -51,9 +51,9 @@ export function WhyEquiConnected() {
         </p>
       </div>
 
-      <div className={styles.advantageGrid}>
+      <div className={styles.advantageGrid} data-scroll-stagger>
         {ADVANTAGES.map((advantage) => (
-          <article className={styles.advantageCard} key={advantage.title}>
+          <article className={styles.advantageCard} key={advantage.title} data-stagger-item data-gsap-hover>
             <div className={styles.cardTopline}>
               <span className={styles.number}>{advantage.number}</span>
               <span className={styles.symbol} aria-hidden="true">{advantage.symbol}</span>

@@ -1,7 +1,7 @@
 /**
  * Public landing page for the EquiConnected portal.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
 import { recordPublicVisit, registerSubscriber } from '@/api/public';
@@ -12,10 +12,12 @@ import { SpecializationExplorer } from '@/components/public/SpecializationExplor
 import { CareNearYou } from '@/components/public/CareNearYou';
 import { WhyEquiConnected } from '@/components/public/WhyEquiConnected';
 import { Footer } from '@/components/layout/Footer';
+import { usePublicPageAnimations } from '@/hooks/usePublicPageAnimations';
 import type { SubscriberRegistrationType } from '@/types';
 import styles from './PublicPage.module.css';
 
 export function PublicPage() {
+  const pageRef = useRef<HTMLDivElement>(null);
   const { settings, isLoading: settingsLoading, error: settingsError } = useTimeSettings();
   const [email, setEmail] = useState('');
   const [registrationType, setRegistrationType] = useState<SubscriberRegistrationType | ''>('');
@@ -24,6 +26,8 @@ export function PublicPage() {
   const [emailError, setEmailError] = useState('');
   const [registrationTypeError, setRegistrationTypeError] = useState('');
   const [formError, setFormError] = useState('');
+
+  usePublicPageAnimations(pageRef);
 
   useEffect(() => {
     // Wait for the shared settings so the client-side once-per-day key agrees
@@ -104,13 +108,13 @@ export function PublicPage() {
   }
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} ref={pageRef}>
       {/* ── Background decorative elements ──────────────────────── */}
       <div className={styles.bgGlow} aria-hidden="true" />
 
       <main className={styles.main} id="main-content">
         {/* ── Logo / Header ────────────────────────────────────── */}
-        <header className={styles.header}>
+        <header className={styles.header} data-motion-header>
           <Link to="/" className={styles.brand} aria-label="EquiConnected home">
             <img
               src="/equiconnected-wordmark.png"
@@ -122,31 +126,31 @@ export function PublicPage() {
           <nav className={styles.nav} aria-label="Primary navigation">
             <Link to="/signup">Find care</Link>
             <Link to="/provider/signup">For providers</Link>
-            <Link to="/admin/login" className={styles.navCta}>Admin portal</Link>
+            <Link to="/admin/login" className={styles.navCta} data-gsap-hover>Admin portal</Link>
           </nav>
         </header>
 
         {/* ── Hero ─────────────────────────────────────────────── */}
-        <section className={styles.hero} aria-labelledby="hero-heading">
+        <section className={styles.hero} aria-labelledby="hero-heading" data-parallax-trigger>
           <div className={styles.heroContent}>
-            <p className={styles.eyebrow}><span className={styles.eyebrowRule} />EquiConnected</p>
-            <h1 id="hero-heading" className={styles.heading}>
+            <p className={styles.eyebrow} data-hero-item><span className={styles.eyebrowRule} />EquiConnected</p>
+            <h1 id="hero-heading" className={styles.heading} data-hero-item>
               Healthcare,{' '}
               <span>Connected Around You.</span>
             </h1>
-            <p className={styles.subtitle}>
+            <p className={styles.subtitle} data-hero-item>
               Discover doctors, clinics and hospitals based on your specialization, location and care needs.
             </p>
-            <div className={styles.ctas}>
-              <Link to="/signup" className={styles.primaryCta}>
+            <div className={styles.ctas} data-hero-item>
+              <Link to="/signup" className={styles.primaryCta} data-gsap-hover>
                 Find care <span aria-hidden="true">↗</span>
               </Link>
-              <Link to="/provider/signup" className={styles.secondaryCta}>
+              <Link to="/provider/signup" className={styles.secondaryCta} data-gsap-hover>
                 Join as a provider
               </Link>
             </div>
-            <p className={styles.trustLine}><span aria-hidden="true" />A clearer path to the right care</p>
-            <div className={styles.notifyBlock}>
+            <p className={styles.trustLine} data-hero-item><span aria-hidden="true" />A clearer path to the right care</p>
+            <div className={styles.notifyBlock} data-hero-item>
               <p className={styles.notifyHeading}>Not ready to sign up yet?</p>
               {submitted ? (
                 <div className={styles.successMessage} role="status">
@@ -201,7 +205,7 @@ export function PublicPage() {
                         disabled={submitting}
                       />
                     </div>
-                    <button type="submit" className={styles.notifyBtn} disabled={submitting}>
+                    <button type="submit" className={styles.notifyBtn} data-gsap-hover disabled={submitting}>
                       {submitting ? 'Submitting…' : 'Keep me posted'}
                     </button>
                   </div>
@@ -220,7 +224,7 @@ export function PublicPage() {
               )}
             </div>
           </div>
-          <div className={styles.heroVisual}>
+          <div className={styles.heroVisual} data-hero-media>
             <HeroImageSlider />
           </div>
         </section>
@@ -229,16 +233,16 @@ export function PublicPage() {
         <HowItWorksScroll />
         <CareNearYou />
 
-        <section id="get-started" className={styles.finalCta} aria-labelledby="final-cta-heading">
-          <div className={styles.finalCtaCopy}>
+        <section id="get-started" className={styles.finalCta} aria-labelledby="final-cta-heading" data-parallax-trigger data-scroll-reveal>
+          <div className={styles.finalCtaCopy} data-scroll-reveal>
             <p className={styles.sectionEyebrow}><span aria-hidden="true" />Keep moving forward</p>
             <h2 id="final-cta-heading">Your healthcare network starts here.</h2>
             <p>Find the care you need. Discover providers around you.</p>
             <div className={styles.finalCtaActions}>
-              <Link to="/signup" className={styles.finalPrimaryCta}>
+              <Link to="/signup" className={styles.finalPrimaryCta} data-gsap-hover>
                 Find care <span aria-hidden="true">↗</span>
               </Link>
-              <Link to="/provider/signup" className={styles.finalSecondaryCta}>
+              <Link to="/provider/signup" className={styles.finalSecondaryCta} data-gsap-hover>
                 Join as a provider
               </Link>
             </div>
@@ -248,6 +252,7 @@ export function PublicPage() {
               className={styles.finalCtaImage}
               src="/hospital1.png"
               alt=""
+              data-subtle-parallax
             />
           </div>
           <svg className={styles.connectionMotif} viewBox="0 0 260 220" aria-hidden="true">
@@ -262,8 +267,8 @@ export function PublicPage() {
 
         <WhyEquiConnected />
 
-        <section id="provider-join" className={styles.providerSection} aria-labelledby="provider-join-heading">
-          <div className={styles.providerCopy}>
+        <section id="provider-join" className={styles.providerSection} aria-labelledby="provider-join-heading" data-scroll-reveal>
+          <div className={styles.providerCopy} data-scroll-reveal>
             <p className={styles.sectionEyebrow}><span aria-hidden="true" />For providers</p>
             <h2 id="provider-join-heading">Grow your presence with EquiConnected.</h2>
             <p>
@@ -271,13 +276,13 @@ export function PublicPage() {
               Share the information that helps people understand where you fit in their
               healthcare journey.
             </p>
-            <Link to="/provider/signup" className={styles.providerCta}>
+            <Link to="/provider/signup" className={styles.providerCta} data-gsap-hover>
               Join as a provider <span aria-hidden="true">↗</span>
             </Link>
           </div>
-          <ul className={styles.providerTypes} aria-label="Provider types">
+          <ul className={styles.providerTypes} aria-label="Provider types" data-scroll-stagger>
             {PROVIDER_TYPES.map((type, index) => (
-              <li key={type} className={styles.providerType}>
+              <li key={type} className={styles.providerType} data-stagger-item>
                 <span className={styles.providerTypeNumber} aria-hidden="true">0{index + 1}</span>
                 {type}
               </li>
