@@ -25,6 +25,7 @@ export function PublicPage() {
   const [emailError, setEmailError] = useState('');
   const [registrationTypeError, setRegistrationTypeError] = useState('');
   const [formError, setFormError] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
 
   usePublicPageAnimations(pageRef);
 
@@ -106,6 +107,10 @@ export function PublicPage() {
     }
   }
 
+  function closeMenu() {
+    setMenuOpen(false);
+  }
+
   return (
     <div className={styles.page} ref={pageRef}>
       {/* ── Background decorative elements ──────────────────────── */}
@@ -122,10 +127,37 @@ export function PublicPage() {
               className={styles.brandLogo}
             />
           </Link>
-          <nav className={styles.nav} aria-label="Primary navigation">
-            <Link to="/signup">Find care</Link>
-            <Link to="/provider/signup">For providers</Link>
-            <Link to="/admin/login" className={styles.navCta} data-gsap-hover>Admin portal</Link>
+          <nav className={`${styles.nav} ${menuOpen ? styles.navOpen : ''}`} aria-label="Primary navigation">
+            <button
+              type="button"
+              className={styles.navToggle}
+              aria-expanded={menuOpen}
+              aria-controls="primary-navigation-menu"
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <span>{menuOpen ? 'Close' : 'Menu'}</span>
+              <span className={styles.navToggleIcon} aria-hidden="true">
+                <span />
+                <span />
+              </span>
+            </button>
+            <div className={styles.navMenu} id="primary-navigation-menu">
+              <div className={styles.navLinks}>
+                <a href="/#about-us" onClick={closeMenu}>About</a>
+                <a href="/#care-near-you" onClick={closeMenu}>Specializations</a>
+                <a href="/#how-it-works" onClick={closeMenu}>Steps</a>
+                <a href="/#provider-join" onClick={closeMenu}>Providers</a>
+                <a href="/#why-equiconnected" onClick={closeMenu}>Why us</a>
+              </div>
+              <div className={styles.navActions}>
+                <Link to="/signup" className={styles.navMember} onClick={closeMenu} data-gsap-hover>
+                  Register as member
+                </Link>
+                <Link to="/provider/signup" className={styles.navCta} onClick={closeMenu} data-gsap-hover>
+                  Register as provider
+                </Link>
+              </div>
+            </div>
           </nav>
         </header>
 

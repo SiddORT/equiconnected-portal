@@ -1,0 +1,228 @@
+Redesign the "WHY EQUICONNECTED?" section into a premium
+interactive editorial section.
+
+IMPORTANT:
+Preserve the existing brand identity, typography, colors,
+content, and overall visual language.
+
+The current section has:
+- Small gold eyebrow: "WHY EQUICONNECTED?"
+- Large serif headline:
+  "The right care starts with a clearer picture."
+- Supporting paragraph on the right
+- Four feature cards:
+  01 Location-First Discovery
+  02 Specialization-Based Search
+  03 Real Community Insight
+  04 One Connected Platform
+
+Do not turn this into a generic SaaS feature section.
+
+DESIGN DIRECTION:
+
+Make the section feel:
+- editorial
+- premium
+- sophisticated
+- calm
+- architectural
+- interactive
+- healthcare/equestrian rather than technology/SaaS
+
+Keep the warm off-white background,
+dark navy typography,
+muted blue supporting text,
+and restrained gold accent.
+
+HEADER:
+
+Keep the existing two-column composition.
+
+Left:
+WHY EQUICONNECTED?
+The right care starts
+with a clearer picture.
+
+Right:
+Keep the supporting paragraph but improve its
+vertical alignment and spacing.
+
+CARDS:
+
+Transform the four cards into a connected
+"journey" rather than four static boxes.
+
+The four stages are:
+
+01 — Location-First Discovery
+Find relevant care around you.
+
+02 — Specialization-Based Search
+Start with the type of care you need.
+
+03 — Real Community Insight
+Explore ratings, reviews and comments.
+
+04 — One Connected Platform
+Doctors, clinics and hospitals in one ecosystem.
+
+Use taller, more editorial cards.
+
+Each card should contain:
+- small gold number
+- elegant minimal icon
+- large serif title
+- supporting description
+- subtle gold accent line
+- optional "EXPLORE →" interaction
+
+CONNECTING PROGRESS LINE:
+
+Add a very thin horizontal line connecting
+the four cards.
+
+The line represents the journey:
+
+01 → 02 → 03 → 04
+
+As the user scrolls through the section,
+animate a subtle gold progress indicator along
+this line.
+
+CARD INTERACTION:
+
+Create an active-card state.
+
+Only one card should be visually dominant at a time.
+
+The active card should:
+- expand slightly horizontally
+- become subtly brighter/warmer
+- strengthen its border
+- animate the gold accent line
+- reveal its description
+- reveal "EXPLORE →"
+- slightly animate its icon
+- subtly move its title upward
+
+Inactive cards should remain visible but quieter.
+
+Do NOT completely hide inactive cards.
+
+GSAP:
+
+Use GSAP + ScrollTrigger.
+
+As the user scrolls:
+
+1. Enter the section.
+2. Pin the section if appropriate.
+3. Progress through cards 01 → 02 → 03 → 04.
+4. Activate each card sequentially.
+5. Animate the connecting progress line.
+6. Smoothly transition the active card.
+7. After card 04 is complete, release the section
+   and continue normal vertical scrolling.
+
+Use scrub-based animation where appropriate.
+
+Use elegant easing and restrained motion.
+
+Do not use:
+- bouncing
+- spinning
+- excessive scaling
+- flashy transitions
+- huge movement
+- unnecessary parallax
+
+The animation should feel almost cinematic.
+
+CARD EXPANSION:
+
+When a card becomes active, allow it to expand
+slightly while the other cards contract.
+
+Example:
+
+Default:
+[ 01 ][ 02 ][ 03 ][ 04 ]
+
+Active 01:
+[      01       ][02][03][04]
+
+Active 02:
+[01][      02       ][03][04]
+
+Active 03:
+[01][02][      03       ][04]
+
+Active 04:
+[01][02][03][      04       ]
+
+The expansion must be smooth and should not cause
+layout jumps.
+
+VISUAL DETAIL:
+
+Add subtle micro-interactions:
+- gold line grows from left to right
+- icon gently scales
+- description fades/slides upward
+- title moves approximately 10–20px
+- border transitions smoothly
+- active card can have a very subtle background shift
+
+Keep everything restrained.
+
+RESPONSIVE:
+
+Desktop:
+Use the full four-card interactive composition.
+
+Tablet:
+Reduce card width and typography while maintaining
+the same interaction.
+
+Mobile:
+Do not rely on hover.
+
+Use a vertical stacked layout or a touch-friendly
+horizontal layout.
+
+On mobile, tapping/focusing a card should activate it.
+
+Do not create horizontal page overflow.
+
+ACCESSIBILITY:
+
+- Keyboard focus must activate a card.
+- Important content must remain accessible without hover.
+- Respect prefers-reduced-motion.
+- Provide meaningful aria labels.
+- Ensure sufficient contrast.
+
+PERFORMANCE:
+
+Use transform and opacity where possible.
+Avoid unnecessary layout calculations.
+Clean up ScrollTrigger and GSAP instances.
+If using React, use gsap.context() and proper cleanup.
+
+FINAL RESULT:
+
+The section should feel like a visual explanation
+of why EquiConnected exists.
+
+The user should naturally understand the journey:
+
+LOCATION
+↓
+SPECIALIZATION
+↓
+COMMUNITY
+↓
+CONNECTED CARE
+
+It should feel like a premium editorial experience,
+not a normal four-column feature grid.

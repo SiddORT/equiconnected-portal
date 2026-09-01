@@ -35,6 +35,38 @@ afterEach(() => {
 });
 
 describe('PublicPage hero', () => {
+  it('provides section navigation and member/provider registration actions', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
+    const sectionLinks = [
+      ['About', '/#about-us'],
+      ['Specializations', '/#care-near-you'],
+      ['Steps', '/#how-it-works'],
+      ['Providers', '/#provider-join'],
+      ['Why us', '/#why-equiconnected'],
+    ];
+
+    for (const [label, href] of sectionLinks) {
+      expect(within(navigation).getByRole('link', { name: label }).getAttribute('href')).toBe(href);
+    }
+
+    expect(within(navigation).getByRole('link', {
+      name: 'Register as member',
+    }).getAttribute('href')).toBe('/signup');
+    expect(within(navigation).getByRole('link', {
+      name: 'Register as provider',
+    }).getAttribute('href')).toBe('/provider/signup');
+    expect(within(navigation).queryByRole('link', { name: /admin portal/i })).toBeNull();
+
+    const menuToggle = within(navigation).getByRole('button', { name: 'Menu' });
+    expect(menuToggle.getAttribute('aria-expanded')).toBe('false');
+    await user.click(menuToggle);
+    expect(within(navigation).getByRole('button', { name: 'Close' })).toBeTruthy();
+    expect(menuToggle.getAttribute('aria-expanded')).toBe('true');
+  });
+
   it('presents the connected-care message and existing signup destinations', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
