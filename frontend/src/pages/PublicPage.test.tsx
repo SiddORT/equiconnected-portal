@@ -288,7 +288,7 @@ describe('PublicPage hero', () => {
       .toBe(Array.from(main.children).indexOf(specializations) + 1);
   });
 
-  it('presents the provider invitation with supplied imagery and supporting provider types', () => {
+  it('presents the provider invitation with the replacement artwork and supporting provider types', () => {
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
 
     const providerSection = screen.getByRole('heading', {
