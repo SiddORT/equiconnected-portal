@@ -30,6 +30,9 @@ const SLIDES: Slide[] = [
 ];
 
 const AUTOPLAY_DELAY = 5600;
+const CRESCENT_VIEWBOX = '0 0 100 20';
+const CRESCENT_ARCH_PATH = 'M0 0 Q50 20 100 0';
+const CRESCENT_FILL_PATH = `${CRESCENT_ARCH_PATH} L100 20 L0 20 Z`;
 
 export function HeroImageSlider() {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -123,7 +126,7 @@ export function HeroImageSlider() {
           </button>
         </div>
       </div>
-      <svg className={styles.crescentCut} viewBox="0 0 100 18" preserveAspectRatio="none" aria-hidden="true">
+      <svg className={styles.crescentCut} viewBox={CRESCENT_VIEWBOX} preserveAspectRatio="none" aria-hidden="true">
         <defs>
           <linearGradient id="crescent-border-gradient" x1="-20%" y1="0%" x2="120%" y2="0%">
             <stop offset="0%" stopColor="#9b7427" />
@@ -137,9 +140,9 @@ export function HeroImageSlider() {
             )}
           </linearGradient>
         </defs>
-        <path className={styles.crescentFill} d="M0 0 Q50 16 100 0 L100 18 L0 18 Z" />
-        <path className={styles.archShadow} d="M0 0 Q50 16 100 0" />
-        <path className={styles.archLine} d="M0 0 Q50 16 100 0" />
+        <path className={styles.crescentFill} d={CRESCENT_FILL_PATH} />
+        <path className={styles.archShadow} d={CRESCENT_ARCH_PATH} />
+        <path className={styles.archLine} d={CRESCENT_ARCH_PATH} />
       </svg>
       <div className={styles.indicators} role="group" aria-label="Choose a hero image">
         {SLIDES.map((slide, index) => (

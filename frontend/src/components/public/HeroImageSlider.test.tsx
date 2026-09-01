@@ -156,6 +156,20 @@ describe('HeroImageSlider', () => {
     })).toBeTruthy();
   });
 
+  it('keeps the deeper crescent fill, shadow, and border on synchronized geometry', () => {
+    render(<HeroImageSlider />);
+    const slider = screen.getByRole('region', { name: 'Equine care stories' });
+    const crescent = slider.querySelector('svg');
+    const fill = crescent?.querySelector('path[class*="crescentFill"]');
+    const shadow = crescent?.querySelector('path[class*="archShadow"]');
+    const border = crescent?.querySelector('path[class*="archLine"]');
+
+    expect(crescent?.getAttribute('viewBox')).toBe('0 0 100 20');
+    expect(fill?.getAttribute('d')).toBe('M0 0 Q50 20 100 0 L100 20 L0 20 Z');
+    expect(shadow?.getAttribute('d')).toBe('M0 0 Q50 20 100 0');
+    expect(border?.getAttribute('d')).toBe(shadow?.getAttribute('d'));
+  });
+
   it('cleans up the autoplay timer when unmounted', () => {
     vi.useFakeTimers();
     const { unmount } = render(<HeroImageSlider />);
