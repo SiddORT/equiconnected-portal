@@ -251,6 +251,10 @@ describe('PublicPage hero', () => {
     expect(Array.from(finalActions.querySelectorAll('a')).every((link) => (
       link.classList.contains(styles.finalPrimaryCta) || link.classList.contains(styles.finalSecondaryCta)
     ))).toBe(true);
+    expect(finalSection?.id).toBe('get-started');
+    expect(finalActions.querySelector('a')?.querySelector('[aria-hidden="true"]')?.textContent).toBe('↗');
+    expect(finalSection?.querySelector(`.${styles.finalCtaImage}`)?.getAttribute('src')).toBe('/hospital1.png');
+    expect(finalSection?.querySelector(`.${styles.connectionMotif}`)).toBeTruthy();
   });
 
   it('places the editorial specialization explorer between About Us and the care journey', () => {
@@ -454,8 +458,6 @@ describe('PublicPage hero', () => {
     const providerSection = screen.getByRole('heading', {
       name: 'Grow your presence with EquiConnected.',
     }).closest('section');
-
-    const finalMotif = finalSection?.querySelector(`.${styles.connectionMotif}`);
 
     expect(providerSection).toBeTruthy();
     expect(finalSection).toBeTruthy();

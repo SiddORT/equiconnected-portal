@@ -391,7 +391,9 @@
 }
 
 .primaryCta,
-.secondaryCta {
+.secondaryCta,
+.finalPrimaryCta,
+.finalSecondaryCta {
   display: inline-flex;
   width: 100%;
   min-height: 52px;
@@ -410,46 +412,56 @@
   transition: border-color 240ms ease, background 240ms ease, color 240ms ease, box-shadow 240ms ease, transform 240ms ease;
 }
 
-.primaryCta {
+.primaryCta,
+.finalPrimaryCta {
   border: 1px solid var(--public-accent-pale);
   background: var(--public-accent-pale);
   box-shadow: 0 14px 30px var(--public-shadow);
   color: var(--public-text-deep);
 }
 
-.primaryCta span {
+.primaryCta span,
+.finalPrimaryCta span {
   color: var(--hero-gold-light);
   font-size: 1rem;
   transition: transform 240ms ease;
 }
 
-.secondaryCta {
+.secondaryCta,
+.finalSecondaryCta {
   border: 1px solid var(--public-border-light);
   background: var(--public-overlay);
   color: var(--public-on-dark);
 }
 
 .primaryCta:hover,
-.secondaryCta:hover {
+.secondaryCta:hover,
+.finalPrimaryCta:hover,
+.finalSecondaryCta:hover {
   transform: translateY(-2px);
 }
 
-.primaryCta:hover {
+.primaryCta:hover,
+.finalPrimaryCta:hover {
   box-shadow: 0 18px 36px var(--public-shadow);
 }
 
-.primaryCta:hover span {
+.primaryCta:hover span,
+.finalPrimaryCta:hover span {
   transform: translate(2px, -2px);
 }
 
-.secondaryCta:hover {
+.secondaryCta:hover,
+.finalSecondaryCta:hover {
   border-color: var(--hero-gold);
   background: var(--public-overlay-strong);
   color: var(--public-on-dark);
 }
 
 .primaryCta:focus-visible,
-.secondaryCta:focus-visible {
+.secondaryCta:focus-visible,
+.finalPrimaryCta:focus-visible,
+.finalSecondaryCta:focus-visible {
   outline: 3px solid var(--hero-gold-light);
   outline-offset: 4px;
 }
@@ -817,9 +829,7 @@
   line-height: 1.75;
 }
 
-.providerCta,
-.finalPrimaryCta,
-.finalSecondaryCta {
+.providerCta {
   display: inline-flex;
   width: 100%;
   min-height: 50px;
@@ -846,9 +856,7 @@
   color: var(--hero-navy-deep);
 }
 
-.providerCta:hover,
-.finalPrimaryCta:hover,
-.finalSecondaryCta:hover {
+.providerCta:hover {
   transform: translateY(-2px);
 }
 
@@ -857,9 +865,7 @@
   background: var(--public-on-dark);
 }
 
-.providerCta:focus-visible,
-.finalPrimaryCta:focus-visible,
-.finalSecondaryCta:focus-visible {
+.providerCta:focus-visible {
   outline: 3px solid var(--hero-gold-light);
   outline-offset: 4px;
 }
@@ -954,7 +960,7 @@
 }
 
 .finalCtaCopy > p:last-of-type {
-  margin: 22px 0 0;
+  margin: 24px 0 0;
   color: var(--public-on-dark-muted);
   font-family: var(--font-display);
   font-size: clamp(1rem, 1.6vw, 1.25rem);
@@ -967,37 +973,14 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  margin-top: 22px;
+  margin-top: 26px;
 }
 
 .finalCtaActions .finalPrimaryCta,
 .finalCtaActions .finalSecondaryCta {
   width: auto;
-  min-height: 44px;
   flex: 0 0 auto;
-  padding-inline: 20px;
-}
-
-.finalPrimaryCta {
-  border-color: var(--public-accent-pale);
-  background: var(--public-accent-pale);
-  color: var(--public-text-deep);
-}
-
-.finalSecondaryCta {
-  border-color: var(--public-border-light);
-  background: var(--public-overlay);
-  color: var(--public-on-dark);
-}
-
-.finalPrimaryCta:hover {
-  border-color: var(--public-on-dark);
-  background: var(--public-on-dark);
-}
-
-.finalSecondaryCta:hover {
-  border-color: var(--hero-gold);
-  background: var(--public-overlay-strong);
+  padding-inline: 26px;
 }
 
 .connectionMotif {
@@ -1355,6 +1338,7 @@
   .primaryCta,
   .secondaryCta,
   .primaryCta span,
+  .finalPrimaryCta span,
   .registrationSelect,
   .emailInput,
   .notifyBtn {
