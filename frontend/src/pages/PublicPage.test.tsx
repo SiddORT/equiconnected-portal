@@ -258,17 +258,26 @@ describe('PublicPage hero', () => {
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
 
     const main = screen.getByRole('main');
-    const providerSection = screen.getByRole('heading', {
-      name: 'Grow your presence with EquiConnected.',
-    }).closest('section');
     const finalSection = screen.getByRole('heading', {
       name: 'Your healthcare network starts here.',
+    }).closest('section');
+    const whySection = screen.getByRole('heading', {
+      name: 'The right care starts with a clearer picture.',
+    }).closest('section');
+    const providerSection = screen.getByRole('heading', {
+      name: 'Grow your presence with EquiConnected.',
     }).closest('section');
 
     expect(providerSection).toBeTruthy();
     expect(finalSection).toBeTruthy();
-    expect(Array.from(main.children).indexOf(providerSection as HTMLElement))
-      .toBeLessThan(Array.from(main.children).indexOf(finalSection as HTMLElement));
+    expect(whySection).toBeTruthy();
+    const mainChildren = Array.from(main.children);
+    const finalIndex = mainChildren.indexOf(finalSection as HTMLElement);
+    const whyIndex = mainChildren.indexOf(whySection as HTMLElement);
+    const providerIndex = mainChildren.indexOf(providerSection as HTMLElement);
+    expect(whyIndex).toBe(finalIndex + 1);
+    expect(finalIndex).toBeLessThan(whyIndex);
+    expect(whyIndex).toBeLessThan(providerIndex);
     expect(document.querySelector('#trust-and-transparency')).toBeNull();
 
     expect(within(providerSection as HTMLElement).getByRole('link', {

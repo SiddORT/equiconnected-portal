@@ -224,30 +224,6 @@ export function PublicPage() {
         <SpecializationExplorer />
         <HowItWorksScroll />
         <CareNearYou />
-        <WhyEquiConnected />
-
-        <section id="provider-join" className={styles.providerSection} aria-labelledby="provider-join-heading">
-          <div className={styles.providerCopy}>
-            <p className={styles.sectionEyebrow}><span aria-hidden="true" />For providers</p>
-            <h2 id="provider-join-heading">Grow your presence with EquiConnected.</h2>
-            <p>
-              Put your practice in front of members looking for thoughtful equine care.
-              Share the information that helps people understand where you fit in their
-              healthcare journey.
-            </p>
-            <Link to="/provider/signup" className={styles.providerCta}>
-              Join as a provider <span aria-hidden="true">↗</span>
-            </Link>
-          </div>
-          <ul className={styles.providerTypes} aria-label="Provider types">
-            {PROVIDER_TYPES.map((type, index) => (
-              <li key={type} className={styles.providerType}>
-                <span className={styles.providerTypeNumber} aria-hidden="true">0{index + 1}</span>
-                {type}
-              </li>
-            ))}
-          </ul>
-        </section>
 
         <section id="get-started" className={styles.finalCta} aria-labelledby="final-cta-heading">
           <div className={styles.finalCtaCopy}>
@@ -271,6 +247,31 @@ export function PublicPage() {
             <circle cx="201" cy="166" r="7" />
             <circle cx="241" cy="73" r="7" />
           </svg>
+        </section>
+
+        <WhyEquiConnected />
+
+        <section id="provider-join" className={styles.providerSection} aria-labelledby="provider-join-heading">
+          <div className={styles.providerCopy}>
+            <p className={styles.sectionEyebrow}><span aria-hidden="true" />For providers</p>
+            <h2 id="provider-join-heading">Grow your presence with EquiConnected.</h2>
+            <p>
+              Put your practice in front of members looking for thoughtful equine care.
+              Share the information that helps people understand where you fit in their
+              healthcare journey.
+            </p>
+            <Link to="/provider/signup" className={styles.providerCta}>
+              Join as a provider <span aria-hidden="true">↗</span>
+            </Link>
+          </div>
+          <ul className={styles.providerTypes} aria-label="Provider types">
+            {PROVIDER_TYPES.map((type, index) => (
+              <li key={type} className={styles.providerType}>
+                <span className={styles.providerTypeNumber} aria-hidden="true">0{index + 1}</span>
+                {type}
+              </li>
+            ))}
+          </ul>
         </section>
       </main>
 
