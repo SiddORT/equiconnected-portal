@@ -8,6 +8,7 @@ import { recordPublicVisit, registerSubscriber } from '@/api/public';
 import { systemCalendarDate, useTimeSettings } from '@/app/TimeSettingsContext';
 import { HeroImageSlider } from '@/components/public/HeroImageSlider';
 import { HowItWorksScroll } from '@/components/public/HowItWorksScroll';
+import { SpecializationsScroll } from '@/components/public/SpecializationsScroll';
 import { CareNearYou } from '@/components/public/CareNearYou';
 import { WhyEquiConnected } from '@/components/public/WhyEquiConnected';
 import { Footer } from '@/components/layout/Footer';
@@ -144,7 +145,7 @@ export function PublicPage() {
             <div className={styles.navMenu} id="primary-navigation-menu">
               <div className={styles.navLinks}>
                 <a href="/#about-us" onClick={closeMenu}>About</a>
-                <a href="/#care-near-you" onClick={closeMenu}>Specializations</a>
+                <a href="/#specializations" onClick={closeMenu}>Specializations</a>
                 <a href="/#how-it-works" onClick={closeMenu}>Steps</a>
                 <a href="/#care-near-you" onClick={closeMenu}>Providers</a>
                 <a href="/#why-equiconnected" onClick={closeMenu}>Why us</a>
@@ -297,6 +298,7 @@ export function PublicPage() {
           </div>
         </section>
 
+        <SpecializationsScroll />
         <HowItWorksScroll />
         <CareNearYou />
 

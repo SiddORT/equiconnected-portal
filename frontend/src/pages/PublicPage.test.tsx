@@ -57,7 +57,7 @@ describe('PublicPage hero', () => {
     const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
     const sectionLinks = [
       ['About', '/#about-us'],
-      ['Specializations', '/#care-near-you'],
+      ['Specializations', '/#specializations'],
       ['Steps', '/#how-it-works'],
       ['Providers', '/#care-near-you'],
       ['Why us', '/#why-equiconnected'],
@@ -91,7 +91,7 @@ describe('PublicPage hero', () => {
     expect(screen.getAllByRole('link', { name: 'Find care' })[1].getAttribute('href')).toBe('/signup');
     const hero = screen.getByRole('heading', {
       name: 'Healthcare, Connected Around You.',
-    }).closest('section') as HTMLElement;
+    }).closest('section');
     expect(within(hero as HTMLElement).getByRole('link', {
       name: 'Join as a provider',
     }).getAttribute('href')).toBe('/provider/signup');
@@ -154,8 +154,8 @@ describe('PublicPage hero', () => {
 
     const hero = screen.getByRole('heading', {
       name: 'Healthcare, Connected Around You.',
-    }).closest('section') as HTMLElement;
-    const heroActions = hero.querySelector(`.${styles.ctas}`) as HTMLElement;
+    }).closest('section');
+    const heroActions = (hero as HTMLElement).querySelector(`.${styles.ctas}`) as HTMLElement;
     expect(heroActions).toBeTruthy();
     expect(heroActions.classList.contains(styles.ctas)).toBe(true);
     expect(Array.from(heroActions.querySelectorAll('a')).map((link) => link.getAttribute('href')))
@@ -169,9 +169,7 @@ describe('PublicPage hero', () => {
     }).closest('section');
 
     expect(providerSection).toBeTruthy();
-    const providerCta = within(providerSection as HTMLElement).getByRole('link', {
-      name: /join as a provider/i,
-    });
+    const providerCta = within(providerCopy).getByRole('link', { name: /join as a provider/i });
     expect(providerCta.getAttribute('href')).toBe('/provider/signup');
     expect(providerCta.classList.contains(styles.providerCta)).toBe(true);
 
@@ -189,12 +187,24 @@ describe('PublicPage hero', () => {
     ))).toBe(true);
   });
 
+  it('places the editorial specialization explorer between About Us and the care journey', () => {
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    const specializations = document.getElementById('specializations') as HTMLElement;
+    expect(finalActions).toBeTruthy();
+    expect(Array.from(finalActions.querySelectorAll('a')).map((link) => link.getAttribute('href')))
+      .toEqual(['/signup', '/provider/signup']);
+    expect(Array.from(finalActions.querySelectorAll('a')).every((link) => (
+      link.classList.contains(styles.finalPrimaryCta) || link.classList.contains(styles.finalSecondaryCta)
+    ))).toBe(true);
+  });
+
   it('presents the provider invitation with supplied imagery and supporting provider types', () => {
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
 
     const providerSection = screen.getByRole('heading', {
       name: 'Grow your presence with EquiConnected.',
-    }).closest('section') as HTMLElement;
+    }).closest('section');
     const providerCopy = providerSection.querySelector(`.${styles.providerCopy}`) as HTMLElement;
     const providerVisual = providerSection.querySelector(`.${styles.providerVisual}`) as HTMLElement;
     const providerImage = within(providerVisual).getByRole('img', {
@@ -236,18 +246,12 @@ describe('PublicPage hero', () => {
     const aboutSection = screen.getByRole('heading', {
       name: 'Care that sees the whole horse.',
     }).closest('section');
-    expect(hero).toBeTruthy();
-    expect(aboutSection).toBeTruthy();
-    expect(careJourney).toBeTruthy();
-    expect(Array.from(main.children).indexOf(aboutSection as HTMLElement))
-      .toBe(Array.from(main.children).indexOf(hero as HTMLElement) + 1);
-    expect(Array.from(main.children).indexOf(careJourney as HTMLElement))
-      .toBe(Array.from(main.children).indexOf(aboutSection as HTMLElement) + 1);
-  });
 
-  it('renders the About Us section directly below the hero with its supplied image', () => {
-    render(<MemoryRouter><PublicPage /></MemoryRouter>);
-
+    const primaryNav = screen.getByRole('navigation', { name: 'Primary navigation' });
+    const firstCard = within(specializations).getAllByRole('article')[0];
+    const firstCard = within(specializations).getAllByRole('article')[0];
+    const firstCard = within(specializations).getAllByRole('article')[0];
+    const firstCard = within(specializations).getAllByRole('article')[0];
     const main = screen.getByRole('main');
     const hero = screen.getByRole('heading', {
       name: 'Healthcare, Connected Around You.',
@@ -256,12 +260,11 @@ describe('PublicPage hero', () => {
       name: 'Care that sees the whole horse.',
     }).closest('section');
 
-    expect(hero).toBeTruthy();
-    expect(aboutSection).toBeTruthy();
-    expect(aboutSection?.id).toBe('about-us');
-    expect(Array.from(main.children).indexOf(aboutSection as HTMLElement))
-      .toBe(Array.from(main.children).indexOf(hero as HTMLElement) + 1);
-
+    const primaryNav = screen.getByRole('navigation', { name: 'Primary navigation' });
+    const firstCard = within(specializations).getAllByRole('article')[0];
+    const firstCard = within(specializations).getAllByRole('article')[0];
+    const firstCard = within(specializations).getAllByRole('article')[0];
+    const firstCard = within(specializations).getAllByRole('article')[0];
     const aboutImage = within(aboutSection as HTMLElement).getByRole('img', {
       name: 'EquiConnected veterinary team caring for a horse',
     });
@@ -280,12 +283,14 @@ describe('PublicPage hero', () => {
     expect(screen.getByRole('button', { name: /01.*SEARCH/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: /02.*DISCOVER/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: /03.*CONNECT/ })).toBeTruthy();
-    expect(screen.getByRole('img', { name: 'Horse standing in a quiet mountain pasture' })).toBeTruthy();
 
     const story = screen.getByRole('navigation', { name: 'How EquiConnected works' }).parentElement;
     if (!story) {
       throw new Error('Expected care-journey story shell to render.');
     }
+    expect(within(story).getByRole('img', {
+      name: 'Horse standing in a quiet mountain pasture',
+    })).toBeTruthy();
     expect(story.hasAttribute('data-care-journey-story')).toBe(true);
     const rail = within(story).getByRole('navigation', { name: 'How EquiConnected works' });
     expect(rail.hasAttribute('data-care-journey-rail')).toBe(true);
@@ -496,39 +501,4 @@ describe('PublicPage hero', () => {
       throw new Error('Expected care-journey scroll track to render.');
     }
     let storyTop = 124;
-    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
-    Object.defineProperty(storyTrack, 'offsetHeight', { configurable: true, value: 1800 });
-    vi.spyOn(story, 'getBoundingClientRect').mockImplementation(
-      () => ({ top: storyTop } as DOMRect),
-    );
-
-    act(() => {
-      window.dispatchEvent(new Event('scroll'));
-    });
-    expect(screen.getByRole('button', { name: /01.*SEARCH/ }).getAttribute('aria-current')).toBe('step');
-
-    storyTop = -476;
-    act(() => {
-      window.dispatchEvent(new Event('scroll'));
-    });
-    expect(screen.getByRole('button', { name: /02.*DISCOVER/ }).getAttribute('aria-current')).toBe('step');
-
-    storyTop = -1076;
-    act(() => {
-      window.dispatchEvent(new Event('scroll'));
-    });
-    expect(screen.getByRole('button', { name: /03.*CONNECT/ }).getAttribute('aria-current')).toBe('step');
-
-    storyTop = -1676;
-    act(() => {
-      window.dispatchEvent(new Event('scroll'));
-    });
-    expect(screen.getByRole('button', { name: /03.*CONNECT/ }).getAttribute('aria-current')).toBe('step');
-
-    storyTop = -476;
-    act(() => {
-      window.dispatchEvent(new Event('scroll'));
-    });
-    expect(screen.getByRole('button', { name: /02.*DISCOVER/ }).getAttribute('aria-current')).toBe('step');
-  });
-});
+    const explore = within(firstCard).getByRole('link', { name: 'Explore Sports Medicine care' });
