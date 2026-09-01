@@ -469,7 +469,7 @@
 }
 
 .providerSection {
-  width: min(1200px, calc(100% - 48px));
+  width: 100%;
   box-sizing: border-box;
 }
 
@@ -826,7 +826,7 @@
   }
 
   .providerSection {
-    width: min(100% - 40px, 1200px);
+    width: 100%;
   }
 
   .finalCta {
