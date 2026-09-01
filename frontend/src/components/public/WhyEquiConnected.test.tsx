@@ -70,6 +70,7 @@ describe('WhyEquiConnected editorial journey', () => {
 
     const animation = gsapMocks.fromTo.mock.calls[0][2];
     expect(animation.scrollTrigger.pin).toBe(stage);
+    expect(animation.scrollTrigger.pinSpacing).toBe(true);
     expect(animation.scrollTrigger.start).toBe('top top+=112');
     expect(typeof animation.scrollTrigger.end).toBe('function');
 

@@ -177,6 +177,7 @@ export function WhyEquiConnected() {
               ? () => `+=${Math.max(stage.offsetHeight * 1.8, window.innerHeight * 2.4)}`
               : 'bottom 32%',
             pin: isDesktop ? stage : false,
+            pinSpacing: isDesktop,
             scrub: true,
             anticipatePin: 1,
             invalidateOnRefresh: true,

@@ -59,10 +59,26 @@
 
 .stage {
   position: relative;
+  z-index: 2;
   min-height: min(760px, 78svh);
   padding: 30px 0 44px;
+  background: var(--public-bg, #f8f7f1);
   box-sizing: border-box;
+  isolation: isolate;
   overflow: visible;
+}
+
+.stage::before {
+  position: absolute;
+  z-index: -1;
+  top: -1px;
+  bottom: -1px;
+  left: 50%;
+  width: 100vw;
+  background: var(--public-bg, #f8f7f1);
+  content: '';
+  pointer-events: none;
+  transform: translateX(-50%);
 }
 
 .journeyHeader {
