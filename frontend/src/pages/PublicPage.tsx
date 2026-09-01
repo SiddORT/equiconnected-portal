@@ -146,7 +146,7 @@ export function PublicPage() {
                 <a href="/#about-us" onClick={closeMenu}>About</a>
                 <a href="/#care-near-you" onClick={closeMenu}>Specializations</a>
                 <a href="/#how-it-works" onClick={closeMenu}>Steps</a>
-                <a href="/#provider-join" onClick={closeMenu}>Providers</a>
+                <a href="/#care-near-you" onClick={closeMenu}>Providers</a>
                 <a href="/#why-equiconnected" onClick={closeMenu}>Why us</a>
               </div>
               <div className={styles.navActions}>

@@ -44,7 +44,7 @@ describe('PublicPage hero', () => {
       ['About', '/#about-us'],
       ['Specializations', '/#care-near-you'],
       ['Steps', '/#how-it-works'],
-      ['Providers', '/#provider-join'],
+      ['Providers', '/#care-near-you'],
       ['Why us', '/#why-equiconnected'],
     ];
 
