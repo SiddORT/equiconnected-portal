@@ -626,12 +626,12 @@
 .finalCta {
   position: relative;
   display: flex;
-  min-height: 350px;
+  min-height: 245px;
   align-items: center;
   justify-content: space-between;
   gap: 28px;
   margin-top: clamp(92px, 12vw, 164px);
-  padding: clamp(38px, 5vw, 58px) clamp(28px, 8vw, 104px);
+  padding: clamp(24px, 3.5vw, 36px) clamp(28px, 8vw, 104px);
   overflow: visible;
   background: #12394a;
   color: #fffdf4;
@@ -689,11 +689,19 @@
 
 .finalCtaActions {
   display: flex;
-  width: 100%;
-  flex-direction: column;
-  align-items: stretch;
+  width: auto;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 12px;
-  margin-top: 28px;
+  margin-top: 22px;
+}
+
+.finalCtaActions .finalPrimaryCta,
+.finalCtaActions .finalSecondaryCta {
+  width: auto;
+  min-height: 44px;
+  flex: 0 0 auto;
+  padding-inline: 20px;
 }
 
 .finalPrimaryCta {
@@ -800,8 +808,8 @@
   }
 
   .finalCta {
-    min-height: 340px;
-    padding-block: 38px;
+    min-height: 245px;
+    padding-block: 30px;
   }
 }
 
@@ -879,7 +887,12 @@
     align-items: flex-start;
     flex-direction: column;
     overflow: hidden;
-    padding: 44px 24px 52px;
+    padding: 32px 24px 38px;
+  }
+
+  .finalCtaCopy {
+    width: 100%;
+    max-width: 100%;
   }
 
   .connectionMotif {
