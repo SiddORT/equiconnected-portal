@@ -135,7 +135,7 @@ describe('PublicPage hero', () => {
     }
   });
 
-  it('explains the product advantages and previews member community insight', () => {
+  it('explains the product advantages and continues into the feature teasers', () => {
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
 
     expect(screen.getByRole('heading', { name: 'The right care starts with a clearer picture.' })).toBeTruthy();
@@ -148,13 +148,16 @@ describe('PublicPage hero', () => {
     expect(screen.getByText('One connected platform')).toBeTruthy();
     expect(screen.getByText('Doctors, clinics and hospitals in one ecosystem.')).toBeTruthy();
 
-    expect(screen.getByRole('heading', { name: 'Real experiences. Better decisions.' })).toBeTruthy();
-    expect(screen.getByText('Member view preview')).toBeTruthy();
-    expect(screen.getByText('Illustrative')).toBeTruthy();
-    expect(screen.getByText('4.8')).toBeTruthy();
-    expect(screen.getByText('126 community reviews')).toBeTruthy();
-    expect(screen.getByText(/No live review text is shown here/)).toBeTruthy();
-    expect(screen.getByRole('link', { name: /Explore providers/ }).getAttribute('href')).toBe('/member');
+    expect(screen.queryByRole('heading', { name: 'Real experiences. Better decisions.' })).toBeNull();
+    expect(screen.queryByText('Reviews / Community')).toBeNull();
+    expect(screen.queryByText('Member view preview')).toBeNull();
+    expect(screen.queryByText('Illustrative')).toBeNull();
+    expect(screen.queryByText('4.8')).toBeNull();
+    expect(screen.queryByText('126 community reviews')).toBeNull();
+    expect(screen.queryByText(/No live review text is shown here/)).toBeNull();
+    expect(screen.queryByRole('link', { name: /Explore providers/ })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Hospital Portal' })).toBeTruthy();
+    expect(screen.getByText('Streamlined tools for healthcare administrators and clinical teams.')).toBeTruthy();
   });
 
   it('highlights the most visible care-journey panel while scrolling', () => {
