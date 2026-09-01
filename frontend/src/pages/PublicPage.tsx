@@ -378,7 +378,7 @@ export function PublicPage() {
             <img
               className={styles.providerImage}
               src="/provider-cta-equine-care.png"
-              alt="Equine veterinarian standing beside a chestnut horse in a warm stable"
+              alt="Equine veterinarian caring for a chestnut horse in a warm stable"
               loading="lazy"
             />
           </div>

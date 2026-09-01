@@ -297,7 +297,7 @@ describe('PublicPage hero', () => {
     const providerCopy = providerSection.querySelector(`.${styles.providerCopy}`) as HTMLElement;
     const providerVisual = providerSection.querySelector(`.${styles.providerVisual}`) as HTMLElement;
     const providerImage = within(providerVisual).getByRole('img', {
-      name: 'Equine veterinarian standing beside a chestnut horse in a warm stable',
+      name: 'Equine veterinarian caring for a chestnut horse in a warm stable',
     });
     const providerTypes = within(providerCopy).getByRole('list', { name: 'Provider types' });
     const providerCta = within(providerCopy).getByRole('link', { name: /join as a provider/i });
