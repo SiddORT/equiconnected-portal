@@ -1,8 +1,9 @@
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import * as publicApi from '@/api/public';
+import { useAuth } from '@/app/AuthContext';
 import { PublicPage } from './PublicPage';
 import styles from './PublicPage.module.css';
 
@@ -10,6 +11,10 @@ vi.mock('@/api/public', () => ({
   recordPublicVisit: vi.fn(() => Promise.resolve()),
   registerSubscriber: vi.fn(),
   listPublicProviders: vi.fn(() => Promise.resolve([])),
+}));
+
+vi.mock('@/app/AuthContext', () => ({
+  useAuth: vi.fn(),
 }));
 
 vi.mock('@/app/TimeSettingsContext', () => ({
@@ -32,6 +37,16 @@ afterEach(() => {
   window.history.replaceState(null, '', '/');
   vi.resetAllMocks();
   vi.unstubAllGlobals();
+});
+
+beforeEach(() => {
+  vi.mocked(useAuth).mockReturnValue({
+    isAuthenticated: false,
+    isLoading: false,
+    user: null,
+    login: vi.fn(),
+    logout: vi.fn(),
+  });
 });
 
 describe('PublicPage hero', () => {
@@ -194,7 +209,9 @@ describe('PublicPage hero', () => {
     const careJourney = screen.getByRole('heading', {
       name: 'From concern to confident care.',
     }).closest('section');
-    const aboutSection = document.getElementById('about-us');
+    const aboutSection = screen.getByRole('heading', {
+      name: 'Care that sees the whole horse.',
+    }).closest('section');
     expect(hero).toBeTruthy();
     expect(aboutSection).toBeTruthy();
     expect(careJourney).toBeTruthy();

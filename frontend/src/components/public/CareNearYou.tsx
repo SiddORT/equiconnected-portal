@@ -7,6 +7,8 @@ import 'leaflet/dist/leaflet.css';
 import { Link } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
 import { listPublicProviders } from '@/api/public';
+import { useAuth } from '@/app/AuthContext';
+import { hasMemberRole } from '@/features/member/memberAccess';
 import type { ProviderType, PublicProviderDiscovery } from '@/types';
 import styles from './CareNearYou.module.css';
 
@@ -38,6 +40,7 @@ function formatRating(rating: number | null): string {
 }
 
 export function CareNearYou() {
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerLayerRef = useRef<L.LayerGroup | null>(null);
@@ -96,6 +99,9 @@ export function CareNearYou() {
   const selectedProvider = visibleProviders.find((provider) => provider.id === selectedId)
     ?? visibleProviders[0]
     ?? null;
+  const canAccessMemberDetails = !authLoading
+    && isAuthenticated
+    && hasMemberRole(user);
 
   useEffect(() => {
     if (!selectedProvider || selectedProvider.id === selectedId) return;
@@ -300,10 +306,40 @@ export function CareNearYou() {
               <p className={styles.panelKicker}>A few places to start</p>
               <h3 id="nearby-providers-heading">Nearby providers</h3>
             </div>
-            {providers.length > 0 && <span className={styles.resultCount}>{visibleProviders.length} shown</span>}
+            {canAccessMemberDetails && providers.length > 0 && (
+              <span className={styles.resultCount}>{visibleProviders.length} shown</span>
+            )}
           </div>
           <div className={styles.cards}>
-            {visibleProviders.map((provider) => {
+            {authLoading && (
+              <div className={styles.memberGate} role="status">
+                <strong>Checking member access…</strong>
+                <span>Provider details will appear after your session is restored.</span>
+              </div>
+            )}
+            {!authLoading && !canAccessMemberDetails && (
+              <div className={styles.memberGate}>
+                <strong>Please log in or register as a member to see more details.</strong>
+                <div className={styles.memberGateActions}>
+                  <Link
+                    to="/login"
+                    state={{ from: { pathname: '/providers' } }}
+                    className={styles.memberGateLink}
+                    aria-label="Log in as a member"
+                  >
+                    Log in as a member
+                  </Link>
+                  <Link
+                    to="/signup"
+                    className={styles.memberGateLink}
+                    aria-label="Register as a member"
+                  >
+                    Register as a member
+                  </Link>
+                </div>
+              </div>
+            )}
+            {canAccessMemberDetails && visibleProviders.map((provider) => {
               const type = TYPE_CONFIG[provider.provider_type];
               const selected = provider.id === selectedProvider?.id;
               return (
@@ -335,16 +371,22 @@ export function CareNearYou() {
                 </button>
               );
             })}
-            {!loading && !error && providers.length > 0 && visibleProviders.length === 0 && (
+            {canAccessMemberDetails && !loading && !error && providers.length > 0 && visibleProviders.length === 0 && (
               <p className={styles.panelEmpty}>Choose another filter to see connected providers.</p>
             )}
-            {loading && <p className={styles.panelEmpty}>Finding connected care near you…</p>}
-            {error && <p className={styles.panelEmpty}>Please try again later, or continue to member search.</p>}
-            {!loading && !error && providers.length === 0 && (
+            {canAccessMemberDetails && loading && <p className={styles.panelEmpty}>Finding connected care near you…</p>}
+            {canAccessMemberDetails && error && <p className={styles.panelEmpty}>Please try again later, or continue to member search.</p>}
+            {canAccessMemberDetails && !loading && !error && providers.length === 0 && (
               <p className={styles.panelEmpty}>The network is growing. Check back soon for nearby listings.</p>
             )}
           </div>
-          <Link to="/member" className={styles.panelLink}>Explore the full provider directory <span aria-hidden="true">→</span></Link>
+          <Link
+            to={canAccessMemberDetails ? '/providers' : '/login'}
+            state={!canAccessMemberDetails ? { from: { pathname: '/providers' } } : undefined}
+            className={styles.panelLink}
+          >
+            Explore the full provider directory <span aria-hidden="true">→</span>
+          </Link>
         </aside>
       </div>
     </section>

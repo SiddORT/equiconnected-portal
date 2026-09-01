@@ -1,9 +1,10 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import type { PublicProviderDiscovery } from '@/types';
 import * as publicApi from '@/api/public';
+import { useAuth } from '@/app/AuthContext';
 import styles from './CareNearYou.module.css';
 
 const leaflet = vi.hoisted(() => {
@@ -43,6 +44,9 @@ const leaflet = vi.hoisted(() => {
 vi.mock('leaflet', () => ({ default: leaflet }));
 vi.mock('@/api/public', () => ({
   listPublicProviders: vi.fn(),
+}));
+vi.mock('@/app/AuthContext', () => ({
+  useAuth: vi.fn(),
 }));
 
 import { CareNearYou } from './CareNearYou';
@@ -90,9 +94,39 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const memberUser = {
+  id: 'member-id',
+  email: 'member@example.com',
+  first_name: 'Member',
+  last_name: 'User',
+  full_name: 'Member User',
+  role: 'horse_owner',
+  roles: ['horse_owner'],
+  email_verified_at: '2026-08-31T00:00:00Z',
+  last_successful_login_at: null,
+  is_active: true,
+};
+
 describe('CareNearYou', () => {
+  beforeEach(() => {
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: false,
+      isLoading: false,
+      user: null,
+      login: vi.fn(),
+      logout: vi.fn(),
+    });
+  });
+
   it('shows live provider cards, filters, selection, and member navigation', async () => {
     const user = userEvent.setup();
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true,
+      isLoading: false,
+      user: memberUser,
+      login: vi.fn(),
+      logout: vi.fn(),
+    });
     vi.mocked(publicApi.listPublicProviders).mockResolvedValue(providers);
     render(<MemoryRouter><CareNearYou /></MemoryRouter>);
 
@@ -112,6 +146,36 @@ describe('CareNearYou', () => {
     );
   });
 
+  it('keeps provider details behind member access while leaving the public map usable', async () => {
+    vi.mocked(publicApi.listPublicProviders).mockResolvedValue(providers);
+    render(<MemoryRouter><CareNearYou /></MemoryRouter>);
+
+    expect(await screen.findByText('Please log in or register as a member to see more details.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Dr. Mira Rao/ })).toBeNull();
+    expect(screen.queryByText('Sports Medicine')).toBeNull();
+    expect(screen.getByRole('region', { name: 'Map of nearby equine care providers' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Log in as a member' }).getAttribute('href')).toBe('/login');
+    expect(screen.getByRole('link', { name: 'Register as a member' }).getAttribute('href')).toBe('/signup');
+    expect(screen.getByRole('link', { name: /Explore the full provider directory/ }).getAttribute('href')).toBe('/login');
+  });
+
+  it('does not expose provider details while session restoration is in progress', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: false,
+      isLoading: true,
+      user: null,
+      login: vi.fn(),
+      logout: vi.fn(),
+    });
+    vi.mocked(publicApi.listPublicProviders).mockResolvedValue(providers);
+    render(<MemoryRouter><CareNearYou /></MemoryRouter>);
+
+    expect(await screen.findByText('Checking member access…')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Dr. Mira Rao/ })).toBeNull();
+    expect(screen.queryByText('Sports Medicine')).toBeNull();
+    expect(screen.getByRole('link', { name: /Explore the full provider directory/ }).getAttribute('href')).toBe('/login');
+  });
+
   it('keeps the care discovery action full width without changing its destination', () => {
     vi.mocked(publicApi.listPublicProviders).mockResolvedValue([]);
     render(<MemoryRouter><CareNearYou /></MemoryRouter>);
@@ -126,6 +190,13 @@ describe('CareNearYou', () => {
 
   it('requests location only after consent and refreshes provider distances', async () => {
     const user = userEvent.setup();
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true,
+      isLoading: false,
+      user: memberUser,
+      login: vi.fn(),
+      logout: vi.fn(),
+    });
     vi.mocked(publicApi.listPublicProviders)
       .mockResolvedValueOnce(providers)
       .mockResolvedValueOnce([{ ...providers[0], distance_km: 3.2 }]);
@@ -151,6 +222,6 @@ describe('CareNearYou', () => {
     render(<MemoryRouter><CareNearYou /></MemoryRouter>);
 
     expect((await screen.findByRole('alert')).textContent).toContain("We couldn't load the care map.");
-    expect(screen.getByRole('link', { name: /Explore the full provider directory/ }).getAttribute('href')).toBe('/member');
+    expect(screen.getByRole('link', { name: /Explore the full provider directory/ }).getAttribute('href')).toBe('/login');
   });
 });
