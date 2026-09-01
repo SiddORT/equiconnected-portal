@@ -11,6 +11,7 @@ import { HowItWorksScroll } from '@/components/public/HowItWorksScroll';
 import { SpecializationExplorer } from '@/components/public/SpecializationExplorer';
 import { CareNearYou } from '@/components/public/CareNearYou';
 import { WhyEquiConnected } from '@/components/public/WhyEquiConnected';
+import { Footer } from '@/components/layout/Footer';
 import type { SubscriberRegistrationType } from '@/types';
 import styles from './PublicPage.module.css';
 
@@ -38,6 +39,39 @@ export function PublicPage() {
       window.localStorage.removeItem(storageKey);
     });
   }, [settings.timezone, settingsError, settingsLoading]);
+
+  useEffect(() => {
+    let animationFrame = 0;
+
+    function revealHashTarget() {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        const targetId = decodeURIComponent(window.location.hash.slice(1));
+        if (!targetId) return;
+
+        const target = document.getElementById(targetId);
+        if (!target) return;
+
+        target.scrollIntoView({ block: 'start' });
+        const heading = target.querySelector<HTMLElement>('h1, h2');
+        if (!heading) return;
+
+        const alreadyFocusable = heading.hasAttribute('tabindex');
+        if (!alreadyFocusable) heading.setAttribute('tabindex', '-1');
+        heading.focus({ preventScroll: true });
+        if (!alreadyFocusable) {
+          heading.addEventListener('blur', () => heading.removeAttribute('tabindex'), { once: true });
+        }
+      });
+    }
+
+    revealHashTarget();
+    window.addEventListener('hashchange', revealHashTarget);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener('hashchange', revealHashTarget);
+    };
+  }, []);
 
   async function handleNotify(event: React.FormEvent) {
     event.preventDefault();
@@ -192,59 +226,106 @@ export function PublicPage() {
         <CareNearYou />
         <WhyEquiConnected />
 
-        {/* ── Features teaser ──────────────────────────────────── */}
-        <section className={styles.features} aria-label="What's coming">
-          {TEASERS.map((t) => (
-            <div key={t.title} className={styles.featureItem}>
-              <span className={styles.featureIcon} aria-hidden="true">{t.icon}</span>
-              <h2 className={styles.featureTitle}>{t.title}</h2>
-              <p className={styles.featureDesc}>{t.desc}</p>
-            </div>
-          ))}
+        <section id="provider-join" className={styles.providerSection} aria-labelledby="provider-join-heading">
+          <div className={styles.providerCopy}>
+            <p className={styles.sectionEyebrow}><span aria-hidden="true" />For providers</p>
+            <h2 id="provider-join-heading">Grow your presence with EquiConnected.</h2>
+            <p>
+              Put your practice in front of members looking for thoughtful equine care.
+              Share the information that helps people understand where you fit in their
+              healthcare journey.
+            </p>
+            <Link to="/provider/signup" className={styles.providerCta}>
+              Join as a provider <span aria-hidden="true">↗</span>
+            </Link>
+          </div>
+          <ul className={styles.providerTypes} aria-label="Provider types">
+            {PROVIDER_TYPES.map((type, index) => (
+              <li key={type} className={styles.providerType}>
+                <span className={styles.providerTypeNumber} aria-hidden="true">0{index + 1}</span>
+                {type}
+              </li>
+            ))}
+          </ul>
         </section>
 
-        {/* ── Divider ──────────────────────────────────────────── */}
-        <div className={styles.dividerLine} aria-hidden="true" />
+        <section id="trust-and-transparency" className={styles.trustSection} aria-labelledby="trust-heading">
+          <div className={styles.trustIntro}>
+            <p className={styles.sectionEyebrow}><span aria-hidden="true" />A clearer way to discover care</p>
+            <h2 id="trust-heading">Designed around better healthcare discovery.</h2>
+            <p>
+              The details you need to make a considered next choice, brought together
+              in one calm, connected place.
+            </p>
+          </div>
+          <div className={styles.trustGrid}>
+            {TRUST_SIGNALS.map((signal) => (
+              <article className={styles.trustCard} key={signal.title}>
+                <span className={styles.trustIcon} aria-hidden="true">{signal.icon}</span>
+                <h3>{signal.title}</h3>
+                <p>{signal.description}</p>
+              </article>
+            ))}
+          </div>
+        </section>
 
-        {/* ── Admin link ───────────────────────────────────────── */}
-        <div className={styles.adminLink}>
-          <Link to="/signup" className={styles.signupCta}>
-            Register as a member
-          </Link>
-          <span className={styles.linkSeparator} aria-hidden="true">·</span>
-          <Link to="/provider/signup" className={styles.signupCta}>
-            Register as a provider
-          </Link>
-          <span className={styles.linkSeparator} aria-hidden="true">·</span>
-          <Link to="/admin/login" className={styles.adminAnchor}>
-            Admin Portal →
-          </Link>
-        </div>
+        <section id="get-started" className={styles.finalCta} aria-labelledby="final-cta-heading">
+          <div className={styles.finalCtaCopy}>
+            <p className={styles.sectionEyebrow}><span aria-hidden="true" />Keep moving forward</p>
+            <h2 id="final-cta-heading">Your healthcare network starts here.</h2>
+            <p>Find the care you need. Discover providers around you.</p>
+            <div className={styles.finalCtaActions}>
+              <Link to="/signup" className={styles.finalPrimaryCta}>
+                Find care <span aria-hidden="true">↗</span>
+              </Link>
+              <Link to="/provider/signup" className={styles.finalSecondaryCta}>
+                Join as a provider
+              </Link>
+            </div>
+          </div>
+          <svg className={styles.connectionMotif} viewBox="0 0 260 220" aria-hidden="true">
+            <path d="M28 166C61 166 63 54 114 54s52 112 87 112 31-49 40-93" />
+            <path d="M31 166h209" />
+            <circle cx="28" cy="166" r="7" />
+            <circle cx="114" cy="54" r="7" />
+            <circle cx="201" cy="166" r="7" />
+            <circle cx="241" cy="73" r="7" />
+          </svg>
+        </section>
       </main>
 
-      {/* ── Footer ───────────────────────────────────────────── */}
-      <footer className={styles.footer} role="contentinfo">
-        <p>© {new Date().getFullYear()} EquiConnected. All rights reserved.</p>
-      </footer>
+      <Footer />
     </div>
   );
 }
 
-const TEASERS = [
+const PROVIDER_TYPES = ['Doctors', 'Clinics', 'Hospitals'];
+
+const TRUST_SIGNALS = [
   {
-    icon: '🏥',
-    title: 'Hospital Portal',
-    desc: 'Streamlined tools for healthcare administrators and clinical teams.',
+    icon: '01',
+    title: 'Clear provider information',
+    description: 'Review the practice details providers choose to share before you reach out.',
   },
   {
-    icon: '🤝',
-    title: 'Visitor Coordination',
-    desc: 'Secure, dignified access management for families and visitors.',
+    icon: '02',
+    title: 'Transparent community reviews',
+    description: 'See ratings and reviews from the EquiConnected community alongside each profile.',
   },
   {
-    icon: '🔒',
-    title: 'Built for Trust',
-    desc: 'Enterprise-grade security with full audit trails and role-based access.',
+    icon: '03',
+    title: 'Location-based discovery',
+    description: 'Find care options around the places that work for you and your horse.',
+  },
+  {
+    icon: '04',
+    title: 'Secure member accounts',
+    description: 'Keep your member experience and care-seeking activity in a secure account.',
+  },
+  {
+    icon: '05',
+    title: 'Provider profiles',
+    description: 'Explore a dedicated view of each doctor, clinic, or hospital in the network.',
   },
 ];
 

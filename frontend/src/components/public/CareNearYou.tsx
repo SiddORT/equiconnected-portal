@@ -199,7 +199,7 @@ export function CareNearYou() {
   }
 
   return (
-    <section className={styles.section} aria-labelledby="care-near-you-heading">
+    <section id="care-near-you" className={styles.section} aria-labelledby="care-near-you-heading">
       <div className={styles.intro}>
         <div>
           <p className={styles.eyebrow}><span aria-hidden="true" />Care near you</p>

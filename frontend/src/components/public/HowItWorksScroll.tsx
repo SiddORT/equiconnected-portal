@@ -132,7 +132,7 @@ export function HowItWorksScroll() {
   }
 
   return (
-    <section className={styles.section} aria-labelledby="how-it-works-heading">
+    <section id="how-it-works" className={styles.section} aria-labelledby="how-it-works-heading">
       <div className={styles.sectionIntro}>
         <p className={styles.eyebrow}>
           <span className={styles.eyebrowRule} />

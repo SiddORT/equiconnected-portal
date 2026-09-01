@@ -36,7 +36,7 @@ const ADVANTAGES: Advantage[] = [
 
 export function WhyEquiConnected() {
   return (
-    <section className={styles.section} aria-labelledby="why-equiconnected-heading">
+    <section id="why-equiconnected" className={styles.section} aria-labelledby="why-equiconnected-heading">
       <div className={styles.intro}>
         <div className={styles.introCopy}>
           <p className={styles.eyebrow}><span aria-hidden="true" />Why EquiConnected?</p>

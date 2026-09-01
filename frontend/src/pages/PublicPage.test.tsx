@@ -24,6 +24,7 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   window.localStorage.clear();
+  window.history.replaceState(null, '', '/');
   vi.resetAllMocks();
   vi.unstubAllGlobals();
 });
@@ -36,7 +37,12 @@ describe('PublicPage hero', () => {
     expect(screen.getByRole('heading', { name: 'Healthcare, Connected Around You.' })).toBeTruthy();
     expect(screen.getByText(/Discover doctors, clinics and hospitals/)).toBeTruthy();
     expect(screen.getAllByRole('link', { name: 'Find care' })[1].getAttribute('href')).toBe('/signup');
-    expect(screen.getByRole('link', { name: 'Join as a provider' }).getAttribute('href')).toBe('/provider/signup');
+    const hero = screen.getByRole('heading', {
+      name: 'Healthcare, Connected Around You.',
+    }).closest('section');
+    expect(within(hero as HTMLElement).getByRole('link', {
+      name: 'Join as a provider',
+    }).getAttribute('href')).toBe('/provider/signup');
     expect(screen.getByRole('region', { name: 'Equine care stories' })).toBeTruthy();
     const heroStories = screen.getByRole('region', { name: 'Equine care stories' });
     expect(within(heroStories).getByRole('img', { name: 'Dark horse standing in a quiet mountain pasture at sunset' })).toBeTruthy();
@@ -155,7 +161,7 @@ describe('PublicPage hero', () => {
     }
   });
 
-  it('explains the product advantages and continues into the feature teasers', () => {
+  it('explains the product advantages and continues into the provider journey', () => {
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
 
     expect(screen.getByRole('heading', { name: 'The right care starts with a clearer picture.' })).toBeTruthy();
@@ -176,8 +182,103 @@ describe('PublicPage hero', () => {
     expect(screen.queryByText('126 community reviews')).toBeNull();
     expect(screen.queryByText(/No live review text is shown here/)).toBeNull();
     expect(screen.queryByRole('link', { name: /Explore providers/ })).toBeNull();
-    expect(screen.getByRole('heading', { name: 'Hospital Portal' })).toBeTruthy();
-    expect(screen.getByText('Streamlined tools for healthcare administrators and clinical teams.')).toBeTruthy();
+    const providerSection = screen.getByRole('heading', {
+      name: 'Grow your presence with EquiConnected.',
+    }).closest('section');
+    expect(providerSection).toBeTruthy();
+    expect(within(providerSection as HTMLElement).getByText('Doctors')).toBeTruthy();
+    expect(within(providerSection as HTMLElement).getByText('Clinics')).toBeTruthy();
+    expect(within(providerSection as HTMLElement).getByText('Hospitals')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Designed around better healthcare discovery.' })).toBeTruthy();
+    expect(screen.getByText('Clear provider information')).toBeTruthy();
+    expect(screen.getByText('Transparent community reviews')).toBeTruthy();
+    expect(screen.getByText('Location-based discovery')).toBeTruthy();
+    expect(screen.getByText('Secure member accounts')).toBeTruthy();
+    expect(screen.getByText('Provider profiles')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Your healthcare network starts here.' })).toBeTruthy();
+    expect(screen.getByText('Find the care you need. Discover providers around you.')).toBeTruthy();
+    expect(screen.queryByText(/verified|certified/i)).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Hospital Portal' })).toBeNull();
+    expect(screen.queryByText('Streamlined tools for healthcare administrators and clinical teams.')).toBeNull();
+  });
+
+  it('keeps the closing journey in order and uses the working signup routes', () => {
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    const main = screen.getByRole('main');
+    const providerSection = screen.getByRole('heading', {
+      name: 'Grow your presence with EquiConnected.',
+    }).closest('section');
+    const trustSection = screen.getByRole('heading', {
+      name: 'Designed around better healthcare discovery.',
+    }).closest('section');
+    const finalSection = screen.getByRole('heading', {
+      name: 'Your healthcare network starts here.',
+    }).closest('section');
+
+    expect(providerSection).toBeTruthy();
+    expect(trustSection).toBeTruthy();
+    expect(finalSection).toBeTruthy();
+    expect(Array.from(main.children).indexOf(providerSection as HTMLElement))
+      .toBeLessThan(Array.from(main.children).indexOf(trustSection as HTMLElement));
+    expect(Array.from(main.children).indexOf(trustSection as HTMLElement))
+      .toBeLessThan(Array.from(main.children).indexOf(finalSection as HTMLElement));
+
+    expect(within(providerSection as HTMLElement).getByRole('link', {
+      name: /join as a provider/i,
+    }).getAttribute('href')).toBe('/provider/signup');
+    expect(within(finalSection as HTMLElement).getByRole('link', {
+      name: /find care/i,
+    }).getAttribute('href')).toBe('/signup');
+    expect(within(finalSection as HTMLElement).getByRole('link', {
+      name: /join as a provider/i,
+    }).getAttribute('href')).toBe('/provider/signup');
+  });
+
+  it('provides grouped footer navigation with real destinations', () => {
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    const footer = screen.getByRole('contentinfo');
+    expect(within(footer).getByRole('link', {
+      name: 'EquiConnected home',
+    }).getAttribute('href')).toBe('/');
+
+    for (const group of ['Member', 'Provider', 'Company', 'Account']) {
+      expect(within(footer).getByRole('heading', { name: group })).toBeTruthy();
+    }
+
+    expect(within(footer).getByRole('link', { name: 'Find care' }).getAttribute('href')).toBe('/signup');
+    expect(within(footer).getByRole('link', { name: 'Join as a provider' }).getAttribute('href')).toBe('/provider/signup');
+    expect(within(footer).getByRole('link', { name: 'Privacy' }).getAttribute('href')).toBe('/privacy-policy');
+    expect(within(footer).getByRole('link', { name: 'Terms' }).getAttribute('href')).toBe('/terms-of-service');
+    expect(within(footer).getByRole('link', { name: 'Member login' }).getAttribute('href')).toBe('/login');
+    expect(within(footer).getByRole('link', { name: 'Provider login' }).getAttribute('href')).toBe('/provider/login');
+    expect(within(footer).getByRole('link', { name: 'Admin login' }).getAttribute('href')).toBe('/admin/login');
+    expect(within(footer).queryByRole('link', { name: /instagram|facebook|linkedin|twitter|x\.com/i })).toBeNull();
+    expect(within(footer).getByText(`© ${new Date().getFullYear()} EquiConnected. All rights reserved.`)).toBeTruthy();
+  });
+
+  it('reveals and focuses a linked homepage section from the URL fragment', async () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    window.history.replaceState(null, '', '/#why-equiconnected');
+
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    const heading = screen.getByRole('heading', {
+      name: 'The right care starts with a clearer picture.',
+    });
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+    expect(scrollIntoView).toHaveBeenCalledOnce();
+    expect(heading.getAttribute('tabindex')).toBe('-1');
   });
 
   it('highlights the most visible care-journey panel while scrolling', () => {
