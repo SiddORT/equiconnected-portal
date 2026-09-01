@@ -285,6 +285,7 @@ describe('PublicPage hero', () => {
     expect(providerSection).toBeTruthy();
     expect(finalSection).toBeTruthy();
     expect(whySection).toBeTruthy();
+    expect(finalSection?.querySelector('img[src="/hospital1.png"]')).toBeTruthy();
     const mainChildren = Array.from(main.children);
     const finalIndex = mainChildren.indexOf(finalSection as HTMLElement);
     const whyIndex = mainChildren.indexOf(whySection as HTMLElement);
