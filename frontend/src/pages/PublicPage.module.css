@@ -752,11 +752,11 @@
 
 .providerSection {
   display: grid;
-  grid-template-columns: minmax(0, 1.04fr) minmax(320px, .96fr);
+  grid-template-columns: minmax(0, .98fr) minmax(320px, 1.02fr);
   align-items: center;
-  gap: clamp(42px, 7vw, 104px);
+  gap: clamp(32px, 5.5vw, 76px);
   margin-top: clamp(92px, 12vw, 164px);
-  padding: clamp(42px, 6vw, 76px) clamp(28px, 7vw, 92px);
+  padding: clamp(34px, 4vw, 54px) clamp(24px, 6vw, 78px);
   overflow: hidden;
   background:
     radial-gradient(circle at 88% 14%, color-mix(in srgb, var(--public-accent-light) 15%, transparent), transparent 32%),
@@ -766,7 +766,7 @@
 
 .providerVisual {
   min-width: 0;
-  aspect-ratio: 1.12 / 1;
+  height: clamp(300px, 28vw, 360px);
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--public-on-dark) 20%, transparent);
   border-radius: 6px;
@@ -778,7 +778,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 52% center;
+  object-position: 50% 40%;
 }
 
 .providerCopy {
@@ -818,15 +818,15 @@
 .providerSection h2 {
   max-width: 620px;
   color: var(--public-on-dark);
-  font-size: clamp(2.8rem, 5.2vw, 5.2rem);
+  font-size: clamp(2.7rem, 4.3vw, 4.5rem);
 }
 
 .providerCopy > p:not(.sectionEyebrow) {
   max-width: 540px;
-  margin: 24px 0 0;
+  margin: 20px 0 0;
   color: var(--public-on-dark-muted);
   font-size: .98rem;
-  line-height: 1.75;
+  line-height: 1.65;
 }
 
 .providerCta {
@@ -850,7 +850,7 @@
 }
 
 .providerCta {
-  margin-top: 28px;
+  margin-top: 24px;
   border-color: var(--hero-gold-light);
   background: var(--hero-gold-light);
   color: var(--hero-navy-deep);
@@ -873,9 +873,9 @@
 .providerTypes {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin: 28px 0 0;
-  padding: 18px 0 0;
+  gap: 10px;
+  margin: 24px 0 0;
+  padding: 14px 0 0;
   border-top: 1px solid color-mix(in srgb, var(--public-on-dark) 25%, transparent);
   list-style: none;
 }
@@ -1172,7 +1172,7 @@
 
   .providerSection {
     grid-template-columns: 1fr;
-    gap: 42px;
+    gap: 32px;
   }
 
   .aboutSection {
@@ -1190,7 +1190,7 @@
 
   .providerVisual {
     width: 100%;
-    aspect-ratio: 1.5 / 1;
+    height: clamp(240px, 48vw, 340px);
   }
 
   .finalCta {
@@ -1284,7 +1284,7 @@
   }
 
   .providerVisual {
-    aspect-ratio: 1.35 / 1;
+    height: clamp(210px, 58vw, 280px);
   }
 
   .providerSection h2,

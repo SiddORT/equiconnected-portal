@@ -377,8 +377,8 @@ export function PublicPage() {
           <div className={styles.providerVisual} data-scroll-reveal>
             <img
               className={styles.providerImage}
-              src="/provider-cta-equine-care.jpeg"
-              alt="Equine veterinarian caring for a chestnut horse in a warm stable"
+              src="/provider-cta-equine-care.png"
+              alt="Equine veterinarian standing beside a chestnut horse in a warm stable"
               loading="lazy"
             />
           </div>

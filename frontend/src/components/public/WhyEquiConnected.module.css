@@ -372,6 +372,11 @@
   .cardTitle {
     margin-top: clamp(48px, 6vw, 72px);
   }
+
+  .imageFrame {
+    height: 150px;
+    margin-inline: -24px;
+  }
 }
 
 @media (min-width: 701px) and (max-width: 1099px) {

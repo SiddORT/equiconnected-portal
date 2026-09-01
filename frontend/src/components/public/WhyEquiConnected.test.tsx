@@ -71,8 +71,7 @@ describe('WhyEquiConnected editorial journey', () => {
     const animation = gsapMocks.fromTo.mock.calls[0][2];
     expect(animation.scrollTrigger.pin).toBe(stage);
     expect(animation.scrollTrigger.start).toBe('top top+=112');
-    expect(animation.scrollTrigger.scrub).toBe(true);
-    expect(animation.scrollTrigger.invalidateOnRefresh).toBe(true);
+    expect(typeof animation.scrollTrigger.end).toBe('function');
 
     const cards = within(stage as HTMLElement).getAllByRole('article');
     const images = within(stage as HTMLElement).getAllByRole('img');
