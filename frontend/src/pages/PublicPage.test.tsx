@@ -22,6 +22,7 @@ vi.mock('@/app/TimeSettingsContext', () => ({
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   window.localStorage.clear();
   vi.resetAllMocks();
   vi.unstubAllGlobals();
@@ -46,6 +47,25 @@ describe('PublicPage hero', () => {
     await user.click(screen.getByRole('button', { name: 'Next image' }));
     expect(within(heroStories).getByRole('img', { name: 'Equine care professional working with a horse indoors' })).toBeTruthy();
     await waitFor(() => expect(publicApi.recordPublicVisit).toHaveBeenCalledOnce());
+  });
+
+  it('auto-advances the homepage hero without changing its accessible active image', () => {
+    vi.useFakeTimers();
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    const heroStories = screen.getByRole('region', { name: 'Equine care stories' });
+    expect(within(heroStories).getByRole('img', {
+      name: 'Dark horse standing in a quiet mountain pasture at sunset',
+    })).toBeTruthy();
+
+    act(() => vi.advanceTimersByTime(5600));
+
+    expect(within(heroStories).getByRole('img', {
+      name: 'Equine care professional working with a horse indoors',
+    })).toBeTruthy();
+    expect(within(heroStories).getByRole('button', {
+      name: 'Show image 2: Expertise, connected',
+    }).getAttribute('aria-pressed')).toBe('true');
   });
 
   it('keeps the subscriber enrollment flow with validation and submission', async () => {

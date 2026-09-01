@@ -33,8 +33,13 @@ const AUTOPLAY_DELAY = 5600;
 
 export function HeroImageSlider() {
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const [reducedMotion, setReducedMotion] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [hasFocus, setHasFocus] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(() => (
+    typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ));
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return undefined;
@@ -47,14 +52,14 @@ export function HeroImageSlider() {
   }, []);
 
   useEffect(() => {
-    if (isPaused || reducedMotion) return undefined;
+    if (isHovered || hasFocus || reducedMotion) return undefined;
 
     const timer = window.setInterval(() => {
       setActiveIndex((currentIndex) => (currentIndex + 1) % SLIDES.length);
     }, AUTOPLAY_DELAY);
 
     return () => window.clearInterval(timer);
-  }, [isPaused, reducedMotion]);
+  }, [hasFocus, isHovered, reducedMotion]);
 
   function showSlide(index: number) {
     setActiveIndex((index + SLIDES.length) % SLIDES.length);
@@ -62,7 +67,7 @@ export function HeroImageSlider() {
 
   function handleBlur(event: React.FocusEvent<HTMLDivElement>) {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-      setIsPaused(false);
+      setHasFocus(false);
     }
   }
 
@@ -73,9 +78,9 @@ export function HeroImageSlider() {
       className={`${styles.slider} ${reducedMotion ? styles.reducedMotion : ''}`}
       aria-label="Equine care stories"
       role="region"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
-      onFocus={() => setIsPaused(true)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onFocus={() => setHasFocus(true)}
       onBlur={handleBlur}
     >
       <div className={styles.viewport}>
