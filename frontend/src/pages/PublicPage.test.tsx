@@ -50,6 +50,70 @@ beforeEach(() => {
 });
 
 describe('PublicPage hero', () => {
+  it('defaults invalid or missing preferences to Blue and scopes the theme to the homepage', async () => {
+    window.localStorage.setItem('equiconnected-public-theme', 'not-a-theme');
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    const themeSelect = screen.getByRole('combobox', { name: 'Theme' });
+    const page = screen.getByRole('main').parentElement;
+
+    expect(themeSelect).toHaveProperty('value', 'blue');
+    expect(page?.getAttribute('data-theme')).toBe('blue');
+    expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
+    await waitFor(() => {
+      expect(window.localStorage.getItem('equiconnected-public-theme')).toBe('blue');
+    });
+  });
+
+  it('applies and restores Brown while remaining keyboard accessible', async () => {
+    const user = userEvent.setup();
+    const firstRender = render(<MemoryRouter><PublicPage /></MemoryRouter>);
+    const themeSelect = screen.getByRole('combobox', { name: 'Theme' });
+
+    themeSelect.focus();
+    expect(document.activeElement).toBe(themeSelect);
+    await user.selectOptions(themeSelect, 'brown');
+
+    expect(screen.getByRole('main').parentElement?.getAttribute('data-theme')).toBe('brown');
+    expect(window.localStorage.getItem('equiconnected-public-theme')).toBe('brown');
+
+    firstRender.unmount();
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+    expect(screen.getByRole('combobox', { name: 'Theme' })).toHaveProperty('value', 'brown');
+    expect(screen.getByRole('main').parentElement?.getAttribute('data-theme')).toBe('brown');
+  });
+
+  it('keeps working when browser theme storage is unavailable', async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key) => {
+      if (key === 'equiconnected-public-theme') throw new DOMException('Blocked', 'SecurityError');
+      return null;
+    });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key) => {
+      if (key === 'equiconnected-public-theme') throw new DOMException('Blocked', 'SecurityError');
+    });
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+    const themeSelect = screen.getByRole('combobox', { name: 'Theme' });
+
+    expect(themeSelect).toHaveProperty('value', 'blue');
+    await user.selectOptions(themeSelect, 'brown');
+    expect(screen.getByRole('main').parentElement?.getAttribute('data-theme')).toBe('brown');
+  });
+
+  it('keeps the theme selector inside the existing responsive navigation', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
+    await user.click(within(navigation).getByRole('button', { name: 'Menu' }));
+    await user.selectOptions(within(navigation).getByRole('combobox', { name: 'Theme' }), 'brown');
+
+    expect(within(navigation).getByRole('button', { name: 'Close' }).getAttribute('aria-expanded')).toBe('true');
+    expect(document.querySelectorAll('header')).toHaveLength(1);
+    expect(within(navigation).getByRole('link', { name: 'About' }).getAttribute('href')).toBe('/#about-us');
+  });
+
   it('provides section navigation and member/provider registration actions', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><PublicPage /></MemoryRouter>);

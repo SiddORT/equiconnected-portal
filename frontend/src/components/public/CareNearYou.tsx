@@ -12,10 +12,17 @@ import { hasMemberRole } from '@/features/member/memberAccess';
 import type { ProviderType, PublicProviderDiscovery } from '@/types';
 import styles from './CareNearYou.module.css';
 
-const TYPE_CONFIG: Record<ProviderType, { label: string; color: string; shortLabel: string }> = {
-  DOCTOR: { label: 'Doctors', color: '#13866f', shortLabel: 'Doctor' },
-  CLINIC: { label: 'Clinics', color: '#2d68a0', shortLabel: 'Clinic' },
-  HOSPITAL: { label: 'Hospitals', color: '#a95545', shortLabel: 'Hospital' },
+const TYPE_CONFIG: Record<'blue' | 'brown', Record<ProviderType, { label: string; color: string; shortLabel: string }>> = {
+  blue: {
+    DOCTOR: { label: 'Doctors', color: '#13866f', shortLabel: 'Doctor' },
+    CLINIC: { label: 'Clinics', color: '#2d68a0', shortLabel: 'Clinic' },
+    HOSPITAL: { label: 'Hospitals', color: '#a95545', shortLabel: 'Hospital' },
+  },
+  brown: {
+    DOCTOR: { label: 'Doctors', color: '#8e7254', shortLabel: 'Doctor' },
+    CLINIC: { label: 'Clinics', color: '#9c7256', shortLabel: 'Clinic' },
+    HOSPITAL: { label: 'Hospitals', color: '#9c5f4c', shortLabel: 'Hospital' },
+  },
 };
 
 const PROVIDER_TYPES: ProviderType[] = ['DOCTOR', 'CLINIC', 'HOSPITAL'];
@@ -39,7 +46,8 @@ function formatRating(rating: number | null): string {
   return rating === null ? 'New listing' : `${rating.toFixed(1)} rating`;
 }
 
-export function CareNearYou() {
+export function CareNearYou({ theme = 'blue' }: { theme?: 'blue' | 'brown' }) {
+  const typeConfig = TYPE_CONFIG[theme];
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -143,12 +151,12 @@ export function CareNearYou() {
 
     visibleProviders.forEach((provider) => {
       const isSelected = provider.id === selectedProvider?.id;
-      const color = TYPE_CONFIG[provider.provider_type].color;
+      const color = typeConfig[provider.provider_type].color;
       const marker = L.circleMarker(
         [provider.location.latitude, provider.location.longitude],
         {
           radius: isSelected ? 12 : 9,
-          color: '#fffdf4',
+          color: theme === 'brown' ? '#fff8ed' : '#fffdf4',
           weight: isSelected ? 3 : 2,
           fillColor: color,
           fillOpacity: 0.95,
@@ -157,7 +165,7 @@ export function CareNearYou() {
       marker.bindTooltip(provider.name, { direction: 'top', offset: [0, -8] });
       marker.bindPopup(
         `<strong>${escapeHtml(provider.name)}</strong><br/>` +
-        `${TYPE_CONFIG[provider.provider_type].shortLabel} · ${escapeHtml(provider.location.city)}`,
+        `${typeConfig[provider.provider_type].shortLabel} · ${escapeHtml(provider.location.city)}`,
       );
       marker.on('click', () => setSelectedId(provider.id));
       marker.addTo(markerLayer);
@@ -172,7 +180,7 @@ export function CareNearYou() {
     } else if (visibleProviders.length > 1) {
       map.fitBounds(bounds, { padding: [36, 36], maxZoom: 12 });
     }
-  }, [selectedProvider?.id, visibleProviders]);
+  }, [selectedProvider?.id, theme, typeConfig, visibleProviders]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -256,8 +264,8 @@ export function CareNearYou() {
                   onClick={() => setSelectedType((current) => current === type ? null : type)}
                   aria-pressed={selectedType === type}
                 >
-                  <span className={styles.typeDot} style={{ backgroundColor: TYPE_CONFIG[type].color }} aria-hidden="true" />
-                  {TYPE_CONFIG[type].label}
+                  <span className={styles.typeDot} style={{ backgroundColor: typeConfig[type].color }} aria-hidden="true" />
+                  {typeConfig[type].label}
                 </button>
               ))}
             </div>
@@ -286,7 +294,7 @@ export function CareNearYou() {
             )}
             {!loading && !error && providers.length > 0 && visibleProviders.length === 0 && (
               <div className={styles.mapMessage} role="status">
-                <strong>No {selectedType ? TYPE_CONFIG[selectedType].label.toLowerCase() : 'providers'} shown.</strong>
+                <strong>No {selectedType ? typeConfig[selectedType].label.toLowerCase() : 'providers'} shown.</strong>
                 <span>Try another provider type.</span>
               </div>
             )}
@@ -340,7 +348,7 @@ export function CareNearYou() {
               </div>
             )}
             {canAccessMemberDetails && visibleProviders.map((provider) => {
-              const type = TYPE_CONFIG[provider.provider_type];
+              const type = typeConfig[provider.provider_type];
               const selected = provider.id === selectedProvider?.id;
               return (
                 <button

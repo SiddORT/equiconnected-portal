@@ -16,6 +16,27 @@ import { usePublicPageAnimations } from '@/hooks/usePublicPageAnimations';
 import type { SubscriberRegistrationType } from '@/types';
 import styles from './PublicPage.module.css';
 
+type PublicTheme = 'blue' | 'brown';
+
+const PUBLIC_THEME_STORAGE_KEY = 'equiconnected-public-theme';
+
+function getStoredPublicTheme(): PublicTheme {
+  if (typeof window === 'undefined') return 'blue';
+  try {
+    return window.localStorage.getItem(PUBLIC_THEME_STORAGE_KEY) === 'brown' ? 'brown' : 'blue';
+  } catch {
+    return 'blue';
+  }
+}
+
+function storePublicTheme(theme: PublicTheme) {
+  try {
+    window.localStorage.setItem(PUBLIC_THEME_STORAGE_KEY, theme);
+  } catch {
+    // The selected theme still applies for this page view when storage is unavailable.
+  }
+}
+
 export function PublicPage() {
   const pageRef = useRef<HTMLDivElement>(null);
   const { settings, isLoading: settingsLoading, error: settingsError } = useTimeSettings();
@@ -27,8 +48,13 @@ export function PublicPage() {
   const [registrationTypeError, setRegistrationTypeError] = useState('');
   const [formError, setFormError] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [theme, setTheme] = useState<PublicTheme>(getStoredPublicTheme);
 
   usePublicPageAnimations(pageRef);
+
+  useEffect(() => {
+    storePublicTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     // Wait for the shared settings so the client-side once-per-day key agrees
@@ -113,7 +139,7 @@ export function PublicPage() {
   }
 
   return (
-    <div className={styles.page} ref={pageRef}>
+    <div className={styles.page} ref={pageRef} data-theme={theme}>
       {/* ── Background decorative elements ──────────────────────── */}
       <div className={styles.bgGlow} aria-hidden="true" />
 
@@ -151,6 +177,17 @@ export function PublicPage() {
                 <a href="/#why-equiconnected" onClick={closeMenu}>Why us</a>
               </div>
               <div className={styles.navActions}>
+                <div className={styles.themeControl}>
+                  <label htmlFor="public-theme">Theme</label>
+                  <select
+                    id="public-theme"
+                    value={theme}
+                    onChange={(event) => setTheme(event.target.value as PublicTheme)}
+                  >
+                    <option value="blue">Blue</option>
+                    <option value="brown">Brown</option>
+                  </select>
+                </div>
                 <Link to="/signup" className={styles.navMember} onClick={closeMenu} data-gsap-hover>
                   Register as member
                 </Link>
@@ -300,7 +337,7 @@ export function PublicPage() {
 
         <SpecializationsScroll />
         <HowItWorksScroll />
-        <CareNearYou />
+        <CareNearYou theme={theme} />
 
         <section id="get-started" className={styles.finalCta} aria-labelledby="final-cta-heading" data-parallax-trigger data-scroll-reveal>
           <div className={styles.finalCtaCopy} data-scroll-reveal>

@@ -11,7 +11,7 @@
   inset: 0;
   overflow: hidden;
   border-radius: 0;
-  background: #d9e0dd;
+  background: var(--public-map, #d9e0dd);
   box-shadow: none;
 }
 
@@ -19,7 +19,7 @@
   position: absolute;
   z-index: 1;
   inset: 25px;
-  border: 1px solid rgba(245, 233, 188, .45);
+  border: 1px solid color-mix(in srgb, var(--public-accent-pale, #f5e9bc) 45%, transparent);
   border-radius: 0;
   content: '';
   pointer-events: none;
@@ -55,8 +55,8 @@
   z-index: 1;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(8, 28, 39, .12) 18%, rgba(8, 29, 39, .72) 100%),
-    linear-gradient(90deg, rgba(8, 29, 39, .82) 0%, rgba(8, 29, 39, .54) 30%, rgba(8, 29, 39, .12) 70%);
+    linear-gradient(180deg, color-mix(in srgb, var(--public-dark-deep, #081c27) 12%, transparent) 18%, color-mix(in srgb, var(--public-dark-deep, #081d27) 72%, transparent) 100%),
+    linear-gradient(90deg, color-mix(in srgb, var(--public-dark-deep, #081d27) 82%, transparent) 0%, color-mix(in srgb, var(--public-dark-deep, #081d27) 54%, transparent) 30%, color-mix(in srgb, var(--public-dark-deep, #081d27) 12%, transparent) 70%);
   pointer-events: none;
 }
 
@@ -70,11 +70,11 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  color: #fffdf4;
+  color: var(--public-on-dark, #fffdf4);
 }
 
 .slideMeta span {
-  color: #e4ca7e;
+  color: var(--public-accent-light, #e4ca7e);
   font-family: var(--font-sans);
   font-size: .64rem;
   font-weight: 800;
@@ -99,7 +99,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: rgba(255, 253, 244, .9);
+  color: var(--public-on-dark-strong, rgba(255, 253, 244, .9));
   font-family: var(--font-sans);
   font-size: .64rem;
   font-weight: 800;
@@ -110,7 +110,7 @@
   display: inline-block;
   width: 25px;
   height: 1px;
-  background: #e4ca7e;
+  background: var(--public-accent-light, #e4ca7e);
 }
 
 .controls {
@@ -127,24 +127,24 @@
   width: 35px;
   height: 35px;
   place-items: center;
-  border: 1px solid rgba(255, 253, 244, .58);
+  border: 1px solid color-mix(in srgb, var(--public-on-dark, #fffdf4) 58%, transparent);
   border-radius: 50%;
-  background: rgba(8, 29, 39, .28);
-  color: #fffdf4;
+  background: color-mix(in srgb, var(--public-dark-deep, #081d27) 28%, transparent);
+  color: var(--public-on-dark, #fffdf4);
   cursor: pointer;
   font-size: 1rem;
   transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
 }
 
 .control:hover {
-  border-color: #e4ca7e;
-  background: rgba(8, 29, 39, .65);
+  border-color: var(--public-accent-light, #e4ca7e);
+  background: color-mix(in srgb, var(--public-dark-deep, #081d27) 65%, transparent);
   transform: translateY(-2px);
 }
 
 .control:focus-visible,
 .indicator:focus-visible {
-  outline: 3px solid #e4ca7e;
+  outline: 3px solid var(--public-accent-light, #e4ca7e);
   outline-offset: 3px;
 }
 
@@ -168,12 +168,12 @@
 }
 
 .crescentCut .crescentFill {
-  fill: #faf8f1;
+  fill: var(--public-bg, #faf8f1);
   stroke: none;
 }
 
 .archShadow {
-  stroke: rgba(19, 57, 74, .18);
+  stroke: color-mix(in srgb, var(--public-text, #13394a) 18%, transparent);
   stroke-width: 3;
 }
 
@@ -196,14 +196,14 @@
   height: 3px;
   padding: 0;
   border: 0;
-  background: rgba(18, 57, 74, .2);
+  background: color-mix(in srgb, var(--public-text, #12394a) 20%, transparent);
   cursor: pointer;
   transition: background 180ms ease, width 180ms ease;
 }
 
 .activeIndicator {
   width: 50px;
-  background: #b78b33;
+  background: var(--public-accent, #b78b33);
 }
 
 .reducedMotion .slide {

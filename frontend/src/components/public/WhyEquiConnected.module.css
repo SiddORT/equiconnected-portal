@@ -2,7 +2,7 @@
   width: min(1200px, calc(100% - 48px));
   margin-top: clamp(92px, 12vw, 164px);
   scroll-margin-top: 112px;
-  color: #12394a;
+  color: var(--public-text, #12394a);
 }
 
 .intro {
@@ -11,7 +11,7 @@
   align-items: end;
   gap: clamp(32px, 8vw, 140px);
   padding-bottom: 34px;
-  border-bottom: 1px solid rgba(18, 57, 74, .2);
+  border-bottom: 1px solid var(--public-border, rgba(18, 57, 74, .2));
 }
 
 .eyebrow {
@@ -19,7 +19,7 @@
   align-items: center;
   gap: 10px;
   margin: 0 0 16px;
-  color: #a17425;
+  color: var(--public-accent-strong, #a17425);
   font-size: .66rem;
   font-weight: 800;
   letter-spacing: .2em;
@@ -29,13 +29,13 @@
 .eyebrow span {
   width: 26px;
   height: 1px;
-  background: #b78b33;
+  background: var(--public-accent, #b78b33);
 }
 
 .intro h2 {
   max-width: 720px;
   margin: 0;
-  color: #12394a;
+  color: var(--public-text, #12394a);
   font-family: var(--font-display);
   font-size: clamp(2.8rem, 5.2vw, 5.4rem);
   font-weight: 500;
@@ -44,7 +44,7 @@
 }
 
 .intro h2 em {
-  color: #a17425;
+  color: var(--public-accent-strong, #a17425);
   font-style: italic;
   font-weight: 400;
 }
@@ -52,7 +52,7 @@
 .description {
   max-width: 405px;
   margin: 0 0 3px;
-  color: #527585;
+  color: var(--public-text-soft, #527585);
   font-size: .93rem;
   line-height: 1.75;
 }
@@ -70,7 +70,7 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 22px;
-  color: #527585;
+  color: var(--public-text-soft, #527585);
   font-size: .61rem;
   font-weight: 800;
   letter-spacing: .17em;
@@ -78,7 +78,7 @@
 }
 
 .journeyHeader span:last-child {
-  color: #a17425;
+  color: var(--public-accent-strong, #a17425);
 }
 
 .journeyLine {
@@ -97,13 +97,13 @@
 }
 
 .journeyLineBase {
-  background: rgba(18, 57, 74, .23);
+  background: color-mix(in srgb, var(--public-text, #12394a) 23%, transparent);
 }
 
 .journeyProgress {
   right: auto;
   width: 100%;
-  background: #b78b33;
+  background: var(--public-accent, #b78b33);
   transform: scaleX(0);
   transform-origin: left center;
 }
@@ -118,9 +118,9 @@
 .journeyDots span {
   width: 13px;
   height: 13px;
-  border: 1px solid rgba(18, 57, 74, .36);
+  border: 1px solid var(--public-border-strong, rgba(18, 57, 74, .36));
   border-radius: 50%;
-  background: #f8f7f1;
+  background: var(--public-bg, #f8f7f1);
   box-sizing: border-box;
 }
 
@@ -138,16 +138,16 @@
   min-height: 430px;
   padding: 25px 24px 26px;
   flex-direction: column;
-  border: 1px solid rgba(18, 57, 74, .2);
-  background: rgba(253, 252, 247, .64);
+  border: 1px solid var(--public-border, rgba(18, 57, 74, .2));
+  background: color-mix(in srgb, var(--public-surface-raised, #fdfcf7) 64%, transparent);
   box-sizing: border-box;
   transition: background-color .36s ease, border-color .36s ease, box-shadow .36s ease;
 }
 
 .advantageCard[data-card-state='active'] {
-  border-color: rgba(183, 139, 51, .72);
-  background: #fffdf4;
-  box-shadow: 0 18px 40px rgba(18, 57, 74, .08);
+  border-color: color-mix(in srgb, var(--public-accent, #b78b33) 72%, transparent);
+  background: var(--public-surface-hover, #fffdf4);
+  box-shadow: 0 18px 40px var(--public-shadow, rgba(18, 57, 74, .08));
 }
 
 .cardTrigger {
@@ -172,7 +172,7 @@
 }
 
 .number {
-  color: #b78b33;
+  color: var(--public-accent, #b78b33);
   font-size: .62rem;
   font-weight: 800;
   letter-spacing: .16em;
@@ -183,9 +183,9 @@
   width: 42px;
   height: 42px;
   place-items: center;
-  border: 1px solid rgba(183, 139, 51, .4);
+  border: 1px solid color-mix(in srgb, var(--public-accent, #b78b33) 40%, transparent);
   border-radius: 50%;
-  color: #a17425;
+  color: var(--public-accent-strong, #a17425);
   transition: background-color .36s ease, color .36s ease, transform .5s cubic-bezier(.22, 1, .36, 1);
 }
 
@@ -200,8 +200,8 @@
 }
 
 .advantageCard[data-card-state='active'] .symbol {
-  color: #fffdf4;
-  background: #a17425;
+  color: var(--public-on-dark, #fffdf4);
+  background: var(--public-accent-strong, #a17425);
   transform: translateY(-3px) scale(1.06);
 }
 
@@ -209,7 +209,7 @@
   display: block;
   max-width: 210px;
   margin-top: auto;
-  color: #12394a;
+  color: var(--public-text, #12394a);
   font-family: var(--font-display);
   font-size: clamp(1.4rem, 1.9vw, 1.82rem);
   font-weight: 500;
@@ -220,7 +220,7 @@
 }
 
 .advantageCard[data-card-state='active'] .cardTitle {
-  color: #1c5266;
+  color: var(--public-text, #1c5266);
   transform: translateY(-12px);
 }
 
@@ -228,7 +228,7 @@
   max-width: 220px;
   min-height: 50px;
   margin: 16px 0 0;
-  color: #527585;
+  color: var(--public-text-soft, #527585);
   font-size: .79rem;
   line-height: 1.55;
   transition: color .36s ease, opacity .36s ease, transform .45s cubic-bezier(.22, 1, .36, 1);
@@ -239,7 +239,7 @@
 }
 
 .advantageCard[data-card-state='active'] .cardDescription {
-  color: #365f6e;
+  color: var(--public-text-soft, #365f6e);
   transform: translateY(-4px);
 }
 
@@ -248,7 +248,7 @@
   align-items: center;
   gap: 7px;
   margin-top: 18px;
-  color: #a17425;
+  color: var(--public-accent-strong, #a17425);
   font-size: .6rem;
   font-weight: 800;
   letter-spacing: .16em;
@@ -271,7 +271,7 @@
   width: 38px;
   height: 2px;
   margin-top: 22px;
-  background: #b78b33;
+  background: var(--public-accent, #b78b33);
   transform: scaleX(.72);
   transform-origin: left center;
   transition: transform .5s cubic-bezier(.22, 1, .36, 1), width .5s cubic-bezier(.22, 1, .36, 1);
@@ -283,7 +283,7 @@
 }
 
 .cardTrigger:focus-visible {
-  outline: 3px solid rgba(183, 139, 51, .62);
+  outline: 3px solid color-mix(in srgb, var(--public-accent, #b78b33) 62%, transparent);
   outline-offset: 7px;
 }
 
