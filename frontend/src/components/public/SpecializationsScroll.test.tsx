@@ -49,6 +49,11 @@ describe('SpecializationsScroll animation lifecycle', () => {
     motionListeners = new Set();
     vi.clearAllMocks();
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
 
     vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function getScrollWidth(
       this: HTMLElement,
@@ -109,6 +114,9 @@ describe('SpecializationsScroll animation lifecycle', () => {
     expect(trackTween.scrollTrigger.start).toBe('top top+=124');
     expect(trackTween.scrollTrigger.end()).toBe('+=800');
     expect(gsapMocks.fromTo).toHaveBeenCalledTimes(4);
+    expect(scrollTriggerMocks.refresh).toHaveBeenCalled();
+    expect(document.getElementById('specializations')?.hasAttribute('data-scroll-reveal')).toBe(false);
+    expect(document.querySelector('#specializations [data-scroll-reveal]')).toBeTruthy();
 
     const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-specialization-card]'));
     expect(cards[0].dataset.cardState).toBe('active');

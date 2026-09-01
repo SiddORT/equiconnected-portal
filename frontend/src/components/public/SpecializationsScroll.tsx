@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -67,7 +67,7 @@ export function SpecializationsScroll() {
   ));
   const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof window === 'undefined') return undefined;
 
     const desktopQuery = typeof window.matchMedia === 'function'
@@ -213,6 +213,25 @@ export function SpecializationsScroll() {
       const refresh = () => ScrollTrigger.refresh();
       window.addEventListener('resize', refresh);
       cleanups.push(() => window.removeEventListener('resize', refresh));
+
+      const refreshFrame = window.requestAnimationFrame(refresh);
+      cleanups.push(() => window.cancelAnimationFrame(refreshFrame));
+
+      track.querySelectorAll<HTMLImageElement>('img').forEach((image) => {
+        if (image.complete) return;
+        image.addEventListener('load', refresh, { once: true });
+        cleanups.push(() => image.removeEventListener('load', refresh));
+      });
+
+      if (document.fonts?.ready) {
+        let cancelled = false;
+        void document.fonts.ready.then(() => {
+          if (!cancelled) refresh();
+        });
+        cleanups.push(() => {
+          cancelled = true;
+        });
+      }
     }, stage);
 
     return () => {
@@ -226,9 +245,8 @@ export function SpecializationsScroll() {
       id="specializations"
       className={`${styles.section} ${reducedMotion ? styles.reducedMotion : ''}`}
       aria-labelledby="specializations-heading"
-      data-scroll-reveal
     >
-      <div className={styles.intro}>
+      <div className={styles.intro} data-scroll-reveal>
         <div>
           <p className={styles.eyebrow}><span aria-hidden="true" />Explore specializations</p>
           <h2 id="specializations-heading">
