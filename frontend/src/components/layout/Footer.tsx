@@ -21,7 +21,6 @@ export function Footer() {
         <nav aria-label="Footer navigation" className={styles.navigation} data-scroll-stagger>
           <FooterGroup title="Member" links={[
             { label: 'Find care', to: '/signup' },
-            { label: 'Specializations', to: '/#specializations' },
             { label: 'Care near you', to: '/#care-near-you' },
           ]} />
           <FooterGroup title="Provider" links={[

@@ -8,7 +8,6 @@ import { recordPublicVisit, registerSubscriber } from '@/api/public';
 import { systemCalendarDate, useTimeSettings } from '@/app/TimeSettingsContext';
 import { HeroImageSlider } from '@/components/public/HeroImageSlider';
 import { HowItWorksScroll } from '@/components/public/HowItWorksScroll';
-import { SpecializationExplorer } from '@/components/public/SpecializationExplorer';
 import { CareNearYou } from '@/components/public/CareNearYou';
 import { WhyEquiConnected } from '@/components/public/WhyEquiConnected';
 import { Footer } from '@/components/layout/Footer';
@@ -229,7 +228,6 @@ export function PublicPage() {
           </div>
         </section>
 
-        <SpecializationExplorer />
         <HowItWorksScroll />
         <CareNearYou />
 
@@ -247,7 +245,7 @@ export function PublicPage() {
               </Link>
             </div>
           </div>
-          <div className={styles.finalCtaVisual} aria-hidden="true">
+          <div className={styles.finalCtaVisual} aria-hidden="true" data-subtle-parallax>
             <img
               className={styles.finalCtaImage}
               src="/hospital1.png"

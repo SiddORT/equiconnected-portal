@@ -21,6 +21,10 @@ vi.mock('@/app/TimeSettingsContext', () => ({
   }),
 }));
 
+vi.mock('@/hooks/usePublicPageAnimations', () => ({
+  usePublicPageAnimations: vi.fn(),
+}));
+
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
@@ -48,9 +52,6 @@ describe('PublicPage hero', () => {
     const heroStories = screen.getByRole('region', { name: 'Equine care stories' });
     expect(within(heroStories).getByRole('img', { name: 'Dark horse standing in a quiet mountain pasture at sunset' })).toBeTruthy();
     expect(document.querySelector('#crescent-border-gradient')).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'A closer look at whole-horse care.' })).toBeTruthy();
-    expect(screen.getByRole('group', { name: 'Equine healthcare specializations' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Cardiology/ })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Next image' }));
     expect(within(heroStories).getByRole('img', { name: 'Equine care professional working with a horse indoors' })).toBeTruthy();
     await waitFor(() => expect(publicApi.recordPublicVisit).toHaveBeenCalledOnce());
@@ -141,51 +142,30 @@ describe('PublicPage hero', () => {
     ))).toBe(true);
   });
 
-  it('keeps specialization controls and selected state in sync', async () => {
-    const user = userEvent.setup();
+  it('removes the public specialization explorer without disrupting adjacent care content', () => {
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
 
-    const specializationSection = document.getElementById('specializations');
-    expect(specializationSection).toBeTruthy();
-    expect(specializationSection?.getAttribute('data-layout')).toBe('full-bleed');
-    expect(within(specializationSection as HTMLElement).getByRole('heading', {
-      name: 'A closer look at whole-horse care.',
-    })).toBeTruthy();
-    expect(within(specializationSection as HTMLElement).getByRole('img', {
-      name: 'Dark horse standing in a quiet mountain pasture',
-    })).toBeTruthy();
-    expect(within(specializationSection as HTMLElement).getAllByRole('button')).toHaveLength(10);
+    expect(document.querySelector('#specializations')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'A closer look at whole-horse care.' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Equine healthcare specializations' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Previous specialization' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Next specialization' })).toBeNull();
+    expect(screen.queryByText(/^Selected .+/)).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Care, in focus.' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'From concern to confident care.' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Healthcare is closer than you think.' })).toBeTruthy();
 
-    await user.click(screen.getByRole('button', { name: 'Next specialization' }));
-    expect(screen.getByText('Selected Dermatology')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Dermatology/ }).getAttribute('aria-pressed')).toBe('true');
-
-    await user.click(screen.getByRole('button', { name: /Neurology/ }));
-    expect(screen.getByText('Selected Neurology')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Neurology/ }).getAttribute('aria-pressed')).toBe('true');
-  });
-
-  it('adds a separate editorial specialization scroll without changing the original rail', () => {
-    render(<MemoryRouter><PublicPage /></MemoryRouter>);
-
-    const premium = screen.getByRole('region', { name: 'Care, in focus.' });
-    expect(premium.hasAttribute('data-premium-specializations')).toBe(true);
-    expect(premium.getAttribute('data-premium-motion')).toBe('scroll');
-
-    const premiumStage = premium.querySelector<HTMLElement>('[data-premium-stage]');
-    if (!premiumStage) {
-      throw new Error('Expected premium specialization stage to render.');
-    }
-    expect(premiumStage.getAttribute('data-premium-pinning')).toBe('disabled');
-    expect(premiumStage.querySelector('[data-premium-viewport]')).toBeTruthy();
-    expect(premiumStage.querySelector('[data-premium-track]')).toBeTruthy();
-
-    const premiumCards = premium.querySelectorAll('[data-premium-card]');
-    expect(premiumCards).toHaveLength(8);
-    expect(within(premium).getAllByRole('link', { name: /Explore .* care options/ })).toHaveLength(8);
-    expect(Array.from(premium.querySelectorAll('a')).every((link) => (
-      link.getAttribute('href') === '/signup'
-    ))).toBe(true);
+    const main = screen.getByRole('main');
+    const hero = screen.getByRole('heading', {
+      name: 'Healthcare, Connected Around You.',
+    }).closest('section');
+    const careJourney = screen.getByRole('heading', {
+      name: 'From concern to confident care.',
+    }).closest('section');
+    expect(hero).toBeTruthy();
+    expect(careJourney).toBeTruthy();
+    expect(Array.from(main.children).indexOf(careJourney as HTMLElement))
+      .toBe(Array.from(main.children).indexOf(hero as HTMLElement) + 1);
   });
 
   it('presents the three-step care journey with selectable content panels', async () => {
@@ -367,6 +347,7 @@ describe('PublicPage hero', () => {
     }
 
     expect(within(footer).getByRole('link', { name: 'Find care' }).getAttribute('href')).toBe('/signup');
+    expect(within(footer).queryByRole('link', { name: 'Specializations' })).toBeNull();
     expect(within(footer).getByRole('link', { name: 'Join as a provider' }).getAttribute('href')).toBe('/provider/signup');
     expect(within(footer).getByRole('link', { name: 'Privacy' }).getAttribute('href')).toBe('/privacy-policy');
     expect(within(footer).getByRole('link', { name: 'Terms' }).getAttribute('href')).toBe('/terms-of-service');
