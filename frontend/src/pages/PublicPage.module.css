@@ -624,9 +624,9 @@
 
 .providerSection {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(260px, .9fr);
+  grid-template-columns: minmax(0, 1.04fr) minmax(320px, .96fr);
   align-items: center;
-  gap: clamp(42px, 9vw, 140px);
+  gap: clamp(42px, 7vw, 104px);
   margin-top: clamp(92px, 12vw, 164px);
   padding: clamp(42px, 6vw, 76px) clamp(28px, 7vw, 92px);
   overflow: hidden;
@@ -636,9 +636,27 @@
   color: #fffdf4;
 }
 
+.providerVisual {
+  min-width: 0;
+  aspect-ratio: 1.12 / 1;
+  overflow: hidden;
+  border: 1px solid rgba(255, 253, 244, .2);
+  border-radius: 6px;
+  background: #0b2f40;
+}
+
+.providerImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 52% center;
+}
+
 .providerCopy {
   position: relative;
   z-index: 1;
+  min-width: 0;
 }
 
 .sectionEyebrow {
@@ -732,30 +750,25 @@
 
 .providerTypes {
   display: grid;
-  align-self: stretch;
-  align-content: center;
-  gap: 0;
-  margin: 0;
-  padding: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 28px 0 0;
+  padding: 18px 0 0;
   border-top: 1px solid rgba(255, 253, 244, .25);
-  border-bottom: 1px solid rgba(255, 253, 244, .25);
   list-style: none;
 }
 
 .providerType {
   display: flex;
-  min-height: 70px;
+  min-width: 0;
   align-items: center;
-  gap: 20px;
-  border-bottom: 1px solid rgba(255, 253, 244, .16);
-  color: #fffdf4;
-  font-family: var(--font-display);
-  font-size: clamp(1.3rem, 2.4vw, 2rem);
-  font-style: italic;
-}
-
-.providerType:last-child {
-  border-bottom: 0;
+  gap: 8px;
+  color: rgba(255, 253, 244, .76);
+  font-family: var(--font-sans);
+  font-size: .64rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
 }
 
 .providerTypeNumber {
@@ -765,6 +778,7 @@
   font-style: normal;
   font-weight: 800;
   letter-spacing: .12em;
+  flex: 0 0 auto;
 }
 
 .finalCta {
@@ -1031,8 +1045,9 @@
     min-height: 580px;
   }
 
-  .providerTypes {
-    min-height: 0;
+  .providerVisual {
+    width: 100%;
+    aspect-ratio: 1.5 / 1;
   }
 
   .finalCta {
@@ -1121,9 +1136,21 @@
     padding: 42px 24px;
   }
 
+  .providerSection {
+    gap: 32px;
+  }
+
+  .providerVisual {
+    aspect-ratio: 1.35 / 1;
+  }
+
   .providerSection h2,
   .finalCta h2 {
     font-size: clamp(2.5rem, 12vw, 4.2rem);
+  }
+
+  .providerTypes {
+    gap: 8px;
   }
 
   .finalCta {

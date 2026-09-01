@@ -335,6 +335,14 @@ export function PublicPage() {
         <WhyEquiConnected />
 
         <section id="provider-join" className={styles.providerSection} aria-labelledby="provider-join-heading" data-scroll-reveal>
+          <div className={styles.providerVisual} data-scroll-reveal>
+            <img
+              className={styles.providerImage}
+              src="/provider-cta-equine-care.jpeg"
+              alt="Equine veterinarian caring for a chestnut horse in a warm stable"
+              loading="lazy"
+            />
+          </div>
           <div className={styles.providerCopy} data-scroll-reveal>
             <p className={styles.sectionEyebrow}><span aria-hidden="true" />For providers</p>
             <h2 id="provider-join-heading">Grow your presence with EquiConnected.</h2>
@@ -346,15 +354,15 @@ export function PublicPage() {
             <Link to="/provider/signup" className={styles.providerCta} data-gsap-hover>
               Join as a provider <span aria-hidden="true">↗</span>
             </Link>
+            <ul className={styles.providerTypes} aria-label="Provider types" data-scroll-stagger>
+              {PROVIDER_TYPES.map((type, index) => (
+                <li key={type} className={styles.providerType} data-stagger-item>
+                  <span className={styles.providerTypeNumber} aria-hidden="true">0{index + 1}</span>
+                  {type}
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className={styles.providerTypes} aria-label="Provider types" data-scroll-stagger>
-            {PROVIDER_TYPES.map((type, index) => (
-              <li key={type} className={styles.providerType} data-stagger-item>
-                <span className={styles.providerTypeNumber} aria-hidden="true">0{index + 1}</span>
-                {type}
-              </li>
-            ))}
-          </ul>
         </section>
       </main>
 

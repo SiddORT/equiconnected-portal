@@ -189,6 +189,30 @@ describe('PublicPage hero', () => {
     ))).toBe(true);
   });
 
+  it('presents the provider invitation with supplied imagery and supporting provider types', () => {
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+
+    const providerSection = screen.getByRole('heading', {
+      name: 'Grow your presence with EquiConnected.',
+    }).closest('section') as HTMLElement;
+    const providerCopy = providerSection.querySelector(`.${styles.providerCopy}`) as HTMLElement;
+    const providerVisual = providerSection.querySelector(`.${styles.providerVisual}`) as HTMLElement;
+    const providerImage = within(providerVisual).getByRole('img', {
+      name: 'Equine veterinarian caring for a chestnut horse in a warm stable',
+    });
+    const providerTypes = within(providerCopy).getByRole('list', { name: 'Provider types' });
+    const providerCta = within(providerCopy).getByRole('link', { name: /join as a provider/i });
+
+    expect(providerImage.getAttribute('src')).toBe('/provider-cta-equine-care.jpeg');
+    expect(providerImage.getAttribute('loading')).toBe('lazy');
+    expect(providerSection.firstElementChild).toBe(providerVisual);
+    expect(providerCopy.contains(providerTypes)).toBe(true);
+    expect(providerTypes.classList.contains(styles.providerTypes)).toBe(true);
+    expect(Array.from(providerTypes.querySelectorAll('li')).map((item) => item.textContent?.trim()))
+      .toEqual(['01Doctors', '02Clinics', '03Hospitals']);
+    expect(providerCta.getAttribute('href')).toBe('/provider/signup');
+  });
+
   it('removes the public specialization explorer without disrupting adjacent care content', () => {
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
 
