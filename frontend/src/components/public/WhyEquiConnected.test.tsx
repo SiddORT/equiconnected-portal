@@ -1,78 +1,18 @@
-import { act, cleanup, render, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, within } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
 import { WhyEquiConnected } from './WhyEquiConnected';
 
-const gsapMocks = vi.hoisted(() => ({
-  registerPlugin: vi.fn(),
-  fromTo: vi.fn(),
-  revert: vi.fn(),
-}));
-
-vi.mock('gsap', () => ({
-  default: {
-    registerPlugin: gsapMocks.registerPlugin,
-    fromTo: gsapMocks.fromTo,
-    context: vi.fn((callback: () => void) => {
-      callback();
-      return { revert: gsapMocks.revert };
-    }),
-  },
-}));
-
-vi.mock('gsap/ScrollTrigger', () => ({
-  ScrollTrigger: {
-    refresh: vi.fn(),
-  },
-}));
-
-function stubMediaQueries({
-  desktop = true,
-  tabletOrLarger = true,
-  reducedMotion = false,
-}: {
-  desktop?: boolean;
-  tabletOrLarger?: boolean;
-  reducedMotion?: boolean;
-} = {}) {
-  vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
-    matches: query.includes('prefers-reduced-motion')
-      ? reducedMotion
-      : query.includes('1100')
-        ? desktop
-        : tabletOrLarger,
-    media: query,
-    onchange: null,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    dispatchEvent: () => true,
-  } as MediaQueryList)));
-}
-
 describe('WhyEquiConnected editorial journey', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    stubMediaQueries();
-  });
-
   afterEach(() => {
     cleanup();
-    vi.unstubAllGlobals();
   });
 
-  it('pins the wide journey, advances cards with progress, and reverts on cleanup', async () => {
-    const { unmount } = render(<WhyEquiConnected />);
+  it('renders one natural-flow journey with complete card content', () => {
+    render(<WhyEquiConnected />);
 
-    await waitFor(() => expect(gsapMocks.fromTo).toHaveBeenCalledOnce());
     const stage = document.querySelector<HTMLElement>('[data-why-stage]');
-    expect(stage?.getAttribute('data-why-mode')).toBe('pinned');
-
-    const animation = gsapMocks.fromTo.mock.calls[0][2];
-    expect(animation.scrollTrigger.pin).toBe(stage);
-    expect(animation.scrollTrigger.pinSpacing).toBe(true);
-    expect(animation.scrollTrigger.start).toBe('top top+=112');
-    expect(typeof animation.scrollTrigger.end).toBe('function');
+    expect(stage?.getAttribute('data-why-mode')).toBe('natural');
+    expect(document.querySelector('.pin-spacer')).toBeNull();
 
     const cards = within(stage as HTMLElement).getAllByRole('article');
     const images = within(stage as HTMLElement).getAllByRole('img');
@@ -83,51 +23,39 @@ describe('WhyEquiConnected editorial journey', () => {
       '/provider-veterinary-care.jpg',
       '/about-equiconnected-transparent.png',
     ]);
-    act(() => animation.scrollTrigger.onUpdate({ progress: 0.72 }));
-    expect(cards[2].getAttribute('data-card-state')).toBe('active');
-    expect(within(cards[2]).getByRole('button').getAttribute('aria-pressed')).toBe('true');
-
-    act(() => animation.scrollTrigger.onUpdate({ progress: 1 }));
-    expect(cards[3].getAttribute('data-card-state')).toBe('active');
-
-    unmount();
-    expect(gsapMocks.revert).toHaveBeenCalledOnce();
+    expect(cards.every((card) => card.textContent?.includes('Explore'))).toBe(true);
+    expect(cards[0].getAttribute('data-card-state')).toBe('active');
   });
 
-  it('keeps natural scrolling and skips GSAP when reduced motion is preferred', async () => {
-    stubMediaQueries({ desktop: true, reducedMotion: true });
+  it('activates a card through click without relying on hover or scroll', () => {
     render(<WhyEquiConnected />);
 
     const stage = document.querySelector<HTMLElement>('[data-why-stage]');
-    await waitFor(() => expect(stage?.getAttribute('data-why-mode')).toBe('natural'));
-    expect(gsapMocks.fromTo).not.toHaveBeenCalled();
-    expect(within(stage as HTMLElement).getAllByRole('article')).toHaveLength(4);
-  });
-
-  it('keeps scroll-driven progress on tablet without pinning the stage', async () => {
-    stubMediaQueries({ desktop: false, tabletOrLarger: true });
-    render(<WhyEquiConnected />);
-
-    await waitFor(() => expect(gsapMocks.fromTo).toHaveBeenCalledOnce());
-    const stage = document.querySelector<HTMLElement>('[data-why-stage]');
-    const animation = gsapMocks.fromTo.mock.calls[0][2];
-    expect(stage?.getAttribute('data-why-mode')).toBe('scroll');
-    expect(animation.scrollTrigger.pin).toBe(false);
-    expect(animation.scrollTrigger.start).toBe('top 78%');
-    expect(animation.scrollTrigger.end).toBe('bottom 32%');
-
     const cards = within(stage as HTMLElement).getAllByRole('article');
-    act(() => animation.scrollTrigger.onUpdate({ progress: 0.38 }));
-    expect(cards[1].getAttribute('data-card-state')).toBe('active');
+    const buttons = within(stage as HTMLElement).getAllByRole('button');
+
+    fireEvent.click(buttons[2]);
+
+    expect(cards[2].getAttribute('data-card-state')).toBe('active');
+    expect(buttons[2].getAttribute('aria-pressed')).toBe('true');
+    expect(cards[0].getAttribute('data-card-state')).toBe('passed');
   });
 
-  it('uses the natural fallback when matchMedia is unavailable', async () => {
-    vi.unstubAllGlobals();
+  it('keeps the natural layout when reduced motion is preferred', () => {
+    window.matchMedia = () => ({
+      matches: true,
+      media: '(prefers-reduced-motion: reduce)',
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => true,
+    } as MediaQueryList);
     render(<WhyEquiConnected />);
 
     const stage = document.querySelector<HTMLElement>('[data-why-stage]');
-    await waitFor(() => expect(stage?.getAttribute('data-why-mode')).toBe('natural'));
-    expect(gsapMocks.registerPlugin).not.toHaveBeenCalled();
-    expect(gsapMocks.fromTo).not.toHaveBeenCalled();
+    expect(stage?.getAttribute('data-why-mode')).toBe('natural');
+    expect(document.querySelector('[data-why-section]')?.className).toContain('reducedMotion');
   });
 });

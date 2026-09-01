@@ -1,6 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { useEffect, useState, type ReactNode } from 'react';
 import styles from './WhyEquiConnected.module.css';
 
 type Advantage = {
@@ -47,8 +45,6 @@ const ADVANTAGES: Advantage[] = [
   },
 ];
 
-const DESKTOP_QUERY = '(min-width: 1100px)';
-const TABLET_QUERY = '(min-width: 701px)';
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 function prefersReducedMotion() {
@@ -74,148 +70,24 @@ function AdvantageIcon({ type }: { type: Advantage['icon'] }) {
 
 export function WhyEquiConnected() {
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isDesktop, setIsDesktop] = useState(() => (
-    typeof window !== 'undefined'
-    && typeof window.matchMedia === 'function'
-    && window.matchMedia(DESKTOP_QUERY).matches
-  ));
-  const [isTabletOrLarger, setIsTabletOrLarger] = useState(() => (
-    typeof window !== 'undefined'
-    && typeof window.matchMedia === 'function'
-    && window.matchMedia(TABLET_QUERY).matches
-  ));
   const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
-  const stageRef = useRef<HTMLDivElement>(null);
-  const progressRef = useRef<HTMLSpanElement>(null);
-  const activeIndexRef = useRef(0);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
 
-    const desktopQuery = typeof window.matchMedia === 'function'
-      ? window.matchMedia(DESKTOP_QUERY)
-      : null;
-    const tabletQuery = typeof window.matchMedia === 'function'
-      ? window.matchMedia(TABLET_QUERY)
-      : null;
     const motionQuery = typeof window.matchMedia === 'function'
       ? window.matchMedia(REDUCED_MOTION_QUERY)
       : null;
-    const updateViewportState = () => {
-      setIsDesktop(desktopQuery?.matches ?? false);
-      setIsTabletOrLarger(tabletQuery?.matches ?? false);
-      setReducedMotion(motionQuery?.matches ?? false);
-    };
-    const updateResponsiveState = () => {
-      setIsDesktop(desktopQuery?.matches ?? false);
-      setIsTabletOrLarger(tabletQuery?.matches ?? false);
-    };
-
-    updateViewportState();
-    window.addEventListener('resize', updateResponsiveState);
-    desktopQuery?.addEventListener?.('change', updateResponsiveState);
-    tabletQuery?.addEventListener?.('change', updateResponsiveState);
-    motionQuery?.addEventListener?.('change', updateViewportState);
+    const updateMotionState = () => setReducedMotion(motionQuery?.matches ?? false);
+    updateMotionState();
+    motionQuery?.addEventListener?.('change', updateMotionState);
 
     return () => {
-      window.removeEventListener('resize', updateResponsiveState);
-      desktopQuery?.removeEventListener?.('change', updateResponsiveState);
-      tabletQuery?.removeEventListener?.('change', updateResponsiveState);
-      motionQuery?.removeEventListener?.('change', updateViewportState);
+      motionQuery?.removeEventListener?.('change', updateMotionState);
     };
   }, []);
 
-  useLayoutEffect(() => {
-    const stage = stageRef.current;
-    const progress = progressRef.current;
-    if (!stage || !progress) return undefined;
-
-    const cards = Array.from(stage.querySelectorAll<HTMLElement>('[data-why-card]'));
-    const setCardStates = (index: number) => {
-      cards.forEach((card, cardIndex) => {
-        card.dataset.cardState = cardIndex === index
-          ? 'active'
-          : cardIndex < index
-            ? 'passed'
-            : 'upcoming';
-      });
-    };
-    setCardStates(activeIndexRef.current);
-
-    if (!isTabletOrLarger || reducedMotion) {
-      progress.style.removeProperty('transform');
-      return undefined;
-    }
-
-    gsap.registerPlugin(ScrollTrigger);
-    const refresh = () => ScrollTrigger.refresh();
-    const context = gsap.context(() => {
-      const updateProgress = (value: number) => {
-        const safeProgress = Math.min(1, Math.max(0, value));
-        const nextIndex = Math.min(
-          ADVANTAGES.length - 1,
-          Math.floor(safeProgress * ADVANTAGES.length),
-        );
-        setCardStates(nextIndex);
-        if (nextIndex !== activeIndexRef.current) {
-          activeIndexRef.current = nextIndex;
-          setActiveIndex(nextIndex);
-        }
-      };
-
-      gsap.fromTo(
-        progress,
-        { scaleX: 0 },
-        {
-          scaleX: 1,
-          transformOrigin: 'left center',
-          ease: 'none',
-          scrollTrigger: {
-            trigger: stage,
-            start: isDesktop ? 'top top+=112' : 'top 78%',
-            end: isDesktop
-              ? () => `+=${Math.max(stage.offsetHeight * 1.8, window.innerHeight * 2.4)}`
-              : 'bottom 32%',
-            pin: isDesktop ? stage : false,
-            pinSpacing: isDesktop,
-            scrub: true,
-            anticipatePin: 1,
-            invalidateOnRefresh: true,
-            onUpdate: (self) => updateProgress(self.progress),
-            onRefresh: (self) => updateProgress(self.progress),
-            onEnter: () => updateProgress(0),
-            onEnterBack: (self) => updateProgress(self.progress),
-            onLeave: () => updateProgress(1),
-            onLeaveBack: () => updateProgress(0),
-          },
-        },
-      );
-
-      const refreshFrame = window.requestAnimationFrame(refresh);
-      window.addEventListener('resize', refresh);
-      const imageRefreshCleanups: Array<() => void> = [];
-      stage.querySelectorAll<HTMLImageElement>('img').forEach((image) => {
-        if (image.complete) return;
-        image.addEventListener('load', refresh, { once: true });
-        imageRefreshCleanups.push(() => image.removeEventListener('load', refresh));
-      });
-
-      return () => {
-        window.cancelAnimationFrame(refreshFrame);
-        imageRefreshCleanups.forEach((cleanup) => cleanup());
-      };
-    }, stage);
-
-    return () => {
-      window.removeEventListener('resize', refresh);
-      context.revert();
-      progress.style.removeProperty('transform');
-      setCardStates(activeIndexRef.current);
-    };
-  }, [isDesktop, isTabletOrLarger, reducedMotion]);
-
   function activateCard(index: number) {
-    activeIndexRef.current = index;
     setActiveIndex(index);
   }
 
@@ -242,15 +114,8 @@ export function WhyEquiConnected() {
 
       <div
         className={styles.stage}
-        ref={stageRef}
         data-why-stage
-        data-why-mode={
-          reducedMotion || !isTabletOrLarger
-            ? 'natural'
-            : isDesktop
-              ? 'pinned'
-              : 'scroll'
-        }
+        data-why-mode="natural"
       >
         <div className={styles.journeyHeader}>
           <span>How the picture comes together</span>
@@ -258,7 +123,6 @@ export function WhyEquiConnected() {
         </div>
         <div className={styles.journeyLine} aria-hidden="true">
           <span className={styles.journeyLineBase} />
-          <span className={styles.journeyProgress} ref={progressRef} />
           <span className={styles.journeyDots}>
             {ADVANTAGES.map((advantage) => <span key={advantage.number} />)}
           </span>

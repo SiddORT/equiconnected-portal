@@ -103,8 +103,7 @@
   margin: 0 7.5% -1px;
 }
 
-.journeyLineBase,
-.journeyProgress {
+.journeyLineBase {
   position: absolute;
   top: 6px;
   right: 0;
@@ -114,14 +113,6 @@
 
 .journeyLineBase {
   background: color-mix(in srgb, var(--public-text, #12394a) 23%, transparent);
-}
-
-.journeyProgress {
-  right: auto;
-  width: 100%;
-  background: var(--public-accent, #b78b33);
-  transform: scaleX(0);
-  transform-origin: left center;
 }
 
 .journeyDots {
@@ -286,7 +277,7 @@
 }
 
 .advantageCard:not([data-card-state='active']) .cardDescription {
-  opacity: .74;
+  opacity: 1;
 }
 
 .advantageCard[data-card-state='active'] .cardDescription {
@@ -303,7 +294,7 @@
   font-size: .6rem;
   font-weight: 800;
   letter-spacing: .16em;
-  opacity: .54;
+  opacity: 1;
   text-transform: uppercase;
   transition: opacity .36s ease, transform .45s cubic-bezier(.22, 1, .36, 1);
 }
@@ -424,10 +415,6 @@
     margin-inline: 4%;
   }
 
-  .journeyProgress {
-    transform: scaleX(1);
-  }
-
   .advantageGrid {
     grid-template-columns: 1fr;
     gap: 10px;
@@ -459,10 +446,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .journeyProgress {
-    transform: scaleX(1);
-  }
-
   .advantageCard,
   .cardImage,
   .imageShade,
