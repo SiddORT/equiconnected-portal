@@ -285,7 +285,11 @@ describe('PublicPage hero', () => {
     expect(providerSection).toBeTruthy();
     expect(finalSection).toBeTruthy();
     expect(whySection).toBeTruthy();
-    expect(finalSection?.querySelector('img[src="/hospital1.png"]')).toBeTruthy();
+    const finalVisual = finalSection?.querySelector(`.${styles.finalCtaVisual}`);
+    const finalImage = finalVisual?.querySelector(`.${styles.finalCtaImage}`);
+    expect(finalVisual?.getAttribute('aria-hidden')).toBe('true');
+    expect(finalImage?.getAttribute('src')).toBe('/hospital1.png');
+    expect(finalImage?.getAttribute('alt')).toBe('');
     const mainChildren = Array.from(main.children);
     const finalIndex = mainChildren.indexOf(finalSection as HTMLElement);
     const whyIndex = mainChildren.indexOf(whySection as HTMLElement);

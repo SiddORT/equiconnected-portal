@@ -626,13 +626,13 @@
 .finalCta {
   position: relative;
   display: flex;
-  min-height: 390px;
+  min-height: 350px;
   align-items: center;
   justify-content: space-between;
-  gap: 32px;
+  gap: 28px;
   margin-top: clamp(92px, 12vw, 164px);
-  padding: clamp(42px, 7vw, 88px) clamp(28px, 8vw, 104px);
-  overflow: hidden;
+  padding: clamp(38px, 5vw, 58px) clamp(28px, 8vw, 104px);
+  overflow: visible;
   background: #12394a;
   color: #fffdf4;
 }
@@ -640,17 +640,28 @@
 .finalCtaCopy {
   position: relative;
   z-index: 1;
-  max-width: 660px;
+  max-width: min(600px, 58%);
 }
 
 .finalCtaVisual {
   position: absolute;
   z-index: 0;
-  right: clamp(22px, 8vw, 110px);
-  bottom: -18px;
-  width: clamp(230px, 28vw, 380px);
-  height: calc(100% + 72px);
+  right: clamp(22px, 7vw, 96px);
+  bottom: -20px;
+  width: clamp(230px, 27vw, 370px);
+  height: calc(100% + 116px);
   pointer-events: none;
+}
+
+.finalCtaVisual::before {
+  position: absolute;
+  z-index: -1;
+  inset: 4px 4% 0;
+  border: 1px solid rgba(221, 196, 126, .68);
+  border-bottom: 0;
+  border-radius: 50% 50% 0 0;
+  content: '';
+  transform: translateY(-2px);
 }
 
 .finalCtaImage {
@@ -663,9 +674,9 @@
 }
 
 .finalCta h2 {
-  max-width: 650px;
+  max-width: 600px;
   color: #fffdf4;
-  font-size: clamp(2.8rem, 5.5vw, 5.4rem);
+  font-size: clamp(2.8rem, 4.7vw, 4.8rem);
 }
 
 .finalCtaCopy > p:last-of-type {
@@ -789,7 +800,8 @@
   }
 
   .finalCta {
-    min-height: 360px;
+    min-height: 340px;
+    padding-block: 38px;
   }
 }
 
@@ -866,6 +878,7 @@
     min-height: 0;
     align-items: flex-start;
     flex-direction: column;
+    overflow: hidden;
     padding: 44px 24px 52px;
   }
 
@@ -882,6 +895,10 @@
     width: 220px;
     height: 260px;
     opacity: .46;
+  }
+
+  .finalCtaVisual::before {
+    display: none;
   }
 
   .finalPrimaryCta,
