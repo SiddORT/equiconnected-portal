@@ -2,7 +2,7 @@
   width: 100%;
   min-width: 0;
   margin-top: clamp(72px, 10vw, 132px);
-  padding: 0 clamp(24px, 5vw, 76px) clamp(72px, 9vw, 120px);
+  padding: 0 clamp(24px, 5vw, 76px) clamp(28px, 4vw, 56px);
   box-sizing: border-box;
   color: var(--hero-navy-deep);
 }
@@ -308,7 +308,7 @@
 
 @media (max-width: 699px) {
   .section {
-    padding-inline: 16px;
+    padding: 0 16px 36px;
     margin-top: 72px;
   }
 

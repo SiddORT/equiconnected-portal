@@ -1,7 +1,7 @@
 .section {
   width: 100%;
-  margin-top: clamp(28px, 5vw, 68px);
-  padding: clamp(72px, 10vw, 128px) 0 clamp(80px, 10vw, 140px);
+  margin-top: clamp(0px, 1.5vw, 20px);
+  padding: clamp(56px, 7vw, 92px) 0 clamp(80px, 10vw, 140px);
   border-top: 1px solid rgba(18, 57, 74, .12);
   background:
     linear-gradient(115deg, rgba(255, 253, 248, .74), rgba(222, 236, 230, .62) 52%, rgba(243, 228, 177, .26)),
@@ -435,8 +435,8 @@
 @media (max-width: 799px) {
   .section {
     width: 100%;
-    margin-top: 12px;
-    padding-top: 64px;
+    margin-top: 0;
+    padding-top: 52px;
   }
 
   .story {
