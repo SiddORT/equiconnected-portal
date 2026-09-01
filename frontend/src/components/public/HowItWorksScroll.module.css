@@ -1,15 +1,21 @@
 .section {
-  width: min(1320px, calc(100% - 48px));
+  width: 100%;
   margin-top: clamp(28px, 5vw, 68px);
   padding: clamp(72px, 10vw, 128px) 0 clamp(80px, 10vw, 140px);
   border-top: 1px solid rgba(18, 57, 74, .12);
+  background:
+    linear-gradient(115deg, rgba(255, 253, 248, .74), rgba(222, 236, 230, .62) 52%, rgba(243, 228, 177, .26)),
+    #faf8f1;
+  box-sizing: border-box;
   color: var(--hero-navy-deep);
 }
 
 .sectionIntro {
+  width: min(760px, calc(100% - 48px));
   max-width: 720px;
   margin: 0 auto clamp(56px, 8vw, 100px);
   text-align: center;
+  box-sizing: border-box;
 }
 
 .eyebrow {
@@ -53,8 +59,9 @@
   --care-story-panel-height: clamp(520px, 66vh, 600px);
   position: relative;
   display: grid;
+  width: 100%;
   min-height: calc(3 * var(--care-story-panel-height));
-  grid-template-columns: minmax(220px, .26fr) minmax(0, 1fr);
+  grid-template-columns: minmax(260px, 24vw) minmax(0, 1fr);
   align-items: start;
 }
 
@@ -64,9 +71,9 @@
   height: var(--care-story-panel-height);
   min-width: 0;
   min-height: 0;
-  border: 1px solid rgba(18, 57, 74, .2);
-  background: rgba(255, 253, 248, .72);
-  box-shadow: 0 24px 54px rgba(18, 57, 74, .08);
+  border: 1px solid rgba(18, 57, 74, .28);
+  background: var(--hero-navy-deep);
+  box-shadow: 0 28px 70px rgba(18, 57, 74, .18);
   box-sizing: border-box;
 }
 
@@ -79,10 +86,10 @@
   padding: 36px 30px;
   overflow: hidden;
   isolation: isolate;
-  border: 1px solid rgba(18, 57, 74, .2);
+  border: 1px solid rgba(18, 57, 74, .28);
   border-right: 0;
   background:
-    linear-gradient(155deg, rgba(255, 253, 248, .96), rgba(220, 234, 228, .86)),
+    linear-gradient(155deg, rgba(8, 42, 59, .96), rgba(18, 57, 74, .84)),
     url('/horse-panel.jpg') center / cover;
   box-sizing: border-box;
 }
@@ -108,7 +115,7 @@
 
 .railLabel {
   margin: 0 0 22px;
-  color: var(--hero-navy-soft);
+  color: rgba(255, 253, 244, .72);
   font-family: var(--font-sans);
   font-size: .66rem;
   font-weight: 800;
@@ -132,7 +139,7 @@
   bottom: 19px;
   left: 18px;
   width: 1px;
-  background: rgba(183, 139, 51, .35);
+  background: rgba(243, 228, 177, .5);
   content: '';
 }
 
@@ -150,7 +157,7 @@
   padding: 20px 0;
   border: 0;
   background: transparent;
-  color: rgba(82, 117, 133, .62);
+  color: rgba(255, 253, 244, .54);
   cursor: pointer;
   font-family: var(--font-sans);
   text-align: left;
@@ -166,7 +173,8 @@
   place-items: center;
   border: 1px solid rgba(183, 139, 51, .4);
   border-radius: 50%;
-  background: #faf8f1;
+  background: rgba(8, 42, 59, .58);
+  color: rgba(255, 253, 244, .82);
   font-size: .62rem;
   font-weight: 800;
   letter-spacing: .08em;
@@ -189,7 +197,7 @@
 
 .stepButton:hover,
 .activeStep {
-  color: var(--hero-navy-deep);
+  color: #fffdf4;
 }
 
 .stepButton:hover .stepNumber,
@@ -217,21 +225,17 @@
   min-height: 0;
   flex-direction: column;
   gap: 0;
+  overflow: hidden;
 }
 
 .panel {
-  position: relative;
-  display: grid;
   position: absolute;
+  display: block;
   inset: 0;
   min-width: 0;
   min-height: 0;
-  grid-template-columns: minmax(0, .9fr) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
   height: 100%;
-  align-items: center;
-  gap: clamp(28px, 5vw, 72px);
-  padding: 28px clamp(22px, 4vw, 58px);
+  padding: 0;
   overflow: hidden;
   scroll-margin-top: 140px;
   opacity: 0;
@@ -255,7 +259,7 @@
 }
 
 .activePanel {
-  background: rgba(255, 253, 248, .8);
+  background: transparent;
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
@@ -266,17 +270,29 @@
 }
 
 .panelImageFrame {
-  position: relative;
+  position: absolute;
+  z-index: 0;
+  inset: 0;
   width: 100%;
   height: 100%;
   min-height: 0;
-  max-height: 530px;
+  max-height: none;
   align-self: center;
   overflow: hidden;
   background: var(--hero-navy-deep);
 }
 
+.panelImageFrame::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(8, 42, 59, .92) 0%, rgba(8, 42, 59, .58) 38%, rgba(8, 42, 59, .08) 78%);
+  content: '';
+  pointer-events: none;
+}
+
 .panelImageFrame::after {
+  z-index: 2;
   position: absolute;
   inset: 16px;
   border: 1px solid rgba(245, 233, 188, .6);
@@ -313,20 +329,26 @@
   position: relative;
   z-index: 1;
   display: flex;
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  bottom: 0;
   min-width: 0;
   min-height: 0;
-  max-width: 430px;
-  height: 100%;
+  width: min(620px, 62%);
+  height: auto;
   flex-direction: column;
-  justify-content: center;
-  padding: 18px clamp(10px, 2vw, 26px) 18px 0;
-  color: var(--hero-navy-soft);
+  justify-content: flex-end;
+  padding: clamp(30px, 5vw, 68px) clamp(26px, 5vw, 72px) clamp(34px, 5vw, 62px);
+  background: linear-gradient(90deg, rgba(8, 42, 59, .95), rgba(8, 42, 59, .76) 72%, transparent);
+  color: rgba(255, 253, 244, .86);
   font-family: var(--font-sans);
   font-size: 1rem;
   line-height: 1.8;
   opacity: .56;
   transform: translateY(16px);
   transition: opacity 420ms ease, transform 420ms ease;
+  box-sizing: border-box;
 }
 
 .activePanel .panelCopy {
@@ -344,7 +366,7 @@
 
 .panelCopy h3 {
   margin: 0 0 18px;
-  color: var(--hero-navy-deep);
+  color: #fffdf4;
   font-family: var(--font-display);
   font-size: clamp(2rem, 3.4vw, 3.45rem);
   font-weight: 500;
@@ -354,6 +376,7 @@
 
 .panelCopy p {
   margin: 0;
+  max-width: 500px;
 }
 
 .panelRule {
@@ -379,12 +402,8 @@
 }
 
 @media (min-width: 1100px) {
-  .panel {
-    grid-template-columns: minmax(260px, .82fr) minmax(320px, 1.18fr);
-  }
-
   .panelCopy {
-    max-width: 540px;
+    width: min(660px, 58%);
   }
 }
 
@@ -394,7 +413,7 @@
   }
 
   .panel {
-    padding-block: 20px;
+    padding: 0;
     overflow-x: hidden;
     overflow-y: auto;
     scrollbar-gutter: stable;
@@ -402,14 +421,15 @@
 
   .panelCopy {
     justify-content: flex-start;
-    padding-block: 12px;
+    padding-block: 28px;
   }
 }
 
 @media (max-width: 799px) {
   .section {
-    width: min(100% - 32px, 600px);
+    width: 100%;
     margin-top: 12px;
+    padding-top: 64px;
   }
 
   .story {
@@ -426,9 +446,11 @@
     min-height: 0;
     margin: 0 -4px 28px;
     padding: 14px 12px 12px;
-    border-right: 0;
+    border: 1px solid rgba(18, 57, 74, .2);
     border-bottom: 1px solid rgba(18, 57, 74, .14);
-    background: rgba(250, 248, 241, .96);
+    background:
+      linear-gradient(155deg, rgba(8, 42, 59, .96), rgba(18, 57, 74, .9)),
+      url('/horse-panel.jpg') center / cover;
     backdrop-filter: blur(10px);
   }
 
@@ -472,14 +494,18 @@
     height: calc(100svh - 166px);
     min-height: 520px;
     max-height: 680px;
+    border-right: 0;
+    border-left: 0;
   }
 
   .panel {
     min-height: 0;
+    display: grid;
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
     gap: 18px;
     padding: 20px 16px 24px;
+    background: rgba(255, 253, 248, .96);
     scroll-margin-top: 152px;
     transform: none;
     transition: opacity 220ms ease, background 220ms ease;
@@ -490,20 +516,39 @@
   }
 
   .panelImageFrame {
+    position: relative;
+    z-index: auto;
+    inset: auto;
     height: clamp(220px, 32svh, 300px);
     min-height: 0;
     max-height: none;
     align-self: auto;
   }
 
+  .panelImageFrame::before {
+    display: none;
+  }
+
   .panelCopy {
+    position: relative;
+    z-index: auto;
+    inset: auto;
     max-width: none;
+    width: auto;
     height: 100%;
+    justify-content: flex-start;
     padding: 0 10px 8px;
+    background: transparent;
+    color: var(--hero-navy-soft);
     font-size: .9rem;
     line-height: 1.65;
     opacity: 1;
     transform: none;
+    box-sizing: border-box;
+  }
+
+  .panelCopy h3 {
+    color: var(--hero-navy-deep);
   }
 
   .panelCopy h3 {
