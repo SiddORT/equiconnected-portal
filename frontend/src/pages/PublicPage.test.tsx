@@ -120,7 +120,6 @@ describe('PublicPage hero', () => {
       name: 'Grow your presence with EquiConnected.',
     }).closest('section');
 
-    const finalMotif = finalSection?.querySelector(`.${styles.connectionMotif}`);
     expect(providerSection).toBeTruthy();
     const providerCta = within(providerSection as HTMLElement).getByRole('link', {
       name: /join as a provider/i,
@@ -276,7 +275,6 @@ describe('PublicPage hero', () => {
       name: 'Grow your presence with EquiConnected.',
     }).closest('section');
 
-    const finalMotif = finalSection?.querySelector(`.${styles.connectionMotif}`);
     expect(providerSection).toBeTruthy();
     expect(within(providerSection as HTMLElement).getByText('Doctors')).toBeTruthy();
     expect(within(providerSection as HTMLElement).getByText('Clinics')).toBeTruthy();
