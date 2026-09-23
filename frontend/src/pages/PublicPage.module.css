@@ -335,25 +335,6 @@
   inset: 0;
 }
 
-.eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 0 0 24px;
-  color: var(--hero-gold);
-  font-family: var(--font-sans);
-  font-size: .72rem;
-  font-weight: 800;
-  letter-spacing: .24em;
-  text-transform: uppercase;
-}
-
-.eyebrowRule {
-  width: 32px;
-  height: 1px;
-  background: var(--hero-gold);
-}
-
 .heading {
   margin: 0;
   color: var(--public-on-dark);
@@ -1226,10 +1207,6 @@
 
   .hero {
     min-height: max(680px, calc(100svh - 76px));
-  }
-
-  .eyebrow {
-    margin-bottom: 20px;
   }
 
   .heading {

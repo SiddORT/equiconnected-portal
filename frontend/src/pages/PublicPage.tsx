@@ -202,7 +202,6 @@ export function PublicPage() {
         {/* ── Hero ─────────────────────────────────────────────── */}
         <section className={styles.hero} aria-labelledby="hero-heading" data-parallax-trigger>
           <div className={styles.heroContent}>
-            <p className={styles.eyebrow} data-hero-item><span className={styles.eyebrowRule} />EquiConnected</p>
             <h1 id="hero-heading" className={styles.heading} data-hero-item>
               Healthcare,{' '}
               <span>Connected Around You.</span>
