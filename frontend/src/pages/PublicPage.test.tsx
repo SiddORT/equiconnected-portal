@@ -257,7 +257,7 @@ describe('PublicPage hero', () => {
     expect(finalSection?.querySelector(`.${styles.connectionMotif}`)).toBeTruthy();
   });
 
-  it('places the editorial specialization explorer between About Us and the care journey', () => {
+  it('places the member registration invitation after About Us and before Specializations', () => {
     render(<MemoryRouter><PublicPage /></MemoryRouter>);
 
     const specializations = document.getElementById('specializations') as HTMLElement;
@@ -265,6 +265,9 @@ describe('PublicPage hero', () => {
     const aboutSection = screen.getByRole('heading', {
       name: 'Care that sees the whole horse.',
     }).closest('section');
+    const memberInvite = screen.getByRole('heading', {
+      name: 'A better way to care for your horse starts here.',
+    }).closest('section') as HTMLElement;
     const careJourney = screen.getByRole('heading', {
       name: 'From concern to confident care.',
     }).closest('section');
@@ -282,8 +285,13 @@ describe('PublicPage hero', () => {
     expect(within(primaryNav).getByRole('link', {
       name: 'Specializations',
     }).getAttribute('href')).toBe('/#specializations');
-    expect(Array.from(main.children).indexOf(specializations))
+    expect(within(memberInvite).getByRole('link', {
+      name: /register as a member/i,
+    }).getAttribute('href')).toBe('/signup');
+    expect(Array.from(main.children).indexOf(memberInvite))
       .toBe(Array.from(main.children).indexOf(aboutSection as HTMLElement) + 1);
+    expect(Array.from(main.children).indexOf(specializations))
+      .toBe(Array.from(main.children).indexOf(memberInvite) + 1);
     expect(Array.from(main.children).indexOf(careJourney as HTMLElement))
       .toBe(Array.from(main.children).indexOf(specializations) + 1);
   });

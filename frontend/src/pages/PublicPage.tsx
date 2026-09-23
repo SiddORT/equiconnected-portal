@@ -334,6 +334,19 @@ export function PublicPage() {
           </div>
         </section>
 
+        <section id="member-join" className={styles.memberInvite} aria-labelledby="member-invite-heading">
+          <div className={styles.memberInviteInner}>
+            <div className={styles.memberInviteCopy}>
+              <p className={styles.memberInviteEyebrow}>For horse owners <span aria-hidden="true">/</span> EquiConnected</p>
+              <h2 id="member-invite-heading">A better way to care for your horse starts here.</h2>
+              <p>Create a member account to discover equine doctors, clinics and hospitals near you.</p>
+            </div>
+            <Link to="/signup" className={styles.memberInviteCta}>
+              Register as a member <span aria-hidden="true">↗</span>
+            </Link>
+          </div>
+        </section>
+
         <SpecializationsScroll />
         <HowItWorksScroll />
         <CareNearYou theme={theme} />
