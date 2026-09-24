@@ -275,8 +275,8 @@ class ProviderCreate(BaseModel):
             raise ValueError("stable visits require a positive radius")
         if self.admin_form_version == 2 and self.visit_stability == VisitStability.NOT_STABLE_VISIT:
             self.maximum_working_radius_km = None
-        if self.admin_form_version == 2 and self.emergency_services_available and not (self.emergency_contact_name and self.emergency_contact_number):
-            raise ValueError("emergency contact name and number are required")
+        if self.admin_form_version == 2 and self.emergency_services_available and not (self.emergency_contact_number or "").strip():
+            raise ValueError("emergency contact number is required")
         if self.admin_form_version == 2 and not self.emergency_services_available:
             self.emergency_contact_name = self.emergency_contact_number = None
         return self

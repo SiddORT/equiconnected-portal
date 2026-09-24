@@ -89,7 +89,7 @@ const WIZARD_STEPS = [
 function wizardStepForField(key: string): number {
   if (key === 'provider_type' || key === 'name') return 0;
   if (['first_name', 'last_name', 'years_experience'].includes(key) || key.startsWith('qualification_')) return 1;
-  if (['visit_stability', 'maximum_working_radius_km', 'emergency_contact_name', 'emergency_contact_number'].includes(key)) return 2;
+  if (['visit_stability', 'maximum_working_radius_km', 'emergency_contact_number'].includes(key)) return 2;
   return 3;
 }
 
@@ -449,7 +449,6 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     if (!inv && visitStability === 'NOT_STABLE_VISIT' && maximumRadius.trim()) {
       errors.maximum_working_radius_km = 'Radius is only available for stable visits.';
     }
-    if (!inv && emergencyServices && !emergencyName.trim()) errors.emergency_contact_name = 'Emergency contact name is required.';
     if (!inv && emergencyServices && !emergencyNumber.trim()) errors.emergency_contact_number = 'Emergency contact number is required.';
     if (!inv && providerType === 'DOCTOR') {
       qualifications.forEach((q, i) => {
@@ -1106,33 +1105,52 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           <h3 className={styles.sectionTitle}>{inv ? 'Classification' : 'Services, status & publication'}</h3>
           <div className={styles.grid}>
             {wizard ? (
-              <label className={styles.serviceChoice}>
-                <input type="checkbox" checked={visitStability === 'STABLE_VISIT'} onChange={(e) => {
-                  setVisitStability(e.target.checked ? 'STABLE_VISIT' : 'NOT_STABLE_VISIT');
-                  if (!e.target.checked) setMaximumRadius('');
-                }} />
-                <span><strong>Stable visit</strong><small>Offer visits at a stable or home location.</small></span>
-              </label>
-            ) : <Select
-              label={inv ? 'Visit Stable' : 'Stable visit'}
-              options={visitStabilityOptions}
-              placeholder="Select…"
-              value={visitStability}
-              onChange={(e) => setVisitStability(e.target.value)}
-              error={errs.visit_stability}
-              required
-            />}
-            {!inv && <div className={styles.serviceFields}>
-              {!wizard && <label><input type="checkbox" checked={clinicHospitalVisit} onChange={(e) => setClinicHospitalVisit(e.target.checked)} /> Clinic / hospital visits</label>}
-              {visitStability === 'STABLE_VISIT' && <><Input label="Maximum working radius (km)" type="number" min={0.01} step="any" value={maximumRadius} onChange={(e) => setMaximumRadius(e.target.value)} error={errs.maximum_working_radius_km} required /><p className={styles.hint}>Maximum travel distance from the provider's registered location for a stable or home visit.</p></>}
-              {wizard ? (
-                <label className={styles.serviceChoice}>
-                  <input type="checkbox" checked={emergencyServices} onChange={(e) => setEmergencyServices(e.target.checked)} />
-                  <span><strong>Emergency services available</strong><small>Show emergency contact details when enabled.</small></span>
-                </label>
-              ) : <label><input type="checkbox" checked={emergencyServices} onChange={(e) => setEmergencyServices(e.target.checked)} /> Emergency services available</label>}
-              {emergencyServices && <><Input label="Emergency contact name" value={emergencyName} onChange={(e) => setEmergencyName(e.target.value)} error={errs.emergency_contact_name} required /><Input label="Emergency contact number" value={emergencyNumber} onChange={(e) => setEmergencyNumber(e.target.value)} error={errs.emergency_contact_number} required /></>}
-            </div>}
+              <>
+                <div className={styles.serviceRow}>
+                  <label className={styles.serviceChoice}>
+                    <input type="checkbox" checked={visitStability === 'STABLE_VISIT'} onChange={(e) => {
+                      setVisitStability(e.target.checked ? 'STABLE_VISIT' : 'NOT_STABLE_VISIT');
+                      if (!e.target.checked) setMaximumRadius('');
+                    }} />
+                    <span><strong>Stable visit</strong><small>Offer visits at a stable or home location.</small></span>
+                  </label>
+                  {visitStability === 'STABLE_VISIT' && (
+                    <div className={styles.serviceField}>
+                      <Input label="Maximum working radius (km)" type="number" min={0.01} step="any"
+                        value={maximumRadius} onChange={(e) => setMaximumRadius(e.target.value)}
+                        error={errs.maximum_working_radius_km} required />
+                      <p className={styles.hint}>Maximum travel distance from the provider's registered location for a stable or home visit.</p>
+                    </div>
+                  )}
+                </div>
+                <div className={styles.serviceRow}>
+                  <label className={styles.serviceChoice}>
+                    <input type="checkbox" checked={emergencyServices} onChange={(e) => setEmergencyServices(e.target.checked)} />
+                    <span><strong>Emergency services available</strong><small>Add a number people can call for emergency care.</small></span>
+                  </label>
+                  {emergencyServices && <Input label="Emergency contact number" type="tel" value={emergencyNumber}
+                    onChange={(e) => setEmergencyNumber(e.target.value)} error={errs.emergency_contact_number} required />}
+                </div>
+              </>
+            ) : (
+              <>
+                <Select
+                  label={inv ? 'Visit Stable' : 'Stable visit'}
+                  options={visitStabilityOptions}
+                  placeholder="Select…"
+                  value={visitStability}
+                  onChange={(e) => setVisitStability(e.target.value)}
+                  error={errs.visit_stability}
+                  required
+                />
+                {!inv && <div className={styles.serviceFields}>
+                  <label><input type="checkbox" checked={clinicHospitalVisit} onChange={(e) => setClinicHospitalVisit(e.target.checked)} /> Clinic / hospital visits</label>
+                  {visitStability === 'STABLE_VISIT' && <><Input label="Maximum working radius (km)" type="number" min={0.01} step="any" value={maximumRadius} onChange={(e) => setMaximumRadius(e.target.value)} error={errs.maximum_working_radius_km} required /><p className={styles.hint}>Maximum travel distance from the provider's registered location for a stable or home visit.</p></>}
+                  <label><input type="checkbox" checked={emergencyServices} onChange={(e) => setEmergencyServices(e.target.checked)} /> Emergency services available</label>
+                  {emergencyServices && <><Input label="Emergency contact name" value={emergencyName} onChange={(e) => setEmergencyName(e.target.value)} /><Input label="Emergency contact number" value={emergencyNumber} onChange={(e) => setEmergencyNumber(e.target.value)} error={errs.emergency_contact_number} required /></>}
+                </div>}
+              </>
+            )}
             {!inv && (
               <>
                 <Select
@@ -1261,7 +1279,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               { label: 'Stable visit', value: visitStability === 'STABLE_VISIT' ? 'Yes' : 'No' },
               { label: 'Working radius', value: visitStability === 'STABLE_VISIT' ? `${maximumRadius} km` : 'Not applicable' },
               { label: 'Emergency services', value: emergencyServices ? 'Yes' : 'No' },
-              ...(emergencyServices ? [{ label: 'Emergency contact', value: `${emergencyName} · ${emergencyNumber}` }] : []),
+              ...(emergencyServices ? [{ label: 'Emergency contact number', value: emergencyNumber }] : []),
               { label: 'Status', value: status },
               { label: 'Publication', value: publication },
             ] },

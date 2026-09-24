@@ -1227,12 +1227,32 @@ class TestAdminProviderForm:
         {"visit_stability": "STABLE_VISIT", "maximum_working_radius_km": None},
         {"visit_stability": "STABLE_VISIT", "maximum_working_radius_km": 0},
         {"emergency_services_available": True, "emergency_contact_name": "Mina"},
+        {"emergency_services_available": True, "emergency_contact_number": "   "},
     ])
     def test_strict_create_rejects_incomplete_form(
         self, client: TestClient, admin_token: str, change: dict
     ):
         response = client.post(BASE, json=self.body(**change), headers=_auth(admin_token))
         assert response.status_code == 422, response.text
+
+    def test_emergency_number_without_name_creates_and_remains_editable(
+        self, client: TestClient, admin_token: str
+    ):
+        created = client.post(
+            BASE, json=self.body(emergency_services_available=True, emergency_contact_number="+91 9988776655"),
+            headers=_auth(admin_token),
+        )
+        assert created.status_code == 201, created.text
+        assert created.json()["emergency_contact_name"] is None
+        assert created.json()["emergency_contact_number"] == "+91 9988776655"
+        updated = client.patch(
+            f"{BASE}/{created.json()['id']}",
+            json={"admin_form_version": 2, "name": "Updated Emergency Care"},
+            headers=_auth(admin_token),
+        )
+        assert updated.status_code == 200, updated.text
+        assert updated.json()["emergency_contact_name"] is None
+        assert updated.json()["emergency_contact_number"] == "+91 9988776655"
 
     def test_services_languages_qualifications_and_edit_roundtrip(
         self, client: TestClient, admin_token: str

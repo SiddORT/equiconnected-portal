@@ -180,6 +180,7 @@ describe('ProviderForm visit stability', () => {
     const visit = screen.getByRole('checkbox', { name: /Stable visit/ });
     await user.click(visit);
     const radius = screen.getByLabelText('Maximum working radius (km)') as HTMLInputElement;
+    expect(visit.closest('div')?.contains(radius)).toBe(true);
     expect(radius.required).toBe(true);
     expect(radius.min).toBe('0.01');
     await user.click(visit);
@@ -203,13 +204,36 @@ describe('ProviderForm visit stability', () => {
     expect(screen.getByText('Pincode / postal code is required.')).toBeTruthy();
   });
 
-  it('only shows emergency fields after emergency services is enabled', async () => {
+  it('shows only the emergency contact number beside the emergency checkbox and requires it', async () => {
     render(<ProviderForm />);
     const user = await beginAdminWizard();
     expect(screen.queryByLabelText('Emergency contact name')).toBeNull();
+    const emergency = screen.getByRole('checkbox', { name: /Emergency services available/ });
+    await user.click(emergency);
+    const number = screen.getByLabelText('Emergency contact number') as HTMLInputElement;
+    expect(emergency.closest('div')?.contains(number)).toBe(true);
+    expect(number.required).toBe(true);
+    expect(screen.queryByLabelText('Emergency contact name')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('Emergency contact number is required.')).toBeTruthy();
+    await user.type(number, '+91 9988776655');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByLabelText('Pincode / postal code')).toBeTruthy();
+  });
+
+  it('creates an emergency provider with only a contact number', async () => {
+    vi.mocked(createProvider).mockResolvedValue({ id: 'emergency-provider', photos: [] } as unknown as Provider);
+    render(<ProviderForm />);
+    const user = await beginAdminWizard();
     await user.click(screen.getByRole('checkbox', { name: /Emergency services available/ }));
-    expect(screen.getByLabelText('Emergency contact name')).toBeTruthy();
-    expect(screen.getByLabelText('Emergency contact number')).toBeTruthy();
+    await user.type(screen.getByLabelText('Emergency contact number'), '+91 9988776655');
+    await finishClinicWizard(user);
+    await user.click(screen.getByRole('button', { name: 'Create provider' }));
+    await waitFor(() => expect(createProvider).toHaveBeenCalledWith(expect.objectContaining({
+      emergency_services_available: true,
+      emergency_contact_number: '+91 9988776655',
+      emergency_contact_name: null,
+    })));
   });
 
   it('renders the language master option and selection control for admin forms', async () => {

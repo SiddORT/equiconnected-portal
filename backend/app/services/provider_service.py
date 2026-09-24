@@ -211,10 +211,9 @@ class ProviderService:
         if admin_form_version == 2 and effective_stability == VisitStability.NOT_STABLE_VISIT:
             update_fields["maximum_working_radius_km"] = None
         emergency = update_fields.get("emergency_services_available", provider.emergency_services_available)
-        name = update_fields.get("emergency_contact_name", provider.emergency_contact_name)
         number = update_fields.get("emergency_contact_number", provider.emergency_contact_number)
-        if admin_form_version == 2 and emergency and not (name and number):
-            raise ValueError("emergency contact name and number are required")
+        if admin_form_version == 2 and emergency and not (number or "").strip():
+            raise ValueError("emergency contact number is required")
         if admin_form_version == 2 and emergency is False:
             update_fields["emergency_contact_name"] = None
             update_fields["emergency_contact_number"] = None
