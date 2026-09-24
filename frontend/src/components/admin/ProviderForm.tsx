@@ -35,6 +35,7 @@ import { LocationPicker } from '@/components/ui/LocationPicker';
 import { Select } from '@/components/ui/Select';
 import { MultiEmailField, type EmailEntry } from './MultiEmailField';
 import { MultiPhoneField, type PhoneEntry } from './MultiPhoneField';
+import { ProviderWizardHeader, ProviderWizardReview } from './ProviderWizard';
 import type {
   InvitationDraftPayload,
   InvitationDraftProvider,
@@ -73,6 +74,21 @@ const PUBLICATION_OPTIONS = [
   { value: 'UNPUBLISHED', label: 'Unpublished' },
   { value: 'PUBLISHED', label: 'Published' },
 ];
+
+const WIZARD_STEPS = [
+  { title: 'Basic details', description: 'Start with the provider type, name, and profile photo.' },
+  { title: 'Professional details', description: 'Add professional information, specialties, and languages.' },
+  { title: 'Services', description: 'Choose visit options, emergency care, and visibility.' },
+  { title: 'Contact & location', description: 'Enter a primary email and one provider location.' },
+  { title: 'Review & create', description: 'Check everything before creating the provider.' },
+];
+
+function wizardStepForField(key: string): number {
+  if (key === 'provider_type' || key === 'name') return 0;
+  if (['first_name', 'last_name', 'years_experience'].includes(key) || key.startsWith('qualification_')) return 1;
+  if (['visit_stability', 'maximum_working_radius_km', 'emergency_contact_name', 'emergency_contact_number'].includes(key)) return 2;
+  return 3;
+}
 
 interface LocationValues {
   name: string;
@@ -122,6 +138,8 @@ interface ProviderFormProps {
 export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: ProviderFormProps) {
   const isEdit = Boolean(initialData);
   const inv = invitation;
+  const wizard = !inv && !isEdit;
+  const [wizardStep, setWizardStep] = useState(0);
   const visitStabilityOptions = inv
     ? INVITATION_VISIT_STABILITY_OPTIONS
     : VISIT_STABILITY_OPTIONS;
@@ -330,11 +348,13 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     );
   }
 
-  function validate(): boolean {
+  function validate(step?: number): boolean {
     const errors: Record<string, string> = {};
     if (!providerType) errors.provider_type = 'Provider type is required.';
     if (!name.trim()) errors.name = 'Name is required.';
     if (!visitStability) errors.visit_stability = 'Visit Stable is required.';
+    if (wizard && providerType === 'DOCTOR' && !firstName.trim()) errors.first_name = 'First name is required.';
+    if (wizard && providerType === 'DOCTOR' && !lastName.trim()) errors.last_name = 'Last name is required.';
     if (providerType === 'DOCTOR' && yearsExperience.trim()) {
       const n = Number(yearsExperience);
       if (!Number.isInteger(n) || n < 0 || n > 100) {
@@ -379,14 +399,26 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       if (!e.email.trim()) emErrors[i] = 'Enter an email or remove this row.';
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.email.trim())) emErrors[i] = 'Enter a valid email address.';
     });
-    setPhoneErrors(phErrors);
-    setEmailErrors(emErrors);
-    setFieldErrors(errors);
-    return (
-      Object.keys(errors).length === 0 &&
-      Object.keys(phErrors).length === 0 &&
-      Object.keys(emErrors).length === 0
+    const visibleErrors = Object.fromEntries(
+      Object.entries(errors).filter(([key]) => step === undefined || wizardStepForField(key) === step)
     );
+    const contactStep = step === undefined || step === 3;
+    setPhoneErrors(contactStep ? phErrors : {});
+    setEmailErrors(contactStep ? emErrors : {});
+    setFieldErrors(visibleErrors);
+    const valid = Object.keys(visibleErrors).length === 0 &&
+      (!contactStep || (Object.keys(phErrors).length === 0 && Object.keys(emErrors).length === 0));
+    if (!valid && step === undefined && wizard) {
+      setWizardStep(Math.min(
+        ...Object.keys(errors).map(wizardStepForField),
+        ...(Object.keys(phErrors).length || Object.keys(emErrors).length ? [3] : []),
+      ));
+    }
+    return valid;
+  }
+
+  function nextWizardStep() {
+    if (validate(wizardStep)) setWizardStep((current) => Math.min(current + 1, WIZARD_STEPS.length - 1));
   }
 
   function buildInvitationPayload(): InvitationDraftPayload {
@@ -458,6 +490,10 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (wizard && wizardStep < WIZARD_STEPS.length - 1) {
+      nextWizardStep();
+      return;
+    }
     setApiError(null);
     if (!validate()) return;
 
@@ -724,6 +760,14 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
 
   return (
     <form onSubmit={handleSubmit} noValidate className={styles.form}>
+      {wizard && (
+        <ProviderWizardHeader
+          steps={WIZARD_STEPS}
+          current={wizardStep}
+          onSelect={setWizardStep}
+          locked={Boolean(savedProviderId)}
+        />
+      )}
       {(apiError || photoError || errs._form) && (
         <div className={`${styles.apiError} ${styles.cardFull}`} role="alert">
           {apiError ?? photoError ?? errs._form}
@@ -737,7 +781,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       )}
 
       {/* ── Basic information ─────────────────────────────────────────────── */}
-      <Card padding="lg" shadow="sm">
+      {(!wizard || wizardStep === 0) && <Card padding="lg" shadow="sm" className={wizard ? styles.cardFull : undefined}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>Basic information</h3>
           <div className={styles.grid}>
@@ -798,10 +842,10 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             </FormField>
           )}
         </section>
-      </Card>
+      </Card>}
 
       {/* ── Contact ───────────────────────────────────────────────────────── */}
-      <Card padding="lg" shadow="sm">
+      {(!wizard || wizardStep === 3) && <Card padding="lg" shadow="sm" className={wizard ? styles.cardFull : undefined}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>Contact information {inv && <span className={styles.optionalTag}>— optional</span>}</h3>
           {!inv && !isEdit && <p className={styles.hint}>Add at least one primary email address. Phone is optional.</p>}
@@ -819,18 +863,18 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             disabled={submitting}
           />
         </section>
-      </Card>
+      </Card>}
 
       {/* ── Professional info — doctors only ─────────────────────────────── */}
-      {!inv && providerType === 'DOCTOR' && (
+      {!inv && providerType === 'DOCTOR' && (!wizard || wizardStep === 1) && (
         <Card padding="lg" shadow="sm" className={styles.cardFull}>
           <section className={styles.section}>
             <h3 className={styles.sectionTitle}>
               Professional info <span className={styles.optionalTag}>— optional</span>
             </h3>
             <div className={styles.grid}>
-              <Input label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
-              <Input label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+              <Input label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} error={errs.first_name} required />
+              <Input label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} error={errs.last_name} required />
               <Input
                 label="Professional title"
                 placeholder="e.g. Consultant Cardiologist"
@@ -877,7 +921,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             </div>
             {qualifications.map((q, i) => (
               <div className={styles.qualificationRow} key={`qualification-${i}`}>
-                <Input label="Title" value={q.title} onChange={(e) => setQualifications((all) => all.map((x, j) => j === i ? { ...x, title: e.target.value } : x))} required />
+                <Input label="Title" value={q.title} onChange={(e) => setQualifications((all) => all.map((x, j) => j === i ? { ...x, title: e.target.value } : x))} error={errs[`qualification_${i}`]} required />
                 <Input label="Institution" value={q.institution ?? ''} onChange={(e) => setQualifications((all) => all.map((x, j) => j === i ? { ...x, institution: e.target.value } : x))} />
                 <Input label="Year" type="number" value={q.year_obtained ?? ''} onChange={(e) => setQualifications((all) => all.map((x, j) => j === i ? { ...x, year_obtained: e.target.value ? Number(e.target.value) : null } : x))} />
                 <Button type="button" variant="ghost" onClick={() => setQualifications((all) => all.filter((_, j) => j !== i))}>Remove</Button>
@@ -888,7 +932,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       )}
 
       {/* ── Specializations ───────────────────────────────────────────────── */}
-      <Card padding="lg" shadow="sm" className={styles.cardFull}>
+      {(!wizard || wizardStep === 1) && <Card padding="lg" shadow="sm" className={styles.cardFull}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>
             Specializations
@@ -943,9 +987,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               })}
           </div>
         </section>
-      </Card>
+      </Card>}
 
-      {!inv && <Card padding="lg" shadow="sm" className={styles.cardFull}>
+      {!inv && (!wizard || wizardStep === 1) && <Card padding="lg" shadow="sm" className={styles.cardFull}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>Languages</h3>
           {languageError && <p className={styles.fieldError} role="alert">{languageError}</p>}
@@ -958,7 +1002,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       </Card>}
 
       {/* ── Classification ────────────────────────────────────────────────── */}
-      <Card padding="lg" shadow="sm">
+      {(!wizard || wizardStep === 2) && <Card padding="lg" shadow="sm" className={wizard ? styles.cardFull : undefined}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>{inv ? 'Classification' : 'Services, status & publication'}</h3>
           <div className={styles.grid}>
@@ -995,10 +1039,10 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             )}
           </div>
         </section>
-      </Card>
+      </Card>}
 
       {/* ── Primary location — shown in both Add and Edit ─────────────────── */}
-      <Card padding="lg" shadow="sm">
+      {(!wizard || wizardStep === 3) && <Card padding="lg" shadow="sm" className={wizard ? styles.cardFull : undefined}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>
             Provider location {isEdit && <span className={styles.optionalTag}>— existing records may be incomplete</span>}
@@ -1056,10 +1100,59 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             />
           </div>
         </section>
-      </Card>
+      </Card>}
+
+      {wizard && wizardStep === 4 && (
+        <ProviderWizardReview
+          locked={Boolean(savedProviderId)}
+          onEdit={setWizardStep}
+          sections={[
+            { title: 'Basic details', step: 0, items: [
+              { label: 'Provider type', value: PROVIDER_TYPE_OPTIONS.find((option) => option.value === providerType)?.label ?? '' },
+              { label: 'Name', value: name.trim() },
+              { label: 'Website', value: website.trim() },
+              { label: 'Photo', value: photo?.name ?? 'No photo selected' },
+            ] },
+            { title: 'Professional details', step: 1, items: [
+              ...(providerType === 'DOCTOR' ? [
+                { label: 'Doctor / Vet', value: [firstName, lastName].filter(Boolean).join(' ') },
+                { label: 'Qualifications', value: qualifications.map((q) => q.title.trim()).filter(Boolean).join(', ') },
+              ] : []),
+              { label: 'Specializations', value: specializations.filter((s) => selectedSpecIds.includes(s.id)).map((s) => s.name).join(', ') },
+              { label: 'Languages', value: languages.filter((l) => selectedLanguageIds.includes(l.id)).map((l) => l.name).join(', ') },
+            ] },
+            { title: 'Services', step: 2, items: [
+              { label: 'Stable visit', value: visitStability === 'STABLE_VISIT' ? 'Yes' : 'No' },
+              { label: 'Clinic / hospital visit', value: clinicHospitalVisit ? 'Yes' : 'No' },
+              { label: 'Working radius', value: visitStability === 'STABLE_VISIT' ? `${maximumRadius} km` : 'Not applicable' },
+              { label: 'Emergency services', value: emergencyServices ? 'Yes' : 'No' },
+              ...(emergencyServices ? [{ label: 'Emergency contact', value: `${emergencyName} · ${emergencyNumber}` }] : []),
+              { label: 'Status', value: status },
+              { label: 'Publication', value: publication },
+            ] },
+            { title: 'Contact & location', step: 3, items: [
+              { label: 'Email', value: emailEntries.map((e) => e.email.trim()).filter(Boolean).join(', ') },
+              { label: 'Phone', value: phoneEntries.map((p) => `${p.country_code} ${p.number.trim()}`).join(', ') },
+              { label: 'Address', value: [location.address_line_1, location.city, location.state_province, location.country].filter(Boolean).join(', ') },
+            ] },
+          ]}
+        />
+      )}
 
       <footer className={`${styles.footer} ${styles.cardFull}`}>
-        {inv ? (
+        {wizard ? (
+          <>
+            <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting} className={styles.cancelButton}>Cancel</Button>
+            {wizardStep > 0 && (
+              <Button type="button" variant="secondary" onClick={() => setWizardStep((step) => step - 1)} disabled={submitting || Boolean(savedProviderId)}>Back</Button>
+            )}
+            {wizardStep < WIZARD_STEPS.length - 1 ? (
+              <Button type="button" variant="primary" onClick={nextWizardStep}>Continue</Button>
+            ) : (
+              <Button type="submit" variant="primary" loading={submitting}>{savedProviderId ? 'Retry photo upload' : 'Create provider'}</Button>
+            )}
+          </>
+        ) : inv ? (
           <>
             <Button
               type="button"
