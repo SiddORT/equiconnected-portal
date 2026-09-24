@@ -8,7 +8,9 @@
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Country } from 'country-state-city';
 import { extractErrorMessage } from '@/api/client';
+import { lookupProviderPostalCode, type PostalCandidate } from '@/api/auth';
 import {
   addProviderEmail,
   addProviderPhone,
@@ -36,6 +38,7 @@ import { Select } from '@/components/ui/Select';
 import { MultiEmailField, type EmailEntry } from './MultiEmailField';
 import { MultiPhoneField, type PhoneEntry } from './MultiPhoneField';
 import { ProviderWizardHeader, ProviderWizardReview } from './ProviderWizard';
+import { SignupMultiSelect } from '@/pages/SignupMultiSelect';
 import type {
   InvitationDraftPayload,
   InvitationDraftProvider,
@@ -76,8 +79,8 @@ const PUBLICATION_OPTIONS = [
 ];
 
 const WIZARD_STEPS = [
-  { title: 'Basic details', description: 'Start with the provider type, name, and profile photo.' },
-  { title: 'Professional details', description: 'Add professional information, specialties, and languages.' },
+  { title: 'Basic details', description: 'Add the provider identity, specializations, languages, and photo.' },
+  { title: 'Professional details', description: 'Add professional background and qualifications.' },
   { title: 'Services', description: 'Choose visit options, emergency care, and visibility.' },
   { title: 'Contact & location', description: 'Enter a primary email and one provider location.' },
   { title: 'Review & create', description: 'Check everything before creating the provider.' },
@@ -147,6 +150,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const [providerType, setProviderType] = useState<string>(
     inv?.providerType ?? initialData?.provider_type ?? ''
   );
+  const stepOrder = providerType === 'DOCTOR' ? [0, 1, 2, 3, 4] : [0, 2, 3, 4];
+  const wizardPosition = stepOrder.indexOf(wizardStep);
   const [name, setName] = useState(inv?.initial.name ?? initialData?.name ?? '');
   const [description, setDescription] = useState(
     inv?.initial.description ?? initialData?.description ?? ''
@@ -204,7 +209,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const [phoneErrors, setPhoneErrors] = useState<Record<number, string>>({});
   const [emailErrors, setEmailErrors] = useState<Record<number, string>>({});
   const [visitStability, setVisitStability] = useState<string>(
-    inv?.initial.visit_stability ?? initialData?.visit_stability ?? ''
+    inv?.initial.visit_stability ?? initialData?.visit_stability ?? 'NOT_STABLE_VISIT'
   );
   const [status, setStatus] = useState<string>(initialData?.status ?? 'ACTIVE');
   const [publication, setPublication] = useState<string>(
@@ -247,6 +252,10 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     inv?.initial.specialization_ids ?? initialData?.specializations.map((s) => s.id) ?? []
   );
 
+  useEffect(() => () => {
+    if (photoPreview?.startsWith('blob:')) URL.revokeObjectURL?.(photoPreview);
+  }, [photoPreview]);
+
   // Location — pre-populate from the existing primary location in edit mode.
   const [location, setLocation] = useState<LocationValues>(() => {
     if (inv) {
@@ -281,6 +290,10 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       longitude: primary.longitude != null ? String(primary.longitude) : '',
     };
   });
+  const [postalCandidates, setPostalCandidates] = useState<PostalCandidate[]>([]);
+  const [postalMessage, setPostalMessage] = useState('');
+  const [postalLoading, setPostalLoading] = useState(false);
+  const [selectedPostalCode, setSelectedPostalCode] = useState<string | null>(null);
 
   const [specializations, setSpecializations] = useState<Specialization[]>([]);
   const [specsError, setSpecsError] = useState<string | null>(null);
@@ -342,6 +355,62 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     return () => { cancelled = true; };
   }, [inv]);
 
+  useEffect(() => {
+    if (!wizard) return;
+    const query = location.postal_code.trim();
+    if (query.length < 4 || query === selectedPostalCode) return;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setPostalLoading(true);
+      try {
+        const result = await lookupProviderPostalCode(query, controller.signal);
+        if (controller.signal.aborted) return;
+        setPostalCandidates(result.candidates);
+        setPostalMessage(result.status === 'no_match'
+          ? 'No matching place found. Enter the location manually.'
+          : result.status === 'unavailable'
+            ? 'Lookup is unavailable. Enter the location manually.'
+            : 'Choose a place below to fill your location.');
+      } catch {
+        if (!controller.signal.aborted) {
+          setPostalCandidates([]);
+          setPostalMessage('Lookup is unavailable. Enter the location manually.');
+        }
+      } finally {
+        if (!controller.signal.aborted) setPostalLoading(false);
+      }
+    }, 550);
+    return () => { controller.abort(); window.clearTimeout(timeout); };
+  }, [wizard, location.postal_code, selectedPostalCode]);
+
+  function updatePostalCode(value: string) {
+    setLocation((current) => ({
+      ...current, postal_code: value, country: '', state_province: '', city: '',
+    }));
+    setSelectedPostalCode(null);
+    setPostalCandidates([]);
+    setPostalMessage('');
+    setFieldErrors((current) => ({
+      ...current, country: '', state_province: '', city: '',
+    }));
+  }
+
+  function selectPostalCandidate(candidate: PostalCandidate) {
+    setLocation((current) => ({
+      ...current,
+      postal_code: candidate.postal_code || current.postal_code,
+      country: Country.getCountryByCode(candidate.country_code?.toUpperCase() ?? '')?.name ?? candidate.country,
+      state_province: candidate.state_province || '',
+      city: candidate.city,
+    }));
+    setSelectedPostalCode(candidate.postal_code || location.postal_code);
+    setPostalCandidates([]);
+    setPostalMessage('Location filled. You can correct it below.');
+    setFieldErrors((current) => ({
+      ...current, country: '', state_province: '', city: '',
+    }));
+  }
+
   function toggleSpec(id: string) {
     setSelectedSpecIds((ids) =>
       ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]
@@ -364,6 +433,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     if (!inv && !isEdit && !location.country.trim()) errors.country = 'Country is required.';
     if (!inv && !isEdit && !location.city.trim()) errors.city = 'City is required.';
     if (!inv && !isEdit && !location.address_line_1.trim()) errors.address_line_1 = 'Address is required.';
+    if (wizard && !location.postal_code.trim()) errors.postal_code = 'Pincode / postal code is required.';
     if (location.address_line_1.trim() && !location.city.trim()) {
       errors.city = 'City is required when an address is provided.';
     }
@@ -418,7 +488,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   }
 
   function nextWizardStep() {
-    if (validate(wizardStep)) setWizardStep((current) => Math.min(current + 1, WIZARD_STEPS.length - 1));
+    if (validate(wizardStep)) setWizardStep(stepOrder[Math.min(wizardPosition + 1, stepOrder.length - 1)]);
   }
 
   function buildInvitationPayload(): InvitationDraftPayload {
@@ -762,9 +832,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     <form onSubmit={handleSubmit} noValidate className={styles.form}>
       {wizard && (
         <ProviderWizardHeader
-          steps={WIZARD_STEPS}
-          current={wizardStep}
-          onSelect={setWizardStep}
+          steps={stepOrder.map((index) => WIZARD_STEPS[index])}
+          current={wizardPosition}
+          onSelect={(index) => setWizardStep(stepOrder[index])}
           locked={Boolean(savedProviderId)}
         />
       )}
@@ -781,7 +851,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       )}
 
       {/* ── Basic information ─────────────────────────────────────────────── */}
-      {(!wizard || wizardStep === 0) && <Card padding="lg" shadow="sm" className={wizard ? styles.cardFull : undefined}>
+      {(!wizard || wizardStep === 0) && <Card padding="lg" shadow="sm" className={wizard ? `${styles.cardFull} ${styles.dropdownCard}` : undefined}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>Basic information</h3>
           <div className={styles.grid}>
@@ -824,9 +894,29 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             value={website}
             onChange={(e) => setWebsite(e.target.value)}
           />
+          {wizard && (
+            <div className={styles.basicSelections}>
+              <SignupMultiSelect
+                tone="light"
+                label="Specializations"
+                options={specializations}
+                selectedIds={selectedSpecIds}
+                onChange={setSelectedSpecIds}
+                error={specsError ?? undefined}
+              />
+              <SignupMultiSelect
+                tone="light"
+                label="Languages"
+                options={languages}
+                selectedIds={selectedLanguageIds}
+                onChange={setSelectedLanguageIds}
+                error={languageError ?? undefined}
+              />
+            </div>
+          )}
           {!inv && (
             <FormField label="Profile photo" optional htmlFor="provider-photo">
-              <input id="provider-photo" type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={(e) => {
+              <input id="provider-photo" className={styles.photoInput} type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={(e) => {
                 const file = e.target.files?.[0] ?? null;
                 if (file && (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024)) {
                   setPhoto(null);
@@ -838,7 +928,16 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                 setPhoto(file);
                 if (file) setPhotoPreview(URL.createObjectURL(file));
               }} />
-              {photoPreview && <img className={styles.photoPreview} src={photoPreview} alt="Profile preview" />}
+              <label htmlFor="provider-photo" className={styles.photoDropzone}>
+                {photoPreview
+                  ? <img className={styles.photoPreview} src={photoPreview} alt="Profile preview" />
+                  : <span className={styles.photoIcon} aria-hidden="true">↑</span>}
+                <span className={styles.photoCopy}>
+                  <strong>{photo?.name ?? (photoPreview ? 'Change profile photo' : 'Choose a profile photo')}</strong>
+                  <small>JPEG, PNG, GIF, or WebP · up to 10 MB</small>
+                </span>
+                <span className={styles.photoAction}>Browse files</span>
+              </label>
             </FormField>
           )}
         </section>
@@ -932,7 +1031,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       )}
 
       {/* ── Specializations ───────────────────────────────────────────────── */}
-      {(!wizard || wizardStep === 1) && <Card padding="lg" shadow="sm" className={styles.cardFull}>
+      {!wizard && <Card padding="lg" shadow="sm" className={styles.cardFull}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>
             Specializations
@@ -989,7 +1088,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         </section>
       </Card>}
 
-      {!inv && (!wizard || wizardStep === 1) && <Card padding="lg" shadow="sm" className={styles.cardFull}>
+      {!inv && !wizard && <Card padding="lg" shadow="sm" className={styles.cardFull}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>Languages</h3>
           {languageError && <p className={styles.fieldError} role="alert">{languageError}</p>}
@@ -1006,7 +1105,15 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>{inv ? 'Classification' : 'Services, status & publication'}</h3>
           <div className={styles.grid}>
-            <Select
+            {wizard ? (
+              <label className={styles.serviceChoice}>
+                <input type="checkbox" checked={visitStability === 'STABLE_VISIT'} onChange={(e) => {
+                  setVisitStability(e.target.checked ? 'STABLE_VISIT' : 'NOT_STABLE_VISIT');
+                  if (!e.target.checked) setMaximumRadius('');
+                }} />
+                <span><strong>Stable visit</strong><small>Offer visits at a stable or home location.</small></span>
+              </label>
+            ) : <Select
               label={inv ? 'Visit Stable' : 'Stable visit'}
               options={visitStabilityOptions}
               placeholder="Select…"
@@ -1014,11 +1121,16 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               onChange={(e) => setVisitStability(e.target.value)}
               error={errs.visit_stability}
               required
-            />
+            />}
             {!inv && <div className={styles.serviceFields}>
-              <label><input type="checkbox" checked={clinicHospitalVisit} onChange={(e) => setClinicHospitalVisit(e.target.checked)} /> Clinic / hospital visits</label>
-              <label><input type="checkbox" checked={emergencyServices} onChange={(e) => setEmergencyServices(e.target.checked)} /> Emergency services available</label>
+              {!wizard && <label><input type="checkbox" checked={clinicHospitalVisit} onChange={(e) => setClinicHospitalVisit(e.target.checked)} /> Clinic / hospital visits</label>}
               {visitStability === 'STABLE_VISIT' && <><Input label="Maximum working radius (km)" type="number" min={0.01} step="any" value={maximumRadius} onChange={(e) => setMaximumRadius(e.target.value)} error={errs.maximum_working_radius_km} required /><p className={styles.hint}>Maximum travel distance from the provider's registered location for a stable or home visit.</p></>}
+              {wizard ? (
+                <label className={styles.serviceChoice}>
+                  <input type="checkbox" checked={emergencyServices} onChange={(e) => setEmergencyServices(e.target.checked)} />
+                  <span><strong>Emergency services available</strong><small>Show emergency contact details when enabled.</small></span>
+                </label>
+              ) : <label><input type="checkbox" checked={emergencyServices} onChange={(e) => setEmergencyServices(e.target.checked)} /> Emergency services available</label>}
               {emergencyServices && <><Input label="Emergency contact name" value={emergencyName} onChange={(e) => setEmergencyName(e.target.value)} error={errs.emergency_contact_name} required /><Input label="Emergency contact number" value={emergencyNumber} onChange={(e) => setEmergencyNumber(e.target.value)} error={errs.emergency_contact_number} required /></>}
             </div>}
             {!inv && (
@@ -1042,20 +1154,20 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       </Card>}
 
       {/* ── Primary location — shown in both Add and Edit ─────────────────── */}
-      {(!wizard || wizardStep === 3) && <Card padding="lg" shadow="sm" className={wizard ? styles.cardFull : undefined}>
+      {(!wizard || wizardStep === 3) && <Card padding="lg" shadow="sm" className={`${wizard ? styles.cardFull : ''} ${styles.dropdownCard}`}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>
             Provider location {isEdit && <span className={styles.optionalTag}>— existing records may be incomplete</span>}
           </h3>
           <div className={styles.grid}>
-            <Input
+            {!wizard && <Input
               label="Location name"
               placeholder="e.g. Main Branch, Ward 3…"
               value={location.name}
               onChange={(e) => setLocation((l) => ({ ...l, name: e.target.value }))}
-            />
+            />}
             <Input
-              label="Address"
+              label={wizard ? 'Address line 1' : 'Address'}
               value={location.address_line_1}
               onChange={(e) => setLocation((l) => ({ ...l, address_line_1: e.target.value }))}
               error={errs.address_line_1}
@@ -1066,6 +1178,32 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               value={location.address_line_2}
               onChange={(e) => setLocation((l) => ({ ...l, address_line_2: e.target.value }))}
             />
+            {wizard && (
+              <div className={styles.postalLookup}>
+                <Input
+                  label="Pincode / postal code"
+                  autoComplete="postal-code"
+                  maxLength={32}
+                  value={location.postal_code}
+                  onChange={(e) => updatePostalCode(e.target.value)}
+                  error={errs.postal_code}
+                  required
+                />
+                {postalLoading && <p className={styles.hint} role="status">Looking up locations…</p>}
+                {!postalLoading && postalMessage && <p className={styles.hint} role="status">{postalMessage}</p>}
+                {postalCandidates.length > 0 && (
+                  <div className={styles.postalResults} aria-label="Matching postal locations">
+                    {postalCandidates.map((candidate, index) => (
+                      <button type="button" className={styles.postalResult}
+                        key={`${candidate.postal_code}-${candidate.country}-${candidate.city}-${index}`}
+                        onClick={() => selectPostalCandidate(candidate)}>
+                        {candidate.display_name || [candidate.city, candidate.state_province, candidate.country].filter(Boolean).join(', ')}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <LocationPicker
               value={location}
               onChange={(nextLocation) => setLocation((current) => ({ ...current, ...nextLocation }))}
@@ -1079,11 +1217,11 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               required={!inv && !isEdit}
               optionalState
             />
-            <Input
+            {!wizard && <Input
               label="Postal code"
               value={location.postal_code}
               onChange={(e) => setLocation((l) => ({ ...l, postal_code: e.target.value }))}
-            />
+            />}
             <Input
               label="Latitude"
               type="number"
@@ -1112,18 +1250,15 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               { label: 'Name', value: name.trim() },
               { label: 'Website', value: website.trim() },
               { label: 'Photo', value: photo?.name ?? 'No photo selected' },
-            ] },
-            { title: 'Professional details', step: 1, items: [
-              ...(providerType === 'DOCTOR' ? [
-                { label: 'Doctor / Vet', value: [firstName, lastName].filter(Boolean).join(' ') },
-                { label: 'Qualifications', value: qualifications.map((q) => q.title.trim()).filter(Boolean).join(', ') },
-              ] : []),
               { label: 'Specializations', value: specializations.filter((s) => selectedSpecIds.includes(s.id)).map((s) => s.name).join(', ') },
               { label: 'Languages', value: languages.filter((l) => selectedLanguageIds.includes(l.id)).map((l) => l.name).join(', ') },
             ] },
+            ...(providerType === 'DOCTOR' ? [{ title: 'Professional details', step: 1, items: [
+                { label: 'Doctor / Vet', value: [firstName, lastName].filter(Boolean).join(' ') },
+                { label: 'Qualifications', value: qualifications.map((q) => q.title.trim()).filter(Boolean).join(', ') },
+            ] }] : []),
             { title: 'Services', step: 2, items: [
               { label: 'Stable visit', value: visitStability === 'STABLE_VISIT' ? 'Yes' : 'No' },
-              { label: 'Clinic / hospital visit', value: clinicHospitalVisit ? 'Yes' : 'No' },
               { label: 'Working radius', value: visitStability === 'STABLE_VISIT' ? `${maximumRadius} km` : 'Not applicable' },
               { label: 'Emergency services', value: emergencyServices ? 'Yes' : 'No' },
               ...(emergencyServices ? [{ label: 'Emergency contact', value: `${emergencyName} · ${emergencyNumber}` }] : []),
@@ -1134,6 +1269,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               { label: 'Email', value: emailEntries.map((e) => e.email.trim()).filter(Boolean).join(', ') },
               { label: 'Phone', value: phoneEntries.map((p) => `${p.country_code} ${p.number.trim()}`).join(', ') },
               { label: 'Address', value: [location.address_line_1, location.city, location.state_province, location.country].filter(Boolean).join(', ') },
+              { label: 'Pincode / postal code', value: location.postal_code },
             ] },
           ]}
         />
@@ -1143,8 +1279,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         {wizard ? (
           <>
             <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting} className={styles.cancelButton}>Cancel</Button>
-            {wizardStep > 0 && (
-              <Button type="button" variant="secondary" onClick={() => setWizardStep((step) => step - 1)} disabled={submitting || Boolean(savedProviderId)}>Back</Button>
+            {wizardPosition > 0 && (
+              <Button type="button" variant="secondary" onClick={() => setWizardStep(stepOrder[wizardPosition - 1])} disabled={submitting || Boolean(savedProviderId)}>Back</Button>
             )}
             {wizardStep < WIZARD_STEPS.length - 1 ? (
               <Button type="button" variant="primary" onClick={nextWizardStep}>Continue</Button>

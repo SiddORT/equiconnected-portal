@@ -12,3 +12,12 @@
 .option:hover, .option[aria-selected="true"] { background: #3b2f1e; }
 .empty { padding: 6px 10px; color: #b6aa96; }
 .error { margin: 0; color: #ef9d9d; font-size: .8rem; }
+.light .label { color: var(--text-primary); }
+.light .trigger { border-color: var(--border-default); background: var(--bg-surface); color: var(--text-primary); }
+.light .chip { border-color: var(--color-primary-400); background: var(--color-primary-50, #f5f0e5); color: var(--text-primary); }
+.light .dropdown { z-index: 350; border-color: var(--border-default); background: var(--bg-surface); box-shadow: 0 16px 36px rgba(0, 0, 0, .15); }
+.light .search { border-color: var(--border-default); background: var(--bg-surface); color: var(--text-primary); }
+.light .option { color: var(--text-primary); }
+.light .option:hover, .light .option[aria-selected="true"] { background: var(--color-primary-50, #f5f0e5); }
+.light .empty { color: var(--text-muted); }
+.light .error { color: var(--color-error); }

@@ -5,6 +5,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { ProviderForm, type InvitationFormConfig } from './ProviderForm';
 import type { InvitationDraftProvider, Provider } from '@/types';
 import { createProvider, getProvider, uploadProviderPhoto } from '@/api/providers';
+import { lookupProviderPostalCode } from '@/api/auth';
+import { listSpecializations } from '@/api/specializations';
 
 vi.mock('@/api/providers', () => ({
   addProviderEmail: vi.fn(),
@@ -27,6 +29,9 @@ vi.mock('@/api/doctors', () => ({
   addDoctorQualification: vi.fn(),
   updateDoctorQualification: vi.fn(),
   deleteDoctorQualification: vi.fn(),
+}));
+vi.mock('@/api/auth', () => ({
+  lookupProviderPostalCode: vi.fn().mockResolvedValue({ status: 'no_match', candidates: [] }),
 }));
 
 vi.mock('@/api/specializations', () => ({
@@ -82,17 +87,12 @@ async function beginAdminWizard(type = 'CLINIC') {
   return user;
 }
 
-async function goToServices(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: 'Continue' }));
-}
-
 async function finishClinicWizard(user: ReturnType<typeof userEvent.setup>) {
-  await goToServices(user);
-  await user.selectOptions(screen.getByRole('combobox', { name: 'Stable visit' }), 'NOT_STABLE_VISIT');
   await user.click(screen.getByRole('button', { name: 'Continue' }));
   await user.click(screen.getByRole('button', { name: /Add email/i }));
   await user.type(screen.getByRole('textbox', { name: 'Email address 1' }), 'clinic@example.com');
-  await user.type(screen.getByLabelText('Address'), '42 Stable Road');
+  await user.type(screen.getByLabelText('Address line 1'), '42 Stable Road');
+  await user.type(screen.getByLabelText('Pincode / postal code'), 'T2P 1J9');
   await user.click(screen.getByRole('button', { name: 'Country' }));
   await user.type(screen.getByRole('combobox', { name: 'Search country' }), 'Canada');
   await user.click(screen.getByRole('option', { name: 'Canada' }));
@@ -155,17 +155,14 @@ describe('ProviderForm visit stability', () => {
     ));
   });
 
-  it('shows Yes and No for stable visits in administrator mode', async () => {
+  it('uses a checkbox instead of a select for stable visits in administrator mode', async () => {
     render(<ProviderForm />);
     const user = await beginAdminWizard();
-    await goToServices(user);
-    const select = screen.getByRole('combobox', { name: 'Stable visit' }) as HTMLSelectElement;
-    await waitFor(() => expect(select.options.length).toBe(3));
-    expect(Array.from(select.options).map((option) => option.text)).toEqual([
-      'Select…',
-      'Yes',
-      'No',
-    ]);
+    const checkbox = screen.getByRole('checkbox', { name: /Stable visit/ }) as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+    expect(screen.queryByLabelText('Clinic / hospital visits')).toBeNull();
+    await user.click(checkbox);
+    expect(checkbox.checked).toBe(true);
   });
 
   it('does not render admin-only controls in invitation mode', () => {
@@ -180,22 +177,19 @@ describe('ProviderForm visit stability', () => {
   it('shows and requires a positive radius only for stable administrator visits', async () => {
     render(<ProviderForm />);
     const user = await beginAdminWizard();
-    await goToServices(user);
-    const visit = screen.getByRole('combobox', { name: 'Stable visit' });
-    await waitFor(() => expect(visit).toBeTruthy());
-    await user.selectOptions(visit, 'STABLE_VISIT');
+    const visit = screen.getByRole('checkbox', { name: /Stable visit/ });
+    await user.click(visit);
     const radius = screen.getByLabelText('Maximum working radius (km)') as HTMLInputElement;
     expect(radius.required).toBe(true);
     expect(radius.min).toBe('0.01');
-    await user.selectOptions(visit, 'NOT_STABLE_VISIT');
+    await user.click(visit);
     expect(screen.queryByLabelText('Maximum working radius (km)')).toBeNull();
   });
 
   it('blocks a new admin provider when email, location, and stable radius are missing', async () => {
     render(<ProviderForm />);
     const user = await beginAdminWizard();
-    await goToServices(user);
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Stable visit' }), 'STABLE_VISIT');
+    await user.click(screen.getByRole('checkbox', { name: /Stable visit/ }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(createProvider).not.toHaveBeenCalled();
     expect(screen.getByText('A finite radius greater than 0 is required for stable visits.')).toBeTruthy();
@@ -206,23 +200,51 @@ describe('ProviderForm visit stability', () => {
     expect(screen.getByText('Country is required.')).toBeTruthy();
     expect(screen.getByText('City is required.')).toBeTruthy();
     expect(screen.getByText('Address is required.')).toBeTruthy();
+    expect(screen.getByText('Pincode / postal code is required.')).toBeTruthy();
   });
 
   it('only shows emergency fields after emergency services is enabled', async () => {
     render(<ProviderForm />);
     const user = await beginAdminWizard();
-    await goToServices(user);
     expect(screen.queryByLabelText('Emergency contact name')).toBeNull();
-    await user.click(screen.getByLabelText('Emergency services available'));
+    await user.click(screen.getByRole('checkbox', { name: /Emergency services available/ }));
     expect(screen.getByLabelText('Emergency contact name')).toBeTruthy();
     expect(screen.getByLabelText('Emergency contact number')).toBeTruthy();
   });
 
   it('renders the language master option and selection control for admin forms', async () => {
     render(<ProviderForm />);
-    await beginAdminWizard();
-    await waitFor(() => expect(screen.getByRole('button', { name: /English/ })).toBeTruthy());
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Languages' }));
     expect(screen.getByLabelText('Search languages')).toBeTruthy();
+    expect(screen.getByRole('option', { name: /English/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Remove English' })).toBeNull();
+  });
+
+  it('fills location from an explicitly chosen postal match and permits manual correction', async () => {
+    vi.mocked(lookupProviderPostalCode).mockResolvedValueOnce({
+      status: 'match',
+      candidates: [{
+        postal_code: '110001', country: 'India', country_code: 'IN',
+        state_province: 'Delhi', city: 'New Delhi', display_name: 'New Delhi, Delhi, India',
+      }],
+    });
+    render(<ProviderForm />);
+    const user = await beginAdminWizard();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    const postal = screen.getByLabelText('Pincode / postal code');
+    await user.type(postal, '110001');
+    const candidate = await screen.findByRole('button', { name: 'New Delhi, Delhi, India' });
+    expect(lookupProviderPostalCode).toHaveBeenCalledWith('110001', expect.any(AbortSignal));
+    expect(screen.getByRole('button', { name: 'Country' }).textContent).toContain('Select country');
+    await user.click(candidate);
+    expect(screen.getByRole('button', { name: 'Country' }).textContent).toContain('India');
+    expect(screen.getByRole('button', { name: 'State / Province' }).textContent).toContain('Delhi');
+    expect(screen.getByRole('button', { name: 'City' }).textContent).toContain('New Delhi');
+    await user.clear(postal);
+    await user.type(postal, 'othercode');
+    expect(screen.getByRole('button', { name: 'Country' }).textContent).toContain('Select country');
+    expect(screen.getByRole('button', { name: 'Country' }).hasAttribute('disabled')).toBe(false);
   });
 
   it('checks doctor names and qualification titles before leaving professional details', async () => {
@@ -238,16 +260,27 @@ describe('ProviderForm visit stability', () => {
     expect(screen.getByText('Qualification title is required.')).toBeTruthy();
     await user.type(screen.getByLabelText('Title'), 'DVM');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
-    expect(screen.getByRole('combobox', { name: 'Stable visit' })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: /Stable visit/ })).toBeTruthy();
   });
 
   it('keeps entries when moving back, reviews them, and creates only after confirmation', async () => {
     const onSuccess = vi.fn();
     const saved = { id: 'provider-1', photos: [] } as unknown as Provider;
     vi.mocked(createProvider).mockResolvedValue(saved);
+    vi.mocked(listSpecializations).mockResolvedValueOnce({
+      data: [{ id: 'spec-emergency', name: 'Emergency care', is_active: true }],
+      meta: { page: 1, page_size: 100, total: 1, total_pages: 1 },
+    } as never);
     render(<ProviderForm onSuccess={onSuccess} />);
+    const picker = userEvent.setup();
+    await picker.click(screen.getByRole('button', { name: 'Languages' }));
+    await picker.type(screen.getByLabelText('Search languages'), 'Eng');
+    await picker.click(screen.getByRole('option', { name: /English/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Specializations' }).hasAttribute('disabled')).toBe(false));
+    await picker.click(screen.getByRole('button', { name: 'Specializations' }));
+    await picker.type(screen.getByLabelText('Search specializations'), 'Emer');
+    await picker.click(screen.getByRole('option', { name: 'Emergency care' }));
     const user = await beginAdminWizard();
-    await user.click(screen.getByRole('button', { name: /English/ }));
     await finishClinicWizard(user);
 
     expect(createProvider).not.toHaveBeenCalled();
@@ -264,6 +297,8 @@ describe('ProviderForm visit stability', () => {
       provider_type: 'CLINIC',
       admin_form_version: 2,
       language_ids: ['lang-en'],
+      specialization_ids: ['spec-emergency'],
+      clinic_hospital_visit: false,
       primary_location: expect.objectContaining({ country: 'Canada', city: 'Calgary' }),
       emails: [expect.objectContaining({ email: 'clinic@example.com', is_primary: true })],
     }));
