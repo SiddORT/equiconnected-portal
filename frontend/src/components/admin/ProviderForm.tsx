@@ -6,7 +6,7 @@
  *   onSuccess(provider) — called with the saved provider on success
  *   onCancel() — called when the user dismisses the form
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Country } from 'country-state-city';
 import { extractErrorMessage } from '@/api/client';
@@ -143,6 +143,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const inv = invitation;
   const wizard = !inv && !isEdit;
   const [wizardStep, setWizardStep] = useState(0);
+  const [reviewReady, setReviewReady] = useState(false);
+  const submissionInProgress = useRef(false);
   const visitStabilityOptions = inv
     ? INVITATION_VISIT_STABILITY_OPTIONS
     : VISIT_STABILITY_OPTIONS;
@@ -487,8 +489,18 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   }
 
   function nextWizardStep() {
-    if (validate(wizardStep)) setWizardStep(stepOrder[Math.min(wizardPosition + 1, stepOrder.length - 1)]);
+    if (!validate(wizardStep)) return;
+    const nextStep = stepOrder[Math.min(wizardPosition + 1, stepOrder.length - 1)];
+    if (nextStep === WIZARD_STEPS.length - 1) setReviewReady(false);
+    setWizardStep(nextStep);
   }
+
+  useEffect(() => {
+    if (!wizard || wizardStep !== WIZARD_STEPS.length - 1 || savedProviderId) return;
+    // The next physical click in a double-click can land on the newly rendered CTA.
+    const timer = window.setTimeout(() => setReviewReady(true), 500);
+    return () => window.clearTimeout(timer);
+  }, [wizard, wizardStep, savedProviderId]);
 
   function buildInvitationPayload(): InvitationDraftPayload {
     const payload: InvitationDraftPayload = {
@@ -541,7 +553,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   }
 
   async function retryPhotoUpload() {
-    if (!photo || !savedProviderId) return;
+    if (!photo || !savedProviderId || submissionInProgress.current) return;
+    submissionInProgress.current = true;
     setSubmitting(true);
     setPhotoError(null);
     try {
@@ -553,16 +566,21 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     } catch (err) {
       setPhotoError(`Provider saved, but the photo could not be uploaded. Please retry or edit provider ${savedProviderId}: ${extractErrorMessage(err, 'upload failed')}`);
     } finally {
+      submissionInProgress.current = false;
       setSubmitting(false);
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (wizard && wizardStep < WIZARD_STEPS.length - 1) {
-      nextWizardStep();
-      return;
-    }
+    // Wizard navigation and creation are explicit button actions, never an
+    // implicit form submit (including Enter or a click's native default).
+    if (wizard) return;
+    void submitProvider();
+  }
+
+  async function submitProvider() {
+    if (submissionInProgress.current || (wizard && (wizardStep !== WIZARD_STEPS.length - 1 || !reviewReady))) return;
     setApiError(null);
     if (!validate()) return;
 
@@ -585,6 +603,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       return;
     }
 
+    submissionInProgress.current = true;
     setSubmitting(true);
     setPhotoError(null);
     try {
@@ -821,6 +840,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     } catch (err) {
       setApiError(extractErrorMessage(err, 'Failed to save provider. Please try again.'));
     } finally {
+      submissionInProgress.current = false;
       setSubmitting(false);
     }
   }
@@ -1301,9 +1321,10 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               <Button type="button" variant="secondary" onClick={() => setWizardStep(stepOrder[wizardPosition - 1])} disabled={submitting || Boolean(savedProviderId)}>Back</Button>
             )}
             {wizardStep < WIZARD_STEPS.length - 1 ? (
-              <Button type="button" variant="primary" onClick={nextWizardStep}>Continue</Button>
+              <Button key="continue" type="button" variant="primary" onClick={nextWizardStep}>Continue</Button>
             ) : (
-              <Button type="submit" variant="primary" loading={submitting}>{savedProviderId ? 'Retry photo upload' : 'Create provider'}</Button>
+              <Button key="create" type="button" variant="primary" onClick={savedProviderId ? retryPhotoUpload : submitProvider}
+                disabled={!savedProviderId && !reviewReady} loading={submitting}>{savedProviderId ? 'Retry photo upload' : 'Create provider'}</Button>
             )}
           </>
         ) : inv ? (

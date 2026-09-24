@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { ProviderForm, type InvitationFormConfig } from './ProviderForm';
 import type { InvitationDraftProvider, Provider } from '@/types';
 import { createProvider, getProvider, uploadProviderPhoto } from '@/api/providers';
@@ -75,6 +75,10 @@ function invitationConfig(
     onSaveDraft,
     onSubmit,
   };
+}
+
+function CurrentPath() {
+  return <output aria-label="Current path">{useLocation().pathname}</output>;
 }
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
@@ -228,6 +232,7 @@ describe('ProviderForm visit stability', () => {
     await user.click(screen.getByRole('checkbox', { name: /Emergency services available/ }));
     await user.type(screen.getByLabelText('Emergency contact number'), '+91 9988776655');
     await finishClinicWizard(user);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
     await user.click(screen.getByRole('button', { name: 'Create provider' }));
     await waitFor(() => expect(createProvider).toHaveBeenCalledWith(expect.objectContaining({
       emergency_services_available: true,
@@ -295,7 +300,7 @@ describe('ProviderForm visit stability', () => {
       data: [{ id: 'spec-emergency', name: 'Emergency care', is_active: true }],
       meta: { page: 1, page_size: 100, total: 1, total_pages: 1 },
     } as never);
-    render(<ProviderForm onSuccess={onSuccess} />);
+    render(<MemoryRouter initialEntries={['/admin/providers/new']}><ProviderForm onSuccess={onSuccess} /><CurrentPath /></MemoryRouter>);
     const picker = userEvent.setup();
     await picker.click(screen.getByRole('button', { name: 'Languages' }));
     await picker.type(screen.getByLabelText('Search languages'), 'Eng');
@@ -308,10 +313,17 @@ describe('ProviderForm visit stability', () => {
     await finishClinicWizard(user);
 
     expect(createProvider).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Current path').textContent).toBe('/admin/providers/new');
     expect(screen.getByText('clinic@example.com')).toBeTruthy();
+    expect(screen.getByText('42 Stable Road, Calgary, Alberta, Canada')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect((screen.getByRole('textbox', { name: 'Email address 1' }) as HTMLInputElement).value).toBe('clinic@example.com');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('button', { name: 'Edit Contact & location' }));
     expect((screen.getByRole('textbox', { name: 'Email address 1' }) as HTMLInputElement).value).toBe('clinic@example.com');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
     await user.click(screen.getByRole('button', { name: 'Create provider' }));
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(saved));
@@ -328,6 +340,49 @@ describe('ProviderForm visit stability', () => {
     }));
   });
 
+  it('ignores implicit submits and rapid repeat clicks across the review transition', async () => {
+    let resolveCreate!: (saved: Provider) => void;
+    vi.mocked(createProvider).mockImplementation(() => new Promise((resolve) => { resolveCreate = resolve; }));
+    const onSuccess = vi.fn();
+    render(<ProviderForm onSuccess={onSuccess} />);
+    const user = await beginAdminWizard();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: /Add email/i }));
+    await user.type(screen.getByRole('textbox', { name: 'Email address 1' }), 'clinic@example.com');
+    await user.type(screen.getByLabelText('Address line 1'), '42 Stable Road');
+    await user.type(screen.getByLabelText('Pincode / postal code'), 'T2P 1J9');
+    await user.click(screen.getByRole('button', { name: 'Country' }));
+    await user.type(screen.getByRole('combobox', { name: 'Search country' }), 'Canada');
+    await user.click(screen.getByRole('option', { name: 'Canada' }));
+    await user.click(screen.getByRole('button', { name: 'State / Province' }));
+    await user.type(screen.getByRole('combobox', { name: 'Search state / province' }), 'Alberta');
+    await user.click(screen.getByRole('option', { name: 'Alberta' }));
+    await user.click(screen.getByRole('button', { name: 'City' }));
+    await user.type(screen.getByRole('combobox', { name: 'Search city' }), 'Calgary');
+    await user.click(screen.getByRole('option', { name: 'Calgary' }));
+
+    const form = screen.getByRole('button', { name: 'Continue' }).closest('form')!;
+    fireEvent.submit(form); // Enter in a field must not skip review.
+    expect(screen.getByRole('heading', { name: 'Contact & location' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByRole('heading', { name: 'Review & create' })).toBeTruthy();
+    expect(createProvider).not.toHaveBeenCalled();
+    fireEvent.submit(form); // No implicit submit on review either.
+    expect(createProvider).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Create provider' }));
+    expect(createProvider).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
+    const createButton = screen.getByRole('button', { name: 'Create provider' });
+    createButton.focus();
+    await user.keyboard('{Enter}');
+    fireEvent.click(createButton);
+    expect(createProvider).toHaveBeenCalledTimes(1);
+    resolveCreate({ id: 'provider-once', photos: [] } as unknown as Provider);
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+  });
+
   it('retries a failed photo upload without creating a second provider', async () => {
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:photo') });
     const saved = { id: 'provider-photo', photos: [] } as unknown as Provider;
@@ -342,6 +397,7 @@ describe('ProviderForm visit stability', () => {
     await user.upload(screen.getByLabelText(/Profile photo/), new File(['image'], 'provider.png', { type: 'image/png' }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await finishClinicWizard(user);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
     await user.click(screen.getByRole('button', { name: 'Create provider' }));
     await waitFor(() => expect(screen.getByText(/Provider saved, but the photo could not be uploaded/)).toBeTruthy());
     expect(createProvider).toHaveBeenCalledTimes(1);

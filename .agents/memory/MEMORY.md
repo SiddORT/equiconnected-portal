@@ -27,3 +27,4 @@
 - [Provider postal lookup](provider-signup-postal-lookup.md) — signup and admin creation must offer explicit place choices and allow manual correction for ambiguous postal codes.
 - [Admin provider form compatibility](admin-provider-form-compatibility.md) — opt in to stricter create rules without invalidating older API clients or legacy provider edits.
 - [PostgreSQL public-schema backup restoration](postgres-public-schema-backups.md) — a fresh database already has public; schema-scoped dumps may recreate it, so test restores need an empty target.
+- [Wizard creation boundary](wizard-creation-boundary.md) — changing a navigation control into a submit control can let one browser interaction cross the review boundary.
