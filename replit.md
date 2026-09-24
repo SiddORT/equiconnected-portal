@@ -143,8 +143,13 @@ available for narrower maintenance but does not clear the application data.
 
 ```bash
 cd backend
-python scripts/seed_demo_data.py   # rerunnable; creates fictional, geocoded Dubai hospitals, clinics, and doctors
+python scripts/seed_demo_data.py                # default: fictional Dubai hospitals, clinics, and doctors
+python scripts/seed_demo_data.py --city mumbai  # fictional, geocoded Mumbai hospitals, clinics, and doctors
 ```
+
+Both development catalogues are additive and rerunnable: choosing Mumbai does
+not remove or update Dubai providers or unrelated/edited records. Confirm the
+development database target before running either command; do not run on production.
 
 ## API routes
 

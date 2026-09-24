@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.security import hash_password
+from app.core.security import create_access_token, hash_password
 from app.models.enums import (
     ProviderStatus,
     PublicationStatus,
@@ -189,6 +189,139 @@ class TestDashboard:
 
 
 class TestDemoSeed:
+    def test_mumbai_inventory_is_published_geocoded_and_specialized(self, db):
+        from scripts.seed_demo_data import MUMBAI_PROVIDERS, SPECIALIZATIONS, seed
+
+        created = seed(db, city="mumbai")
+        assert created == {
+            "specializations": len(SPECIALIZATIONS),
+            "providers": 9,
+            "locations": 9,
+            "assignments": sum(len(row[2]) for row in MUMBAI_PROVIDERS),
+        }
+        assert {ptype: sum(row[1] == ptype for row in MUMBAI_PROVIDERS) for ptype in ProviderType} == {
+            ProviderType.HOSPITAL: 3,
+            ProviderType.CLINIC: 3,
+            ProviderType.DOCTOR: 3,
+        }
+        assert len({row[0] for row in MUMBAI_PROVIDERS}) == 9
+        assert all("Mumbai Demo" in name for name, *_ in MUMBAI_PROVIDERS)
+        assert {name for _, _, specs, _ in MUMBAI_PROVIDERS for name in specs} <= set(SPECIALIZATIONS)
+
+        for name, ptype, spec_names, loc_data in MUMBAI_PROVIDERS:
+            provider = db.query(Provider).filter_by(name=name, provider_type=ptype).one()
+            assert provider.status == ProviderStatus.ACTIVE
+            assert provider.publication_status == PublicationStatus.PUBLISHED
+            locations = db.query(ProviderLocation).filter_by(provider_id=provider.id).all()
+            assert len(locations) == 1
+            loc = locations[0]
+            assert loc.is_primary is True
+            assert (loc.name, loc.address_line_1, loc.city, loc.state_province,
+                    loc.country, loc.postal_code, loc.latitude, loc.longitude) == loc_data
+            assert 18.8 <= float(loc.latitude) <= 19.3
+            assert 72.7 <= float(loc.longitude) <= 73.1
+            actual_specs = {
+                spec.name for spec in db.query(Specialization)
+                .join(ProviderSpecialization)
+                .filter(ProviderSpecialization.provider_id == provider.id).all()
+            }
+            assert actual_specs == set(spec_names)
+        assert {"Colaba", "Dadar", "Andheri", "Bandra", "Powai", "Chembur",
+                "Worli", "Juhu", "Goregaon"} <= {
+                    loc.name.split()[0] for loc in db.query(ProviderLocation).all()
+                }
+
+    def test_mumbai_rerun_preserves_dubai_and_edited_records(self, db):
+        from scripts.seed_demo_data import MUMBAI_PROVIDERS, PROVIDERS as DUBAI_PROVIDERS, seed
+
+        seed(db)  # Dubai remains the default
+        dubai = db.query(Provider).filter_by(name=DUBAI_PROVIDERS[0][0]).one()
+        dubai.status = ProviderStatus.INACTIVE
+        dubai.description = "Operator edited this record"
+        unrelated = Provider(
+            provider_type=ProviderType.CLINIC,
+            name="User Entered Mumbai Clinic",
+            visit_stability=VisitStability.STABLE_VISIT,
+            status=ProviderStatus.INACTIVE,
+            publication_status=PublicationStatus.UNPUBLISHED,
+        )
+        db.add(unrelated)
+        db.commit()
+        original_dubai_id = dubai.id
+        original_location_ids = {loc.id for loc in dubai.locations}
+        unrelated_id = unrelated.id
+
+        first = seed(db, city="mumbai")
+        assert first["providers"] == first["locations"] == len(MUMBAI_PROVIDERS)
+        assert first["specializations"] == 0
+        assert seed(db, city="mumbai") == {
+            "specializations": 0, "providers": 0, "locations": 0, "assignments": 0,
+        }
+        assert db.query(Provider).count() == len(DUBAI_PROVIDERS) + len(MUMBAI_PROVIDERS) + 1
+        assert db.query(ProviderLocation).count() == len(DUBAI_PROVIDERS) + len(MUMBAI_PROVIDERS)
+        assert db.get(Provider, original_dubai_id).status == ProviderStatus.INACTIVE
+        assert db.get(Provider, original_dubai_id).description == "Operator edited this record"
+        assert {loc.id for loc in db.get(Provider, original_dubai_id).locations} == original_location_ids
+        assert db.get(Provider, unrelated_id).publication_status == PublicationStatus.UNPUBLISHED
+        assert seed(db) == {
+            "specializations": 0, "providers": 0, "locations": 0, "assignments": 0,
+        }
+
+    def test_mumbai_rows_appear_on_dashboard_map(self, client: TestClient, admin_token: str, db):
+        from scripts.seed_demo_data import seed
+
+        seed(db, city="mumbai")
+        data = client.get(URL, headers=_auth(admin_token)).json()
+        assert data["provider_counts"] == {"hospitals": 3, "clinics": 3, "doctors": 3}
+        assert data["active_providers"] == 9
+        assert len(data["location_markers"]) == 9
+        assert {marker["city"] for marker in data["location_markers"]} == {"Mumbai"}
+        assert all(
+            18.8 <= marker["latitude"] <= 19.3
+            and 72.7 <= marker["longitude"] <= 73.1
+            and marker["is_primary"] is True
+            for marker in data["location_markers"]
+        )
+
+    def test_mumbai_rows_appear_in_nearby_public_directory(self, client: TestClient, db):
+        from scripts.seed_demo_data import MUMBAI_PROVIDERS, seed
+
+        seed(db)
+        seed(db, city="mumbai")
+        response = client.get(
+            "/api/v1/public/providers",
+            params={"latitude": 19.05, "longitude": 72.85, "limit": 12},
+        )
+        assert response.status_code == 200, response.text
+        mumbai = [item for item in response.json() if item["location"]["city"] == "Mumbai"]
+        assert len(mumbai) == 9
+        assert {item["name"] for item in mumbai} == {row[0] for row in MUMBAI_PROVIDERS}
+        assert all(item["specializations"] for item in mumbai)
+
+    def test_mumbai_rows_appear_in_member_directory(self, client: TestClient, db):
+        from scripts.seed_demo_data import MUMBAI_PROVIDERS, seed
+
+        seed(db, city="mumbai")
+        repo = UserRepository(db)
+        role = repo.get_role_by_name("horse_owner") or repo.create_role("horse_owner")
+        member = repo.create_user(
+            email="mumbai-member@example.com",
+            password_hash=hash_password("MemberPassword1"),
+            role=role,
+            roles=[role],
+        )
+        member.email_verified_at = datetime.now(timezone.utc)
+        db.commit()
+        response = client.get(
+            "/api/v1/member/providers",
+            headers=_auth(create_access_token(subject=member.id)),
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["meta"]["total"] == 9
+        assert {item["name"] for item in response.json()["data"]} == {
+            row[0] for row in MUMBAI_PROVIDERS
+        }
+
     def test_seed_idempotent(self, db):
         from scripts.seed_demo_data import seed, PROVIDERS as SEED_PROVIDERS, SPECIALIZATIONS
 
