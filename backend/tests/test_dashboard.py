@@ -9,7 +9,7 @@ Covers:
   - Empty-data shape
   - Seed idempotency
 """
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,15 +17,17 @@ from fastapi.testclient import TestClient
 from app.core.security import create_access_token, hash_password
 from app.models.enums import (
     ProviderStatus,
+    DoctorAvailability,
     PublicationStatus,
     ProviderType,
     VisitStability,
 )
-from app.models.provider import Provider, ProviderLocation, ProviderSpecialization
+from app.models.provider import DoctorVisit, Provider, ProviderLocation, ProviderSpecialization
 from app.models.specialization import Specialization
 from app.repositories.user_repository import UserRepository
 
 URL = "/api/v1/admin/dashboard/stats"
+VISITS_URL = "/api/v1/admin/dashboard/visits"
 PROVIDERS = "/api/v1/admin/providers"
 
 
@@ -186,6 +188,109 @@ class TestDashboard:
             "horse_owners": 2,
             "stable_managers": 1,
         }
+
+
+class TestVisitingCalendar:
+    def test_requires_admin(self, client: TestClient, db, admin_token: str):
+        assert client.get(VISITS_URL).status_code == 401
+        repo = UserRepository(db)
+        role = repo.get_role_by_name("visitor") or repo.create_role("visitor")
+        user = repo.create_user(
+            email="calendar-visitor@example.com",
+            password_hash=hash_password("Visitor#2026!ABC"),
+            role=role,
+        )
+        db.commit()
+        assert client.get(VISITS_URL, headers=_auth(create_access_token(subject=user.id))).status_code == 403
+        assert client.get(VISITS_URL, headers=_auth(admin_token)).status_code == 200
+
+    @pytest.mark.parametrize("month", ["2026-00", "2026-13", "2026-1", "abcd-01", "0000-01", "2026-02-01", ""])
+    def test_rejects_invalid_month(self, client: TestClient, admin_token: str, month: str):
+        assert client.get(VISITS_URL, params={"month": month}, headers=_auth(admin_token)).status_code == 422
+
+    def test_overlaps_inclusively_and_returns_visit_snapshot(self, client: TestClient, db, admin_token: str, monkeypatch):
+        monkeypatch.setattr("app.api.v1.admin.system_today", lambda timezone_name: date(2026, 9, 24))
+        specialist = Specialization(name="Surgery")
+        doctor = Provider(
+            provider_type=ProviderType.DOCTOR, name="Dr. Maple", status=ProviderStatus.ACTIVE,
+            publication_status=PublicationStatus.UNPUBLISHED,
+            doctor_availability=DoctorAvailability.VISITING, visit_stability=VisitStability.STABLE_VISIT,
+        )
+        second = Provider(
+            provider_type=ProviderType.DOCTOR, name="Dr. Birch", status=ProviderStatus.ACTIVE,
+            doctor_availability=DoctorAvailability.VISITING, visit_stability=VisitStability.NOT_STABLE_VISIT,
+        )
+        db.add_all([specialist, doctor, second])
+        db.flush()
+        db.add(ProviderSpecialization(provider_id=doctor.id, specialization_id=specialist.id))
+        location = {"name": "Temporary site", "city": "Calgary", "address_line_1": "10 Main"}
+        trips = [
+            (doctor, date(2026, 8, 30), date(2026, 9, 24)),
+            (doctor, date(2026, 9, 24), date(2026, 10, 2)),
+            (second, date(2026, 9, 30), date(2026, 9, 30)),
+            (doctor, date(2026, 10, 1), date(2026, 10, 3)),
+            (second, date(2026, 9, 1), date(2026, 9, 23)),  # ended yesterday
+        ]
+        db.add_all(DoctorVisit(provider_id=provider.id, start_date=start, end_date=end, location=location)
+                   for provider, start, end in trips)
+        db.commit()
+
+        september = client.get(VISITS_URL, params={"month": "2026-09"}, headers=_auth(admin_token)).json()
+        assert september["today"] == "2026-09-24"
+        assert september["month"] == "2026-09"
+        assert len(september["visits"]) == 3
+        assert [(v["start_date"], v["end_date"]) for v in september["visits"] if v["provider_id"] == str(doctor.id)] == [
+            ("2026-08-30", "2026-09-24"), ("2026-09-24", "2026-10-02")
+        ]
+        assert september["visits"][0]["specializations"] == ["Surgery"]
+        assert september["visits"][0]["location"] == location
+        assert september["visits"][0]["provider_name"] == "Dr. Maple"
+        assert september["visits"][0]["id"]
+        assert next(v for v in september["visits"] if v["provider_id"] == str(second.id))["specializations"] == []
+        october = client.get(VISITS_URL, params={"month": "2026-10"}, headers=_auth(admin_token)).json()
+        assert len(october["visits"]) == 2
+        assert len(client.get(VISITS_URL, params={"month": "2026-08"}, headers=_auth(admin_token)).json()["visits"]) == 1
+        assert client.get(VISITS_URL, headers=_auth(admin_token)).json()["month"] == "2026-09"
+        assert "visits" not in client.get(URL, headers=_auth(admin_token)).json()
+
+    def test_excludes_inactive_ongoing_legacy_and_unscheduled(self, client: TestClient, db, admin_token: str, monkeypatch):
+        monkeypatch.setattr("app.api.v1.admin.system_today", lambda timezone_name: date(2026, 9, 24))
+        for name, availability, status, scheduled in [
+            ("Inactive", DoctorAvailability.VISITING, ProviderStatus.INACTIVE, True),
+            ("Ongoing", DoctorAvailability.ONGOING, ProviderStatus.ACTIVE, True),
+            ("Legacy", None, ProviderStatus.ACTIVE, True),
+            ("Unscheduled", DoctorAvailability.VISITING, ProviderStatus.ACTIVE, False),
+            ("Clinic", DoctorAvailability.VISITING, ProviderStatus.ACTIVE, True),
+        ]:
+            provider = Provider(
+                provider_type=ProviderType.CLINIC if name == "Clinic" else ProviderType.DOCTOR,
+                name=name, visit_stability=VisitStability.NOT_STABLE_VISIT,
+                doctor_availability=availability, status=status,
+            )
+            db.add(provider)
+            db.flush()
+            if scheduled:
+                db.add(DoctorVisit(provider_id=provider.id, start_date=date(2026, 9, 24),
+                                   end_date=date(2026, 9, 25), location={"city": "Toronto"}))
+        db.commit()
+        assert client.get(VISITS_URL, headers=_auth(admin_token)).json()["visits"] == []
+
+    def test_default_month_and_today_use_system_timezone(self, client: TestClient, db, admin_token: str, monkeypatch):
+        from app.core.time_standards import system_today
+        from app.repositories.system_settings_repository import SystemSettingsRepository
+
+        SystemSettingsRepository(db).update(timezone="Pacific/Auckland")
+        db.commit()
+        # Still August in UTC, but already September in the configured timezone.
+        instant = datetime(2026, 8, 31, 13, 0, tzinfo=timezone.utc)
+        monkeypatch.setattr(
+            "app.api.v1.admin.system_today",
+            lambda timezone_name: system_today(timezone_name, now=instant),
+        )
+        response = client.get(VISITS_URL, headers=_auth(admin_token))
+        assert response.status_code == 200
+        assert response.json()["today"] == "2026-09-01"
+        assert response.json()["month"] == "2026-09"
 
 
 class TestDemoSeed:

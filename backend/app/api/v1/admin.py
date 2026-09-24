@@ -5,6 +5,7 @@ GET /api/v1/admin/dashboard/stats
 import csv
 import io
 from datetime import date, datetime, timedelta, timezone
+import re
 from math import ceil
 from typing import Annotated
 from uuid import UUID
@@ -18,6 +19,7 @@ from app.auth.dependencies import require_role, CurrentUser
 from app.db.session import get_db
 from app.models.enums import (
     InvitationStatus,
+    DoctorAvailability,
     ProviderApplicationStatus,
     ProviderProfileUpdateStatus,
     ProviderStatus,
@@ -26,7 +28,8 @@ from app.models.enums import (
 )
 from app.models.invitation import ProviderInvitation
 from app.models.public_visit import PublicVisitDaily
-from app.models.provider import Provider, ProviderLocation
+from app.models.provider import DoctorVisit, Provider, ProviderLocation, ProviderSpecialization
+from app.models.specialization import Specialization
 from app.models.role import Role
 from app.models.user import PUBLIC_ACCOUNT_ROLE_NAMES, User, UserRole
 from app.repositories.audit_repository import AuditRepository, context_from_request
@@ -70,6 +73,91 @@ from app.services.email_service import EmailDeliveryError, EmailService
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
+
+
+class DashboardVisit(BaseModel):
+    id: UUID
+    provider_id: UUID
+    provider_name: str
+    start_date: date
+    end_date: date
+    specializations: list[str]
+    location: dict
+
+
+class DashboardVisitMonth(BaseModel):
+    month: str
+    today: date
+    visits: list[DashboardVisit]
+
+
+@router.get(
+    "/dashboard/visits",
+    response_model=DashboardVisitMonth,
+    dependencies=[Depends(require_role("admin"))],
+)
+def dashboard_visits(
+    db: Annotated[Session, Depends(get_db)],
+    month: str | None = Query(None),
+) -> DashboardVisitMonth:
+    """Recorded visiting-doctor trips overlapping one system-calendar month."""
+    timezone_name = SystemSettingsRepository(db).get_or_create().timezone
+    today = system_today(timezone_name)
+    if month is None:
+        first = today.replace(day=1)
+    else:
+        if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
+            raise HTTPException(status_code=422, detail="Month must be YYYY-MM.")
+        try:
+            first = date(int(month[:4]), int(month[5:]), 1)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Month must be YYYY-MM.") from None
+    if first.month == 12 and first.year == 9999:
+        last = date.max
+    else:
+        next_month = date(first.year + (first.month == 12), first.month % 12 + 1, 1)
+        last = next_month - timedelta(days=1)
+
+    rows = db.execute(
+        select(DoctorVisit, Provider.name)
+        .join(Provider, DoctorVisit.provider_id == Provider.id)
+        .where(
+            Provider.provider_type == ProviderType.DOCTOR,
+            Provider.status == ProviderStatus.ACTIVE,
+            Provider.doctor_availability == DoctorAvailability.VISITING,
+            DoctorVisit.start_date <= last,
+            DoctorVisit.end_date >= first,
+            DoctorVisit.end_date >= today,
+        )
+        .order_by(DoctorVisit.start_date, Provider.name, DoctorVisit.id)
+    ).all()
+    provider_ids = {visit.provider_id for visit, _ in rows}
+    specializations: dict[UUID, list[str]] = {provider_id: [] for provider_id in provider_ids}
+    if provider_ids:
+        for provider_id, name in db.execute(
+            select(ProviderSpecialization.provider_id, Specialization.name)
+            .join(Specialization, ProviderSpecialization.specialization_id == Specialization.id)
+            .where(ProviderSpecialization.provider_id.in_(provider_ids))
+            .order_by(Specialization.name)
+        ):
+            specializations[provider_id].append(name)
+
+    return DashboardVisitMonth(
+        month=first.strftime("%Y-%m"),
+        today=today,
+        visits=[
+            DashboardVisit(
+                id=visit.id,
+                provider_id=visit.provider_id,
+                provider_name=name,
+                start_date=visit.start_date,
+                end_date=visit.end_date,
+                specializations=specializations[visit.provider_id],
+                location=visit.location,
+            )
+            for visit, name in rows
+        ],
+    )
 
 
 class SMTPTestResult(BaseModel):

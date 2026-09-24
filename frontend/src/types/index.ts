@@ -281,6 +281,27 @@ export interface DashboardStats {
   location_markers: LocationMarker[];
 }
 
+export interface DashboardVisit {
+  id: string;
+  provider_id: string;
+  provider_name: string;
+  start_date: string;
+  end_date: string;
+  specializations: string[];
+  location: {
+    name?: string | null;
+    city?: string | null;
+    state_province?: string | null;
+    country?: string | null;
+  };
+}
+
+export interface DashboardVisitMonth {
+  month: string;
+  today: string;
+  visits: DashboardVisit[];
+}
+
 // ── Pagination ────────────────────────────────────────────────────────────────
 
 export interface PaginationMeta {

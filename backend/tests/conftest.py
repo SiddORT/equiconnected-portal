@@ -65,6 +65,7 @@ _CLEANUP_TABLES = [
     "users",
     "roles",
     "provider_specializations",
+    "doctor_visits",
     "provider_phones",
     "provider_emails",
     "provider_photos",

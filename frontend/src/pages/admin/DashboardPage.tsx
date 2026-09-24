@@ -15,6 +15,7 @@ import { DashboardMap } from '@/components/dashboard/DashboardMap';
 import { InvitationStatusChart } from '@/components/dashboard/InvitationStatusChart';
 import { RegistrationRequestsCard } from '@/components/dashboard/RegistrationRequestsCard';
 import { VisitorVisitsChart } from '@/components/dashboard/VisitorVisitsChart';
+import { VisitingProviderCalendar } from '@/components/dashboard/VisitingProviderCalendar';
 import type { DashboardStats, LoadingState } from '@/types';
 import styles from './DashboardPage.module.css';
 
@@ -68,9 +69,10 @@ export function DashboardPage() {
           {loadState === 'success' && stats && (
             <>
               {/* ── Provider inventory counters ───────────────────────── */}
-              <section aria-labelledby="stats-heading">
-                <h2 id="stats-heading" className={styles.sectionTitle}>Provider Inventory</h2>
-                <div className={styles.statsGrid}>
+              <div className={styles.overview}>
+                <section aria-labelledby="stats-heading">
+                  <h2 id="stats-heading" className={styles.sectionTitle}>Provider Inventory</h2>
+                  <div className={styles.statsGrid}>
                   <StatCard
                     label="Active providers"
                     value={String(stats.active_providers)}
@@ -92,8 +94,10 @@ export function DashboardPage() {
                     value={String(stats.provider_counts.doctors)}
                     icon="👨‍⚕️"
                   />
-                </div>
-              </section>
+                  </div>
+                </section>
+                <VisitingProviderCalendar />
+              </div>
 
               <section aria-labelledby="activity-heading">
                 <h2 id="activity-heading" className={styles.sectionTitle}>Activity overview</h2>

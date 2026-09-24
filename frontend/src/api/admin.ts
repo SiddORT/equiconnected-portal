@@ -8,6 +8,7 @@ import type {
   AdminUser,
   AdminUserListParams,
   DashboardStats,
+  DashboardVisitMonth,
   EmailLogFilterMode,
   EmailDeliveryLog,
   PaginatedResponse,
@@ -24,6 +25,13 @@ import type {
 
 export async function getDashboardStats(): Promise<DashboardStats> {
   const { data } = await apiClient.get<DashboardStats>('/admin/dashboard/stats');
+  return data;
+}
+
+export async function getDashboardVisits(month?: string): Promise<DashboardVisitMonth> {
+  const { data } = await apiClient.get<DashboardVisitMonth>('/admin/dashboard/visits', {
+    params: month ? { month } : undefined,
+  });
   return data;
 }
 
