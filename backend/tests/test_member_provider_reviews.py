@@ -52,6 +52,7 @@ def _provider(
     publication=PublicationStatus.PUBLISHED,
     latitude: str | None = "30.267200",
     longitude: str | None = "-97.743100",
+    maximum_working_radius_km: str | None = None,
 ):
     provider = Provider(
         provider_type=provider_type,
@@ -60,6 +61,9 @@ def _provider(
         status=status,
         publication_status=publication,
         description=f"{name} description",
+        maximum_working_radius_km=(
+            Decimal(maximum_working_radius_km) if maximum_working_radius_km is not None else None
+        ),
     )
     db.add(provider)
     db.flush()
@@ -204,6 +208,135 @@ class TestMemberProviderDiscoveryAndReviews:
         assert client.get(
             MEMBER_BASE, headers=_headers(member), params={"closest_first": "true"}
         ).status_code == 422
+
+    def test_working_radius_filter_uses_provider_radius_and_pages_db_filtered_results(
+        self, client, db
+    ):
+        member = _member(db, "radius@example.com")
+        nearby = _provider(db, "Nearby Stable", maximum_working_radius_km="40")
+        outside = _provider(
+            db,
+            "Outside Stable",
+            latitude="31.000000",
+            longitude="-97.743100",
+            maximum_working_radius_km="10",
+        )
+        second_nearby = _provider(db, "Second Stable", maximum_working_radius_km="1")
+        missing_radius = _provider(db, "Missing Radius")
+        zero_radius = _provider(db, "Zero Radius", maximum_working_radius_km="0")
+        exact_boundary = _provider(
+            db,
+            "Equatorial Boundary",
+            provider_type=ProviderType.HOSPITAL,
+            latitude="31.267200",
+            longitude="-97.743100",
+            maximum_working_radius_km="111.20",
+        )
+        unusable_location = _provider(
+            db,
+            "Unusable Location",
+            latitude="91.000000",
+            longitude="0.000000",
+            maximum_working_radius_km="500",
+        )
+        _provider(
+            db,
+            "Inactive Radius Provider",
+            status=ProviderStatus.INACTIVE,
+            maximum_working_radius_km="40",
+        )
+        _provider(
+            db,
+            "Unpublished Radius Provider",
+            publication=PublicationStatus.UNPUBLISHED,
+            maximum_working_radius_km="40",
+        )
+        _provider(
+            db,
+            "Unstable Nearby",
+            maximum_working_radius_km="40",
+        ).visit_stability = VisitStability.NOT_STABLE_VISIT
+        db.add(
+            ProviderReview(provider_id=nearby.id, member_id=member.id, rating=5, comment="Great")
+        )
+        db.add(
+            ProviderReview(
+                provider_id=second_nearby.id, member_id=member.id, rating=2, comment="Okay"
+            )
+        )
+        db.commit()
+        headers = _headers(member)
+
+        for params in (
+            {"within_working_radius": "true"},
+            {"within_working_radius": "true", "latitude": 30.2672},
+        ):
+            assert client.get(MEMBER_BASE, headers=headers, params=params).status_code == 422
+
+        response = client.get(
+            MEMBER_BASE,
+            headers=headers,
+            params={
+                "within_working_radius": "true",
+                "latitude": 30.2672,
+                "longitude": -97.7431,
+                "page": 1,
+                "page_size": 1,
+                "provider_type": "CLINIC",
+                "minimum_rating": 4,
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["meta"]["total"] == 1
+        assert response.json()["meta"]["total_pages"] == 1
+        assert response.json()["data"][0]["id"] == str(nearby.id)
+        assert str(outside.id) not in {item["id"] for item in response.json()["data"]}
+        assert str(missing_radius.id) not in {item["id"] for item in response.json()["data"]}
+        assert str(zero_radius.id) not in {item["id"] for item in response.json()["data"]}
+
+        # The provider's configured radius, rather than a member-supplied
+        # radius, determines eligibility and is applied before pagination.
+        unfiltered = client.get(
+            MEMBER_BASE,
+            headers=headers,
+            params={
+                "within_working_radius": "true",
+                "latitude": 30.2672,
+                "longitude": -97.7431,
+                "page": 1,
+                "page_size": 1,
+            },
+        )
+        assert unfiltered.json()["meta"]["total"] == 3
+        assert unfiltered.json()["meta"]["total_pages"] == 3
+        assert unfiltered.json()["data"][0]["id"] == str(nearby.id)
+        second_page = client.get(
+            MEMBER_BASE,
+            headers=headers,
+            params={
+                "within_working_radius": "true",
+                "latitude": 30.2672,
+                "longitude": -97.7431,
+                "page": 2,
+                "page_size": 1,
+            },
+        )
+        assert second_page.json()["data"][0]["id"] == str(second_nearby.id)
+        third_page = client.get(
+            MEMBER_BASE,
+            headers=headers,
+            params={
+                "within_working_radius": "true",
+                "latitude": 30.2672,
+                "longitude": -97.7431,
+                "page": 3,
+                "page_size": 1,
+            },
+        )
+        assert third_page.json()["data"][0]["id"] == str(exact_boundary.id)
+        assert str(unusable_location.id) not in {
+            item["id"] for item in unfiltered.json()["data"]
+        }
 
     def test_directory_uses_selected_thumbnail_and_ordered_photo_fallback(
         self, client, db

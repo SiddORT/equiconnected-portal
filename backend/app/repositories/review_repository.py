@@ -9,7 +9,7 @@ from sqlalchemy import Float, case, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.enums import ProviderStatus, ProviderType, PublicationStatus
+from app.models.enums import ProviderStatus, ProviderType, PublicationStatus, VisitStability
 from app.models.provider import Provider, ProviderLocation, ProviderReview, ProviderSpecialization
 from app.models.user import User
 
@@ -36,6 +36,8 @@ class ReviewRepository:
             ProviderLocation.provider_id == Provider.id,
             ProviderLocation.latitude.is_not(None),
             ProviderLocation.longitude.is_not(None),
+            ProviderLocation.latitude.between(-90, 90),
+            ProviderLocation.longitude.between(-180, 180),
         )
         latitude = (
             select(ProviderLocation.latitude)
@@ -70,6 +72,8 @@ class ReviewRepository:
         page_size: int,
         latitude: float | None,
         longitude: float | None,
+        closest_first: bool = False,
+        within_working_radius: bool = False,
     ) -> tuple[list[Any], int]:
         totals = self._rating_totals()
         conditions = [
@@ -80,14 +84,6 @@ class ReviewRepository:
             conditions.append(Provider.provider_type == provider_type)
         if minimum_rating is not None:
             conditions.append(totals.c.average_rating >= minimum_rating)
-
-        count_stmt = (
-            select(func.count())
-            .select_from(Provider)
-            .outerjoin(totals, totals.c.provider_id == Provider.id)
-            .where(*conditions)
-        )
-        total = self._db.scalar(count_stmt) or 0
 
         distance = None
         if latitude is not None and longitude is not None:
@@ -111,6 +107,26 @@ class ReviewRepository:
                 ),
                 else_=None,
             ).label("distance_km")
+            if within_working_radius:
+                # A working-radius match is meaningful only for stable-visit
+                # providers with a configured radius.  Apply this predicate
+                # to both count and item statements so pagination is accurate.
+                conditions.extend(
+                    [
+                        Provider.visit_stability == VisitStability.STABLE_VISIT,
+                        Provider.maximum_working_radius_km.is_not(None),
+                        Provider.maximum_working_radius_km > 0,
+                        Provider.maximum_working_radius_km >= distance,
+                    ]
+                )
+
+        count_stmt = (
+            select(func.count())
+            .select_from(Provider)
+            .outerjoin(totals, totals.c.provider_id == Provider.id)
+            .where(*conditions)
+        )
+        total = self._db.scalar(count_stmt) or 0
 
         columns = [
             Provider,
@@ -133,7 +149,7 @@ class ReviewRepository:
                 ),
             )
         )
-        if distance is not None:
+        if distance is not None and closest_first:
             stmt = stmt.order_by(
                 distance.asc().nulls_last(),
                 totals.c.average_rating.desc().nulls_last(),

@@ -120,12 +120,13 @@ def list_member_providers(
     provider_type: ProviderType | None = Query(None),
     minimum_rating: float | None = Query(None, ge=1, le=5),
     closest_first: bool = Query(False),
+    within_working_radius: bool = Query(False),
     latitude: float | None = Query(None, ge=-90, le=90),
     longitude: float | None = Query(None, ge=-180, le=180),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=50),
 ) -> PaginatedResponse[MemberProviderListItem]:
-    if closest_first and (latitude is None or longitude is None):
+    if (closest_first or within_working_radius) and (latitude is None or longitude is None):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={
@@ -134,7 +135,10 @@ def list_member_providers(
             },
         )
     if not closest_first:
-        latitude = longitude = None
+        # The radius filter still needs coordinates; otherwise discard them only
+        # when neither distance feature is enabled.
+        if not within_working_radius:
+            latitude = longitude = None
     rows, total = svc.list_discoverable(
         provider_type=provider_type,
         minimum_rating=minimum_rating,
@@ -142,6 +146,8 @@ def list_member_providers(
         page_size=page_size,
         latitude=latitude,
         longitude=longitude,
+        closest_first=closest_first,
+        within_working_radius=within_working_radius,
     )
     return PaginatedResponse(
         data=[

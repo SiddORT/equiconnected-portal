@@ -61,9 +61,10 @@ export function MemberProviderDetailPage() {
 
   const fromCareNearYou = location.state?.fromCareNearYou === true;
   const back = fromCareNearYou ? '/#care-near-you' : `/providers${location.search}`;
+  const directoryState = fromCareNearYou ? undefined : { directoryCoordinates: location.state?.directoryCoordinates };
   const backLabel = fromCareNearYou ? 'Back to Care Near You' : 'Back to providers';
   if (loading) return <main className={styles.page}><div className={styles.loading} role="status"><LoadingSpinner /> <span>Loading provider…</span></div></main>;
-  if (!provider) return <main className={styles.page}><Alert variant="error">{notice?.text ?? 'Provider not found.'}</Alert><Link to={back} className={styles.profileLink}>{backLabel}</Link></main>;
+  if (!provider) return <main className={styles.page}><Alert variant="error">{notice?.text ?? 'Provider not found.'}</Alert><Link state={directoryState} to={back} className={styles.profileLink}>{backLabel}</Link></main>;
 
   const locationName = provider.location
     ? [provider.location.city, provider.location.state_province, provider.location.country].filter(Boolean).join(', ')
@@ -71,7 +72,7 @@ export function MemberProviderDetailPage() {
 
   return (
     <main className={styles.page}>
-      <Link to={back} className={styles.backLink}>← {backLabel}</Link>
+      <Link state={directoryState} to={back} className={styles.backLink}>← {backLabel}</Link>
       {notice && <Alert variant={notice.kind} onDismiss={() => setNotice(null)}>{notice.text}</Alert>}
       <header className={styles.detailHeader}>
         <div>

@@ -969,6 +969,7 @@ export interface MemberProviderListParams {
   closest_first?: boolean;
   latitude?: number;
   longitude?: number;
+  within_working_radius?: boolean;
   page?: number;
   page_size?: number;
 }
