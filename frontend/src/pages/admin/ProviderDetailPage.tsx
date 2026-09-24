@@ -477,11 +477,6 @@ export function ProviderDetailPage() {
                   description="Edit this provider to add title, experience, and biography."
                 />
               )}
-              {p.qualifications?.length > 0 && (
-                <dl className={styles.infoStrip}>
-                  <div><dt>Qualifications</dt><dd>{p.qualifications.map((q) => q.title).join(', ')}</dd></div>
-                </dl>
-              )}
             </CardBody>
           </Card>
         )}
@@ -499,7 +494,7 @@ export function ProviderDetailPage() {
           </CardBody>
         </Card>
 
-        {/* ── Qualifications & affiliations — doctors only ─────────────────── */}
+        {/* ── Qualifications — doctors only ────────────────────────────────── */}
         {p.provider_type === 'DOCTOR' && <DoctorProfessionalSections providerId={p.id} />}
 
         {/* ── Specializations — left ────────────────────────────────────────── */}

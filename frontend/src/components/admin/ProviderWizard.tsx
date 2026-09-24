@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Card } from '@/components/ui/Card';
 import styles from './ProviderWizard.module.css';
 
@@ -10,7 +10,7 @@ interface Step {
 export interface ReviewSection {
   title: string;
   step: number;
-  items: { label: string; value: string }[];
+  items: { label: string; value: ReactNode }[];
 }
 
 export function ProviderWizardHeader({

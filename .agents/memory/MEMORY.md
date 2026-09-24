@@ -30,3 +30,4 @@
 - [Public CTA height parity](public-cta-height-parity.md) — member invitation should match the final CTA's rendered height across viewport sizes, not just its CSS minimum.
 - [PostgreSQL public-schema backup restoration](postgres-public-schema-backups.md) — a fresh database already has public; schema-scoped dumps may recreate it, so test restores need an empty target.
 - [Wizard creation boundary](wizard-creation-boundary.md) — changing a navigation control into a submit control can let one browser interaction cross the review boundary.
+- [Frontend test concurrency](frontend-test-concurrency.md) — full-suite default worker parallelism can cause timing failures; verify with constrained workers.

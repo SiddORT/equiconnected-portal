@@ -55,6 +55,7 @@ import type {
   QualificationCreate,
 } from '@/types';
 import styles from './ProviderForm.module.css';
+import wizardStyles from './ProviderWizard.module.css';
 
 const PROVIDER_TYPE_OPTIONS = [
   { value: 'HOSPITAL', label: 'Hospital' },
@@ -1313,13 +1314,26 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               { label: 'Provider type', value: PROVIDER_TYPE_OPTIONS.find((option) => option.value === providerType)?.label ?? '' },
               { label: 'Name', value: name.trim() },
               { label: 'Website', value: website.trim() },
-              { label: 'Photo', value: photo?.name ?? (photoPreview ? 'Current photo' : 'No photo selected') },
+              { label: 'Photo', value: photoPreview
+                ? <img className={wizardStyles.reviewPhoto} src={photoPreview} alt={photo ? `Selected profile photo: ${photo.name}` : 'Current provider profile photo'} />
+                : 'No photo selected' },
               { label: 'Specializations', value: selectedSpecIds.map((id) => specializations.find((s) => s.id === id)?.name ?? initialData?.specializations.find((s) => s.id === id)?.name ?? id).join(', ') },
               { label: 'Languages', value: selectedLanguageIds.map((id) => languages.find((l) => l.id === id)?.name ?? initialData?.languages.find((l) => l.id === id)?.name ?? id).join(', ') },
             ] },
             ...(providerType === 'DOCTOR' ? [{ title: 'Professional details', step: 1, items: [
                 { label: 'Doctor / Vet', value: [firstName, lastName].filter(Boolean).join(' ') },
-                { label: 'Qualifications', value: qualifications.map((q) => q.title.trim()).filter(Boolean).join(', ') },
+                { label: 'Qualifications', value: qualifications.length ? (
+                  <ul className={wizardStyles.reviewQualifications}>
+                    {qualifications.map((q, i) => (
+                      <li key={q.id ?? i}>
+                        <strong>{q.title.trim()}</strong>
+                        {(q.institution?.trim() || q.year_obtained != null) && (
+                          <span>{[q.institution?.trim(), q.year_obtained].filter((value) => value != null && value !== '').join(' · ')}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : '—' },
             ] }] : []),
             { title: 'Services', step: 2, items: [
               { label: 'Stable visit', value: visitStability === 'STABLE_VISIT' ? 'Yes' : 'No' },

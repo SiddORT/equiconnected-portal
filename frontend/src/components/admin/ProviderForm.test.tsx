@@ -517,6 +517,48 @@ describe('ProviderForm visit stability', () => {
     expect(createProvider).toHaveBeenCalledTimes(1);
     expect(uploadProviderPhoto).toHaveBeenCalledTimes(2);
   });
+
+  it('previews a new photo on create review and keeps the empty photo state when none is selected', async () => {
+    const user = userEvent.setup();
+    render(<ProviderForm />);
+    await beginAdminWizard();
+    await finishClinicWizard(user);
+    expect(screen.getByText('No photo selected')).toBeTruthy();
+    expect(screen.queryByRole('img', { name: /profile photo/i })).toBeNull();
+    expect(createProvider).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Edit Basic details' }));
+    const objectUrl = vi.fn(() => 'blob:selected-photo');
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: objectUrl });
+    const file = new File(['image'], 'new-profile.png', { type: 'image/png' });
+    await user.upload(screen.getByLabelText(/Profile photo/), file);
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    const preview = screen.getByRole('img', { name: 'Selected profile photo: new-profile.png' }) as HTMLImageElement;
+    expect(preview.src).toContain('blob:selected-photo');
+    expect(createProvider).not.toHaveBeenCalled();
+  });
+
+  it('shows new doctor qualifications with complete and partial details before creation', async () => {
+    render(<ProviderForm />);
+    const user = await beginAdminWizard('DOCTOR');
+    await user.type(screen.getByLabelText('First name'), 'Amina');
+    await user.type(screen.getByLabelText('Last name'), 'Khan');
+    await user.click(screen.getByRole('button', { name: 'Add qualification' }));
+    await user.type(screen.getByLabelText('Title'), 'DVM');
+    await user.type(screen.getByLabelText('Institution'), 'Western College');
+    await user.type(screen.getByLabelText('Year'), '2018');
+    await user.click(screen.getByRole('button', { name: 'Add qualification' }));
+    await user.type(screen.getAllByLabelText('Title')[1], 'Fellowship');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await finishClinicWizard(user);
+    const list = screen.getByText('DVM').closest('ul')!;
+    expect(list.children).toHaveLength(2);
+    expect(list.children[0].textContent).toBe('DVMWestern College · 2018');
+    expect(list.children[1].textContent).toBe('Fellowship');
+    expect(createProvider).not.toHaveBeenCalled();
+  });
 });
 
 describe('ProviderForm edit wizard', () => {
@@ -549,6 +591,40 @@ describe('ProviderForm edit wizard', () => {
     expect((screen.getByLabelText('Emergency contact number') as HTMLInputElement).required).toBe(true);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByText('Emergency contact number is required.')).toBeTruthy();
+  });
+
+  it('shows the existing thumbnail, then previews the replacement on review without saving early', async () => {
+    const provider = existingProvider({ thumbnail_url: '/uploads/original.png' });
+    render(<ProviderForm initialData={provider} />);
+    const user = userEvent.setup();
+    await reachEditReview(user);
+    expect((screen.getByRole('img', { name: 'Current provider profile photo' }) as HTMLImageElement).getAttribute('src')).toBe('/uploads/original.png');
+    await user.click(screen.getByRole('button', { name: 'Edit Basic details' }));
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:replacement') });
+    await user.upload(screen.getByLabelText(/Profile photo/), new File(['photo'], 'replacement.webp', { type: 'image/webp' }));
+    await reachEditReview(user);
+    expect((screen.getByRole('img', { name: 'Selected profile photo: replacement.webp' }) as HTMLImageElement).src).toContain('blob:replacement');
+    expect(updateProvider).not.toHaveBeenCalled();
+    expect(uploadProviderPhoto).not.toHaveBeenCalled();
+  });
+
+  it('reviews multiple doctor qualifications with optional details separately', async () => {
+    const provider = existingProvider({
+      provider_type: 'DOCTOR',
+      qualifications: [
+        { id: 'q1', title: 'DVM', institution: 'Western College', year_obtained: 2017, description: null, display_order: 0 },
+        { id: 'q2', title: 'Fellowship', institution: null, year_obtained: 2022, description: null, display_order: 1 },
+        { id: 'q3', title: 'Certification', institution: 'Equine Institute', year_obtained: null, description: null, display_order: 2 },
+      ] as Provider['qualifications'],
+    });
+    render(<ProviderForm initialData={provider} />);
+    await reachEditReview(userEvent.setup(), true);
+    const list = screen.getByText('DVM').closest('ul')!;
+    expect(list.children).toHaveLength(3);
+    expect(list.children[0].textContent).toBe('DVMWestern College · 2017');
+    expect(list.children[1].textContent).toBe('Fellowship2022');
+    expect(list.children[2].textContent).toBe('CertificationEquine Institute');
+    expect(updateProvider).not.toHaveBeenCalled();
   });
 
   it('prepopulates steps and review, preserves Back/Edit changes, and saves only after confirmation', async () => {
