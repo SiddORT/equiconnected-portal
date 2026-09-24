@@ -26,3 +26,4 @@
 - [Why section natural flow](why-section-natural-flow.md) — keep Why EquiConnected unpinned; its card content must remain continuously visible in normal document flow.
 - [Provider postal lookup](provider-signup-postal-lookup.md) — signup and admin creation must offer explicit place choices and allow manual correction for ambiguous postal codes.
 - [Admin provider form compatibility](admin-provider-form-compatibility.md) — opt in to stricter create rules without invalidating older API clients or legacy provider edits.
+- [PostgreSQL public-schema backup restoration](postgres-public-schema-backups.md) — a fresh database already has public; schema-scoped dumps may recreate it, so test restores need an empty target.

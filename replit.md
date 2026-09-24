@@ -88,6 +88,57 @@ confirmation time. After a successful reset, sign in with a retained active admi
 If that administrator needs credential recovery, use the explicitly guarded
 bootstrap recovery command documented above.
 
+## Resetting development application data
+
+This is a **different, broader operator-only reset**. It clears every transient
+database table, including providers, invitations, applications, subscribers,
+sessions, audit/email history, and visit counters. It retains all roles,
+specializations, languages, system settings, the migration version, and only
+users whose primary **or assigned** role is admin (with only their admin role
+assignments). Admin passwords and account status are unchanged. Uploaded files
+are not removed. Never run on production/staging or from startup/deployment.
+
+The command requires the actual connected development database and schema.
+For the current development connection those are `heliumdb` and `public`; if
+they change, inspect the connection identity before supplying new names.
+Run from `backend/`:
+
+```bash
+# Inspect the exact per-table current/keep/delete scope; no changes.
+python scripts/reset_development_data.py --database heliumdb --schema public
+
+# Save a protected archive and manifest in a private, git-ignored directory.
+# First run: mkdir -m 700 -p .private-backups
+# This command
+# restores the archive into a disposable database and verifies its contents.
+python scripts/reset_development_data.py --database heliumdb --schema public \
+  --create-backup .private-backups/equiconnected-dev-before-reset.dump
+
+# Only after inspecting the preview and verified backup, confirm exactly:
+python scripts/reset_development_data.py --database heliumdb --schema public \
+  --backup .private-backups/equiconnected-dev-before-reset.dump \
+  --confirm RESET_DEVELOPMENT_DATA:heliumdb:public
+```
+
+The archive and its `.json` manifest contain sensitive application data or
+verification details; both are created with owner-only permissions. Move them
+to secure storage before clearing temporary files. The reset refuses missing
+or unexpected tables/FKs, external references, a changed preview, a mismatched
+backup, or zero active admins. It locks the schema's tables, rechecks the
+scope, deletes in FK order, verifies the preserved records and post-reset
+counts, then commits atomically. If it fails, it rolls back. A rerun needs a
+fresh backup of the current state. Backup verification compares full table
+contents and sequence state, not just row counts, before any deletion.
+
+To recover, restore the protected archive into a **separate empty database**
+first: `createdb equiconnected_recovery` followed by
+`pg_restore --exit-on-error --no-owner --no-acl --dbname equiconnected_recovery
+/path/to/equiconnected-dev-before-reset.dump`. Verify records there, then
+arrange a controlled replacement of development data; do not restore over
+the running app or production. After a successful reset, verify a retained
+administrator can sign in. The old non-admin-only command above remains
+available for narrower maintenance but does not clear the application data.
+
 ## Seeding demo data (development)
 
 ```bash
