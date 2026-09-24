@@ -428,6 +428,7 @@ export interface ProviderListItem {
   email: string | null;
   phone: string | null;
   visit_stability: VisitStability;
+  emergency_services_available: boolean;
   status: ProviderStatus;
   publication_status: PublicationStatus;
   created_at: string;
@@ -529,7 +530,7 @@ export type {
   SpecBrief,
 } from './doctor';
 
-export interface Provider extends ProviderListItem {
+export interface Provider extends Omit<ProviderListItem, 'emergency_services_available'> {
   first_name: string | null;
   last_name: string | null;
   doctor_profile: DoctorProfileInfo | null;
@@ -544,7 +545,7 @@ export interface Provider extends ProviderListItem {
   qualifications: import('./doctor').QualificationResponse[];
   maximum_working_radius_km: number | null;
   clinic_hospital_visit: boolean;
-  emergency_services_available: boolean;
+  emergency_services_available: boolean | null;
   emergency_contact_name: string | null;
   emergency_contact_number: string | null;
 }
@@ -731,6 +732,7 @@ export interface ProviderListParams {
   search?: string;
   provider_type?: ProviderType;
   visit_stability?: VisitStability;
+  emergency_services_available?: boolean;
   status?: ProviderStatus;
   publication_status?: PublicationStatus;
   page?: number;

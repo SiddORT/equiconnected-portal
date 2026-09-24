@@ -145,7 +145,7 @@
   transition: max-height 220ms ease;
 }
 .filterPanel--open {
-  max-height: 200px;
+  max-height: 300px;
 }
 
 .filterPanelInner {

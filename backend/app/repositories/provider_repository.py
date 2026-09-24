@@ -67,6 +67,7 @@ class ProviderRepository:
         search: str | None = None,
         provider_type: ProviderType | None = None,
         visit_stability: VisitStability | None = None,
+        emergency_services_available: bool | None = None,
         status: ProviderStatus | None = None,
         publication_status: PublicationStatus | None = None,
         page: int = 1,
@@ -81,6 +82,11 @@ class ProviderRepository:
             conditions.append(Provider.provider_type == provider_type)
         if visit_stability is not None:
             conditions.append(Provider.visit_stability == visit_stability)
+        if emergency_services_available is not None:
+            conditions.append(
+                func.coalesce(Provider.emergency_services_available, False)
+                == emergency_services_available
+            )
         if status is not None:
             conditions.append(Provider.status == status)
         if publication_status is not None:

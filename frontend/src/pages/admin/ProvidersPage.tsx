@@ -2,7 +2,7 @@
  * Admin Providers page — /admin/providers
  * Server-side search / filters / pagination via query params.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
@@ -53,6 +53,7 @@ export function ProvidersPage() {
     initialType && initialType in TYPE_LABELS ? initialType : 'all'
   );
   const [stabilityFilter, setStabilityFilter] = useState('all');
+  const [emergencyFilter, setEmergencyFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [publicationFilter, setPublicationFilter] = useState('all');
   const [page, setPage] = useState(1);
@@ -60,7 +61,6 @@ export function ProvidersPage() {
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const filterPanelRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     setLoadState('loading');
@@ -70,6 +70,7 @@ export function ProvidersPage() {
       if (search) params.search = search;
       if (typeFilter !== 'all') params.provider_type = typeFilter as ProviderType;
       if (stabilityFilter !== 'all') params.visit_stability = stabilityFilter as VisitStability;
+      if (emergencyFilter !== 'all') params.emergency_services_available = emergencyFilter === 'yes';
       if (statusFilter !== 'all') params.status = statusFilter as ProviderStatus;
       if (publicationFilter !== 'all') params.publication_status = publicationFilter as PublicationStatus;
 
@@ -87,7 +88,7 @@ export function ProvidersPage() {
       setErrorMessage(extractErrorMessage(err, 'Failed to load providers.'));
       setLoadState('error');
     }
-  }, [page, pageSize, search, typeFilter, stabilityFilter, statusFilter, publicationFilter]);
+  }, [page, pageSize, search, typeFilter, stabilityFilter, emergencyFilter, statusFilter, publicationFilter]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -152,6 +153,16 @@ export function ProvidersPage() {
       render: (p) => (
         <Badge variant={p.visit_stability === 'STABLE_VISIT' ? 'success' : 'warning'} size="sm">
           {p.visit_stability === 'STABLE_VISIT' ? 'Yes' : 'No'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'emergency_services_available',
+      label: 'Emergency services',
+      width: '150px',
+      render: (p) => (
+        <Badge variant={p.emergency_services_available ? 'success' : 'neutral'} size="sm">
+          {p.emergency_services_available ? 'Yes' : 'No'}
         </Badge>
       ),
     },
@@ -264,6 +275,7 @@ export function ProvidersPage() {
     Boolean(search) ||
     typeFilter !== 'all' ||
     stabilityFilter !== 'all' ||
+    emergencyFilter !== 'all' ||
     statusFilter !== 'all' ||
     publicationFilter !== 'all';
 
@@ -276,6 +288,12 @@ export function ProvidersPage() {
   if (stabilityFilter !== 'all') {
     const label = stabilityFilter === 'STABLE_VISIT' ? 'Yes' : 'No';
     activeChips.push({ label: `Stable visit: ${label}`, onClear: () => { setStabilityFilter('all'); setPage(1); } });
+  }
+  if (emergencyFilter !== 'all') {
+    activeChips.push({
+      label: `Emergency services: ${emergencyFilter === 'yes' ? 'Yes' : 'No'}`,
+      onClear: () => { setEmergencyFilter('all'); setPage(1); },
+    });
   }
   if (statusFilter !== 'all') {
     const label = statusFilter === 'ACTIVE' ? 'Active' : 'Inactive';
@@ -307,6 +325,16 @@ export function ProvidersPage() {
       ],
       value: stabilityFilter,
       onChange: resetAnd(setStabilityFilter),
+    },
+    {
+      label: 'Emergency services',
+      options: [
+        { value: 'all', label: 'All' },
+        { value: 'yes', label: 'Yes' },
+        { value: 'no', label: 'No' },
+      ],
+      value: emergencyFilter,
+      onChange: resetAnd(setEmergencyFilter),
     },
     {
       label: 'Status',
@@ -388,11 +416,10 @@ export function ProvidersPage() {
 
         {/* ── Collapsible filter panel ─────────────────────────────────────── */}
         <div
-          ref={filterPanelRef}
           className={`${styles.filterPanel} ${filtersOpen ? styles['filterPanel--open'] : ''}`}
           aria-hidden={!filtersOpen}
         >
-          <div className={styles.filterPanelInner}>
+          {filtersOpen && <div className={styles.filterPanelInner}>
             <FilterBar groups={filterGroups} />
             {hasFilters && (
               <button
@@ -401,15 +428,17 @@ export function ProvidersPage() {
                 onClick={() => {
                   setTypeFilter('all');
                   setStabilityFilter('all');
+                  setEmergencyFilter('all');
                   setStatusFilter('all');
                   setPublicationFilter('all');
+                  setSearch('');
                   setPage(1);
                 }}
               >
                 Clear all filters
               </button>
             )}
-          </div>
+          </div>}
         </div>
 
         {/* ── Data table ──────────────────────────────────────────────────── */}

@@ -352,6 +352,7 @@ class ProviderListItem(BaseModel):
     email: str | None
     phone: str | None
     visit_stability: VisitStability
+    emergency_services_available: bool
     status: ProviderStatus
     publication_status: PublicationStatus
     created_at: datetime
@@ -391,6 +392,7 @@ class ProviderListItem(BaseModel):
             email=primary_email or provider.email,
             phone=primary_phone or provider.phone,
             visit_stability=provider.visit_stability,
+            emergency_services_available=provider.emergency_services_available is True,
             status=provider.status,
             publication_status=provider.publication_status,
             created_at=provider.created_at,

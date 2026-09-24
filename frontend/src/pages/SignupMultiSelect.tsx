@@ -16,11 +16,10 @@ interface Props {
   required?: boolean;
   error?: string;
   loading?: boolean;
-  tone?: 'dark' | 'light';
 }
 
 export function SignupMultiSelect({
-  label, options, selectedIds, onChange, disabled, required, error, loading, tone = 'dark',
+  label, options, selectedIds, onChange, disabled, required, error, loading,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -50,7 +49,7 @@ export function SignupMultiSelect({
   }
 
   return (
-    <div className={`${styles.field} ${tone === 'light' ? styles.light : ''}`} ref={root}>
+    <div className={styles.field} ref={root}>
       <span className={styles.label} id={`${id}-label`}>{label}{required ? ' *' : ''}</span>
       <button
         className={styles.trigger}

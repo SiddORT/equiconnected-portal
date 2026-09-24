@@ -18,8 +18,10 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import update
 
 from app.core.security import hash_password
+from app.models.provider import Provider
 from app.repositories.user_repository import UserRepository
 
 
@@ -266,6 +268,58 @@ class TestList:
         data = resp.json()
         assert data["meta"]["total"] == 1
         assert data["data"][0]["name"] == "Alpha Clinic"
+
+    def test_emergency_filter_includes_legacy_null_as_no(self, client: TestClient, admin_token: str, db):
+        yes = _create_provider(client, admin_token, "Emergency Clinic", provider_type="CLINIC",
+                               emergency_services_available=True)
+        no = _create_provider(client, admin_token, "Ordinary Clinic", provider_type="CLINIC",
+                              emergency_services_available=False)
+        legacy = _create_provider(client, admin_token, "Legacy Clinic", provider_type="CLINIC")
+        db.execute(update(Provider).where(Provider.id == uuid.UUID(legacy["id"]))
+                   .values(emergency_services_available=None))
+        db.commit()
+
+        all_items = client.get(BASE, headers=_auth(admin_token)).json()["data"]
+        assert {item["name"]: item["emergency_services_available"] for item in all_items} == {
+            "Emergency Clinic": True, "Ordinary Clinic": False, "Legacy Clinic": False,
+        }
+        yes_result = client.get(BASE, params={"emergency_services_available": "true"},
+                                headers=_auth(admin_token)).json()
+        assert [item["id"] for item in yes_result["data"]] == [yes["id"]]
+        assert yes_result["meta"]["total"] == 1
+        no_result = client.get(BASE, params={"emergency_services_available": "false"},
+                               headers=_auth(admin_token)).json()
+        assert {item["id"] for item in no_result["data"]} == {no["id"], legacy["id"]}
+        assert no_result["meta"]["total"] == 2
+        assert no_result["meta"]["total_pages"] == 1
+
+    def test_emergency_filter_combines_with_other_filters_and_pages(
+        self, client: TestClient, admin_token: str,
+    ):
+        for name in ("Alpha Clinic", "Bravo Clinic", "Charlie Clinic"):
+            _create_provider(client, admin_token, name, provider_type="CLINIC",
+                             emergency_services_available=True)
+        _create_provider(client, admin_token, "Delta Clinic", provider_type="CLINIC",
+                         emergency_services_available=False)
+        _create_provider(client, admin_token, "Alpha Hospital", provider_type="HOSPITAL",
+                         emergency_services_available=True)
+        params = {"emergency_services_available": "true", "provider_type": "CLINIC",
+                  "visit_stability": "STABLE_VISIT", "status": "ACTIVE",
+                  "publication_status": "UNPUBLISHED", "search": "clinic", "page_size": 2}
+        first = client.get(BASE, params={**params, "page": 1}, headers=_auth(admin_token)).json()
+        second = client.get(BASE, params={**params, "page": 2}, headers=_auth(admin_token)).json()
+        assert first["meta"]["total"] == second["meta"]["total"] == 3
+        assert first["meta"]["total_pages"] == second["meta"]["total_pages"] == 2
+        assert [item["name"] for item in first["data"]] == ["Alpha Clinic", "Bravo Clinic"]
+        assert [item["name"] for item in second["data"]] == ["Charlie Clinic"]
+        narrowed = client.get(BASE, params={**params, "search": "alpha"},
+                              headers=_auth(admin_token)).json()
+        assert narrowed["meta"]["total"] == narrowed["meta"]["total_pages"] == 1
+        assert [item["name"] for item in narrowed["data"]] == ["Alpha Clinic"]
+
+    def test_invalid_emergency_filter_returns_422(self, client: TestClient, admin_token: str):
+        assert client.get(BASE, params={"emergency_services_available": "maybe"},
+                          headers=_auth(admin_token)).status_code == 422
 
     def test_invalid_filter_enum_returns_422(self, client: TestClient, admin_token: str):
         resp = client.get(BASE, params={"provider_type": "NOPE"}, headers=_auth(admin_token))

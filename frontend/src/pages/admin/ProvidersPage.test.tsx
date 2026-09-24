@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import * as providersApi from '@/api/providers';
@@ -39,6 +39,7 @@ describe('ProvidersPage', () => {
           email: null,
           phone: null,
           visit_stability: 'STABLE_VISIT',
+          emergency_services_available: true,
           status: 'ACTIVE',
           publication_status: 'PUBLISHED',
           created_at: '2026-01-01T00:00:00Z',
@@ -54,6 +55,7 @@ describe('ProvidersPage', () => {
           email: null,
           phone: null,
           visit_stability: 'STABLE_VISIT',
+          emergency_services_available: false,
           status: 'ACTIVE',
           publication_status: 'UNPUBLISHED',
           created_at: '2026-01-01T00:00:00Z',
@@ -74,6 +76,13 @@ describe('ProvidersPage', () => {
       screen.getByRole('link', { name: 'View 2 reviews for Reviewed Clinic' }).getAttribute('href')
     ).toBe('/admin/reviews?provider_id=provider-reviewed');
     expect(screen.getByText('No Reviews Doctor')).toBeTruthy();
+    const reviewedRow = screen.getByText('Reviewed Clinic').closest<HTMLElement>('[role="row"]')!;
+    const emptyRow = screen.getByText('No Reviews Doctor').closest<HTMLElement>('[role="row"]')!;
+    expect(within(reviewedRow).getByText('Clinic')).toBeTruthy();
+    expect(within(within(reviewedRow).getAllByRole('cell')[3]).getByText('Yes')).toBeTruthy();
+    expect(within(emptyRow).getByText('Doctor')).toBeTruthy();
+    expect(within(within(emptyRow).getAllByRole('cell')[3]).getByText('No')).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Emergency services' })).toBeTruthy();
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
   });
 
@@ -86,6 +95,7 @@ describe('ProvidersPage', () => {
         email: null,
         phone: null,
         visit_stability: 'STABLE_VISIT',
+        emergency_services_available: false,
         status: 'ACTIVE',
         publication_status: 'PUBLISHED',
         created_at: '2026-01-01T00:00:00Z',
@@ -115,5 +125,53 @@ describe('ProvidersPage', () => {
 
     await user.click(within(menu).getByRole('menuitem', { name: 'Unpublish' }));
     expect(providersApi.updateProviderPublication).toHaveBeenCalledWith('provider-1', 'UNPUBLISHED');
+  });
+
+  it('sends emergency filters with other filters and resets pagination on selection, chip removal and Clear all', async () => {
+    const user = userEvent.setup();
+    vi.mocked(providersApi.listProviders).mockImplementation(async (params) => ({
+      data: [{
+        id: 'p1', provider_type: 'CLINIC', name: 'Clinic One', email: null, phone: null,
+        visit_stability: 'STABLE_VISIT', emergency_services_available: true,
+        status: 'ACTIVE', publication_status: 'PUBLISHED',
+        created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+        thumbnail_url: null, average_rating: null, review_count: 0,
+      }],
+      meta: { page: params?.page ?? 1, page_size: 10, total: 21, total_pages: 3 },
+    }));
+    render(<MemoryRouter><ProvidersPage /></MemoryRouter>);
+    await screen.findByText('Clinic One');
+    await user.click(screen.getByRole('button', { name: 'Next →' }));
+    await waitFor(() => expect(providersApi.listProviders).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 2 })
+    ));
+
+    await user.click(screen.getByRole('button', { name: /Filters/ }));
+    await user.click(within(screen.getByRole('group', { name: 'Provider type' })).getByRole('button', { name: 'Clinics' }));
+    await user.click(within(screen.getByRole('group', { name: 'Emergency services' })).getByRole('button', { name: 'Yes' }));
+    await waitFor(() => expect(providersApi.listProviders).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, provider_type: 'CLINIC', emergency_services_available: true })
+    ));
+    await user.type(screen.getByRole('searchbox', { name: 'Search by name…' }), 'Clinic');
+    await waitFor(() => expect(providersApi.listProviders).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, search: 'Clinic', provider_type: 'CLINIC', emergency_services_available: true })
+    ));
+    await user.click(within(screen.getByRole('group', { name: 'Emergency services' })).getByRole('button', { name: 'No' }));
+    await waitFor(() => expect(providersApi.listProviders).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, provider_type: 'CLINIC', emergency_services_available: false })
+    ));
+
+    await user.click(screen.getByRole('button', { name: /Filters/ }));
+    expect(screen.queryByRole('group', { name: 'Emergency services' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: /Emergency services: No/ }));
+    await waitFor(() => expect(providersApi.listProviders).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ emergency_services_available: expect.anything() })
+    ));
+    await user.click(screen.getByRole('button', { name: /Filters/ }));
+    await user.click(within(screen.getByRole('group', { name: 'Emergency services' })).getByRole('button', { name: 'Yes' }));
+    await user.click(screen.getByRole('button', { name: 'Clear all filters' }));
+    await waitFor(() => expect(providersApi.listProviders).toHaveBeenLastCalledWith(
+      { page: 1, page_size: 10 }
+    ));
   });
 });
