@@ -1,7 +1,7 @@
 /**
  * Public landing page for the EquiConnected portal.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
 import { recordPublicVisit, registerSubscriber } from '@/api/public';
@@ -39,6 +39,8 @@ function storePublicTheme(theme: PublicTheme) {
 
 export function PublicPage() {
   const pageRef = useRef<HTMLDivElement>(null);
+  const memberInviteRef = useRef<HTMLElement>(null);
+  const finalCtaRef = useRef<HTMLElement>(null);
   const { settings, isLoading: settingsLoading, error: settingsError } = useTimeSettings();
   const [email, setEmail] = useState('');
   const [registrationType, setRegistrationType] = useState<SubscriberRegistrationType | ''>('');
@@ -55,6 +57,32 @@ export function PublicPage() {
   useEffect(() => {
     storePublicTheme(theme);
   }, [theme]);
+
+  useLayoutEffect(() => {
+    const member = memberInviteRef.current;
+    const reference = finalCtaRef.current;
+    if (!member || !reference) return;
+
+    const matchHeight = () => {
+      const height = reference.getBoundingClientRect().height;
+      if (height > 0) member.style.minHeight = `${height}px`;
+    };
+    matchHeight();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', matchHeight);
+      return () => {
+        window.removeEventListener('resize', matchHeight);
+        member.style.minHeight = '';
+      };
+    }
+    const observer = new ResizeObserver(matchHeight);
+    observer.observe(reference);
+    return () => {
+      observer.disconnect();
+      member.style.minHeight = '';
+    };
+  }, []);
 
   useEffect(() => {
     // Wait for the shared settings so the client-side once-per-day key agrees
@@ -334,7 +362,7 @@ export function PublicPage() {
           </div>
         </section>
 
-        <section id="member-join" className={styles.memberInvite} aria-labelledby="member-invite-heading">
+        <section id="member-join" ref={memberInviteRef} className={styles.memberInvite} aria-labelledby="member-invite-heading">
           <div className={styles.memberInviteInner}>
             <div className={styles.memberInviteCopy}>
               <p className={styles.memberInviteEyebrow}>For horse owners <span aria-hidden="true">/</span> EquiConnected</p>
@@ -351,7 +379,7 @@ export function PublicPage() {
         <HowItWorksScroll />
         <CareNearYou theme={theme} />
 
-        <section id="get-started" className={styles.finalCta} aria-labelledby="final-cta-heading" data-parallax-trigger data-scroll-reveal>
+        <section id="get-started" ref={finalCtaRef} className={styles.finalCta} aria-labelledby="final-cta-heading" data-parallax-trigger data-scroll-reveal>
           <div className={styles.finalCtaCopy} data-scroll-reveal>
             <p className={styles.sectionEyebrow}><span aria-hidden="true" />Keep moving forward</p>
             <h2 id="final-cta-heading">Your healthcare network starts here.</h2>
