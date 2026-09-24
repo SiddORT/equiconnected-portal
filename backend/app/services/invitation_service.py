@@ -144,10 +144,10 @@ class InvitationService:
         )
 
     def _url(self, token: str) -> str:
-        return f"{get_settings().PUBLIC_APP_URL.rstrip('/')}/provider/invitations/{token}"
+        return get_settings().public_link(f"/provider/invitations/{token}")
 
     def _portal_setup_url(self, token: str) -> str:
-        return f"{get_settings().PUBLIC_APP_URL.rstrip('/')}/provider/setup-password?token={token}"
+        return get_settings().public_link(f"/provider/setup-password?token={token}")
 
     @staticmethod
     def _expires_at(sent_at: datetime) -> datetime:

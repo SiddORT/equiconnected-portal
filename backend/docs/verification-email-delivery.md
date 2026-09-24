@@ -10,11 +10,24 @@ workflow logs do not contain the SMTP stage or a failed request trace, so **the
 cause of those two failures cannot be determined retrospectively**. No live
 SMTP call or email to an unintended recipient was made for this diagnosis.
 
-The development runtime also has the default `PUBLIC_APP_URL` of
-`http://localhost:5000`; that is a verification-link destination mismatch for
-emails sent from a remotely accessed app, independent of SMTP handoff. Check
-the deployed environment's public app URL separately before shipping; the
-development configuration does not establish production configuration.
+The development runtime originally used the default `PUBLIC_APP_URL` of
+`http://localhost:5000`, which produced links inaccessible to remote visitors.
+The development environment now sets `PUBLIC_APP_URL` to the HTTPS frontend
+preview origin. If the preview domain changes, update the development
+environment variable as well; localhost remains the default only for a local
+non-deployed run.
+
+At the time of this check the project had **no active published deployment**,
+so there was no verified production URL to configure or test. After publishing,
+retrieve the live primary URL from the deployment details and set
+`PUBLIC_APP_URL` in the **production** environment to that exact HTTPS frontend
+origin (no path, query, or trailing token). Republish for the setting to take
+effect, then check the frontend routes `/verify-email`,
+`/provider/invitations/<token>`, and `/provider/setup-password?token=<token>`
+using synthetic tokens only. Do not trigger an email to test the destination.
+The backend now refuses to start when a deployed runtime (or staging/production
+environment) has a localhost or non-HTTPS `PUBLIC_APP_URL`; this guard also
+applies if `ENVIRONMENT` was left as `development` in a deployment.
 
 Future delivery attempts record only allow-listed categories: connection,
 TLS negotiation, authentication, sender rejection, recipient rejection,

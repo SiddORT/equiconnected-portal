@@ -15,6 +15,9 @@ DEBUG = "false"
 ENVIRONMENT = "development"
 REFRESH_TOKEN_EXPIRE_DAYS = "7"
 
+[userenv.development]
+PUBLIC_APP_URL = "https://5f3f19d0-f60a-41e9-b2ff-9d685c044dc2-00-3c15f6nbpkpfs-p34opsyu.sisko.replit.dev"
+
 [workflows]
 runButton = "Project"
 

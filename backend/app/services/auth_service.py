@@ -319,7 +319,7 @@ class AuthService:
                 logger.error("verification.delivery_log_unavailable")
                 self._db.rollback()
                 return False
-            url = f"{get_settings().PUBLIC_APP_URL.rstrip('/')}/verify-email?token={quote(raw_token, safe='')}"
+            url = get_settings().public_link(f"/verify-email?token={quote(raw_token, safe='')}")
             try:
                 self._email.send_verification_email(user.email, url, expires_at)
             except Exception as exc:

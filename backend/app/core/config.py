@@ -2,10 +2,13 @@
 Application configuration — all values come from environment variables.
 Never hard-code secrets or credentials here.
 """
+import ipaddress
+import os
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlsplit
 
-from pydantic import AnyHttpUrl, field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -67,6 +70,40 @@ class Settings(BaseSettings):
         "&format=jsonv2&addressdetails=1&limit=1"
     )
     POSTAL_LOOKUP_TIMEOUT_SECONDS: float = 3.0
+
+    @model_validator(mode="after")
+    def check_public_app_url(self) -> "Settings":
+        """Do not allow emailed links to point at a local server in a deployment."""
+        url = urlsplit(self.PUBLIC_APP_URL)
+        if (
+            url.scheme not in ("http", "https")
+            or not url.hostname
+            or url.username is not None
+            or url.password is not None
+            or url.path not in ("", "/")
+            or url.query
+            or url.fragment
+        ):
+            raise ValueError("PUBLIC_APP_URL must be a frontend HTTP(S) origin without a path or credentials")
+        try:
+            _ = url.port  # Reject malformed port values.
+        except ValueError as exc:
+            raise ValueError("PUBLIC_APP_URL has an invalid port") from exc
+
+        deployed = os.getenv("REPLIT_DEPLOYMENT") == "1"
+        if deployed or self.ENVIRONMENT in ("staging", "production"):
+            host = url.hostname.lower()
+            try:
+                local_ip = ipaddress.ip_address(host).is_loopback or ipaddress.ip_address(host).is_unspecified
+            except ValueError:
+                local_ip = False
+            if url.scheme != "https" or host == "localhost" or host.endswith(".localhost") or local_ip:
+                raise ValueError("PUBLIC_APP_URL must be a public HTTPS frontend URL in deployed environments")
+        return self
+
+    def public_link(self, path: str) -> str:
+        """Build a frontend link from the validated public origin."""
+        return f"{self.PUBLIC_APP_URL.rstrip('/')}/{path.lstrip('/')}"
 
     @property
     def resolved_email_from(self) -> str:

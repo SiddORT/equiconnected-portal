@@ -17,6 +17,7 @@ from app.models.email_delivery_log import EmailDeliveryLog
 from app.models.enums import EmailPurpose
 from app.models.role import Role
 from app.core.security import create_access_token
+from app.core.config import get_settings
 from app.repositories.user_repository import UserRepository
 from app.services.email_service import EmailService
 from app.services.email_service import EmailDeliveryError
@@ -103,6 +104,9 @@ class TestPublicRegistration:
         assert generic.status_code == unknown.status_code == 200
         assert generic.json() == unknown.json()
         assert len(sent) == 1
+        assert f"{urlparse(sent[0]).scheme}://{urlparse(sent[0]).netloc}" == (
+            get_settings().PUBLIC_APP_URL.rstrip("/")
+        )
         assert client.post(f"{BASE}/resend-verification", json={"email": "amina@example.com"}).status_code == 200
         assert len(sent) == 1
         raw = parse_qs(urlparse(sent[0]).query)["token"][0]
