@@ -18,11 +18,13 @@ export function ProviderWizardHeader({
   current,
   onSelect,
   locked = false,
+  mode = 'add',
 }: {
   steps: Step[];
   current: number;
   onSelect: (step: number) => void;
   locked?: boolean;
+  mode?: 'add' | 'edit';
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const activeStep = useRef<HTMLLIElement>(null);
@@ -35,7 +37,7 @@ export function ProviderWizardHeader({
     <div className={styles.header}>
       <div className={styles.intro}>
         <div>
-          <p className={styles.eyebrow}>ADD PROVIDER · STEP {current + 1} OF {steps.length}</p>
+          <p className={styles.eyebrow}>{mode === 'edit' ? 'EDIT PROVIDER' : 'ADD PROVIDER'} · STEP {current + 1} OF {steps.length}</p>
           <h2 className={styles.title} ref={heading} tabIndex={-1}>{steps[current].title}</h2>
           <p className={styles.description}>{steps[current].description}</p>
         </div>

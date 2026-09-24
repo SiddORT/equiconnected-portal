@@ -4,7 +4,12 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { ProviderForm, type InvitationFormConfig } from './ProviderForm';
 import type { InvitationDraftProvider, Provider } from '@/types';
-import { createProvider, getProvider, uploadProviderPhoto } from '@/api/providers';
+import {
+  addProviderEmail, addProviderPhone, addProviderSpecialization, createProvider,
+  getProvider, removeProviderEmail, removeProviderPhone, removeProviderSpecialization,
+  updateProvider, updateProviderLocation, updateProviderPublication, updateProviderStatus,
+  uploadProviderPhoto,
+} from '@/api/providers';
 import { lookupProviderPostalCode } from '@/api/auth';
 import { listSpecializations } from '@/api/specializations';
 
@@ -62,6 +67,35 @@ const invitationProvider: InvitationDraftProvider = {
   emails: [],
   photos: [],
 };
+
+function existingProvider(overrides: Partial<Provider> = {}): Provider {
+  return {
+    id: 'provider-1', provider_type: 'CLINIC', name: 'Cedar Ridge',
+    description: null, website: null, email: null, phone: null,
+    visit_stability: 'NOT_STABLE_VISIT', status: 'ACTIVE', publication_status: 'UNPUBLISHED',
+    specializations: [{ id: 'spec-1', name: 'Old specialty', is_active: false }],
+    languages: [{ id: 'lang-en', name: 'English', code: 'en', is_active: true }],
+    locations: [{ id: 'location-1', provider_id: 'provider-1', name: 'Main branch',
+      address_line_1: '12 Main St', address_line_2: null, city: 'Calgary',
+      state_province: 'Alberta', country: 'Canada', postal_code: 'T2P 1J9',
+      latitude: null, longitude: null, is_primary: true, created_at: '', updated_at: '' }],
+    emails: [{ id: 'email-1', provider_id: 'provider-1', email: 'old@example.com', is_primary: true, created_at: '', updated_at: '' }],
+    phones: [{ id: 'phone-1', provider_id: 'provider-1', country_code: '+1', number: '4035550100', is_primary: true, created_at: '', updated_at: '' }],
+    photos: [], thumbnail_url: null, doctor_profile: null, qualifications: [],
+    maximum_working_radius_km: null, clinic_hospital_visit: true,
+    emergency_services_available: true, emergency_contact_name: 'Dispatch',
+    emergency_contact_number: '+1 403 555 9999',
+    ...overrides,
+  } as Provider;
+}
+
+async function reachEditReview(user: ReturnType<typeof userEvent.setup>, doctor = false) {
+  await user.click(screen.getByRole('button', { name: 'Continue' }));
+  if (doctor) await user.click(screen.getByRole('button', { name: 'Continue' }));
+  await user.click(screen.getByRole('button', { name: 'Continue' }));
+  await user.click(screen.getByRole('button', { name: 'Continue' }));
+  expect(screen.getByRole('heading', { name: 'Review & save' })).toBeTruthy();
+}
 
 function invitationConfig(
   overrides: Partial<InvitationDraftProvider> = {},
@@ -208,7 +242,7 @@ describe('ProviderForm visit stability', () => {
     expect(screen.getByText('Pincode / postal code is required.')).toBeTruthy();
   });
 
-  it('shows only the emergency contact number beside the emergency checkbox and requires it', async () => {
+  it('shows emergency contact fields beside the emergency checkbox and requires the number', async () => {
     render(<ProviderForm />);
     const user = await beginAdminWizard();
     expect(screen.queryByLabelText('Emergency contact name')).toBeNull();
@@ -217,7 +251,7 @@ describe('ProviderForm visit stability', () => {
     const number = screen.getByLabelText('Emergency contact number') as HTMLInputElement;
     expect(emergency.closest('div')?.contains(number)).toBe(true);
     expect(number.required).toBe(true);
-    expect(screen.queryByLabelText('Emergency contact name')).toBeNull();
+    expect(screen.getByLabelText('Emergency contact name')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByText('Emergency contact number is required.')).toBeTruthy();
     await user.type(number, '+91 9988776655');
@@ -406,5 +440,176 @@ describe('ProviderForm visit stability', () => {
     await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(saved));
     expect(createProvider).toHaveBeenCalledTimes(1);
     expect(uploadProviderPhoto).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('ProviderForm edit wizard', () => {
+  it('prepopulates steps and review, preserves Back/Edit changes, and saves only after confirmation', async () => {
+    const provider = existingProvider();
+    const onSuccess = vi.fn();
+    vi.mocked(updateProvider).mockResolvedValue(provider);
+    vi.mocked(getProvider).mockResolvedValue(provider);
+    render(<ProviderForm initialData={provider} onSuccess={onSuccess} />);
+    const user = userEvent.setup();
+    expect(screen.getByText(/EDIT PROVIDER · STEP 1 OF 4/)).toBeTruthy();
+    expect((screen.getByLabelText('Provider / practice name') as HTMLInputElement).value).toBe('Cedar Ridge');
+    expect(await screen.findByRole('button', { name: 'Remove Old specialty' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect((screen.getByRole('checkbox', { name: /Clinic \/ hospital visits/ }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText('Emergency contact name') as HTMLInputElement).value).toBe('Dispatch');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect((screen.getByLabelText('Location name') as HTMLInputElement).value).toBe('Main branch');
+    expect((screen.getByLabelText('Pincode / postal code') as HTMLInputElement).value).toBe('T2P 1J9');
+    expect((screen.getByRole('textbox', { name: 'Email address 1' }) as HTMLInputElement).value).toBe('old@example.com');
+    await user.clear(screen.getByRole('textbox', { name: 'Email address 1' }));
+    await user.type(screen.getByRole('textbox', { name: 'Email address 1' }), 'new@example.com');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(updateProvider).not.toHaveBeenCalled();
+    expect(screen.getByText('new@example.com')).toBeTruthy();
+    expect(screen.getByText('Main branch')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect((screen.getByRole('textbox', { name: 'Email address 1' }) as HTMLInputElement).value).toBe('new@example.com');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Edit Services' }));
+    expect((screen.getByLabelText('Emergency contact name') as HTMLInputElement).value).toBe('Dispatch');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    const form = screen.getByRole('button', { name: 'Save changes' }).closest('form')!;
+    fireEvent.submit(form);
+    expect(updateProvider).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+    expect(updateProvider).toHaveBeenCalledTimes(1);
+    expect(removeProviderEmail).toHaveBeenCalledWith('provider-1', 'email-1');
+    expect(addProviderEmail).toHaveBeenCalledWith('provider-1', expect.objectContaining({ email: 'new@example.com' }));
+    expect(updateProviderLocation).not.toHaveBeenCalled();
+  });
+
+  it('allows unrelated changes to legacy incomplete records without adding missing required fields', async () => {
+    const provider = existingProvider({
+      provider_type: 'DOCTOR', doctor_profile: null, emails: [], locations: [],
+      specializations: [], languages: [], phones: [], emergency_services_available: false,
+    });
+    vi.mocked(updateProvider).mockResolvedValue(provider);
+    vi.mocked(getProvider).mockResolvedValue(provider);
+    const user = userEvent.setup();
+    render(<ProviderForm initialData={provider} />);
+    await user.clear(screen.getByLabelText('Provider / practice name'));
+    await user.type(screen.getByLabelText('Provider / practice name'), 'Updated practice');
+    await reachEditReview(user, true);
+    expect(screen.getByText('Updated practice')).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateProvider).toHaveBeenCalledTimes(1));
+    expect(updateProvider).toHaveBeenCalledWith('provider-1', expect.objectContaining({ name: 'Updated practice' }));
+    expect(updateProviderLocation).not.toHaveBeenCalled();
+  });
+
+  it('explains newly missing doctor names on the professional step', async () => {
+    const provider = existingProvider({
+      provider_type: 'DOCTOR',
+      doctor_profile: {
+        first_name: 'Amina', last_name: 'Khan', professional_title: null,
+        biography: null, years_experience: null, experience_description: null,
+      },
+    });
+    const user = userEvent.setup();
+    render(<ProviderForm initialData={provider} />);
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.clear(screen.getByLabelText('First name'));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('First name is required.')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Professional details' })).toBeTruthy();
+    expect(updateProvider).not.toHaveBeenCalled();
+  });
+
+  it('keeps type transitions coherent and sends changed relationships, services and location', async () => {
+    const provider = existingProvider();
+    vi.mocked(updateProvider).mockResolvedValue(provider);
+    vi.mocked(getProvider).mockResolvedValue(provider);
+    const user = userEvent.setup();
+    render(<ProviderForm initialData={provider} />);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Provider type' }), 'DOCTOR');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByRole('heading', { name: 'Professional details' })).toBeTruthy();
+    await user.type(screen.getByLabelText('First name'), 'Amina');
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Provider type' }), 'HOSPITAL');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByRole('heading', { name: 'Services' })).toBeTruthy();
+    await user.click(screen.getByRole('checkbox', { name: /Clinic \/ hospital visits/ }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'INACTIVE');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Publication status' }), 'PUBLISHED');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.clear(screen.getByLabelText('Location name'));
+    await user.type(screen.getByLabelText('Location name'), 'West wing');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateProviderLocation).toHaveBeenCalled());
+    expect(updateProvider).toHaveBeenCalledWith('provider-1', expect.objectContaining({
+      provider_type: 'HOSPITAL', clinic_hospital_visit: false,
+    }));
+    expect(updateProviderStatus).toHaveBeenCalledWith('provider-1', 'INACTIVE');
+    expect(updateProviderPublication).toHaveBeenCalledWith('provider-1', 'PUBLISHED');
+    expect(updateProviderLocation).toHaveBeenCalledWith('provider-1', 'location-1', expect.objectContaining({ name: 'West wing' }));
+    expect(addProviderPhone).not.toHaveBeenCalled();
+    expect(removeProviderPhone).not.toHaveBeenCalled();
+    expect(addProviderSpecialization).not.toHaveBeenCalled();
+    expect(removeProviderSpecialization).not.toHaveBeenCalled();
+  });
+
+  it('saves edited selectors, phone, postal correction and photo on the existing provider', async () => {
+    const provider = existingProvider();
+    vi.mocked(listSpecializations).mockResolvedValueOnce({
+      data: [{ id: 'spec-2', name: 'Equine care', is_active: true }],
+      meta: { page: 1, page_size: 100, total: 1, total_pages: 1 },
+    } as never);
+    vi.mocked(lookupProviderPostalCode).mockResolvedValueOnce({
+      status: 'match', candidates: [{
+        postal_code: '110001', country: 'India', country_code: 'IN',
+        state_province: 'Delhi', city: 'New Delhi', display_name: 'New Delhi, Delhi, India',
+      }],
+    });
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:edit-photo') });
+    vi.mocked(updateProvider).mockResolvedValue(provider);
+    vi.mocked(getProvider).mockResolvedValue(provider);
+    vi.mocked(uploadProviderPhoto).mockResolvedValue({ id: 'photo-2' } as never);
+    const user = userEvent.setup();
+    const onSuccess = vi.fn();
+    render(<ProviderForm initialData={provider} onSuccess={onSuccess} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Specializations' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Remove Old specialty' }));
+    await user.click(screen.getByRole('button', { name: 'Specializations' }));
+    await user.click(screen.getByRole('option', { name: 'Equine care' }));
+    await user.click(screen.getByRole('button', { name: 'Remove English' }));
+    await user.upload(screen.getByLabelText(/Profile photo/), new File(['image'], 'new.png', { type: 'image/png' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.clear(screen.getByRole('textbox', { name: 'Phone number 1' }));
+    await user.type(screen.getByRole('textbox', { name: 'Phone number 1' }), '4035550200');
+    const postal = screen.getByLabelText('Pincode / postal code');
+    await user.clear(postal);
+    await user.type(postal, '110001');
+    await user.click(await screen.findByRole('button', { name: 'New Delhi, Delhi, India' }));
+    await user.click(screen.getByRole('button', { name: 'City' }));
+    await user.type(screen.getByRole('combobox', { name: 'Search city' }), 'Delhi');
+    await user.click(screen.getByRole('option', { name: 'New Delhi' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(updateProvider).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+    expect(updateProvider).toHaveBeenCalledWith('provider-1', expect.objectContaining({ language_ids: [] }));
+    expect(removeProviderSpecialization).toHaveBeenCalledWith('provider-1', 'spec-1');
+    expect(addProviderSpecialization).toHaveBeenCalledWith('provider-1', 'spec-2');
+    expect(removeProviderPhone).toHaveBeenCalledWith('provider-1', 'phone-1');
+    expect(addProviderPhone).toHaveBeenCalledWith('provider-1', expect.objectContaining({ number: '4035550200' }));
+    expect(updateProviderLocation).toHaveBeenCalledWith('provider-1', 'location-1', expect.objectContaining({
+      postal_code: '110001', city: 'New Delhi',
+    }));
+    expect(uploadProviderPhoto).toHaveBeenCalledWith('provider-1', expect.any(File), expect.objectContaining({ is_thumbnail: true }));
   });
 });

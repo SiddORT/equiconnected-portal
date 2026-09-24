@@ -1315,6 +1315,57 @@ class TestAdminProviderForm:
         assert updated.status_code == 200, updated.text
         assert updated.json()["name"] == "Legacy Updated"
 
+    def test_legacy_emergency_provider_can_change_unrelated_details_without_a_number(
+        self, client: TestClient, admin_token: str, db
+    ):
+        legacy = _create_provider(client, admin_token, "Legacy Emergency", provider_type="CLINIC")
+        db.execute(
+            update(Provider).where(Provider.id == uuid.UUID(legacy["id"]))
+            .values(emergency_services_available=True, emergency_contact_number=None)
+        )
+        db.commit()
+        updated = client.patch(
+            f"{BASE}/{legacy['id']}",
+            json={"admin_form_version": 2, "name": "Legacy Emergency Updated"},
+            headers=_auth(admin_token),
+        )
+        assert updated.status_code == 200, updated.text
+        assert updated.json()["name"] == "Legacy Emergency Updated"
+        assert updated.json()["emergency_services_available"] is True
+
+        changed = client.patch(
+            f"{BASE}/{legacy['id']}",
+            json={"admin_form_version": 2, "emergency_contact_number": ""},
+            headers=_auth(admin_token),
+        )
+        assert changed.status_code == 422, changed.text
+
+    def test_edit_can_retain_inactive_assigned_language(
+        self, client: TestClient, admin_token: str
+    ):
+        language = client.post(
+            "/api/v1/admin/languages", headers=_auth(admin_token),
+            json={"name": "Legacy dialect", "code": "lg"},
+        )
+        assert language.status_code == 201, language.text
+        language_id = language.json()["id"]
+        created = client.post(
+            BASE, json=self.body(language_ids=[language_id]), headers=_auth(admin_token),
+        )
+        assert created.status_code == 201, created.text
+        inactive = client.patch(
+            f"/api/v1/admin/languages/{language_id}",
+            json={"is_active": False}, headers=_auth(admin_token),
+        )
+        assert inactive.status_code == 200, inactive.text
+        saved = client.patch(
+            f"{BASE}/{created.json()['id']}",
+            json={"admin_form_version": 2, "name": "Retained dialect", "language_ids": [language_id]},
+            headers=_auth(admin_token),
+        )
+        assert saved.status_code == 200, saved.text
+        assert [item["id"] for item in saved.json()["languages"]] == [language_id]
+
     def test_rejected_qualification_update_keeps_saved_details(
         self, client: TestClient, admin_token: str
     ):

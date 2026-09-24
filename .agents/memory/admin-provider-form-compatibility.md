@@ -9,8 +9,8 @@ New Admin Add Provider submissions explicitly opt in to stricter form rules. Exi
 
 **How to apply:** When expanding provider validation, preserve a compatible path for old clients and legacy edits. Keep cross-field validation on fields actively changed by the revised form, and avoid silently clearing legacy values during unrelated updates.
 
-The guided step-by-step experience applies to new admin provider creation, not existing-provider edits or public invitation drafts.
+The guided step-by-step experience applies to both admin provider creation and editing, not public invitation drafts.
 
-**Why:** Edits can involve incomplete legacy records and benefit from direct access to all fields, while invitation drafts have a separate save/submit workflow. Introducing wizard gates into those paths would change their established behavior.
+**Why:** Administrators need consistent controls and an explicit review before either persistence action. Edits can involve incomplete legacy records, so their wizard gates cannot inherit creation-only required fields. Invitation drafts have a separate save/submit workflow.
 
-**How to apply:** Keep wizard navigation and per-step validation scoped to fresh admin creation unless those other journeys are explicitly redesigned.
+**How to apply:** Apply wizard navigation to both admin modes, with mode-specific validation, and leave invitation drafts outside the wizard.

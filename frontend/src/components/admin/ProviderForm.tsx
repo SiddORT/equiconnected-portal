@@ -141,10 +141,11 @@ interface ProviderFormProps {
 export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: ProviderFormProps) {
   const isEdit = Boolean(initialData);
   const inv = invitation;
-  const wizard = !inv && !isEdit;
+  const wizard = !inv;
   const [wizardStep, setWizardStep] = useState(0);
   const [reviewReady, setReviewReady] = useState(false);
   const submissionInProgress = useRef(false);
+  const submissionCompleted = useRef(false);
   const visitStabilityOptions = inv
     ? INVITATION_VISIT_STABILITY_OPTIONS
     : VISIT_STABILITY_OPTIONS;
@@ -295,7 +296,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const [postalCandidates, setPostalCandidates] = useState<PostalCandidate[]>([]);
   const [postalMessage, setPostalMessage] = useState('');
   const [postalLoading, setPostalLoading] = useState(false);
-  const [selectedPostalCode, setSelectedPostalCode] = useState<string | null>(null);
+  const [selectedPostalCode, setSelectedPostalCode] = useState<string | null>(initialData?.locations.length ? (initialData.locations.find((l) => l.is_primary) ?? initialData.locations[0]).postal_code ?? null : null);
 
   const [specializations, setSpecializations] = useState<Specialization[]>([]);
   const [specsError, setSpecsError] = useState<string | null>(null);
@@ -327,7 +328,10 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             pageNum += 1;
           }
         }
-        if (!cancelled) setSpecializations(all);
+        if (!cancelled) setSpecializations(initialData
+          ? [...all, ...initialData.specializations.filter((saved) => !all.some((item) => item.id === saved.id))
+            .map((saved) => ({ ...saved, description: null, created_at: '', updated_at: '' }))]
+          : all);
       } catch (err) {
         if (!cancelled) setSpecsError(extractErrorMessage(err, 'Failed to load specializations.'));
       }
@@ -349,7 +353,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           if (page >= result.meta.total_pages) break;
           page += 1;
         }
-        if (!cancelled) setLanguages(all);
+        if (!cancelled) setLanguages(initialData
+          ? [...all, ...initialData.languages.filter((saved) => !all.some((item) => item.id === saved.id))]
+          : all);
       } catch (err) {
         if (!cancelled) setLanguageError(extractErrorMessage(err, 'Failed to load languages.'));
       }
@@ -424,8 +430,12 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     if (!providerType) errors.provider_type = 'Provider type is required.';
     if (!name.trim()) errors.name = 'Name is required.';
     if (!visitStability) errors.visit_stability = 'Visit Stable is required.';
-    if (wizard && providerType === 'DOCTOR' && !firstName.trim()) errors.first_name = 'First name is required.';
-    if (wizard && providerType === 'DOCTOR' && !lastName.trim()) errors.last_name = 'Last name is required.';
+    if (wizard && providerType === 'DOCTOR' && !firstName.trim() &&
+      (!isEdit || initialData?.provider_type !== 'DOCTOR' || Boolean(initialData.doctor_profile?.first_name)))
+      errors.first_name = 'First name is required.';
+    if (wizard && providerType === 'DOCTOR' && !lastName.trim() &&
+      (!isEdit || initialData?.provider_type !== 'DOCTOR' || Boolean(initialData.doctor_profile?.last_name)))
+      errors.last_name = 'Last name is required.';
     if (providerType === 'DOCTOR' && yearsExperience.trim()) {
       const n = Number(yearsExperience);
       if (!Number.isInteger(n) || n < 0 || n > 100) {
@@ -435,8 +445,13 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     if (!inv && !isEdit && !location.country.trim()) errors.country = 'Country is required.';
     if (!inv && !isEdit && !location.city.trim()) errors.city = 'City is required.';
     if (!inv && !isEdit && !location.address_line_1.trim()) errors.address_line_1 = 'Address is required.';
-    if (wizard && !location.postal_code.trim()) errors.postal_code = 'Pincode / postal code is required.';
-    if (location.address_line_1.trim() && !location.city.trim()) {
+    if (wizard && !isEdit && !location.postal_code.trim()) errors.postal_code = 'Pincode / postal code is required.';
+    const originalLocation = initialData?.locations.find((l) => l.is_primary) ?? initialData?.locations[0];
+    const locationChanged = !isEdit || (originalLocation
+      ? (Object.keys(location) as (keyof LocationValues)[]).some((key) =>
+          location[key].trim() !== String(originalLocation[key] ?? '').trim())
+      : Object.values(location).some((value) => value.trim()));
+    if (locationChanged && (location.address_line_1.trim() || Object.values(location).some((value) => value.trim())) && !location.city.trim()) {
       errors.city = 'City is required when an address is provided.';
     }
     // New admin providers require a primary email. Legacy edit records may
@@ -451,14 +466,19 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     if (!inv && visitStability === 'NOT_STABLE_VISIT' && maximumRadius.trim()) {
       errors.maximum_working_radius_km = 'Radius is only available for stable visits.';
     }
-    if (!inv && emergencyServices && !emergencyNumber.trim()) errors.emergency_contact_number = 'Emergency contact number is required.';
+    if (!inv && emergencyServices && !emergencyNumber.trim() &&
+      !(isEdit && initialData?.emergency_services_available && !initialData.emergency_contact_number))
+      errors.emergency_contact_number = 'Emergency contact number is required.';
     if (!inv && providerType === 'DOCTOR') {
       qualifications.forEach((q, i) => {
         if (!q.title.trim()) errors[`qualification_${i}`] = 'Qualification title is required.';
       });
     }
-    if (location.city.trim() && !location.address_line_1.trim()) {
+    if (locationChanged && Object.values(location).some((value) => value.trim()) && !location.address_line_1.trim()) {
       errors.address_line_1 = 'Address line 1 is required when a city is provided.';
+    }
+    if (locationChanged && isEdit && originalLocation && !location.address_line_1.trim()) {
+      errors.address_line_1 = 'Address line 1 cannot be removed from an existing location.';
     }
     // Contact rows are optional, but existing rows must be non-empty.
     const phErrors: Record<number, string> = {};
@@ -562,6 +582,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       const refreshed = await getProvider(savedProviderId);
       setSavedProviderId(null);
       setPhoto(null);
+      submissionCompleted.current = true;
       onSuccess?.(refreshed);
     } catch (err) {
       setPhotoError(`Provider saved, but the photo could not be uploaded. Please retry or edit provider ${savedProviderId}: ${extractErrorMessage(err, 'upload failed')}`);
@@ -580,7 +601,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   }
 
   async function submitProvider() {
-    if (submissionInProgress.current || (wizard && (wizardStep !== WIZARD_STEPS.length - 1 || !reviewReady))) return;
+    if (submissionInProgress.current || submissionCompleted.current || (wizard && (wizardStep !== WIZARD_STEPS.length - 1 || !reviewReady))) return;
     setApiError(null);
     if (!validate()) return;
 
@@ -623,11 +644,18 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             }),
           first_name: providerType === 'DOCTOR' ? firstName.trim() || null : null,
           last_name: providerType === 'DOCTOR' ? lastName.trim() || null : null,
-          language_ids: selectedLanguageIds,
+          ...(selectedLanguageIds.length !== initialData.languages.length ||
+            selectedLanguageIds.some((id) => !initialData.languages.some((language) => language.id === id))
+            ? { language_ids: selectedLanguageIds } : {}),
           clinic_hospital_visit: clinicHospitalVisit,
-          emergency_services_available: emergencyServices,
-          emergency_contact_name: emergencyServices ? emergencyName.trim() || null : null,
-          emergency_contact_number: emergencyServices ? emergencyNumber.trim() || null : null,
+          ...(emergencyServices !== Boolean(initialData.emergency_services_available) ||
+            emergencyName !== (initialData.emergency_contact_name ?? '') ||
+            emergencyNumber !== (initialData.emergency_contact_number ?? '')
+            ? {
+                emergency_services_available: emergencyServices,
+                emergency_contact_name: emergencyServices ? emergencyName.trim() || null : null,
+                emergency_contact_number: emergencyServices ? emergencyNumber.trim() || null : null,
+              } : {}),
           ...(providerType === 'DOCTOR'
             ? {
                 professional_title: professionalTitle.trim() || null,
@@ -724,10 +752,13 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         // Location: PATCH existing primary, or POST a new one when filled.
         const locationFilled =
           location.address_line_1.trim() && location.city.trim();
-        if (locationFilled) {
-          const primaryLoc =
-            initialData.locations.find((l) => l.is_primary) ??
-            initialData.locations[0];
+        const originalLocation =
+          initialData.locations.find((l) => l.is_primary) ?? initialData.locations[0];
+        const locationChanged = originalLocation
+          ? (Object.keys(location) as (keyof LocationValues)[]).some((key) =>
+              location[key].trim() !== String(originalLocation[key] ?? '').trim())
+          : Object.values(location).some((value) => value.trim());
+        if (locationFilled && locationChanged) {
           const locBody = {
             name: location.name.trim() || null,
             address_line_1: location.address_line_1.trim(),
@@ -740,23 +771,13 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             longitude: location.longitude.trim() ? parseFloat(location.longitude) : null,
             is_primary: true,
           };
-          if (primaryLoc) {
-            await updateProviderLocation(initialData.id, primaryLoc.id, locBody);
+          if (originalLocation) {
+            await updateProviderLocation(initialData.id, originalLocation.id, locBody);
           } else {
             await createProviderLocation(initialData.id, locBody);
           }
         }
 
-        if (
-          toAdd.length || toRemove.length ||
-          phonesToAdd.length || phonesToRemove.length ||
-          emailsToAdd.length || emailsToRemove.length ||
-          status !== initialData.status ||
-          publication !== initialData.publication_status ||
-          locationFilled
-        ) {
-          saved = await getProvider(initialData.id);
-        }
         // Re-read after relationship/qualification updates so the detail view
         // receives the same shape as a freshly loaded provider.
         saved = await getProvider(initialData.id);
@@ -836,6 +857,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         }
       }
       setSavedProviderId(null);
+      submissionCompleted.current = true;
       onSuccess?.(saved);
     } catch (err) {
       setApiError(extractErrorMessage(err, 'Failed to save provider. Please try again.'));
@@ -851,10 +873,13 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     <form onSubmit={handleSubmit} noValidate className={styles.form}>
       {wizard && (
         <ProviderWizardHeader
-          steps={stepOrder.map((index) => WIZARD_STEPS[index])}
+          steps={stepOrder.map((index) => index === 4 && isEdit
+            ? { title: 'Review & save', description: 'Check everything before saving your changes.' }
+            : WIZARD_STEPS[index])}
+          mode={isEdit ? 'edit' : 'add'}
           current={wizardPosition}
           onSelect={(index) => setWizardStep(stepOrder[index])}
-          locked={Boolean(savedProviderId)}
+          locked={Boolean(savedProviderId) || submitting}
         />
       )}
       {(apiError || photoError || errs._form) && (
@@ -991,8 +1016,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               Professional info <span className={styles.optionalTag}>— optional</span>
             </h3>
             <div className={styles.grid}>
-              <Input label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} error={errs.first_name} required />
-              <Input label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} error={errs.last_name} required />
+              <Input label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} error={errs.first_name} required={!isEdit} />
+              <Input label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} error={errs.last_name} required={!isEdit} />
               <Input
                 label="Professional title"
                 placeholder="e.g. Consultant Cardiologist"
@@ -1149,8 +1174,15 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                     <span><strong>Emergency services available</strong><small>Add a number people can call for emergency care.</small></span>
                   </label>
                   {emergencyServices && <Input label="Emergency contact number" type="tel" value={emergencyNumber}
-                    onChange={(e) => setEmergencyNumber(e.target.value)} error={errs.emergency_contact_number} required />}
+                    onChange={(e) => setEmergencyNumber(e.target.value)} error={errs.emergency_contact_number}
+                    required={!isEdit || !initialData?.emergency_services_available || Boolean(initialData.emergency_contact_number)} />}
                 </div>
+                <label className={styles.serviceChoice}>
+                  <input type="checkbox" checked={clinicHospitalVisit} onChange={(e) => setClinicHospitalVisit(e.target.checked)} />
+                  <span><strong>Clinic / hospital visits</strong><small>Offer appointments at a clinic or hospital.</small></span>
+                </label>
+                {emergencyServices && <Input label="Emergency contact name" value={emergencyName}
+                  onChange={(e) => setEmergencyName(e.target.value)} />}
               </>
             ) : (
               <>
@@ -1198,7 +1230,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             Provider location {isEdit && <span className={styles.optionalTag}>— existing records may be incomplete</span>}
           </h3>
           <div className={styles.grid}>
-            {!wizard && <Input
+            {!inv && <Input
               label="Location name"
               placeholder="e.g. Main Branch, Ward 3…"
               value={location.name}
@@ -1225,7 +1257,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                   value={location.postal_code}
                   onChange={(e) => updatePostalCode(e.target.value)}
                   error={errs.postal_code}
-                  required
+                  required={!isEdit}
                 />
                 {postalLoading && <p className={styles.hint} role="status">Looking up locations…</p>}
                 {!postalLoading && postalMessage && <p className={styles.hint} role="status">{postalMessage}</p>}
@@ -1287,9 +1319,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               { label: 'Provider type', value: PROVIDER_TYPE_OPTIONS.find((option) => option.value === providerType)?.label ?? '' },
               { label: 'Name', value: name.trim() },
               { label: 'Website', value: website.trim() },
-              { label: 'Photo', value: photo?.name ?? 'No photo selected' },
-              { label: 'Specializations', value: specializations.filter((s) => selectedSpecIds.includes(s.id)).map((s) => s.name).join(', ') },
-              { label: 'Languages', value: languages.filter((l) => selectedLanguageIds.includes(l.id)).map((l) => l.name).join(', ') },
+              { label: 'Photo', value: photo?.name ?? (photoPreview ? 'Current photo' : 'No photo selected') },
+              { label: 'Specializations', value: selectedSpecIds.map((id) => specializations.find((s) => s.id === id)?.name ?? initialData?.specializations.find((s) => s.id === id)?.name ?? id).join(', ') },
+              { label: 'Languages', value: selectedLanguageIds.map((id) => languages.find((l) => l.id === id)?.name ?? initialData?.languages.find((l) => l.id === id)?.name ?? id).join(', ') },
             ] },
             ...(providerType === 'DOCTOR' ? [{ title: 'Professional details', step: 1, items: [
                 { label: 'Doctor / Vet', value: [firstName, lastName].filter(Boolean).join(' ') },
@@ -1298,7 +1330,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             { title: 'Services', step: 2, items: [
               { label: 'Stable visit', value: visitStability === 'STABLE_VISIT' ? 'Yes' : 'No' },
               { label: 'Working radius', value: visitStability === 'STABLE_VISIT' ? `${maximumRadius} km` : 'Not applicable' },
+              { label: 'Clinic / hospital visits', value: clinicHospitalVisit ? 'Yes' : 'No' },
               { label: 'Emergency services', value: emergencyServices ? 'Yes' : 'No' },
+              ...(emergencyServices ? [{ label: 'Emergency contact name', value: emergencyName }] : []),
               ...(emergencyServices ? [{ label: 'Emergency contact number', value: emergencyNumber }] : []),
               { label: 'Status', value: status },
               { label: 'Publication', value: publication },
@@ -1306,6 +1340,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             { title: 'Contact & location', step: 3, items: [
               { label: 'Email', value: emailEntries.map((e) => e.email.trim()).filter(Boolean).join(', ') },
               { label: 'Phone', value: phoneEntries.map((p) => `${p.country_code} ${p.number.trim()}`).join(', ') },
+              { label: 'Location name', value: location.name },
               { label: 'Address', value: [location.address_line_1, location.city, location.state_province, location.country].filter(Boolean).join(', ') },
               { label: 'Pincode / postal code', value: location.postal_code },
             ] },
@@ -1323,8 +1358,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             {wizardStep < WIZARD_STEPS.length - 1 ? (
               <Button key="continue" type="button" variant="primary" onClick={nextWizardStep}>Continue</Button>
             ) : (
-              <Button key="create" type="button" variant="primary" onClick={savedProviderId ? retryPhotoUpload : submitProvider}
-                disabled={!savedProviderId && !reviewReady} loading={submitting}>{savedProviderId ? 'Retry photo upload' : 'Create provider'}</Button>
+              <Button key="confirm" type="button" variant="primary" onClick={savedProviderId ? retryPhotoUpload : submitProvider}
+                disabled={!savedProviderId && !reviewReady} loading={submitting}>{savedProviderId ? 'Retry photo upload' : isEdit ? 'Save changes' : 'Create provider'}</Button>
             )}
           </>
         ) : inv ? (

@@ -212,14 +212,17 @@ class ProviderService:
             update_fields["maximum_working_radius_km"] = None
         emergency = update_fields.get("emergency_services_available", provider.emergency_services_available)
         number = update_fields.get("emergency_contact_number", provider.emergency_contact_number)
-        if admin_form_version == 2 and emergency and not (number or "").strip():
+        if admin_form_version == 2 and emergency and not (number or "").strip() and (
+            "emergency_services_available" in update_fields or "emergency_contact_number" in update_fields
+        ):
             raise ValueError("emergency contact number is required")
-        if admin_form_version == 2 and emergency is False:
+        if admin_form_version == 2 and emergency is False and "emergency_services_available" in update_fields:
             update_fields["emergency_contact_name"] = None
             update_fields["emergency_contact_number"] = None
+        existing_language_ids = {row.language_id for row in provider.provider_languages}
         for language_id in language_ids or []:
             language = self._repo.get_language(language_id)
-            if language is None or not language.is_active:
+            if language is None or (not language.is_active and language_id not in existing_language_ids):
                 raise ValueError(f"Language not found or inactive: {language_id}")
         changes = [
             {"field": key, "before": getattr(provider, key), "after": value}
