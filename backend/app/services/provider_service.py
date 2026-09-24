@@ -123,6 +123,9 @@ class ProviderService:
         phones: list[dict] | None = None,
         emails: list[dict] | None = None,
         doctor_profile: dict | None = None,
+        language_ids: list[UUID] | None = None,
+        qualifications: list[dict] | None = None,
+        admin_form_version: int | None = None,
         audit_context: AuditContext | None = None,
     ) -> Provider:
         # Validate specialization IDs before touching the DB rows.
@@ -130,6 +133,10 @@ class ProviderService:
             spec = self._repo.get_specialization(spec_id)
             if spec is None or not spec.is_active:
                 raise SpecializationNotFoundError(str(spec_id))
+        for language_id in language_ids or []:
+            language = self._repo.get_language(language_id)
+            if language is None or not language.is_active:
+                raise ValueError(f"Language not found or inactive: {language_id}")
 
         try:
             provider = self._repo.create(**core_fields)
@@ -153,6 +160,10 @@ class ProviderService:
                         email_fields["is_primary"] = False
                     seen_primary_email = True
                 self._repo.add_email(provider.id, **email_fields)
+            if language_ids is not None:
+                self._repo.replace_languages(provider.id, language_ids)
+            if provider.provider_type == ProviderType.DOCTOR and qualifications is not None:
+                self._repo.replace_qualifications(provider.id, qualifications)
             # Doctor-only professional profile — never applied to other types.
             if (
                 provider.provider_type == ProviderType.DOCTOR
@@ -179,9 +190,36 @@ class ProviderService:
 
     def update(
         self, id: UUID, *, update_fields: dict, doctor_profile: dict | None = None,
+        language_ids: list[UUID] | None = None, qualifications: list[dict] | None = None,
+        admin_form_version: int | None = None,
         audit_context: AuditContext | None = None,
     ) -> Provider:
         provider = self.get(id)
+        effective_stability = update_fields.get("visit_stability", provider.visit_stability)
+        radius = update_fields.get("maximum_working_radius_km", provider.maximum_working_radius_km)
+        stability_changed = (
+            "visit_stability" in update_fields
+            and update_fields["visit_stability"] != provider.visit_stability
+        )
+        radius_changed = "maximum_working_radius_km" in update_fields
+        if admin_form_version == 2 and effective_stability == VisitStability.STABLE_VISIT and (
+            radius is None or float(radius) <= 0
+        ) and (stability_changed or radius_changed or provider.maximum_working_radius_km is not None):
+            raise ValueError("stable visits require a positive radius")
+        if admin_form_version == 2 and effective_stability == VisitStability.NOT_STABLE_VISIT:
+            update_fields["maximum_working_radius_km"] = None
+        emergency = update_fields.get("emergency_services_available", provider.emergency_services_available)
+        name = update_fields.get("emergency_contact_name", provider.emergency_contact_name)
+        number = update_fields.get("emergency_contact_number", provider.emergency_contact_number)
+        if admin_form_version == 2 and emergency and not (name and number):
+            raise ValueError("emergency contact name and number are required")
+        if admin_form_version == 2 and emergency is False:
+            update_fields["emergency_contact_name"] = None
+            update_fields["emergency_contact_number"] = None
+        for language_id in language_ids or []:
+            language = self._repo.get_language(language_id)
+            if language is None or not language.is_active:
+                raise ValueError(f"Language not found or inactive: {language_id}")
         changes = [
             {"field": key, "before": getattr(provider, key), "after": value}
             for key, value in update_fields.items()
@@ -203,6 +241,10 @@ class ProviderService:
                     }
                     for key, value in doctor_profile.items()
                 )
+        if language_ids is not None:
+            self._repo.replace_languages(provider.id, language_ids)
+        if qualifications is not None and provider.provider_type == ProviderType.DOCTOR:
+            self._repo.replace_qualifications(provider.id, qualifications)
         if changes:
             self._record(
                 "provider.updated", provider, f"Updated provider “{provider.name}”.",

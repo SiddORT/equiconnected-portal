@@ -503,6 +503,8 @@ export interface ProviderEmailCreate {
 }
 
 export interface DoctorProfileInfo {
+  first_name?: string | null;
+  last_name?: string | null;
   professional_title: string | null;
   biography: string | null;
   years_experience: number | null;
@@ -528,6 +530,8 @@ export type {
 } from './doctor';
 
 export interface Provider extends ProviderListItem {
+  first_name: string | null;
+  last_name: string | null;
   doctor_profile: DoctorProfileInfo | null;
   description: string | null;
   website: string | null;
@@ -536,6 +540,13 @@ export interface Provider extends ProviderListItem {
   photos: ProviderPhoto[];
   phones: ProviderPhone[];
   emails: ProviderEmail[];
+  languages: Language[];
+  qualifications: import('./doctor').QualificationResponse[];
+  maximum_working_radius_km: number | null;
+  clinic_hospital_visit: boolean;
+  emergency_services_available: boolean;
+  emergency_contact_name: string | null;
+  emergency_contact_number: string | null;
 }
 
 export interface ProviderPortalVisibleReview {
@@ -646,6 +657,8 @@ export interface ProviderLocationCreate {
 export type ProviderLocationUpdate = Partial<ProviderLocationCreate>;
 
 export interface ProviderCreate {
+  /** Versioned admin form contract; omitted by invitation payloads. */
+  admin_form_version?: 2;
   provider_type: ProviderType;
   name: string;
   visit_stability: VisitStability;
@@ -663,9 +676,20 @@ export interface ProviderCreate {
   biography?: string | null;
   years_experience?: number | null;
   experience_description?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  language_ids?: string[];
+  maximum_working_radius_km?: number | null;
+  clinic_hospital_visit?: boolean;
+  emergency_services_available?: boolean;
+  emergency_contact_name?: string | null;
+  emergency_contact_number?: string | null;
+  qualifications?: import('./doctor').QualificationCreate[];
 }
 
 export interface ProviderUpdate {
+  /** Versioned admin form contract; omitted by invitation payloads. */
+  admin_form_version?: 2;
   provider_type?: ProviderType;
   name?: string;
   description?: string | null;
@@ -677,6 +701,15 @@ export interface ProviderUpdate {
   biography?: string | null;
   years_experience?: number | null;
   experience_description?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  language_ids?: string[];
+  maximum_working_radius_km?: number | null;
+  clinic_hospital_visit?: boolean;
+  emergency_services_available?: boolean;
+  emergency_contact_name?: string | null;
+  emergency_contact_number?: string | null;
+  qualifications?: Array<import('./doctor').QualificationCreate & { id?: string }>;
 }
 
 export interface ProviderPhotoCreate {

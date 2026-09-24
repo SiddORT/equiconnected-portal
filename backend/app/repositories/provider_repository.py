@@ -2,6 +2,8 @@
 ProviderRepository — data-access layer for healthcare providers and their
 locations, photos, and specialization assignments.
 """
+from __future__ import annotations
+
 from uuid import UUID
 
 from sqlalchemy import Float, func, select
@@ -13,7 +15,8 @@ from app.models.enums import (
     PublicationStatus,
     VisitStability,
 )
-from app.models.doctor import DoctorProfile
+from app.models.doctor import DoctorProfile, DoctorQualification
+from app.models.language import Language, ProviderLanguage
 from app.models.provider import (
     Provider,
     ProviderEmail,
@@ -45,6 +48,8 @@ class ProviderRepository:
                 selectinload(Provider.provider_specializations).selectinload(
                     ProviderSpecialization.specialization
                 ),
+                selectinload(Provider.qualifications),
+                selectinload(Provider.provider_languages).selectinload(ProviderLanguage.language),
             )
         )
 
@@ -154,6 +159,47 @@ class ProviderRepository:
                 setattr(profile, key, value)
         self._db.flush()
         return profile
+
+    def replace_qualifications(self, provider_id: UUID, records: list[dict]) -> None:
+        existing = {
+            row.id: row for row in self._db.query(DoctorQualification).filter(
+                DoctorQualification.provider_id == provider_id
+            ).all()
+        }
+        keep = set()
+        for fields in records:
+            row_id = fields.pop("id", None)
+            if row_id is not None and row_id not in existing:
+                raise ValueError("Qualification does not belong to this provider.")
+            if row_id is not None:
+                row = existing[row_id]
+                keep.add(row_id)
+                for key, value in fields.items():
+                    setattr(row, key, value)
+            else:
+                self._db.add(DoctorQualification(provider_id=provider_id, **fields))
+        for row_id, row in existing.items():
+            if row_id not in keep:
+                self._db.delete(row)
+        self._db.flush()
+
+    def get_language(self, language_id: UUID) -> Language | None:
+        return self._db.get(Language, language_id)
+
+    def replace_languages(self, provider_id: UUID, language_ids: list[UUID]) -> None:
+        existing = {
+            row.language_id: row
+            for row in self._db.query(ProviderLanguage).filter(
+                ProviderLanguage.provider_id == provider_id
+            ).all()
+        }
+        selected = set(language_ids)
+        for language_id, row in existing.items():
+            if language_id not in selected:
+                self._db.delete(row)
+        for language_id in selected - existing.keys():
+            self._db.add(ProviderLanguage(provider_id=provider_id, language_id=language_id))
+        self._db.flush()
 
     # ── Specialization sub-operations ─────────────────────────────────────────
 

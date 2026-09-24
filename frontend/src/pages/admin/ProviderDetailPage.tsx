@@ -444,11 +444,15 @@ export function ProviderDetailPage() {
             <CardHeader><h2 className={styles.sectionTitle}>Professional info</h2></CardHeader>
             <CardBody>
               {p.doctor_profile &&
-              (p.doctor_profile.professional_title ||
+              (p.doctor_profile.first_name ||
+                p.doctor_profile.last_name ||
+                p.doctor_profile.professional_title ||
                 p.doctor_profile.biography ||
                 p.doctor_profile.years_experience != null ||
                 p.doctor_profile.experience_description) ? (
                 <dl className={`${styles.infoStrip} ${styles.professionalInfoStrip}`}>
+                  <div><dt>First name</dt><dd>{p.doctor_profile.first_name ?? '—'}</dd></div>
+                  <div><dt>Last name</dt><dd>{p.doctor_profile.last_name ?? '—'}</dd></div>
                   <div>
                     <dt>Professional title</dt>
                     <dd>{p.doctor_profile.professional_title ?? '—'}</dd>
@@ -473,9 +477,27 @@ export function ProviderDetailPage() {
                   description="Edit this provider to add title, experience, and biography."
                 />
               )}
+              {p.qualifications?.length > 0 && (
+                <dl className={styles.infoStrip}>
+                  <div><dt>Qualifications</dt><dd>{p.qualifications.map((q) => q.title).join(', ')}</dd></div>
+                </dl>
+              )}
             </CardBody>
           </Card>
         )}
+
+        <Card padding="none" shadow="sm" className={styles.colFull}>
+          <CardHeader><h2 className={styles.sectionTitle}>Services & languages</h2></CardHeader>
+          <CardBody>
+            <dl className={styles.infoStrip}>
+              <div><dt>Languages</dt><dd>{p.languages?.map((l) => l.name).join(', ') || '—'}</dd></div>
+              <div><dt>Clinic / hospital visits</dt><dd>{p.clinic_hospital_visit ? 'Yes' : 'No'}</dd></div>
+              <div><dt>Emergency services</dt><dd>{p.emergency_services_available ? 'Yes' : 'No'}</dd></div>
+              {p.visit_stability === 'STABLE_VISIT' && <div><dt>Maximum radius</dt><dd>{p.maximum_working_radius_km != null ? `${p.maximum_working_radius_km} km` : '—'}</dd></div>}
+              {p.emergency_services_available && <><div><dt>Emergency contact</dt><dd>{p.emergency_contact_name ?? '—'}</dd></div><div><dt>Emergency number</dt><dd>{p.emergency_contact_number ?? '—'}</dd></div></>}
+            </dl>
+          </CardBody>
+        </Card>
 
         {/* ── Qualifications & affiliations — doctors only ─────────────────── */}
         {p.provider_type === 'DOCTOR' && <DoctorProfessionalSections providerId={p.id} />}

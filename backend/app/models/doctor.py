@@ -43,6 +43,8 @@ class DoctorProfile(TimestampMixin, Base):
     biography: Mapped[str | None] = mapped_column(Text, nullable=True)
     years_experience: Mapped[int | None] = mapped_column(Integer, nullable=True)
     experience_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    first_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
 
     # Back-reference to the parent Provider
     provider: Mapped["app.models.provider.Provider"] = relationship(  # type: ignore[name-defined]

@@ -17,6 +17,7 @@ class Language(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default="now")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default="now")
+    provider_languages: Mapped[list["ProviderLanguage"]] = relationship(back_populates="language")
 
 
 class ProviderRegistrationLanguage(Base):
@@ -31,3 +32,5 @@ class ProviderLanguage(Base):
     provider_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("providers.id", ondelete="CASCADE"), primary_key=True)
     language_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("languages.id", ondelete="RESTRICT"), primary_key=True)
     __table_args__ = (Index("ix_provider_languages_language_id", "language_id"),)
+    provider: Mapped["Provider"] = relationship(back_populates="provider_languages")
+    language: Mapped[Language] = relationship(back_populates="provider_languages")

@@ -153,11 +153,9 @@ def list_providers(
 
 @router.post("", response_model=ProviderResponse, status_code=status.HTTP_201_CREATED)
 def create_provider(body: ProviderCreate, request: Request, user: CurrentUser, svc: _Svc):
-    _PROFILE_FIELDS = {
-        "professional_title", "biography", "years_experience", "experience_description"
-    }
+    _PROFILE_FIELDS = {"professional_title", "biography", "years_experience", "experience_description", "first_name", "last_name"}
     core = body.model_dump(
-        exclude={"specialization_ids", "primary_location", "phones", "emails"}
+        exclude={"admin_form_version", "specialization_ids", "primary_location", "phones", "emails", "language_ids", "qualifications"}
         | _PROFILE_FIELDS
     )
     try:
@@ -170,6 +168,9 @@ def create_provider(body: ProviderCreate, request: Request, user: CurrentUser, s
             phones=[p.model_dump() for p in body.phones],
             emails=[e.model_dump() for e in body.emails],
             doctor_profile=body.model_dump(include=_PROFILE_FIELDS),
+            language_ids=body.language_ids,
+            qualifications=[q.model_dump() for q in body.qualifications],
+            admin_form_version=body.admin_form_version,
             audit_context=context_from_request(request, user.id),
         )
         return ProviderResponse.from_provider(provider)
@@ -177,6 +178,8 @@ def create_provider(body: ProviderCreate, request: Request, user: CurrentUser, s
         raise _404("specialization_not_found", f"Specialization not found or inactive: {exc}")
     except DuplicateSpecializationError as exc:
         raise _409("duplicate_specialization", str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 # ── Get detail ────────────────────────────────────────────────────────────────
@@ -201,17 +204,23 @@ def get_provider(id: UUID, request: Request, user: CurrentUser, svc: _Svc):
 
 @router.patch("/{id}", response_model=ProviderResponse)
 def update_provider(id: UUID, body: ProviderUpdate, request: Request, user: CurrentUser, svc: _Svc):
-    _PROFILE_FIELDS = {
-        "professional_title", "biography", "years_experience", "experience_description"
-    }
+    _PROFILE_FIELDS = {"professional_title", "biography", "years_experience", "experience_description", "first_name", "last_name"}
     fields = body.model_dump(exclude_unset=True)
+    admin_form_version = fields.pop("admin_form_version", None)
+    language_ids = fields.pop("language_ids", None)
+    qualifications = fields.pop("qualifications", None)
     doctor_profile = {k: fields.pop(k) for k in list(fields) if k in _PROFILE_FIELDS}
     try:
         provider = svc.update(id, update_fields=fields, doctor_profile=doctor_profile,
+                              language_ids=language_ids,
+                              qualifications=[q if isinstance(q, dict) else q.model_dump() for q in qualifications] if qualifications is not None else None,
+                              admin_form_version=admin_form_version,
                               audit_context=context_from_request(request, user.id))
         return ProviderResponse.from_provider(provider)
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 # ── Status / publication toggles ──────────────────────────────────────────────

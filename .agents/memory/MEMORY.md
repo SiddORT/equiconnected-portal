@@ -25,3 +25,4 @@
 - [GSAP scroll parallax endpoints](gsap-scroll-parallax-endpoints.md) — define explicit from/to offsets for scrubbed parallax so it cannot settle into a static end state.
 - [Why section natural flow](why-section-natural-flow.md) — keep Why EquiConnected unpinned; its card content must remain continuously visible in normal document flow.
 - [Provider signup postal lookup](provider-signup-postal-lookup.md) — international postal codes can match multiple places; require an explicit choice and allow manual correction.
+- [Admin provider form compatibility](admin-provider-form-compatibility.md) — opt in to stricter create rules without invalidating older API clients or legacy provider edits.

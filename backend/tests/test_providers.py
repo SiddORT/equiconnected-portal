@@ -1130,6 +1130,117 @@ class TestDoctorQualifications:
         assert detail.status_code == 200
         assert detail.json()["qualifications"] == []
 
+
+class TestAdminProviderForm:
+    """The revised form opts in to stricter rules without breaking older API clients."""
+
+    @staticmethod
+    def body(provider_type: str = "DOCTOR", **overrides) -> dict:
+        body = {
+            "admin_form_version": 2,
+            "provider_type": provider_type,
+            "name": f"{provider_type.title()} Care",
+            "visit_stability": "NOT_STABLE_VISIT",
+            "emails": [{"email": "care@example.com", "is_primary": True}],
+            "primary_location": {
+                "country": "India", "city": "New Delhi",
+                "address_line_1": "12 Stable Lane", "is_primary": True,
+            },
+        }
+        body.update(overrides)
+        return body
+
+    @pytest.mark.parametrize("provider_type", ["DOCTOR", "CLINIC", "HOSPITAL"])
+    def test_each_type_creates_one_location_and_unpublished_detail(
+        self, client: TestClient, admin_token: str, provider_type: str
+    ):
+        response = client.post(BASE, json=self.body(provider_type), headers=_auth(admin_token))
+        assert response.status_code == 201, response.text
+        created = response.json()
+        assert created["provider_type"] == provider_type
+        assert created["publication_status"] == "UNPUBLISHED"
+        detail = client.get(f"{BASE}/{created['id']}", headers=_auth(admin_token))
+        assert detail.status_code == 200
+        assert len(detail.json()["locations"]) == 1
+        assert detail.json()["locations"][0]["country"] == "India"
+        assert detail.json()["emails"][0]["email"] == "care@example.com"
+
+    @pytest.mark.parametrize("change", [
+        {"emails": []},
+        {"emails": [{"email": "not-an-email", "is_primary": True}]},
+        {"primary_location": None},
+        {"primary_location": {"country": "", "city": "New Delhi", "address_line_1": "12 Stable Lane"}},
+        {"visit_stability": "STABLE_VISIT", "maximum_working_radius_km": None},
+        {"visit_stability": "STABLE_VISIT", "maximum_working_radius_km": 0},
+        {"emergency_services_available": True, "emergency_contact_name": "Mina"},
+    ])
+    def test_strict_create_rejects_incomplete_form(
+        self, client: TestClient, admin_token: str, change: dict
+    ):
+        response = client.post(BASE, json=self.body(**change), headers=_auth(admin_token))
+        assert response.status_code == 422, response.text
+
+    def test_services_languages_qualifications_and_edit_roundtrip(
+        self, client: TestClient, admin_token: str
+    ):
+        spec = _create_spec(client, admin_token, "Emergency care")
+        language = client.post(
+            "/api/v1/admin/languages", headers=_auth(admin_token),
+            json={"name": "Marathi", "code": "mr"},
+        )
+        assert language.status_code == 201, language.text
+        language_id = language.json()["id"]
+        body = self.body(
+            visit_stability="STABLE_VISIT", maximum_working_radius_km=45.5,
+            emergency_services_available=True, emergency_contact_name="Mina",
+            emergency_contact_number="+91 1234567890", clinic_hospital_visit=True,
+            first_name="Amina", last_name="Khan", language_ids=[language_id],
+            specialization_ids=[spec["id"]],
+            qualifications=[{"title": "DVM", "institution": "Veterinary College"}],
+        )
+        response = client.post(BASE, json=body, headers=_auth(admin_token))
+        assert response.status_code == 201, response.text
+        saved = response.json()
+        assert saved["doctor_profile"]["first_name"] == "Amina"
+        assert saved["doctor_profile"]["last_name"] == "Khan"
+        assert saved["maximum_working_radius_km"] == 45.5
+        assert saved["emergency_contact_name"] == "Mina"
+        assert saved["clinic_hospital_visit"] is True
+        assert [x["id"] for x in saved["languages"]] == [language_id]
+        assert [x["name"] for x in saved["specializations"]] == ["Emergency care"]
+        qualification = saved["qualifications"][0]
+        assert qualification["title"] == "DVM"
+
+        edited = client.patch(
+            f"{BASE}/{saved['id']}", headers=_auth(admin_token),
+            json={
+                "admin_form_version": 2, "visit_stability": "NOT_STABLE_VISIT",
+                "emergency_services_available": False,
+                "qualifications": [{"id": qualification["id"], "title": "MVSc",
+                                    "institution": "Veterinary College"}],
+                "language_ids": [language_id],
+            },
+        )
+        assert edited.status_code == 200, edited.text
+        detail = client.get(f"{BASE}/{saved['id']}", headers=_auth(admin_token)).json()
+        assert detail["maximum_working_radius_km"] is None
+        assert detail["emergency_contact_name"] is None
+        assert detail["emergency_contact_number"] is None
+        assert detail["qualifications"][0]["id"] == qualification["id"]
+        assert detail["qualifications"][0]["title"] == "MVSc"
+        assert [x["id"] for x in detail["languages"]] == [language_id]
+
+    def test_legacy_provider_remains_editable_without_new_location_or_email(
+        self, client: TestClient, admin_token: str
+    ):
+        legacy = _create_provider(client, admin_token, "Legacy", provider_type="CLINIC")
+        updated = client.patch(
+            f"{BASE}/{legacy['id']}", json={"admin_form_version": 2, "name": "Legacy Updated"},
+            headers=_auth(admin_token),
+        )
+        assert updated.status_code == 200, updated.text
+        assert updated.json()["name"] == "Legacy Updated"
+
     def test_rejected_qualification_update_keeps_saved_details(
         self, client: TestClient, admin_token: str
     ):

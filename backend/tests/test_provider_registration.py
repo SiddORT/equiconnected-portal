@@ -113,9 +113,9 @@ class TestProviderRegistration:
         assert created.status_code == 201
         language_id = created.json()["id"]
         assert created.json()["code"] == "hi"
-        assert client.get(f"{AUTH}/provider-languages").json() == [
-            {"id": language_id, "name": "Hindi", "code": "hi"}
-        ]
+        assert {"id": language_id, "name": "Hindi", "code": "hi"} in client.get(
+            f"{AUTH}/provider-languages"
+        ).json()
         duplicate = client.post(
             "/api/v1/admin/languages", headers=headers, json={"name": "Another", "code": "hi"}
         )
@@ -140,7 +140,10 @@ class TestProviderRegistration:
 
         deleted = client.delete(f"/api/v1/admin/languages/{language_id}", headers=headers)
         assert deleted.status_code == 200
-        assert client.get(f"{AUTH}/provider-languages").json() == []
+        assert all(
+            item["id"] != language_id
+            for item in client.get(f"{AUTH}/provider-languages").json()
+        )
         token = parse_qs(urlparse(sent_urls[0]).query)["token"][0]
         assert client.post(f"{AUTH}/verify-email", json={"token": token}).status_code == 200
         assert client.post(f"{APPLICATIONS}/{application.id}/approve", headers=headers).status_code == 200

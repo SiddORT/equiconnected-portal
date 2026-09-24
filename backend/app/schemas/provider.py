@@ -2,10 +2,13 @@
 Pydantic schemas for the Healthcare Provider module.
 """
 from datetime import datetime
+from math import isfinite
+import re
 from decimal import Decimal
 from uuid import UUID
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
 from app.models.enums import (
     ProviderStatus,
@@ -14,13 +17,19 @@ from app.models.enums import (
     PublicationStatus,
     VisitStability,
 )
-from app.schemas.doctor import QualificationCreate
+from app.schemas.doctor import QualificationCreate, QualificationResponse
+
+class AdminQualificationCreate(QualificationCreate):
+    id: UUID | None = None
 
 
 def _strip(v: object) -> object:
     if isinstance(v, str):
         return v.strip()
     return v
+
+def _valid_email(value: str | None) -> bool:
+    return bool(value and re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value.strip()))
 
 
 # ── Location ──────────────────────────────────────────────────────────────────
@@ -178,6 +187,8 @@ class DoctorProfileFields(BaseModel):
     biography: str | None = Field(None, max_length=10000)
     years_experience: int | None = Field(None, ge=0, le=100)
     experience_description: str | None = Field(None, max_length=5000)
+    first_name: str | None = Field(None, max_length=150)
+    last_name: str | None = Field(None, max_length=150)
 
     _strip_title = field_validator("professional_title", mode="before")(_strip)
 
@@ -187,13 +198,31 @@ class DoctorProfileOut(BaseModel):
     biography: str | None
     years_experience: int | None
     experience_description: str | None
+    first_name: str | None
+    last_name: str | None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @model_serializer
+    def serialize_compat(self):
+        data = {
+            "professional_title": self.professional_title,
+            "biography": self.biography,
+            "years_experience": self.years_experience,
+            "experience_description": self.experience_description,
+        }
+        # Keep legacy response shape for profiles that predate admin names.
+        if self.first_name is not None:
+            data["first_name"] = self.first_name
+        if self.last_name is not None:
+            data["last_name"] = self.last_name
+        return data
 
 
 # ── Provider ──────────────────────────────────────────────────────────────────
 
 class ProviderCreate(BaseModel):
+    admin_form_version: Literal[2] | None = None
     provider_type: ProviderType
     name: str = Field(..., min_length=1, max_length=300)
     description: str | None = Field(None, max_length=5000)
@@ -207,17 +236,54 @@ class ProviderCreate(BaseModel):
     primary_location: LocationCreate | None = None
     phones: list[PhoneCreate] = Field(default_factory=list)
     emails: list[EmailCreate] = Field(default_factory=list)
+    language_ids: list[UUID] = Field(default_factory=list)
+    maximum_working_radius_km: float | None = Field(None, gt=0)
+    clinic_hospital_visit: bool = False
+    emergency_services_available: bool = False
+    emergency_contact_name: str | None = Field(None, max_length=200)
+    emergency_contact_number: str | None = Field(None, max_length=50)
     # Doctor-only professional profile fields (ignored for other types).
     professional_title: str | None = Field(None, max_length=200)
     biography: str | None = Field(None, max_length=10000)
     years_experience: int | None = Field(None, ge=0, le=100)
     experience_description: str | None = Field(None, max_length=5000)
+    first_name: str | None = Field(None, max_length=150)
+    last_name: str | None = Field(None, max_length=150)
+    qualifications: list[QualificationCreate] = Field(default_factory=list)
 
     _strip_name = field_validator("name", mode="before")(_strip)
     _strip_title = field_validator("professional_title", mode="before")(_strip)
 
+    @field_validator("maximum_working_radius_km")
+    @classmethod
+    def radius_must_be_finite(cls, value):
+        if value is not None and not isfinite(value):
+            raise ValueError("maximum working radius must be finite")
+        return value
+
+    @model_validator(mode="after")
+    def validate_admin_requirements(self):
+        if self.admin_form_version == 2 and (self.primary_location is None or not self.primary_location.country):
+            raise ValueError("primary_location with country is required")
+        if self.admin_form_version == 2 and not (
+            _valid_email(self.email) or any(_valid_email(item.email) for item in self.emails)
+        ):
+            raise ValueError("at least one email is required")
+        if self.admin_form_version == 2 and self.visit_stability == VisitStability.STABLE_VISIT and (
+            self.maximum_working_radius_km is None or self.maximum_working_radius_km <= 0
+        ):
+            raise ValueError("stable visits require a positive radius")
+        if self.admin_form_version == 2 and self.visit_stability == VisitStability.NOT_STABLE_VISIT:
+            self.maximum_working_radius_km = None
+        if self.admin_form_version == 2 and self.emergency_services_available and not (self.emergency_contact_name and self.emergency_contact_number):
+            raise ValueError("emergency contact name and number are required")
+        if self.admin_form_version == 2 and not self.emergency_services_available:
+            self.emergency_contact_name = self.emergency_contact_number = None
+        return self
+
 
 class ProviderUpdate(BaseModel):
+    admin_form_version: Literal[2] | None = None
     """PATCH body — all fields optional; only provided fields are updated."""
     provider_type: ProviderType | None = None
     name: str | None = Field(None, min_length=1, max_length=300)
@@ -231,9 +297,25 @@ class ProviderUpdate(BaseModel):
     biography: str | None = Field(None, max_length=10000)
     years_experience: int | None = Field(None, ge=0, le=100)
     experience_description: str | None = Field(None, max_length=5000)
+    first_name: str | None = Field(None, max_length=150)
+    last_name: str | None = Field(None, max_length=150)
+    language_ids: list[UUID] | None = None
+    qualifications: list[AdminQualificationCreate] | None = None
+    maximum_working_radius_km: float | None = Field(None, gt=0)
+    clinic_hospital_visit: bool | None = None
+    emergency_services_available: bool | None = None
+    emergency_contact_name: str | None = Field(None, max_length=200)
+    emergency_contact_number: str | None = Field(None, max_length=50)
 
     _strip_name = field_validator("name", mode="before")(_strip)
     _strip_title = field_validator("professional_title", mode="before")(_strip)
+
+    @field_validator("maximum_working_radius_km")
+    @classmethod
+    def radius_must_be_finite(cls, value):
+        if value is not None and not isfinite(value):
+            raise ValueError("maximum working radius must be finite")
+        return value
 
 
 class ProviderStatusUpdate(BaseModel):
@@ -253,6 +335,13 @@ class ProviderSpecializationBrief(BaseModel):
     name: str
     is_active: bool
 
+    model_config = ConfigDict(from_attributes=True)
+
+class ProviderLanguageBrief(BaseModel):
+    id: UUID
+    name: str
+    code: str
+    is_active: bool
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -322,6 +411,13 @@ class ProviderResponse(ProviderListItem):
     emails: list[EmailResponse] = []
     doctor_profile: DoctorProfileOut | None = None
     doctor_fields_available: bool = False
+    maximum_working_radius_km: float | None = None
+    clinic_hospital_visit: bool | None = None
+    emergency_services_available: bool | None = None
+    emergency_contact_name: str | None = None
+    emergency_contact_number: str | None = None
+    languages: list[ProviderLanguageBrief] = []
+    qualifications: list[QualificationResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -334,6 +430,13 @@ class ProviderResponse(ProviderListItem):
                 else None
             ),
             doctor_fields_available=provider.provider_type == ProviderType.DOCTOR,
+            maximum_working_radius_km=float(provider.maximum_working_radius_km) if provider.maximum_working_radius_km is not None else None,
+            clinic_hospital_visit=provider.clinic_hospital_visit,
+            emergency_services_available=provider.emergency_services_available,
+            emergency_contact_name=provider.emergency_contact_name,
+            emergency_contact_number=provider.emergency_contact_number,
+            languages=[ProviderLanguageBrief.model_validate(x.language) for x in provider.provider_languages],
+            qualifications=[QualificationResponse.model_validate(x) for x in provider.qualifications],
             id=provider.id,
             provider_type=provider.provider_type,
             name=provider.name,

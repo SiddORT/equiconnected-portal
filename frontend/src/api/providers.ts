@@ -29,6 +29,9 @@ import type {
   ProviderPortalUpdate,
   ProviderPortalPhotoUpload,
   ProviderSpecializationBrief,
+  QualificationCreate,
+  QualificationResponse,
+  QualificationUpdate,
 } from '@/types';
 
 export async function getProviderPortalProfile(): Promise<ProviderPortalProfile> {
@@ -262,4 +265,16 @@ export async function setProviderThumbnail(id: string, photoId: string): Promise
     `/admin/providers/${id}/photos/${photoId}/thumbnail`
   );
   return data;
+}
+
+export async function addProviderQualification(id: string, body: QualificationCreate): Promise<QualificationResponse> {
+  const { data } = await apiClient.post<QualificationResponse>(`/admin/providers/${id}/qualifications`, body);
+  return data;
+}
+export async function updateProviderQualification(id: string, qualId: string, body: QualificationUpdate): Promise<QualificationResponse> {
+  const { data } = await apiClient.patch<QualificationResponse>(`/admin/providers/${id}/qualifications/${qualId}`, body);
+  return data;
+}
+export async function deleteProviderQualification(id: string, qualId: string): Promise<void> {
+  await apiClient.delete(`/admin/providers/${id}/qualifications/${qualId}`);
 }

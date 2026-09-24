@@ -7,6 +7,7 @@
  *   onCancel() — called when the user dismisses the form
  */
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
 import {
   addProviderEmail,
@@ -22,8 +23,10 @@ import {
   updateProviderLocation,
   updateProviderPublication,
   updateProviderStatus,
+  uploadProviderPhoto,
 } from '@/api/providers';
 import { listSpecializations } from '@/api/specializations';
+import { listLanguages } from '@/api/languages';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
@@ -44,17 +47,19 @@ import type {
   PublicationStatus,
   Specialization,
   VisitStability,
+  Language,
+  QualificationCreate,
 } from '@/types';
 import styles from './ProviderForm.module.css';
 
 const PROVIDER_TYPE_OPTIONS = [
   { value: 'HOSPITAL', label: 'Hospital' },
   { value: 'CLINIC', label: 'Clinic' },
-  { value: 'DOCTOR', label: 'Doctor' },
+  { value: 'DOCTOR', label: 'Doctor / Vet' },
 ];
 const VISIT_STABILITY_OPTIONS = [
-  { value: 'STABLE_VISIT', label: 'Stable' },
-  { value: 'NOT_STABLE_VISIT', label: 'Not stable' },
+  { value: 'STABLE_VISIT', label: 'Yes' },
+  { value: 'NOT_STABLE_VISIT', label: 'No' },
 ];
 const INVITATION_VISIT_STABILITY_OPTIONS = [
   { value: 'STABLE_VISIT', label: 'Yes' },
@@ -200,6 +205,26 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const [experienceDescription, setExperienceDescription] = useState(
     initialData?.doctor_profile?.experience_description ?? ''
   );
+  const [firstName, setFirstName] = useState(initialData?.doctor_profile?.first_name ?? '');
+  const [lastName, setLastName] = useState(initialData?.doctor_profile?.last_name ?? '');
+  const [qualifications, setQualifications] = useState<Array<QualificationCreate & { id?: string }>>(
+    initialData?.qualifications?.map((q) => ({ id: q.id, title: q.title, institution: q.institution, year_obtained: q.year_obtained, description: q.description, display_order: q.display_order })) ?? []
+  );
+  const [languages, setLanguages] = useState<Language[]>([]);
+  const [languageError, setLanguageError] = useState<string | null>(null);
+  const [selectedLanguageIds, setSelectedLanguageIds] = useState<string[]>(
+    initialData?.languages?.map((l) => l.id) ?? []
+  );
+  const [languageFilter, setLanguageFilter] = useState('');
+  const [maximumRadius, setMaximumRadius] = useState(initialData?.maximum_working_radius_km != null ? String(initialData.maximum_working_radius_km) : '');
+  const [clinicHospitalVisit, setClinicHospitalVisit] = useState(initialData?.clinic_hospital_visit ?? false);
+  const [emergencyServices, setEmergencyServices] = useState(initialData?.emergency_services_available ?? false);
+  const [emergencyName, setEmergencyName] = useState(initialData?.emergency_contact_name ?? '');
+  const [emergencyNumber, setEmergencyNumber] = useState(initialData?.emergency_contact_number ?? '');
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(initialData?.thumbnail_url ?? null);
+  const [savedProviderId, setSavedProviderId] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [selectedSpecIds, setSelectedSpecIds] = useState<string[]>(
     inv?.initial.specialization_ids ?? initialData?.specializations.map((s) => s.id) ?? []
   );
@@ -278,6 +303,27 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (inv) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        let all: Language[] = [];
+        let page = 1;
+        for (;;) {
+          const result = await listLanguages({ is_active: true, page, page_size: 100 });
+          all.push(...result.data);
+          if (page >= result.meta.total_pages) break;
+          page += 1;
+        }
+        if (!cancelled) setLanguages(all);
+      } catch (err) {
+        if (!cancelled) setLanguageError(extractErrorMessage(err, 'Failed to load languages.'));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [inv]);
+
   function toggleSpec(id: string) {
     setSelectedSpecIds((ids) =>
       ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]
@@ -295,8 +341,30 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         errors.years_experience = 'Years of experience must be a whole number between 0 and 100.';
       }
     }
+    if (!inv && !isEdit && !location.country.trim()) errors.country = 'Country is required.';
+    if (!inv && !isEdit && !location.city.trim()) errors.city = 'City is required.';
+    if (!inv && !isEdit && !location.address_line_1.trim()) errors.address_line_1 = 'Address is required.';
     if (location.address_line_1.trim() && !location.city.trim()) {
       errors.city = 'City is required when an address is provided.';
+    }
+    // New admin providers require a primary email. Legacy edit records may
+    // predate contact rows and must remain editable without one.
+    if (!inv && !isEdit && !emailEntries.some((e) => e.email.trim() && e.is_primary)) {
+      errors.email = 'A primary email is required.';
+    }
+    if (!inv && visitStability === 'STABLE_VISIT' && (!maximumRadius.trim() || !Number.isFinite(Number(maximumRadius)) || Number(maximumRadius) <= 0) &&
+      !(isEdit && initialData?.visit_stability === 'STABLE_VISIT' && initialData.maximum_working_radius_km == null && !maximumRadius.trim())) {
+      errors.maximum_working_radius_km = 'A finite radius greater than 0 is required for stable visits.';
+    }
+    if (!inv && visitStability === 'NOT_STABLE_VISIT' && maximumRadius.trim()) {
+      errors.maximum_working_radius_km = 'Radius is only available for stable visits.';
+    }
+    if (!inv && emergencyServices && !emergencyName.trim()) errors.emergency_contact_name = 'Emergency contact name is required.';
+    if (!inv && emergencyServices && !emergencyNumber.trim()) errors.emergency_contact_number = 'Emergency contact number is required.';
+    if (!inv && providerType === 'DOCTOR') {
+      qualifications.forEach((q, i) => {
+        if (!q.title.trim()) errors[`qualification_${i}`] = 'Qualification title is required.';
+      });
     }
     if (location.city.trim() && !location.address_line_1.trim()) {
       errors.address_line_1 = 'Address line 1 is required when a city is provided.';
@@ -309,6 +377,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     const emErrors: Record<number, string> = {};
     emailEntries.forEach((e, i) => {
       if (!e.email.trim()) emErrors[i] = 'Enter an email or remove this row.';
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.email.trim())) emErrors[i] = 'Enter a valid email address.';
     });
     setPhoneErrors(phErrors);
     setEmailErrors(emErrors);
@@ -370,6 +439,23 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     }
   }
 
+  async function retryPhotoUpload() {
+    if (!photo || !savedProviderId) return;
+    setSubmitting(true);
+    setPhotoError(null);
+    try {
+      await uploadProviderPhoto(savedProviderId, photo, { display_order: 0, is_thumbnail: true });
+      const refreshed = await getProvider(savedProviderId);
+      setSavedProviderId(null);
+      setPhoto(null);
+      onSuccess?.(refreshed);
+    } catch (err) {
+      setPhotoError(`Provider saved, but the photo could not be uploaded. Please retry or edit provider ${savedProviderId}: ${extractErrorMessage(err, 'upload failed')}`);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setApiError(null);
@@ -387,22 +473,50 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       return;
     }
 
+    // A provider was already persisted when only its photo upload failed.
+    // Never submit the core form again (which could create a duplicate).
+    if (savedProviderId && photo) {
+      await retryPhotoUpload();
+      return;
+    }
+
     setSubmitting(true);
+    setPhotoError(null);
     try {
       let saved: Provider;
       if (isEdit && initialData) {
         saved = await updateProvider(initialData.id, {
+          admin_form_version: 2,
           provider_type: providerType as ProviderType,
           name: name.trim(),
           description: description.trim() || null,
           website: website.trim() || null,
-          visit_stability: visitStability as VisitStability,
+          ...(initialData.visit_stability === 'STABLE_VISIT' && initialData.maximum_working_radius_km == null &&
+            visitStability === 'STABLE_VISIT' && !maximumRadius.trim()
+            ? {} : {
+              visit_stability: visitStability as VisitStability,
+              maximum_working_radius_km: visitStability === 'STABLE_VISIT' && maximumRadius.trim() ? Number(maximumRadius) : null,
+            }),
+          first_name: providerType === 'DOCTOR' ? firstName.trim() || null : null,
+          last_name: providerType === 'DOCTOR' ? lastName.trim() || null : null,
+          language_ids: selectedLanguageIds,
+          clinic_hospital_visit: clinicHospitalVisit,
+          emergency_services_available: emergencyServices,
+          emergency_contact_name: emergencyServices ? emergencyName.trim() || null : null,
+          emergency_contact_number: emergencyServices ? emergencyNumber.trim() || null : null,
           ...(providerType === 'DOCTOR'
             ? {
                 professional_title: professionalTitle.trim() || null,
                 years_experience: yearsExperience.trim() ? Number(yearsExperience) : null,
                 biography: biography.trim() || null,
                 experience_description: experienceDescription.trim() || null,
+                qualifications: qualifications.map((q, i) => ({
+                  ...q,
+                  title: q.title.trim(),
+                  institution: q.institution?.trim() || null,
+                  description: q.description?.trim() || null,
+                  display_order: i,
+                })),
               }
             : {}),
         });
@@ -519,6 +633,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         ) {
           saved = await getProvider(initialData.id);
         }
+        // Re-read after relationship/qualification updates so the detail view
+        // receives the same shape as a freshly loaded provider.
+        saved = await getProvider(initialData.id);
       } else {
         let primary_location: ProviderLocationCreate | null = null;
         if (location.address_line_1.trim() && location.city.trim()) {
@@ -536,6 +653,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           };
         }
         const body: ProviderCreate = {
+          admin_form_version: 2,
           provider_type: providerType as ProviderType,
           name: name.trim(),
           visit_stability: visitStability as VisitStability,
@@ -544,6 +662,12 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           status: status as ProviderStatus,
           publication_status: publication as PublicationStatus,
           specialization_ids: selectedSpecIds,
+          language_ids: selectedLanguageIds,
+          maximum_working_radius_km: visitStability === 'STABLE_VISIT' && maximumRadius.trim() ? Number(maximumRadius) : null,
+          clinic_hospital_visit: clinicHospitalVisit,
+          emergency_services_available: emergencyServices,
+          emergency_contact_name: emergencyServices ? emergencyName.trim() || null : null,
+          emergency_contact_number: emergencyServices ? emergencyNumber.trim() || null : null,
           primary_location,
           phones: phoneEntries.map((p) => ({
             country_code: p.country_code,
@@ -560,11 +684,34 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                 years_experience: yearsExperience.trim() ? Number(yearsExperience) : null,
                 biography: biography.trim() || null,
                 experience_description: experienceDescription.trim() || null,
+                first_name: firstName.trim() || null,
+                last_name: lastName.trim() || null,
+                qualifications: qualifications.map((q, i) => ({
+                  ...q,
+                  title: q.title.trim(),
+                  institution: q.institution?.trim() || null,
+                  description: q.description?.trim() || null,
+                  display_order: i,
+                })),
               }
             : {}),
         };
         saved = await createProvider(body);
       }
+      if (photo) {
+        try {
+          const uploaded = await uploadProviderPhoto(saved.id, photo, {
+            display_order: 0,
+            is_thumbnail: true,
+          });
+          saved = { ...saved, photos: [...saved.photos, uploaded], thumbnail_url: saved.thumbnail_url };
+        } catch (photoErr) {
+          setSavedProviderId(saved.id);
+          setPhotoError(`Provider saved, but the photo could not be uploaded. Please retry or edit provider ${saved.id}: ${extractErrorMessage(photoErr, 'upload failed')}`);
+          return;
+        }
+      }
+      setSavedProviderId(null);
       onSuccess?.(saved);
     } catch (err) {
       setApiError(extractErrorMessage(err, 'Failed to save provider. Please try again.'));
@@ -577,9 +724,15 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
 
   return (
     <form onSubmit={handleSubmit} noValidate className={styles.form}>
-      {(apiError || errs._form) && (
+      {(apiError || photoError || errs._form) && (
         <div className={`${styles.apiError} ${styles.cardFull}`} role="alert">
-          {apiError ?? errs._form}
+          {apiError ?? photoError ?? errs._form}
+          {photoError && savedProviderId && (
+            <>
+              <Button type="button" variant="secondary" onClick={retryPhotoUpload} disabled={submitting}>Retry photo upload</Button>
+              <Link to={`/admin/providers/${savedProviderId}/edit`}>Edit saved provider</Link>
+            </>
+          )}
         </div>
       )}
 
@@ -599,7 +752,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               required
             />
             <Input
-              label="Name"
+              label={inv ? 'Name' : 'Provider / practice name'}
               placeholder="e.g. St. Mary's Hospital"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -627,13 +780,32 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             value={website}
             onChange={(e) => setWebsite(e.target.value)}
           />
+          {!inv && (
+            <FormField label="Profile photo" optional htmlFor="provider-photo">
+              <input id="provider-photo" type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={(e) => {
+                const file = e.target.files?.[0] ?? null;
+                if (file && (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024)) {
+                  setPhoto(null);
+                  setPhotoError('Choose a JPEG, PNG, GIF, or WebP image under 10 MB.');
+                  e.target.value = '';
+                  return;
+                }
+                setPhotoError(null);
+                setPhoto(file);
+                if (file) setPhotoPreview(URL.createObjectURL(file));
+              }} />
+              {photoPreview && <img className={styles.photoPreview} src={photoPreview} alt="Profile preview" />}
+            </FormField>
+          )}
         </section>
       </Card>
 
       {/* ── Contact ───────────────────────────────────────────────────────── */}
       <Card padding="lg" shadow="sm">
         <section className={styles.section}>
-          <h3 className={styles.sectionTitle}>Contact <span className={styles.optionalTag}>— optional</span></h3>
+          <h3 className={styles.sectionTitle}>Contact information {inv && <span className={styles.optionalTag}>— optional</span>}</h3>
+          {!inv && !isEdit && <p className={styles.hint}>Add at least one primary email address. Phone is optional.</p>}
+          {errs.email && <p className={styles.fieldError} role="alert">{errs.email}</p>}
           <MultiPhoneField
             entries={phoneEntries}
             onChange={(next) => { setPhoneEntries(next); setPhoneErrors({}); }}
@@ -657,6 +829,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               Professional info <span className={styles.optionalTag}>— optional</span>
             </h3>
             <div className={styles.grid}>
+              <Input label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+              <Input label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
               <Input
                 label="Professional title"
                 placeholder="e.g. Consultant Cardiologist"
@@ -697,6 +871,18 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                 onChange={(e) => setExperienceDescription(e.target.value)}
               />
             </FormField>
+            <div className={styles.qualificationHeader}>
+              <strong>Qualifications</strong>
+              <Button type="button" variant="secondary" onClick={() => setQualifications((q) => [...q, { title: '', display_order: q.length }])}>Add qualification</Button>
+            </div>
+            {qualifications.map((q, i) => (
+              <div className={styles.qualificationRow} key={`qualification-${i}`}>
+                <Input label="Title" value={q.title} onChange={(e) => setQualifications((all) => all.map((x, j) => j === i ? { ...x, title: e.target.value } : x))} required />
+                <Input label="Institution" value={q.institution ?? ''} onChange={(e) => setQualifications((all) => all.map((x, j) => j === i ? { ...x, institution: e.target.value } : x))} />
+                <Input label="Year" type="number" value={q.year_obtained ?? ''} onChange={(e) => setQualifications((all) => all.map((x, j) => j === i ? { ...x, year_obtained: e.target.value ? Number(e.target.value) : null } : x))} />
+                <Button type="button" variant="ghost" onClick={() => setQualifications((all) => all.filter((_, j) => j !== i))}>Remove</Button>
+              </div>
+            ))}
           </section>
         </Card>
       )}
@@ -759,13 +945,25 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         </section>
       </Card>
 
+      {!inv && <Card padding="lg" shadow="sm" className={styles.cardFull}>
+        <section className={styles.section}>
+          <h3 className={styles.sectionTitle}>Languages</h3>
+          {languageError && <p className={styles.fieldError} role="alert">{languageError}</p>}
+           <input className={styles.specFilterInput} placeholder="Search languages…" aria-label="Search languages" value={languageFilter} onChange={(e) => setLanguageFilter(e.target.value)} />
+           <div className={styles.specChipGrid}>{languages.filter((l) => `${l.name} ${l.code}`.toLowerCase().includes(languageFilter.toLowerCase())).map((language) => {
+            const selected = selectedLanguageIds.includes(language.id);
+             return <button type="button" key={language.id} aria-pressed={selected} className={`${styles.specChip}${selected ? ` ${styles.specChipSelected}` : ''}`} onClick={() => setSelectedLanguageIds((ids) => selected ? ids.filter((id) => id !== language.id) : [...ids, language.id])}>{selected && '✓ '}{language.name} ({language.code})</button>;
+          })}</div>
+        </section>
+      </Card>}
+
       {/* ── Classification ────────────────────────────────────────────────── */}
       <Card padding="lg" shadow="sm">
         <section className={styles.section}>
-          <h3 className={styles.sectionTitle}>Classification</h3>
+          <h3 className={styles.sectionTitle}>{inv ? 'Classification' : 'Services, status & publication'}</h3>
           <div className={styles.grid}>
             <Select
-              label="Visit Stable"
+              label={inv ? 'Visit Stable' : 'Stable visit'}
               options={visitStabilityOptions}
               placeholder="Select…"
               value={visitStability}
@@ -773,6 +971,12 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               error={errs.visit_stability}
               required
             />
+            {!inv && <div className={styles.serviceFields}>
+              <label><input type="checkbox" checked={clinicHospitalVisit} onChange={(e) => setClinicHospitalVisit(e.target.checked)} /> Clinic / hospital visits</label>
+              <label><input type="checkbox" checked={emergencyServices} onChange={(e) => setEmergencyServices(e.target.checked)} /> Emergency services available</label>
+              {visitStability === 'STABLE_VISIT' && <><Input label="Maximum working radius (km)" type="number" min={0.01} step="any" value={maximumRadius} onChange={(e) => setMaximumRadius(e.target.value)} error={errs.maximum_working_radius_km} required /><p className={styles.hint}>Maximum travel distance from the provider's registered location for a stable or home visit.</p></>}
+              {emergencyServices && <><Input label="Emergency contact name" value={emergencyName} onChange={(e) => setEmergencyName(e.target.value)} error={errs.emergency_contact_name} required /><Input label="Emergency contact number" value={emergencyNumber} onChange={(e) => setEmergencyNumber(e.target.value)} error={errs.emergency_contact_number} required /></>}
+            </div>}
             {!inv && (
               <>
                 <Select
@@ -797,7 +1001,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       <Card padding="lg" shadow="sm">
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>
-            Primary location <span className={styles.optionalTag}>— optional</span>
+            Provider location {isEdit && <span className={styles.optionalTag}>— existing records may be incomplete</span>}
           </h3>
           <div className={styles.grid}>
             <Input
@@ -807,10 +1011,11 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               onChange={(e) => setLocation((l) => ({ ...l, name: e.target.value }))}
             />
             <Input
-              label="Address line 1"
+              label="Address"
               value={location.address_line_1}
               onChange={(e) => setLocation((l) => ({ ...l, address_line_1: e.target.value }))}
               error={errs.address_line_1}
+              required={!isEdit}
             />
             <Input
               label="Address line 2"
@@ -827,6 +1032,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               }}
               idPrefix="provider-primary-location"
               className={styles.locationPicker}
+              required={!inv && !isEdit}
+              optionalState
             />
             <Input
               label="Postal code"
