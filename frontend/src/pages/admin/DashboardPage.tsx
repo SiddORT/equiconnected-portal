@@ -70,7 +70,7 @@ export function DashboardPage() {
             <>
               {/* ── Provider inventory counters ───────────────────────── */}
               <div className={styles.overview}>
-                <section aria-labelledby="stats-heading">
+                <section className={styles.inventorySection} aria-labelledby="stats-heading">
                   <h2 id="stats-heading" className={styles.sectionTitle}>Provider Inventory</h2>
                   <div className={styles.statsGrid}>
                   <StatCard
