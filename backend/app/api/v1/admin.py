@@ -63,8 +63,58 @@ from app.repositories.user_repository import UserRepository
 from app.repositories.system_settings_repository import SystemSettingsRepository
 from app.repositories.subscriber_repository import SubscriberRepository
 from app.core.time_standards import system_today
+from app.core.rate_limit import check_smtp_test_rate_limit
+from app.models.enums import EmailDeliveryStatus, EmailPurpose
+from app.repositories.email_delivery_repository import safe_failure_message
+from app.services.email_service import EmailDeliveryError, EmailService
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
+
+
+class SMTPTestResult(BaseModel):
+    status: str
+    failure_message: str | None = None
+
+
+@router.post(
+    "/email-logs/smtp-test",
+    response_model=SMTPTestResult,
+    dependencies=[Depends(require_role("admin"))],
+)
+def send_smtp_test(
+    current_user: CurrentUser,
+    db: Annotated[Session, Depends(get_db)],
+) -> SMTPTestResult:
+    """Send one fixed-content message to this administrator's account address."""
+    check_smtp_test_rate_limit(str(current_user.id))
+    logs = EmailDeliveryRepository(db)
+    try:
+        attempt_id = logs.record_durable_attempt(
+            recipient_email=current_user.email, purpose=EmailPurpose.SMTP_TEST
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "email_log_unavailable", "message": "Email delivery attempt could not be recorded."},
+        ) from None
+    outcome = EmailDeliveryStatus.SUCCESS
+    failure = None
+    try:
+        EmailService().send_smtp_test_email(current_user.email)
+    except EmailDeliveryError as exc:
+        outcome = EmailDeliveryStatus.FAILED
+        failure = safe_failure_message(exc)
+    except Exception:
+        outcome = EmailDeliveryStatus.FAILED
+        failure = "Unable to deliver email."
+    try:
+        logs.complete_durable_attempt(attempt_id, status=outcome, failure_message=failure)
+    except Exception:
+        # An SMTP handoff may have happened; never claim success or failure when
+        # the durable outcome cannot be established.
+        return SMTPTestResult(status=EmailDeliveryStatus.PENDING.value)
+    return SMTPTestResult(status=outcome.value, failure_message=failure)
 
 
 @router.get(

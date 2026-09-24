@@ -295,3 +295,15 @@ class EmailService:
             html=html,
         )
         self._deliver(message, recipient)
+
+    def send_smtp_test_email(self, recipient: str) -> None:
+        """Use the normal SMTP transport, without links, tokens or user-provided content."""
+        message = MIMEText(
+            "This is an EquiConnected SMTP test email requested from the admin Email Logs page.\n"
+            "SMTP acceptance does not guarantee inbox delivery.\n",
+            "plain",
+            "utf-8",
+        )
+        message["Subject"] = "EquiConnected SMTP test"
+        message["To"] = recipient
+        self._deliver(message, recipient)

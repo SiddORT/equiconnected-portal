@@ -35,6 +35,7 @@ _postal_lookup_attempts: dict[str, deque[float]] = defaultdict(deque)
 _registration_attempts: dict[str, deque[float]] = defaultdict(deque)
 _email_verification_attempts: dict[str, deque[float]] = defaultdict(deque)
 _verification_resend_attempts: dict[str, deque[float]] = defaultdict(deque)
+_smtp_test_attempts: dict[str, deque[float]] = defaultdict(deque)
 
 
 # ── Dependency ────────────────────────────────────────────────────────────────
@@ -194,3 +195,20 @@ def check_verification_resend_rate_limit(request: Request) -> None:
         request, _verification_resend_attempts, window_seconds=600, max_attempts=5,
         message="Too many requests. Please try again later.",
     )
+
+
+def check_smtp_test_rate_limit(user_id: str) -> None:
+    """Limit test sends per admin account, including failed handoffs."""
+    now = time.monotonic()
+    window_seconds = 600
+    with _lock:
+        q = _smtp_test_attempts[user_id]
+        while q and q[0] < now - window_seconds:
+            q.popleft()
+        if len(q) >= 3:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={"code": "rate_limited", "message": "Too many SMTP tests. Please try again later."},
+                headers={"Retry-After": str(window_seconds)},
+            )
+        q.append(now)

@@ -334,7 +334,8 @@ export interface EmailDeliveryLog {
     | 'provider_invitation'
     | 'account_verification'
     | 'provider_portal_access'
-    | 'subscriber_confirmation';
+    | 'subscriber_confirmation'
+    | 'smtp_test';
   status: EmailDeliveryStatus;
   failure_message: string | null;
   created_at: string;

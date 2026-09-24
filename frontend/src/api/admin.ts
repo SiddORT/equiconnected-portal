@@ -65,6 +65,16 @@ export async function getEmailDeliveryLogs(
   return data;
 }
 
+export interface SMTPTestResult {
+  status: 'success' | 'failed' | 'pending';
+  failure_message: string | null;
+}
+
+export async function sendSMTPTest(): Promise<SMTPTestResult> {
+  const { data } = await apiClient.post<SMTPTestResult>('/admin/email-logs/smtp-test');
+  return data;
+}
+
 // ── Admin Users ────────────────────────────────────────────────────────────
 
 export async function listAdminUsers(

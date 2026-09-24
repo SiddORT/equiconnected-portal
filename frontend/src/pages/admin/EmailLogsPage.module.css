@@ -10,6 +10,12 @@
 .address { color: var(--text-primary); overflow-wrap: anywhere; }
 .status { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); }
 .status small { color: var(--text-secondary); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.testSection { padding: var(--space-5); border: 1px solid var(--border-color, #544a3b); border-radius: 8px; }
+.testSection h2 { margin: 0; font-size: var(--text-lg); }
+.testSection p { line-height: 1.5; overflow-wrap: anywhere; }
+.testActions { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.hint { color: var(--text-secondary); font-size: var(--text-sm); margin-bottom: 0; }
+.testFeedback { font-weight: 600; }
 @media (max-width: 768px) {
   .body { padding: var(--space-5); }
   .filters { align-items: stretch; }

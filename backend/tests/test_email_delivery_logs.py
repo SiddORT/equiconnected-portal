@@ -1,5 +1,10 @@
 """Administrator email delivery history and transactional-email logging tests."""
 from datetime import datetime, timezone
+import smtplib
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+from sqlalchemy import select
 
 from fastapi.testclient import TestClient
 
@@ -8,6 +13,8 @@ from app.models.email_delivery_log import EmailDeliveryLog
 from app.models.enums import EmailDeliveryStatus, EmailPurpose
 from app.repositories.user_repository import UserRepository
 from app.services.email_service import EmailDeliveryError, EmailService
+from app.core.rate_limit import _smtp_test_attempts
+from app.repositories.email_delivery_repository import EmailDeliveryRepository
 
 
 URL = "/api/v1/admin/email-logs"
@@ -213,3 +220,119 @@ class TestTransactionalEmailDeliveryLogs:
         assert failed["failure_message"] == "Unable to deliver email."
         assert "smtp-password" not in str(rows)
         assert "token" not in str(rows).lower()
+
+
+class TestSMTPTest:
+    URL = f"{URL}/smtp-test"
+
+    def test_admin_only_and_fixed_recipient(self, client, db, seeded_admin, monkeypatch):
+        assert client.post(self.URL).status_code == 401
+        repo = UserRepository(db)
+        visitor = repo.get_role_by_name("visitor") or repo.create_role("visitor", "Visitor")
+        repo.create_user(email="smtp-visitor@example.com",
+                         password_hash=hash_password("Visitor#2026!"), role=visitor)
+        db.commit()
+        visitor_token = _login(client, "smtp-visitor@example.com", "Visitor#2026!")
+        assert client.post(self.URL, headers=_auth(visitor_token)).status_code == 403
+
+        sent = Mock()
+        monkeypatch.setattr(EmailService, "send_smtp_test_email", sent)
+        token = _login(client, seeded_admin[0].email, seeded_admin[1])
+        response = client.post(self.URL, json={"recipient": "other@example.com", "SMTP_PASSWORD": "secret"},
+                               headers=_auth(token))
+        assert response.status_code == 200, response.text
+        assert response.json() == {"status": "success", "failure_message": None}
+        sent.assert_called_once_with(seeded_admin[0].email)
+        rows = client.get(URL, headers=_auth(token)).json()["data"]
+        assert rows[0]["purpose"] == "smtp_test"
+        assert rows[0]["recipient_email"] == seeded_admin[0].email
+        assert rows[0]["status"] == "success"
+        assert rows[0]["created_at"]
+        assert "other@example.com" not in str(rows)
+        assert "secret" not in str(rows)
+        _smtp_test_attempts.clear()
+
+    def test_real_transport_settings_and_plain_message_with_mocked_smtp(self, monkeypatch):
+        smtp = Mock()
+        smtp.__enter__ = Mock(return_value=smtp)
+        smtp.__exit__ = Mock(return_value=None)
+        smtp.sendmail.return_value = {}
+        factory = Mock(return_value=smtp)
+        monkeypatch.setattr(smtplib, "SMTP", factory)
+        monkeypatch.setattr("app.services.email_service.get_settings", lambda: SimpleNamespace(
+            SMTP_HOST="mail.example.com", SMTP_PORT=587, EMAIL_TLS=True,
+            SMTP_USER="mailer", SMTP_PASSWORD="private",
+            resolved_email_from="sender@example.com",
+        ))
+        EmailService().send_smtp_test_email("admin@example.com")
+        factory.assert_called_once_with("mail.example.com", 587, timeout=15)
+        smtp.starttls.assert_called_once()
+        smtp.login.assert_called_once_with("mailer", "private")
+        sender, recipients, message = smtp.sendmail.call_args.args
+        assert sender == "sender@example.com"
+        assert recipients == ["admin@example.com"]
+        assert "EquiConnected SMTP test" in message
+        assert "private" not in message
+        assert "http" not in message
+
+    def test_failure_is_allow_listed_and_durable(self, client, db, seeded_admin, monkeypatch):
+        token = _login(client, seeded_admin[0].email, seeded_admin[1])
+        def fail(_self, _recipient):
+            raise EmailDeliveryError("SMTP authentication failed.")
+        monkeypatch.setattr(EmailService, "send_smtp_test_email", fail)
+        response = client.post(self.URL, headers=_auth(token))
+        assert response.json() == {"status": "failed", "failure_message": "SMTP authentication failed."}
+        db.rollback()
+        row = db.scalar(select(EmailDeliveryLog).where(EmailDeliveryLog.purpose == "smtp_test"))
+        assert row.status == "failed"
+        assert row.failure_message == "SMTP authentication failed."
+        monkeypatch.setattr(EmailService, "send_smtp_test_email",
+                            lambda *_: (_ for _ in ()).throw(EmailDeliveryError("password=private")))
+        response = client.post(self.URL, headers=_auth(token))
+        assert response.json() == {"status": "failed", "failure_message": "Unable to deliver email."}
+        assert "private" not in str(client.get(URL, headers=_auth(token)).json())
+        _smtp_test_attempts.clear()
+
+    def test_rate_limit_and_pending_on_outcome_storage_failure(self, client, db, seeded_admin, monkeypatch):
+        token = _login(client, seeded_admin[0].email, seeded_admin[1])
+        monkeypatch.setattr(EmailService, "send_smtp_test_email", lambda *_: None)
+        def cannot_complete(*_args, **_kwargs):
+            raise RuntimeError("private server response")
+        monkeypatch.setattr(EmailDeliveryRepository, "complete_durable_attempt", cannot_complete)
+        try:
+            for _ in range(3):
+                response = client.post(self.URL, headers=_auth(token))
+                assert response.json() == {"status": "pending", "failure_message": None}
+            response = client.post(self.URL, headers=_auth(token))
+            assert response.status_code == 429
+            assert response.json()["detail"]["code"] == "rate_limited"
+            db.rollback()
+            rows = db.scalars(select(EmailDeliveryLog).where(EmailDeliveryLog.purpose == "smtp_test")).all()
+            assert len(rows) == 3
+            assert all(row.status == "pending" for row in rows)
+        finally:
+            _smtp_test_attempts.clear()
+
+    def test_attempt_recorded_before_smtp_and_no_send_when_log_unavailable(
+        self, client, db, seeded_admin, monkeypatch
+    ):
+        token = _login(client, seeded_admin[0].email, seeded_admin[1])
+        def inspect_pending(_self, recipient):
+            with db.get_bind().connect() as connection:
+                assert connection.execute(
+                    select(EmailDeliveryLog.status).where(
+                        EmailDeliveryLog.recipient_email == recipient,
+                        EmailDeliveryLog.purpose == "smtp_test",
+                    )
+                ).scalar_one() == "pending"
+        monkeypatch.setattr(EmailService, "send_smtp_test_email", inspect_pending)
+        assert client.post(self.URL, headers=_auth(token)).json()["status"] == "success"
+        monkeypatch.setattr(EmailDeliveryRepository, "record_durable_attempt",
+                            lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("private")))
+        sent = Mock()
+        monkeypatch.setattr(EmailService, "send_smtp_test_email", sent)
+        response = client.post(self.URL, headers=_auth(token))
+        assert response.status_code == 503
+        assert "private" not in response.text
+        sent.assert_not_called()
+        _smtp_test_attempts.clear()
