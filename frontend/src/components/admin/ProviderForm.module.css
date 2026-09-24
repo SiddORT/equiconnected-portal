@@ -260,11 +260,22 @@
   font-size: var(--text-sm);
 }
 .serviceRow {
-  grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
   gap: var(--space-4);
+}
+.serviceLayout {
+  display: grid;
+  gap: var(--space-4);
+}
+.serviceRow > :only-child { grid-column: 1 / -1; }
+.statusRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-default);
 }
 .serviceField { display: grid; gap: var(--space-2); min-width: 0; }
 .form .serviceChoice {
@@ -291,7 +302,7 @@
     grid-template-columns: 1fr;
   }
   .basicSelections { grid-template-columns: 1fr; }
-  .serviceRow { grid-template-columns: 1fr; }
+  .serviceRow, .statusRow { grid-template-columns: 1fr; }
   .photoDropzone { flex-wrap: wrap; }
   .photoAction { margin-left: 0; }
 }

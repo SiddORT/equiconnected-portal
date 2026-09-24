@@ -243,9 +243,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   );
   const [languageFilter, setLanguageFilter] = useState('');
   const [maximumRadius, setMaximumRadius] = useState(initialData?.maximum_working_radius_km != null ? String(initialData.maximum_working_radius_km) : '');
-  const [clinicHospitalVisit, setClinicHospitalVisit] = useState(initialData?.clinic_hospital_visit ?? false);
   const [emergencyServices, setEmergencyServices] = useState(initialData?.emergency_services_available ?? false);
-  const [emergencyName, setEmergencyName] = useState(initialData?.emergency_contact_name ?? '');
   const [emergencyNumber, setEmergencyNumber] = useState(initialData?.emergency_contact_number ?? '');
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(initialData?.thumbnail_url ?? null);
@@ -647,13 +645,10 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           ...(selectedLanguageIds.length !== initialData.languages.length ||
             selectedLanguageIds.some((id) => !initialData.languages.some((language) => language.id === id))
             ? { language_ids: selectedLanguageIds } : {}),
-          clinic_hospital_visit: clinicHospitalVisit,
           ...(emergencyServices !== Boolean(initialData.emergency_services_available) ||
-            emergencyName !== (initialData.emergency_contact_name ?? '') ||
             emergencyNumber !== (initialData.emergency_contact_number ?? '')
             ? {
                 emergency_services_available: emergencyServices,
-                emergency_contact_name: emergencyServices ? emergencyName.trim() || null : null,
                 emergency_contact_number: emergencyServices ? emergencyNumber.trim() || null : null,
               } : {}),
           ...(providerType === 'DOCTOR'
@@ -809,9 +804,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           specialization_ids: selectedSpecIds,
           language_ids: selectedLanguageIds,
           maximum_working_radius_km: visitStability === 'STABLE_VISIT' && maximumRadius.trim() ? Number(maximumRadius) : null,
-          clinic_hospital_visit: clinicHospitalVisit,
           emergency_services_available: emergencyServices,
-          emergency_contact_name: emergencyServices ? emergencyName.trim() || null : null,
           emergency_contact_number: emergencyServices ? emergencyNumber.trim() || null : null,
           primary_location,
           phones: phoneEntries.map((p) => ({
@@ -1148,7 +1141,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       {(!wizard || wizardStep === 2) && <Card padding="lg" shadow="sm" className={wizard ? styles.cardFull : undefined}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>{inv ? 'Classification' : 'Services, status & publication'}</h3>
-          <div className={styles.grid}>
+          <div className={wizard ? styles.serviceLayout : styles.grid}>
             {wizard ? (
               <>
                 <div className={styles.serviceRow}>
@@ -1177,12 +1170,6 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                     onChange={(e) => setEmergencyNumber(e.target.value)} error={errs.emergency_contact_number}
                     required={!isEdit || !initialData?.emergency_services_available || Boolean(initialData.emergency_contact_number)} />}
                 </div>
-                <label className={styles.serviceChoice}>
-                  <input type="checkbox" checked={clinicHospitalVisit} onChange={(e) => setClinicHospitalVisit(e.target.checked)} />
-                  <span><strong>Clinic / hospital visits</strong><small>Offer appointments at a clinic or hospital.</small></span>
-                </label>
-                {emergencyServices && <Input label="Emergency contact name" value={emergencyName}
-                  onChange={(e) => setEmergencyName(e.target.value)} />}
               </>
             ) : (
               <>
@@ -1196,15 +1183,14 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                   required
                 />
                 {!inv && <div className={styles.serviceFields}>
-                  <label><input type="checkbox" checked={clinicHospitalVisit} onChange={(e) => setClinicHospitalVisit(e.target.checked)} /> Clinic / hospital visits</label>
                   {visitStability === 'STABLE_VISIT' && <><Input label="Maximum working radius (km)" type="number" min={0.01} step="any" value={maximumRadius} onChange={(e) => setMaximumRadius(e.target.value)} error={errs.maximum_working_radius_km} required /><p className={styles.hint}>Maximum travel distance from the provider's registered location for a stable or home visit.</p></>}
                   <label><input type="checkbox" checked={emergencyServices} onChange={(e) => setEmergencyServices(e.target.checked)} /> Emergency services available</label>
-                  {emergencyServices && <><Input label="Emergency contact name" value={emergencyName} onChange={(e) => setEmergencyName(e.target.value)} /><Input label="Emergency contact number" value={emergencyNumber} onChange={(e) => setEmergencyNumber(e.target.value)} error={errs.emergency_contact_number} required /></>}
+                  {emergencyServices && <Input label="Emergency contact number" value={emergencyNumber} onChange={(e) => setEmergencyNumber(e.target.value)} error={errs.emergency_contact_number} required />}
                 </div>}
               </>
             )}
             {!inv && (
-              <>
+              <div className={styles.statusRow}>
                 <Select
                   label="Status"
                   options={STATUS_OPTIONS}
@@ -1217,7 +1203,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                   value={publication}
                   onChange={(e) => setPublication(e.target.value)}
                 />
-              </>
+              </div>
             )}
           </div>
         </section>
@@ -1330,9 +1316,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             { title: 'Services', step: 2, items: [
               { label: 'Stable visit', value: visitStability === 'STABLE_VISIT' ? 'Yes' : 'No' },
               { label: 'Working radius', value: visitStability === 'STABLE_VISIT' ? `${maximumRadius} km` : 'Not applicable' },
-              { label: 'Clinic / hospital visits', value: clinicHospitalVisit ? 'Yes' : 'No' },
               { label: 'Emergency services', value: emergencyServices ? 'Yes' : 'No' },
-              ...(emergencyServices ? [{ label: 'Emergency contact name', value: emergencyName }] : []),
               ...(emergencyServices ? [{ label: 'Emergency contact number', value: emergencyNumber }] : []),
               { label: 'Status', value: status },
               { label: 'Publication', value: publication },

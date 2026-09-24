@@ -199,6 +199,10 @@ describe('ProviderForm visit stability', () => {
     const checkbox = screen.getByRole('checkbox', { name: /Stable visit/ }) as HTMLInputElement;
     expect(checkbox.checked).toBe(false);
     expect(screen.queryByLabelText('Clinic / hospital visits')).toBeNull();
+    expect(screen.queryByLabelText('Emergency contact name')).toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Status' }).parentElement?.parentElement?.contains(
+      screen.getByRole('combobox', { name: 'Publication status' })
+    )).toBe(true);
     await user.click(checkbox);
     expect(checkbox.checked).toBe(true);
   });
@@ -251,7 +255,7 @@ describe('ProviderForm visit stability', () => {
     const number = screen.getByLabelText('Emergency contact number') as HTMLInputElement;
     expect(emergency.closest('div')?.contains(number)).toBe(true);
     expect(number.required).toBe(true);
-    expect(screen.getByLabelText('Emergency contact name')).toBeTruthy();
+    expect(screen.queryByLabelText('Emergency contact name')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByText('Emergency contact number is required.')).toBeTruthy();
     await user.type(number, '+91 9988776655');
@@ -266,13 +270,18 @@ describe('ProviderForm visit stability', () => {
     await user.click(screen.getByRole('checkbox', { name: /Emergency services available/ }));
     await user.type(screen.getByLabelText('Emergency contact number'), '+91 9988776655');
     await finishClinicWizard(user);
+    expect(screen.queryByText('Clinic / hospital visits')).toBeNull();
+    expect(screen.queryByText('Emergency contact name')).toBeNull();
+    expect(screen.getByText('+91 9988776655')).toBeTruthy();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
     await user.click(screen.getByRole('button', { name: 'Create provider' }));
     await waitFor(() => expect(createProvider).toHaveBeenCalledWith(expect.objectContaining({
       emergency_services_available: true,
       emergency_contact_number: '+91 9988776655',
-      emergency_contact_name: null,
     })));
+    const body = vi.mocked(createProvider).mock.calls[0][0];
+    expect(body).not.toHaveProperty('clinic_hospital_visit');
+    expect(body).not.toHaveProperty('emergency_contact_name');
   });
 
   it('renders the language master option and selection control for admin forms', async () => {
@@ -350,6 +359,8 @@ describe('ProviderForm visit stability', () => {
     expect(onSuccess).not.toHaveBeenCalled();
     expect(screen.getByLabelText('Current path').textContent).toBe('/admin/providers/new');
     expect(screen.getByText('clinic@example.com')).toBeTruthy();
+    expect(screen.queryByText('Clinic / hospital visits')).toBeNull();
+    expect(screen.queryByText('Emergency contact name')).toBeNull();
     expect(screen.getByText('42 Stable Road, Calgary, Alberta, Canada')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect((screen.getByRole('textbox', { name: 'Email address 1' }) as HTMLInputElement).value).toBe('clinic@example.com');
@@ -368,10 +379,11 @@ describe('ProviderForm visit stability', () => {
       admin_form_version: 2,
       language_ids: ['lang-en'],
       specialization_ids: ['spec-emergency'],
-      clinic_hospital_visit: false,
       primary_location: expect.objectContaining({ country: 'Canada', city: 'Calgary' }),
       emails: [expect.objectContaining({ email: 'clinic@example.com', is_primary: true })],
     }));
+    expect(vi.mocked(createProvider).mock.calls[0][0]).not.toHaveProperty('clinic_hospital_visit');
+    expect(vi.mocked(createProvider).mock.calls[0][0]).not.toHaveProperty('emergency_contact_name');
   });
 
   it('ignores implicit submits and rapid repeat clicks across the review transition', async () => {
@@ -444,6 +456,37 @@ describe('ProviderForm visit stability', () => {
 });
 
 describe('ProviderForm edit wizard', () => {
+  it('keeps legacy emergency edits valid when the saved number is missing', async () => {
+    const provider = existingProvider({ emergency_contact_number: null });
+    vi.mocked(updateProvider).mockResolvedValue(provider);
+    vi.mocked(getProvider).mockResolvedValue(provider);
+    render(<ProviderForm initialData={provider} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    const number = screen.getByLabelText('Emergency contact number') as HTMLInputElement;
+    expect(number.required).toBe(false);
+    expect(screen.queryByLabelText('Emergency contact name')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByRole('heading', { name: 'Contact & location' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateProvider).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(updateProvider).mock.calls[0][1]).not.toHaveProperty('emergency_contact_name');
+    expect(vi.mocked(updateProvider).mock.calls[0][1]).not.toHaveProperty('emergency_contact_number');
+  });
+
+  it('requires a number when emergency service is newly enabled on edit', async () => {
+    const provider = existingProvider({ emergency_services_available: false, emergency_contact_number: null });
+    render(<ProviderForm initialData={provider} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('checkbox', { name: /Emergency services available/ }));
+    expect((screen.getByLabelText('Emergency contact number') as HTMLInputElement).required).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('Emergency contact number is required.')).toBeTruthy();
+  });
+
   it('prepopulates steps and review, preserves Back/Edit changes, and saves only after confirmation', async () => {
     const provider = existingProvider();
     const onSuccess = vi.fn();
@@ -455,8 +498,9 @@ describe('ProviderForm edit wizard', () => {
     expect((screen.getByLabelText('Provider / practice name') as HTMLInputElement).value).toBe('Cedar Ridge');
     expect(await screen.findByRole('button', { name: 'Remove Old specialty' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
-    expect((screen.getByRole('checkbox', { name: /Clinic \/ hospital visits/ }) as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByLabelText('Emergency contact name') as HTMLInputElement).value).toBe('Dispatch');
+    expect(screen.queryByRole('checkbox', { name: /Clinic \/ hospital visits/ })).toBeNull();
+    expect(screen.queryByLabelText('Emergency contact name')).toBeNull();
+    expect((screen.getByLabelText('Emergency contact number') as HTMLInputElement).value).toBe('+1 403 555 9999');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect((screen.getByLabelText('Location name') as HTMLInputElement).value).toBe('Main branch');
     expect((screen.getByLabelText('Pincode / postal code') as HTMLInputElement).value).toBe('T2P 1J9');
@@ -467,11 +511,13 @@ describe('ProviderForm edit wizard', () => {
     expect(updateProvider).not.toHaveBeenCalled();
     expect(screen.getByText('new@example.com')).toBeTruthy();
     expect(screen.getByText('Main branch')).toBeTruthy();
+    expect(screen.queryByText('Clinic / hospital visits')).toBeNull();
+    expect(screen.queryByText('Emergency contact name')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect((screen.getByRole('textbox', { name: 'Email address 1' }) as HTMLInputElement).value).toBe('new@example.com');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('button', { name: 'Edit Services' }));
-    expect((screen.getByLabelText('Emergency contact name') as HTMLInputElement).value).toBe('Dispatch');
+    expect(screen.queryByLabelText('Emergency contact name')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     const form = screen.getByRole('button', { name: 'Save changes' }).closest('form')!;
@@ -482,6 +528,11 @@ describe('ProviderForm edit wizard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
     expect(updateProvider).toHaveBeenCalledTimes(1);
+    const editBody = vi.mocked(updateProvider).mock.calls[0][1];
+    expect(editBody).not.toHaveProperty('clinic_hospital_visit');
+    expect(editBody).not.toHaveProperty('emergency_contact_name');
+    expect(editBody).not.toHaveProperty('emergency_services_available');
+    expect(editBody).not.toHaveProperty('emergency_contact_number');
     expect(removeProviderEmail).toHaveBeenCalledWith('provider-1', 'email-1');
     expect(addProviderEmail).toHaveBeenCalledWith('provider-1', expect.objectContaining({ email: 'new@example.com' }));
     expect(updateProviderLocation).not.toHaveBeenCalled();
@@ -539,7 +590,6 @@ describe('ProviderForm edit wizard', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Provider type' }), 'HOSPITAL');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByRole('heading', { name: 'Services' })).toBeTruthy();
-    await user.click(screen.getByRole('checkbox', { name: /Clinic \/ hospital visits/ }));
     await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'INACTIVE');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Publication status' }), 'PUBLISHED');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
@@ -550,8 +600,10 @@ describe('ProviderForm edit wizard', () => {
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(updateProviderLocation).toHaveBeenCalled());
     expect(updateProvider).toHaveBeenCalledWith('provider-1', expect.objectContaining({
-      provider_type: 'HOSPITAL', clinic_hospital_visit: false,
+      provider_type: 'HOSPITAL',
     }));
+    expect(vi.mocked(updateProvider).mock.calls[0][1]).not.toHaveProperty('clinic_hospital_visit');
+    expect(vi.mocked(updateProvider).mock.calls[0][1]).not.toHaveProperty('emergency_contact_name');
     expect(updateProviderStatus).toHaveBeenCalledWith('provider-1', 'INACTIVE');
     expect(updateProviderPublication).toHaveBeenCalledWith('provider-1', 'PUBLISHED');
     expect(updateProviderLocation).toHaveBeenCalledWith('provider-1', 'location-1', expect.objectContaining({ name: 'West wing' }));
