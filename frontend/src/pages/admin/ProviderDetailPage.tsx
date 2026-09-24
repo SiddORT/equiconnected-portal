@@ -15,6 +15,8 @@ import {
   removeProviderSpecialization,
   setProviderThumbnail,
   updateProviderLocation,
+  createProviderVisit,
+  updateProviderVisit,
   updateProviderPublication,
   updateProviderStatus,
   uploadProviderPhoto,
@@ -34,7 +36,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { LocationPicker } from '@/components/ui/LocationPicker';
 import { Select } from '@/components/ui/Select';
 import { PageHeader } from '@/components/layout/PageHeader';
-import type { LoadingState, Provider, Specialization } from '@/types';
+import type { DoctorVisitCreate, LoadingState, Provider, Specialization } from '@/types';
 import styles from './ProviderDetailPage.module.css';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -114,6 +116,12 @@ export function ProviderDetailPage() {
   // Add-location form
   const [locationFormOpen, setLocationFormOpen] = useState(false);
   const [locationForm, setLocationForm] = useState<LocationFormValues>(EMPTY_LOCATION_FORM);
+  const [visitFormOpen, setVisitFormOpen] = useState(false);
+  const [editingVisitId, setEditingVisitId] = useState<string | null>(null);
+  const [visitForm, setVisitForm] = useState<DoctorVisitCreate>({
+    location: { address_line_1: '', city: '', name: '', state_province: '', country: '', postal_code: '' },
+    start_date: '', end_date: '',
+  });
 
   // Edit-location form
   const [editingLocationId, setEditingLocationId] = useState<string | null>(null);
@@ -138,6 +146,15 @@ export function ProviderDetailPage() {
   function closeEditLocation() {
     setEditingLocationId(null);
     setEditLocationForm(EMPTY_LOCATION_FORM);
+  }
+
+  function openVisitForm(visit?: import('@/types').DoctorVisit) {
+    setEditingVisitId(visit?.id ?? null);
+    setVisitForm(visit ? {
+      location: { ...visit.location, name: visit.location.name ?? '', state_province: visit.location.state_province ?? '', country: visit.location.country ?? '', postal_code: visit.location.postal_code ?? '' },
+      start_date: visit.start_date, end_date: visit.end_date,
+    } : { location: { address_line_1: '', city: '', name: '', state_province: '', country: '', postal_code: '' }, start_date: '', end_date: '' });
+    setVisitFormOpen(true);
   }
 
   // Confirm dialog
@@ -206,6 +223,44 @@ export function ProviderDetailPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function saveVisit(event: React.FormEvent) {
+    event.preventDefault();
+    const v = visitForm;
+    if (!v.location.address_line_1.trim() || !v.location.city.trim() || !v.start_date || !v.end_date) {
+      setActionError('Visit location, start date, and end date are required.');
+      return;
+    }
+    if (v.end_date < v.start_date) {
+      setActionError('End date must be on or after the start date.');
+      return;
+    }
+    const body: DoctorVisitCreate = {
+      location: {
+        address_line_1: v.location.address_line_1.trim(),
+        city: v.location.city.trim(),
+        name: v.location.name?.trim() || null,
+        state_province: v.location.state_province?.trim() || null,
+        country: v.location.country?.trim() || null,
+        postal_code: v.location.postal_code?.trim() || null,
+      },
+      start_date: v.start_date,
+      end_date: v.end_date,
+    };
+    void run(
+      () => editingVisitId
+        ? updateProviderVisit(p.id, editingVisitId, body).then(() => { setVisitFormOpen(false); setEditingVisitId(null); })
+        : createProviderVisit(p.id, body).then(() => setVisitFormOpen(false)),
+      editingVisitId ? 'Failed to amend upcoming visit.' : 'Failed to add return visit.'
+    );
+  }
+
+  function localCalendarDate() {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${now.getFullYear()}-${month}-${day}`;
   }
 
   function addFiles(files: FileList | File[]) {
@@ -802,6 +857,67 @@ export function ProviderDetailPage() {
             )}
           </CardBody>
         </Card>
+
+        {p.provider_type === 'DOCTOR' && (
+          <Card padding="none" shadow="sm" className={styles.colFull}>
+            <CardHeader>
+              <div className={styles.cardHeaderRow}>
+                <div>
+                  <h2 className={styles.sectionTitle}>Doctor trips</h2>
+                  <p className={styles.hint}>Availability and visit locations are recorded as date periods.</p>
+                </div>
+                {p.doctor_availability === 'VISITING' && (
+                  <Button variant="outline" size="sm" onClick={() => openVisitForm()}>Add future return</Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardBody>
+              {visitFormOpen && (
+                <form className={styles.inlineForm} onSubmit={saveVisit}>
+                  <h3>{editingVisitId ? 'Amend upcoming visit' : 'Add future return'}</h3>
+                  <div className={styles.formGrid}>
+                    <Input label="Location name" value={visitForm.location.name ?? ''} onChange={(e) => setVisitForm((v) => ({ ...v, location: { ...v.location, name: e.target.value } }))} />
+                    <Input label="Address line 1" required value={visitForm.location.address_line_1} onChange={(e) => setVisitForm((v) => ({ ...v, location: { ...v.location, address_line_1: e.target.value } }))} />
+                    <Input label="City" required value={visitForm.location.city} onChange={(e) => setVisitForm((v) => ({ ...v, location: { ...v.location, city: e.target.value } }))} />
+                    <Input label="State / Province" value={visitForm.location.state_province ?? ''} onChange={(e) => setVisitForm((v) => ({ ...v, location: { ...v.location, state_province: e.target.value } }))} />
+                    <Input label="Country" value={visitForm.location.country ?? ''} onChange={(e) => setVisitForm((v) => ({ ...v, location: { ...v.location, country: e.target.value } }))} />
+                    <Input label="Postal code" value={visitForm.location.postal_code ?? ''} onChange={(e) => setVisitForm((v) => ({ ...v, location: { ...v.location, postal_code: e.target.value } }))} />
+                    <Input label="Start date" type="date" min={localCalendarDate()} required value={visitForm.start_date} onChange={(e) => setVisitForm((v) => ({ ...v, start_date: e.target.value }))} />
+                    <Input label="End date" type="date" required value={visitForm.end_date} onChange={(e) => setVisitForm((v) => ({ ...v, end_date: e.target.value }))} />
+                  </div>
+                  <div className={styles.inlineFormFooter}>
+                    <Button type="button" variant="ghost" onClick={() => setVisitFormOpen(false)}>Cancel</Button>
+                    <Button type="submit" variant="primary" loading={busy}>{editingVisitId ? 'Save amendment' : 'Add return'}</Button>
+                  </div>
+                </form>
+              )}
+              {(!p.doctor_visits || p.doctor_visits.length === 0) ? (
+                <EmptyState
+                  title={p.doctor_availability === 'VISITING' ? 'No visit scheduled yet' : p.doctor_availability === 'ONGOING' ? 'Ongoing' : 'No availability recorded'}
+                  description={p.doctor_availability === 'VISITING' ? 'Add a future return when dates and a location are confirmed.' : undefined}
+                />
+              ) : (
+                <div className={styles.itemList}>
+                  {p.doctor_visits.map((visit) => {
+                    const today = localCalendarDate();
+                    const period = visit.end_date < today ? 'Previous' : visit.start_date > today ? 'Upcoming' : 'Current';
+                    return (
+                      <div key={visit.id} className={styles.item}>
+                        <div>
+                          <strong>{period} · {visit.start_date} to {visit.end_date}</strong>
+                          <p>{[visit.location.name, visit.location.address_line_1, visit.location.city, visit.location.state_province, visit.location.country, visit.location.postal_code].filter(Boolean).join(', ')}</p>
+                        </div>
+                        {period === 'Upcoming' && (
+                          <Button variant="ghost" size="sm" disabled={busy} onClick={() => openVisitForm(visit)}>Amend</Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardBody>
+          </Card>
+        )}
 
         {/* ── Photos — full width ───────────────────────────────────────────── */}
         <Card padding="none" shadow="sm" className={styles.colFull}>

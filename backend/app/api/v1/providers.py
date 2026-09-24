@@ -48,6 +48,7 @@ from app.schemas.provider import (
     PhoneResponse,
     LocationResponse,
     LocationUpdate,
+    DoctorVisitRequired,
     PhotoCreate,
     PhotoResponse,
     PhotoUpdate,
@@ -68,6 +69,7 @@ from app.services.provider_service import (
     ProviderNotFoundError,
     ProviderService,
     SpecializationNotFoundError,
+    VisitNotFoundError,
 )
 
 router = APIRouter(
@@ -157,7 +159,7 @@ def list_providers(
 def create_provider(body: ProviderCreate, request: Request, user: CurrentUser, svc: _Svc):
     _PROFILE_FIELDS = {"professional_title", "biography", "years_experience", "experience_description", "first_name", "last_name"}
     core = body.model_dump(
-        exclude={"admin_form_version", "specialization_ids", "primary_location", "phones", "emails", "language_ids", "qualifications"}
+        exclude={"admin_form_version", "specialization_ids", "primary_location", "phones", "emails", "language_ids", "qualifications", "initial_visit"}
         | _PROFILE_FIELDS
     )
     try:
@@ -173,6 +175,9 @@ def create_provider(body: ProviderCreate, request: Request, user: CurrentUser, s
             language_ids=body.language_ids,
             qualifications=[q.model_dump() for q in body.qualifications],
             admin_form_version=body.admin_form_version,
+            initial_visit=(
+                _visit_fields(body.initial_visit) if body.initial_visit and body.initial_visit.start_date else None
+            ),
             audit_context=context_from_request(request, user.id),
         )
         return ProviderResponse.from_provider(provider)
@@ -221,6 +226,40 @@ def update_provider(id: UUID, body: ProviderUpdate, request: Request, user: Curr
         return ProviderResponse.from_provider(provider)
     except ProviderNotFoundError:
         raise _404("provider_not_found", "Provider not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+def _visit_fields(body: DoctorVisitRequired) -> dict:
+    return {
+        "location": body.location.model_dump(mode="json"),
+        "start_date": body.start_date,
+        "end_date": body.end_date,
+    }
+
+
+@router.post("/{id}/visits", response_model=ProviderResponse, status_code=status.HTTP_201_CREATED)
+def add_doctor_visit(id: UUID, body: DoctorVisitRequired, request: Request, user: CurrentUser, svc: _Svc):
+    try:
+        return ProviderResponse.from_provider(svc.add_visit(
+            id, _visit_fields(body), audit_context=context_from_request(request, user.id)
+        ))
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.patch("/{id}/visits/{visit_id}", response_model=ProviderResponse)
+def update_doctor_visit(id: UUID, visit_id: UUID, body: DoctorVisitRequired, request: Request, user: CurrentUser, svc: _Svc):
+    try:
+        return ProviderResponse.from_provider(svc.update_visit(
+            id, visit_id, _visit_fields(body), audit_context=context_from_request(request, user.id)
+        ))
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+    except VisitNotFoundError:
+        raise _404("visit_not_found", "Visit not found")
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 

@@ -15,6 +15,7 @@ from app.models.email_delivery_log import EmailDeliveryLog  # noqa: F401, E402
 from app.models.specialization import Specialization  # noqa: F401, E402
 from app.models.provider import (  # noqa: F401, E402
     Provider,
+    DoctorVisit,
     ProviderEmail,
     ProviderLocation,
     ProviderPhone,

@@ -549,6 +549,29 @@ export interface Provider extends Omit<ProviderListItem, 'emergency_services_ava
   emergency_services_available: boolean | null;
   emergency_contact_name: string | null;
   emergency_contact_number: string | null;
+  doctor_availability?: DoctorAvailability | null;
+  doctor_visits?: DoctorVisit[];
+}
+
+export type DoctorAvailability = 'ONGOING' | 'VISITING';
+
+export interface DoctorVisitLocation {
+  address_line_1: string;
+  city: string;
+  name?: string | null;
+  state_province?: string | null;
+  country?: string | null;
+  postal_code?: string | null;
+}
+
+export interface DoctorVisitCreate {
+  location: DoctorVisitLocation;
+  start_date: string;
+  end_date: string;
+}
+
+export interface DoctorVisit extends DoctorVisitCreate {
+  id: string;
 }
 
 export interface ProviderPortalVisibleReview {
@@ -687,6 +710,8 @@ export interface ProviderCreate {
   emergency_contact_name?: string | null;
   emergency_contact_number?: string | null;
   qualifications?: import('./doctor').QualificationCreate[];
+  doctor_availability?: DoctorAvailability | null;
+  initial_visit?: DoctorVisitCreate;
 }
 
 export interface ProviderUpdate {

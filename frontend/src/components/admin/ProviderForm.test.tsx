@@ -805,3 +805,120 @@ describe('ProviderForm edit wizard', () => {
     expect(uploadProviderPhoto).toHaveBeenCalledWith('provider-1', expect.any(File), expect.objectContaining({ is_thumbnail: true }));
   });
 });
+
+describe('Task 209 doctor availability and initial visit UI', () => {
+  async function beginDoctor(user: ReturnType<typeof userEvent.setup>) {
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Provider type' }), 'DOCTOR');
+    await user.type(screen.getByLabelText('Provider / practice name'), 'Prairie Equine Care');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.type(screen.getByLabelText('First name'), 'Maya');
+    await user.type(screen.getByLabelText('Last name'), 'Singh');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+  }
+
+  it('shows availability and initial visit fields only for a new Doctor, never a clinic', async () => {
+    const user = userEvent.setup();
+    render(<ProviderForm />);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Provider type' }), 'CLINIC');
+    await user.type(screen.getByLabelText('Provider / practice name'), 'Meadow Clinic');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.queryByLabelText('Availability')).toBeNull();
+    cleanup();
+
+    render(<ProviderForm />);
+    await beginDoctor(user);
+    expect(screen.getByLabelText('Availability')).toBeTruthy();
+    await user.selectOptions(screen.getByLabelText('Availability'), 'VISITING');
+    expect(screen.getByLabelText('Start date')).toBeTruthy();
+    expect(screen.getByLabelText('End date')).toBeTruthy();
+    expect(screen.getByLabelText('Address line 1')).toBeTruthy();
+  });
+
+  it('saves a visiting Doctor without a visit when the optional fields stay blank', async () => {
+    const user = userEvent.setup();
+    vi.mocked(createProvider).mockResolvedValue({ id: 'doctor-unscheduled', photos: [] } as unknown as Provider);
+    render(<ProviderForm />);
+    await beginDoctor(user);
+    await user.selectOptions(screen.getByLabelText('Availability'), 'VISITING');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: /Add email/i }));
+    await user.type(screen.getByRole('textbox', { name: 'Email address 1' }), 'maya@example.com');
+    await user.type(screen.getByLabelText('Address line 1'), '1 Prairie Way');
+    await user.type(screen.getByLabelText('Pincode / postal code'), 'T2P 1J9');
+    await user.click(screen.getByRole('button', { name: 'Country' }));
+    await user.type(screen.getByRole('combobox', { name: 'Search country' }), 'Canada');
+    await user.click(screen.getByRole('option', { name: 'Canada' }));
+    await user.click(screen.getByRole('button', { name: 'State / Province' }));
+    await user.type(screen.getByRole('combobox', { name: 'Search state / province' }), 'Alberta');
+    await user.click(screen.getByRole('option', { name: 'Alberta' }));
+    await user.click(screen.getByRole('button', { name: 'City' }));
+    await user.type(screen.getByRole('combobox', { name: 'Search city' }), 'Calgary');
+    await user.click(screen.getByRole('option', { name: 'Calgary' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Create provider' }));
+    await waitFor(() => expect(createProvider).toHaveBeenCalledWith(expect.objectContaining({
+      provider_type: 'DOCTOR',
+      doctor_availability: 'VISITING',
+    })));
+    expect(vi.mocked(createProvider).mock.calls[0][0]).not.toHaveProperty('initial_visit');
+  });
+
+  it('includes a complete initial visit in review and save payload', async () => {
+    const user = userEvent.setup();
+    vi.mocked(createProvider).mockResolvedValue({ id: 'doctor-visit', photos: [] } as unknown as Provider);
+    render(<ProviderForm />);
+    await beginDoctor(user);
+    await user.selectOptions(screen.getByLabelText('Availability'), 'VISITING');
+    await user.type(screen.getByLabelText('Address line 1'), '1 Prairie Way');
+    await user.type(screen.getByLabelText('City'), 'Calgary');
+    await user.type(screen.getByLabelText('Start date'), '2026-06-01');
+    await user.type(screen.getByLabelText('End date'), '2026-06-03');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: /Add email/i }));
+    await user.type(screen.getByRole('textbox', { name: 'Email address 1' }), 'maya@example.com');
+    await user.type(screen.getByLabelText('Address line 1'), '1 Prairie Way');
+    await user.type(screen.getByLabelText('Pincode / postal code'), 'T2P 1J9');
+    await user.click(screen.getByRole('button', { name: 'Country' }));
+    await user.type(screen.getByRole('combobox', { name: 'Search country' }), 'Canada');
+    await user.click(screen.getByRole('option', { name: 'Canada' }));
+    await user.click(screen.getByRole('button', { name: 'State / Province' }));
+    await user.type(screen.getByRole('combobox', { name: 'Search state / province' }), 'Alberta');
+    await user.click(screen.getByRole('option', { name: 'Alberta' }));
+    await user.click(screen.getByRole('button', { name: 'City' }));
+    await user.type(screen.getByRole('combobox', { name: 'Search city' }), 'Calgary');
+    await user.click(screen.getByRole('option', { name: 'Calgary' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText(/2026-06-01 to 2026-06-03/)).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Create provider' }));
+    await waitFor(() => expect(createProvider).toHaveBeenCalledWith(expect.objectContaining({
+      initial_visit: expect.objectContaining({
+        start_date: '2026-06-01',
+        end_date: '2026-06-03',
+        location: expect.objectContaining({ address_line_1: '1 Prairie Way', city: 'Calgary' }),
+      }),
+    })));
+  });
+
+  it('keeps a legacy null availability unset during Doctor edit until explicitly chosen', async () => {
+    const provider = existingProvider({
+      provider_type: 'DOCTOR',
+      doctor_profile: { first_name: 'Maya', last_name: 'Singh', professional_title: null, biography: null, years_experience: null, experience_description: null },
+      doctor_availability: null,
+    });
+    vi.mocked(updateProvider).mockResolvedValue(provider);
+    vi.mocked(getProvider).mockResolvedValue(provider);
+    const user = userEvent.setup();
+    render(<ProviderForm initialData={provider} />);
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect((screen.getByLabelText('Availability') as HTMLSelectElement).value).toBe('');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateProvider).toHaveBeenCalled());
+    expect(vi.mocked(updateProvider).mock.calls[0][1]).not.toHaveProperty('doctor_availability');
+  });
+});

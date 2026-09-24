@@ -3,12 +3,13 @@ Provider domain models: providers, provider_locations, provider_photos,
 and the provider_specializations association table.
 """
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Enum,
     ForeignKey,
@@ -28,6 +29,7 @@ from app.models.base import TimestampMixin
 from app.models.enums import (
     ProviderStatus,
     ProviderType,
+    DoctorAvailability,
     PublicationStatus,
     ProviderProfileUpdateStatus,
     VisitStability,
@@ -59,6 +61,14 @@ class Provider(TimestampMixin, Base):
     visit_stability: Mapped[VisitStability] = mapped_column(
         Enum(VisitStability, name="visit_stability", native_enum=True),
         nullable=False,
+    )
+    doctor_availability: Mapped[DoctorAvailability | None] = mapped_column(
+        Enum(DoctorAvailability, name="doctor_availability", native_enum=True),
+        nullable=True,
+    )
+    doctor_visits: Mapped[list["DoctorVisit"]] = relationship(
+        back_populates="provider", cascade="all, delete-orphan",
+        order_by="DoctorVisit.start_date",
     )
     status: Mapped[ProviderStatus] = mapped_column(
         Enum(ProviderStatus, name="provider_status", native_enum=True),
@@ -138,6 +148,25 @@ class Provider(TimestampMixin, Base):
 
     def __repr__(self) -> str:
         return f"<Provider id={self.id} type={self.provider_type} name={self.name!r}>"
+
+
+class DoctorVisit(TimestampMixin, Base):
+    """A dated trip with an independent snapshot of its location."""
+
+    __tablename__ = "doctor_visits"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("providers.id", ondelete="CASCADE"), nullable=False
+    )
+    location: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    provider: Mapped["Provider"] = relationship(back_populates="doctor_visits")
+
+    __table_args__ = (
+        CheckConstraint("start_date <= end_date", name="ck_doctor_visits_date_order"),
+        Index("ix_doctor_visits_provider_dates", "provider_id", "start_date", "end_date"),
+    )
 
 
 class ProviderReview(TimestampMixin, Base):

@@ -19,6 +19,7 @@ from app.models.doctor import DoctorProfile, DoctorQualification
 from app.models.language import Language, ProviderLanguage
 from app.models.provider import (
     Provider,
+    DoctorVisit,
     ProviderEmail,
     ProviderLocation,
     ProviderPhone,
@@ -42,6 +43,7 @@ class ProviderRepository:
             .options(
                 selectinload(Provider.doctor_profile),
                 selectinload(Provider.locations),
+                selectinload(Provider.doctor_visits),
                 selectinload(Provider.photos),
                 selectinload(Provider.phones),
                 selectinload(Provider.emails),
@@ -60,6 +62,18 @@ class ProviderRepository:
             .where(Provider.id == provider_id)
             .with_for_update(of=Provider)
         )
+
+    def visits(self, provider_id: UUID) -> list[DoctorVisit]:
+        return list(self._db.scalars(
+            select(DoctorVisit).where(DoctorVisit.provider_id == provider_id)
+            .order_by(DoctorVisit.start_date, DoctorVisit.id)
+        ))
+
+    def add_visit(self, provider_id: UUID, fields: dict) -> DoctorVisit:
+        visit = DoctorVisit(provider_id=provider_id, **fields)
+        self._db.add(visit)
+        self._db.flush()
+        return visit
 
     def list(
         self,

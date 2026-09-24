@@ -1,7 +1,7 @@
 """
 Pydantic schemas for the Healthcare Provider module.
 """
-from datetime import datetime
+from datetime import date, datetime
 from math import isfinite
 import re
 from decimal import Decimal
@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serial
 from app.models.enums import (
     ProviderStatus,
     ProviderType,
+    DoctorAvailability,
     ProviderProfileUpdateStatus,
     PublicationStatus,
     VisitStability,
@@ -81,6 +82,37 @@ class LocationResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DoctorVisitInput(BaseModel):
+    location: LocationCreate | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+
+    @model_validator(mode="after")
+    def complete_or_empty(self):
+        if any(value is not None for value in (self.location, self.start_date, self.end_date)):
+            if self.location is None or self.start_date is None or self.end_date is None:
+                raise ValueError("Visit location, start date and end date are all required.")
+            if self.start_date > self.end_date:
+                raise ValueError("Visit end date must be on or after start date.")
+        return self
+
+
+class DoctorVisitRequired(DoctorVisitInput):
+    @model_validator(mode="after")
+    def require_visit(self):
+        if self.location is None:
+            raise ValueError("Visit location, start date and end date are all required.")
+        return self
+
+
+class DoctorVisitResponse(BaseModel):
+    id: UUID
+    location: LocationCreate
+    start_date: date
+    end_date: date
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -230,6 +262,8 @@ class ProviderCreate(BaseModel):
     phone: str | None = Field(None, max_length=50)
     website: str | None = Field(None, max_length=500)
     visit_stability: VisitStability
+    doctor_availability: DoctorAvailability | None = None
+    initial_visit: DoctorVisitInput | None = None
     status: ProviderStatus = ProviderStatus.ACTIVE
     publication_status: PublicationStatus = PublicationStatus.UNPUBLISHED
     specialization_ids: list[UUID] = Field(default_factory=list)
@@ -263,6 +297,10 @@ class ProviderCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_admin_requirements(self):
+        if self.provider_type != ProviderType.DOCTOR and (self.doctor_availability is not None or self.initial_visit is not None):
+            raise ValueError("Doctor availability and visits are only available for doctors.")
+        if self.initial_visit is not None and self.initial_visit.start_date is not None and self.doctor_availability != DoctorAvailability.VISITING:
+            raise ValueError("A visit requires visiting doctor availability.")
         if self.admin_form_version == 2 and (self.primary_location is None or not self.primary_location.country):
             raise ValueError("primary_location with country is required")
         if self.admin_form_version == 2 and not (
@@ -286,6 +324,7 @@ class ProviderUpdate(BaseModel):
     admin_form_version: Literal[2] | None = None
     """PATCH body — all fields optional; only provided fields are updated."""
     provider_type: ProviderType | None = None
+    doctor_availability: DoctorAvailability | None = None
     name: str | None = Field(None, min_length=1, max_length=300)
     description: str | None = Field(None, max_length=5000)
     email: str | None = Field(None, max_length=254)
@@ -412,6 +451,8 @@ class ProviderResponse(ProviderListItem):
     phones: list[PhoneResponse] = []
     emails: list[EmailResponse] = []
     doctor_profile: DoctorProfileOut | None = None
+    doctor_availability: DoctorAvailability | None = None
+    doctor_visits: list[DoctorVisitResponse] = []
     doctor_fields_available: bool = False
     maximum_working_radius_km: float | None = None
     clinic_hospital_visit: bool | None = None
@@ -426,6 +467,8 @@ class ProviderResponse(ProviderListItem):
     @classmethod
     def from_provider(cls, provider) -> "ProviderResponse":
         return cls(
+            doctor_availability=provider.doctor_availability,
+            doctor_visits=[DoctorVisitResponse.model_validate(visit) for visit in provider.doctor_visits],
             doctor_profile=(
                 DoctorProfileOut.model_validate(provider.doctor_profile)
                 if getattr(provider, "doctor_profile", None) is not None

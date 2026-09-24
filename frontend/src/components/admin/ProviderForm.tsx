@@ -53,6 +53,7 @@ import type {
   VisitStability,
   Language,
   QualificationCreate,
+  DoctorAvailability,
 } from '@/types';
 import styles from './ProviderForm.module.css';
 import wizardStyles from './ProviderWizard.module.css';
@@ -90,7 +91,7 @@ const WIZARD_STEPS = [
 function wizardStepForField(key: string): number {
   if (key === 'provider_type' || key === 'name') return 0;
   if (['first_name', 'last_name', 'years_experience'].includes(key) || key.startsWith('qualification_')) return 1;
-  if (['visit_stability', 'maximum_working_radius_km', 'emergency_contact_number'].includes(key)) return 2;
+  if (['visit_stability', 'maximum_working_radius_km', 'emergency_contact_number', 'initial_visit', 'doctor_availability'].includes(key)) return 2;
   return 3;
 }
 
@@ -254,6 +255,16 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const [selectedSpecIds, setSelectedSpecIds] = useState<string[]>(
     inv?.initial.specialization_ids ?? initialData?.specializations.map((s) => s.id) ?? []
   );
+  const [doctorAvailability, setDoctorAvailability] = useState<DoctorAvailability | ''>(
+    initialData?.doctor_availability ?? ''
+  );
+  const [doctorAvailabilityTouched, setDoctorAvailabilityTouched] = useState(false);
+  const [initialVisitLocation, setInitialVisitLocation] = useState({
+    name: '', address_line_1: '', city: '', state_province: '', country: '', postal_code: '',
+  });
+  const [initialVisitStart, setInitialVisitStart] = useState('');
+  const [initialVisitEnd, setInitialVisitEnd] = useState('');
+
 
   useEffect(() => () => {
     if (photoPreview?.startsWith('blob:')) URL.revokeObjectURL?.(photoPreview);
@@ -435,6 +446,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     if (!providerType) errors.provider_type = 'Provider type is required.';
     if (!name.trim()) errors.name = 'Name is required.';
     if (!visitStability) errors.visit_stability = 'Visit Stable is required.';
+    if (wizard && !isEdit && providerType === 'DOCTOR' && !doctorAvailability)
+      errors.doctor_availability = 'Choose ongoing or visiting availability.';
     if (wizard && providerType === 'DOCTOR' && !firstName.trim() &&
       (!isEdit || initialData?.provider_type !== 'DOCTOR' || Boolean(initialData.doctor_profile?.first_name)))
       errors.first_name = 'First name is required.';
@@ -478,6 +491,15 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       qualifications.forEach((q, i) => {
         if (!q.title.trim()) errors[`qualification_${i}`] = 'Qualification title is required.';
       });
+      if (!isEdit && doctorAvailability === 'VISITING') {
+        const hasLocation = Boolean(initialVisitLocation.address_line_1.trim() && initialVisitLocation.city.trim());
+        const hasAny = Boolean(initialVisitStart || initialVisitEnd || Object.values(initialVisitLocation).some(Boolean));
+        if (hasAny && (!hasLocation || !initialVisitStart || !initialVisitEnd)) {
+          errors.initial_visit = 'Complete the initial visit location and both dates, or leave it unscheduled.';
+        } else if (initialVisitStart && initialVisitEnd && initialVisitEnd < initialVisitStart) {
+          errors.initial_visit = 'End date must be on or after the start date.';
+        }
+      }
     }
     if (locationChanged && Object.values(location).some((value) => value.trim()) && !location.address_line_1.trim()) {
       errors.address_line_1 = 'Address line 1 is required when a city is provided.';
@@ -633,6 +655,21 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     setSubmitting(true);
     setPhotoError(null);
     try {
+      const completedInitialVisit = initialVisitStart && initialVisitEnd &&
+        initialVisitLocation.address_line_1.trim() && initialVisitLocation.city.trim()
+        ? {
+            location: {
+              address_line_1: initialVisitLocation.address_line_1.trim(),
+              city: initialVisitLocation.city.trim(),
+              name: initialVisitLocation.name.trim() || null,
+              state_province: initialVisitLocation.state_province.trim() || null,
+              country: initialVisitLocation.country.trim() || null,
+              postal_code: initialVisitLocation.postal_code.trim() || null,
+            },
+            start_date: initialVisitStart,
+            end_date: initialVisitEnd,
+          }
+        : undefined;
       let saved: Provider;
       if (isEdit && initialData) {
         saved = await updateProvider(initialData.id, {
@@ -672,6 +709,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                   display_order: i,
                 })),
               }
+            : {}),
+          ...(providerType === 'DOCTOR' && doctorAvailabilityTouched
+            ? { doctor_availability: doctorAvailability || null }
             : {}),
         });
         // Status / publication use dedicated endpoints — only when changed.
@@ -839,6 +879,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                   display_order: i,
                 })),
               }
+            : {}),
+          ...(providerType === 'DOCTOR'
+            ? { doctor_availability: doctorAvailability || null, ...(completedInitialVisit ? { initial_visit: completedInitialVisit } : {}) }
             : {}),
         };
         saved = await createProvider(body);
@@ -1218,6 +1261,46 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         </section>
       </Card>}
 
+      {!inv && providerType === 'DOCTOR' && wizard && wizardStep === 2 && (
+        <Card padding="lg" shadow="sm" className={styles.cardFull}>
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>Doctor availability</h3>
+            <p className={styles.hint}>Choose how this Doctor / Vet is currently taking trips. An initial visit is optional.</p>
+            <Select
+              label="Availability"
+              options={[{ value: 'ONGOING', label: 'Ongoing' }, { value: 'VISITING', label: 'Visiting' }]}
+              placeholder="Not scheduled"
+              value={doctorAvailability}
+              onChange={(e) => {
+                setDoctorAvailabilityTouched(true);
+                setDoctorAvailability(e.target.value as DoctorAvailability | '');
+                if (e.target.value !== 'VISITING') {
+                  setInitialVisitStart('');
+                  setInitialVisitEnd('');
+                }
+              }}
+            />
+            {errs.doctor_availability && <p className={styles.fieldError} role="alert">{errs.doctor_availability}</p>}
+            {!isEdit && doctorAvailability === 'VISITING' && (
+              <div className={styles.serviceFields}>
+                <p className={styles.hint}>Leave all fields blank to save without a visit, or complete every field to schedule the initial visit.</p>
+                {errs.initial_visit && <p className={styles.fieldError} role="alert">{errs.initial_visit}</p>}
+                <div className={styles.grid}>
+                  <Input label="Location name" value={initialVisitLocation.name} onChange={(e) => setInitialVisitLocation((v) => ({ ...v, name: e.target.value }))} />
+                  <Input label="Address line 1" value={initialVisitLocation.address_line_1} onChange={(e) => setInitialVisitLocation((v) => ({ ...v, address_line_1: e.target.value }))} />
+                  <Input label="City" value={initialVisitLocation.city} onChange={(e) => setInitialVisitLocation((v) => ({ ...v, city: e.target.value }))} />
+                  <Input label="State / Province" value={initialVisitLocation.state_province} onChange={(e) => setInitialVisitLocation((v) => ({ ...v, state_province: e.target.value }))} />
+                  <Input label="Country" value={initialVisitLocation.country} onChange={(e) => setInitialVisitLocation((v) => ({ ...v, country: e.target.value }))} />
+                  <Input label="Postal code" value={initialVisitLocation.postal_code} onChange={(e) => setInitialVisitLocation((v) => ({ ...v, postal_code: e.target.value }))} />
+                  <Input label="Start date" type="date" value={initialVisitStart} onChange={(e) => setInitialVisitStart(e.target.value)} />
+                  <Input label="End date" type="date" value={initialVisitEnd} onChange={(e) => setInitialVisitEnd(e.target.value)} />
+                </div>
+              </div>
+            )}
+          </section>
+        </Card>
+      )}
+
       {/* ── Primary location — shown in both Add and Edit ─────────────────── */}
       {(!wizard || wizardStep === 3) && <Card padding="lg" shadow="sm" className={`${wizard ? styles.cardFull : ''} ${styles.dropdownCard}`}>
         <section className={styles.section}>
@@ -1342,6 +1425,12 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               ...(emergencyServices ? [{ label: 'Emergency contact number', value: emergencyNumber }] : []),
               { label: 'Status', value: status },
               { label: 'Publication', value: publication },
+              ...(providerType === 'DOCTOR' ? [
+                { label: 'Doctor availability', value: doctorAvailability === 'ONGOING' ? 'Ongoing' : doctorAvailability === 'VISITING' ? 'Visiting' : 'Unknown / legacy' },
+                ...(!isEdit
+                  ? [{ label: 'Initial visit', value: initialVisitStart && initialVisitEnd && initialVisitLocation.city ? `${initialVisitStart} to ${initialVisitEnd} · ${initialVisitLocation.city}` : 'No visit scheduled' }]
+                  : [{ label: 'Recorded visits', value: initialData?.doctor_visits?.length ? `${initialData.doctor_visits.length} visit period${initialData.doctor_visits.length === 1 ? '' : 's'}` : 'No visits recorded' }]),
+              ] : []),
             ] },
             { title: 'Contact & location', step: 3, items: [
               { label: 'Email', value: emailEntries.map((e) => e.email.trim()).filter(Boolean).join(', ') },

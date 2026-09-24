@@ -3,6 +3,7 @@ ProviderService — business logic for healthcare providers.
 """
 from __future__ import annotations
 
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -10,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from app.models.enums import (
     ProviderStatus,
     ProviderType,
+    DoctorAvailability,
     PublicationStatus,
     VisitStability,
 )
@@ -19,6 +21,7 @@ from app.models.provider import (
     ProviderLocation,
     ProviderPhone,
     ProviderPhoto,
+    DoctorVisit,
 )
 from app.repositories.provider_repository import ProviderRepository
 from app.repositories.audit_repository import AuditContext, AuditRepository
@@ -52,6 +55,10 @@ class PhoneNotFoundError(Exception):
 
 class EmailNotFoundError(Exception):
     """Raised when an email does not exist for the provider."""
+
+
+class VisitNotFoundError(Exception):
+    """Raised when a visit is not part of this provider."""
 
 
 # ── Service ───────────────────────────────────────────────────────────────────
@@ -128,6 +135,7 @@ class ProviderService:
         language_ids: list[UUID] | None = None,
         qualifications: list[dict] | None = None,
         admin_form_version: int | None = None,
+        initial_visit: dict | None = None,
         audit_context: AuditContext | None = None,
     ) -> Provider:
         # Validate specialization IDs before touching the DB rows.
@@ -142,6 +150,10 @@ class ProviderService:
 
         try:
             provider = self._repo.create(**core_fields)
+            if initial_visit:
+                if provider.provider_type != ProviderType.DOCTOR or provider.doctor_availability != DoctorAvailability.VISITING:
+                    raise ValueError("A visit requires a visiting doctor.")
+                self._repo.add_visit(provider.id, initial_visit)
             for spec_id in dict.fromkeys(specialization_ids):  # dedupe, keep order
                 self._repo.add_specialization(provider.id, spec_id)
             if primary_location is not None:
@@ -188,6 +200,9 @@ class ProviderService:
         except IntegrityError:
             self._repo.rollback()
             raise DuplicateSpecializationError("Duplicate specialization assignment.")
+        except Exception:
+            self._repo.rollback()
+            raise
         return self.get(provider.id)
 
     def update(
@@ -196,7 +211,20 @@ class ProviderService:
         admin_form_version: int | None = None,
         audit_context: AuditContext | None = None,
     ) -> Provider:
+        if self._repo.lock_provider(id) is None:
+            raise ProviderNotFoundError(str(id))
         provider = self.get(id)
+        effective_type = update_fields.get("provider_type", provider.provider_type)
+        effective_availability = update_fields.get("doctor_availability", provider.doctor_availability)
+        if effective_type != ProviderType.DOCTOR:
+            if update_fields.get("doctor_availability") is not None:
+                raise ValueError("Doctor availability is only available for doctors.")
+            if provider.provider_type == ProviderType.DOCTOR and provider.doctor_visits:
+                raise ValueError("A doctor with recorded visits cannot change provider type.")
+            if provider.provider_type == ProviderType.DOCTOR:
+                update_fields["doctor_availability"] = None
+        if effective_availability != DoctorAvailability.VISITING and provider.doctor_visits and effective_type == ProviderType.DOCTOR:
+            raise ValueError("A doctor with recorded visits must remain visiting.")
         effective_stability = update_fields.get("visit_stability", provider.visit_stability)
         radius = update_fields.get("maximum_working_radius_km", provider.maximum_working_radius_km)
         stability_changed = (
@@ -256,6 +284,41 @@ class ProviderService:
             )
         self._repo.commit()
         return self.get(id)
+
+    def _validate_visit(self, provider: Provider, fields: dict, *, exclude_id: UUID | None = None) -> None:
+        if provider.provider_type != ProviderType.DOCTOR or provider.doctor_availability != DoctorAvailability.VISITING:
+            raise ValueError("Visits are only available for visiting doctors.")
+        start, end = fields["start_date"], fields["end_date"]
+        if start > end:
+            raise ValueError("Visit end date must be on or after start date.")
+        if any(v.start_date <= end and start <= v.end_date for v in self._repo.visits(provider.id) if v.id != exclude_id):
+            raise ValueError("Visit dates overlap an existing visit (including endpoints).")
+
+    def add_visit(self, provider_id: UUID, fields: dict, *, audit_context: AuditContext | None = None) -> Provider:
+        provider = self._repo.lock_provider(provider_id)
+        if provider is None:
+            raise ProviderNotFoundError(str(provider_id))
+        self._validate_visit(provider, fields)
+        self._repo.add_visit(provider_id, fields)
+        self._record("provider.visit_added", provider, "Scheduled a doctor visit.", context=audit_context)
+        self._repo.commit()
+        return self.get(provider_id)
+
+    def update_visit(self, provider_id: UUID, visit_id: UUID, fields: dict, *, audit_context: AuditContext | None = None) -> Provider:
+        provider = self._repo.lock_provider(provider_id)
+        if provider is None:
+            raise ProviderNotFoundError(str(provider_id))
+        visit = next((v for v in self._repo.visits(provider_id) if v.id == visit_id), None)
+        if visit is None:
+            raise VisitNotFoundError(str(visit_id))
+        if visit.start_date <= date.today():
+            raise ValueError("Only upcoming visits can be edited.")
+        self._validate_visit(provider, fields, exclude_id=visit_id)
+        for key, value in fields.items():
+            setattr(visit, key, value)
+        self._record("provider.visit_updated", provider, "Corrected an upcoming doctor visit.", context=audit_context)
+        self._repo.commit()
+        return self.get(provider_id)
 
     def set_status(self, id: UUID, *, status: ProviderStatus,
                    audit_context: AuditContext | None = None) -> Provider:

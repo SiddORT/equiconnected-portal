@@ -16,6 +16,11 @@ class VisitStability(str, enum.Enum):
     NOT_STABLE_VISIT = "NOT_STABLE_VISIT"
 
 
+class DoctorAvailability(str, enum.Enum):
+    ONGOING = "ONGOING"
+    VISITING = "VISITING"
+
+
 class ProviderStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     UNDER_REVIEW = "UNDER_REVIEW"

@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models.enums import ProviderType, VisitStability
 from app.models.provider import (
+    DoctorVisit,
     Provider,
     ProviderLocation,
     ProviderPhoto,
@@ -90,3 +91,19 @@ def test_cascade_delete_children(db):
     assert db.query(ProviderSpecialization).count() == 0
     # Specialization master record must survive
     assert db.query(Specialization).count() == 1
+
+
+def test_doctor_visit_date_order_and_cascade(db):
+    from datetime import date
+    p = _make_provider(db)
+    db.add(DoctorVisit(provider_id=p.id, location={"address_line_1": "Road", "city": "Pune"},
+                       start_date=date(2026, 5, 2), end_date=date(2026, 5, 1)))
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()
+    db.add(DoctorVisit(provider_id=p.id, location={"address_line_1": "Road", "city": "Pune"},
+                       start_date=date(2026, 5, 1), end_date=date(2026, 5, 2)))
+    db.commit()
+    db.delete(p)
+    db.commit()
+    assert db.query(DoctorVisit).count() == 0

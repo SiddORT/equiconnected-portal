@@ -15,6 +15,7 @@ Covers:
   - 404s for unknown provider / location / photo IDs
 """
 import uuid
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -200,6 +201,98 @@ class TestCreate:
     def test_name_is_trimmed(self, client: TestClient, admin_token: str):
         data = _create_provider(client, admin_token, "  Trimmed Hospital  ")
         assert data["name"] == "Trimmed Hospital"
+
+
+def _visit(start: date, end: date, city: str = "Pune") -> dict:
+    return {
+        "start_date": start.isoformat(), "end_date": end.isoformat(),
+        "location": {"address_line_1": "12 Arena Road", "city": city, "country": "India"},
+    }
+
+
+class TestDoctorVisits:
+    def test_unscheduled_and_legacy_doctors(self, client, admin_token):
+        visiting = _create_provider(client, admin_token, "Visiting Vet", provider_type="DOCTOR",
+                                    doctor_availability="VISITING")
+        assert visiting["doctor_availability"] == "VISITING"
+        assert visiting["doctor_visits"] == []
+        assert client.patch(f"{BASE}/{visiting['id']}", json={"name": "Travel Vet"},
+                            headers=_auth(admin_token)).status_code == 200
+        legacy = _create_provider(client, admin_token, "Legacy Vet", provider_type="DOCTOR")
+        assert legacy["doctor_availability"] is None and legacy["doctor_visits"] == []
+        assert client.patch(f"{BASE}/{legacy['id']}", json={"name": "Edited Vet"},
+                            headers=_auth(admin_token)).status_code == 200
+
+    def test_initial_visit_and_later_trip_keep_location_snapshot(self, client, admin_token):
+        today = date.today()
+        first = _visit(today - timedelta(days=20), today - timedelta(days=15))
+        created = _create_provider(client, admin_token, "Touring Vet", provider_type="DOCTOR",
+                                   doctor_availability="VISITING", initial_visit=first,
+                                   primary_location={"address_line_1": "Home Road", "city": "Mumbai"})
+        pid = created["id"]
+        assert created["doctor_visits"][0]["location"]["city"] == "Pune"
+        second = _visit(today + timedelta(days=10), today + timedelta(days=12), "Delhi")
+        response = client.post(f"{BASE}/{pid}/visits", json=second, headers=_auth(admin_token))
+        assert response.status_code == 201, response.text
+        visits = response.json()["doctor_visits"]
+        assert len(visits) == 2 and visits[0]["start_date"] == first["start_date"]
+        corrected = _visit(today + timedelta(days=11), today + timedelta(days=13), "Jaipur")
+        response = client.patch(f"{BASE}/{pid}/visits/{visits[1]['id']}", json=corrected,
+                                headers=_auth(admin_token))
+        assert response.status_code == 200, response.text
+        location_id = created["locations"][0]["id"]
+        assert client.patch(f"{BASE}/{pid}/locations/{location_id}", json={"city": "Nashik"},
+                            headers=_auth(admin_token)).status_code == 200
+        refreshed = client.get(f"{BASE}/{pid}", headers=_auth(admin_token)).json()
+        assert [v["location"]["city"] for v in refreshed["doctor_visits"]] == ["Pune", "Jaipur"]
+        assert [v["start_date"] for v in refreshed["doctor_visits"]] == [first["start_date"], corrected["start_date"]]
+        assert client.patch(f"{BASE}/{pid}/visits/{visits[0]['id']}", json=first,
+                            headers=_auth(admin_token)).status_code == 422
+        assert client.patch(f"{BASE}/{pid}", json={"provider_type": "CLINIC"},
+                            headers=_auth(admin_token)).status_code == 422
+
+    def test_invalid_and_overlap_are_rejected_without_partial_creation(self, client, admin_token):
+        today = date.today()
+        base = _provider_body("Test Vet", provider_type="DOCTOR", doctor_availability="VISITING")
+        for initial in (
+            {"start_date": today.isoformat()},
+            {"start_date": today.isoformat(), "end_date": today.isoformat()},
+            _visit(today + timedelta(days=3), today),
+        ):
+            assert client.post(BASE, json={**base, "initial_visit": initial},
+                               headers=_auth(admin_token)).status_code == 422
+        assert client.get(BASE, params={"search": "Test Vet"}, headers=_auth(admin_token)).json()["meta"]["total"] == 0
+        assert client.post(BASE, json={**base, "doctor_availability": "ONGOING",
+                                       "initial_visit": _visit(today, today)},
+                           headers=_auth(admin_token)).status_code == 422
+        p = _create_provider(client, admin_token, "Test Vet", provider_type="DOCTOR",
+                             doctor_availability="VISITING", initial_visit=_visit(today, today + timedelta(days=2)))
+        for data in (
+            _visit(today + timedelta(days=2), today + timedelta(days=4)),
+            {"start_date": today.isoformat(), "end_date": today.isoformat()},
+            {"location": {"address_line_1": "Road", "city": "Pune"}, "start_date": today.isoformat()},
+            _visit(today + timedelta(days=3), today + timedelta(days=2)),
+        ):
+            assert client.post(f"{BASE}/{p['id']}/visits", json=data, headers=_auth(admin_token)).status_code == 422
+        assert len(client.get(f"{BASE}/{p['id']}", headers=_auth(admin_token)).json()["doctor_visits"]) == 1
+        assert client.patch(f"{BASE}/{p['id']}", json={"doctor_availability": "ONGOING"},
+                            headers=_auth(admin_token)).status_code == 422
+        assert client.patch(f"{BASE}/{p['id']}", json={"name": "Still Visiting"},
+                            headers=_auth(admin_token)).json()["doctor_availability"] == "VISITING"
+        for typ in ("HOSPITAL", "CLINIC"):
+            assert client.post(BASE, json=_provider_body(provider_type=typ, doctor_availability="VISITING"),
+                               headers=_auth(admin_token)).status_code == 422
+            other = _create_provider(client, admin_token, f"{typ} without visits", provider_type=typ)
+            assert client.patch(f"{BASE}/{other['id']}", json={"doctor_availability": "VISITING"},
+                                headers=_auth(admin_token)).status_code == 422
+            assert client.post(f"{BASE}/{other['id']}/visits", json=_visit(today, today),
+                               headers=_auth(admin_token)).status_code == 422
+        assert client.post(f"{BASE}/{p['id']}/visits", json=_visit(today + timedelta(days=6), today + timedelta(days=7))).status_code == 401
+
+    def test_non_admin_cannot_schedule(self, client, admin_token, non_admin_token):
+        p = _create_provider(client, admin_token, "Private Vet", provider_type="DOCTOR", doctor_availability="VISITING")
+        assert client.post(f"{BASE}/{p['id']}/visits", json=_visit(date.today(), date.today()),
+                           headers=_auth(non_admin_token)).status_code == 403
 
 
 # ── List, filters & pagination ───────────────────────────────────────────────

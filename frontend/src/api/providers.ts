@@ -32,6 +32,8 @@ import type {
   QualificationCreate,
   QualificationResponse,
   QualificationUpdate,
+  DoctorVisitCreate,
+  Provider as ProviderTypeResponse,
 } from '@/types';
 
 export async function getProviderPortalProfile(): Promise<ProviderPortalProfile> {
@@ -121,6 +123,23 @@ export async function createProvider(body: ProviderCreate): Promise<Provider> {
 
 export async function updateProvider(id: string, body: ProviderUpdate): Promise<Provider> {
   const { data } = await apiClient.patch<Provider>(`/admin/providers/${id}`, body);
+  return data;
+}
+
+export async function createProviderVisit(id: string, body: DoctorVisitCreate): Promise<ProviderTypeResponse> {
+  const { data } = await apiClient.post<ProviderTypeResponse>(`/admin/providers/${id}/visits`, body);
+  return data;
+}
+
+export async function updateProviderVisit(
+  id: string,
+  visitId: string,
+  body: DoctorVisitCreate
+): Promise<ProviderTypeResponse> {
+  const { data } = await apiClient.patch<ProviderTypeResponse>(
+    `/admin/providers/${id}/visits/${visitId}`,
+    body
+  );
   return data;
 }
 
