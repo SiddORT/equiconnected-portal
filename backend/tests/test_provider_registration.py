@@ -131,6 +131,27 @@ class TestProviderRegistration:
         assert db.query(EmailVerificationToken).count() == 1
         assert db.query(User).count() == 1
 
+    def test_expired_provider_link_can_request_replacement_without_exposing_account(self, client, db, monkeypatch):
+        from datetime import datetime, timedelta, timezone
+        _seed_provider_role(db)
+        db.add(Specialization(id=_payload()["specialization_ids"][0], name="Equine medicine", is_active=True))
+        db.commit()
+        sent = _capture_verification_email(monkeypatch)
+        assert client.post(f"{AUTH}/provider-register", json=_payload()).status_code == 201
+        original = parse_qs(urlparse(sent[0]).query)["token"][0]
+        db.query(EmailVerificationToken).one().expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        db.query(EmailDeliveryLog).one().created_at = datetime.now(timezone.utc) - timedelta(minutes=6)
+        db.commit()
+        route = f"{AUTH}/resend-verification-token"
+        recovered = client.post(route, json={"token": original})
+        assert recovered.status_code == 200
+        assert recovered.json() == client.post(route, json={"token": "unknown" * 5}).json()
+        assert len(sent) == 2
+        replacement = parse_qs(urlparse(sent[-1]).query)["token"][0]
+        assert client.post(f"{AUTH}/verify-email", json={"token": replacement}).status_code == 200
+        assert client.post(route, json={"token": original}).json() == recovered.json()
+        assert len(sent) == 2
+
     def test_language_master_admin_and_public_selection(
         self, client: TestClient, db, seeded_admin, monkeypatch
     ):

@@ -19,6 +19,7 @@ vi.mock('@/api/auth', () => ({
     { id: 'lang-de', name: 'German', code: 'de' },
   ]),
   registerProvider: vi.fn().mockResolvedValue({}),
+  resendVerification: vi.fn(),
   lookupProviderPostalCode: vi.fn().mockResolvedValue({ status: 'no_match', candidates: [] }),
 }));
 vi.mock('@/components/ui/LocationPicker', () => ({
@@ -101,8 +102,10 @@ describe('provider registration validation', () => {
 });
 
 describe('public provider signup bulk options', () => {
-  it('selects, clears, and toggles filtered specializations and languages in the submitted IDs', async () => {
+  for (const emailSent of [true, false]) {
+  it(`submits selected options and offers input-free resend when delivery ${emailSent ? 'succeeds' : 'fails'}`, async () => {
     const user = userEvent.setup();
+    vi.mocked(authApi.registerProvider).mockResolvedValue({ email_sent: emailSent, message: '' });
     render(createElement(MemoryRouter, null, createElement(ProviderSignupPage)));
     const specs = await screen.findByRole('button', { name: /Specializations/ });
     await user.click(specs);
@@ -149,5 +152,11 @@ describe('public provider signup bulk options', () => {
       specialization_ids: ['spec-c', 'spec-a'],
       language_ids: ['lang-de', 'lang-en'],
     })));
+    expect(await screen.findByRole('heading', { name: emailSent ? 'Check your inbox' : 'Application saved' })).toBeTruthy();
+    expect(screen.queryByRole('textbox')).toBeNull();
+    vi.mocked(authApi.resendVerification).mockResolvedValue({ message: 'If this email belongs to an unverified account, a verification link will be sent when available.' });
+    await user.click(screen.getByRole('button', { name: 'Request a new verification link' }));
+    await waitFor(() => expect(authApi.resendVerification).toHaveBeenCalledWith('amina@example.com'));
   });
+  }
 });

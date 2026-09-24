@@ -306,6 +306,68 @@ class TestPublicRegistration:
 
 
 class TestEmailVerification:
+    def test_token_resend_route_uses_anonymous_rate_limit(self, client):
+        from app.main import app
+        from app.core.rate_limit import check_verification_resend_rate_limit, _verification_resend_attempts
+        app.dependency_overrides.pop(check_verification_resend_rate_limit)
+        try:
+            for _ in range(5):
+                assert client.post(f"{BASE}/resend-verification-token", json={"token": "x" * 32}).status_code == 200
+            limited = client.post(f"{BASE}/resend-verification-token", json={"token": "x" * 32})
+            assert limited.status_code == 429
+            assert limited.json()["detail"]["code"] == "rate_limited"
+        finally:
+            _verification_resend_attempts.pop("testclient", None)
+
+    def test_token_recovery_accepts_expired_link_but_not_unknown_used_or_verified(self, client, db, monkeypatch):
+        _seed_public_roles(db)
+        sent = _capture_verification_email(monkeypatch)
+        assert client.post(f"{BASE}/register", json=_payload()).status_code == 201
+        original = parse_qs(urlparse(sent[0]).query)["token"][0]
+        token = db.query(EmailVerificationToken).one()
+        token.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        log = db.query(EmailDeliveryLog).one()
+        log.created_at = datetime.now(timezone.utc) - timedelta(minutes=6)
+        db.commit()
+        route = f"{BASE}/resend-verification-token"
+        recovered = client.post(route, json={"token": original})
+        unknown = client.post(route, json={"token": "x" * 32})
+        assert recovered.status_code == unknown.status_code == 200
+        assert recovered.json() == unknown.json()
+        assert "amina@example.com" not in str(recovered.json())
+        assert len(sent) == 2
+        replacement = parse_qs(urlparse(sent[-1]).query)["token"][0]
+        assert replacement != original
+        assert client.post(f"{BASE}/verify-email", json={"token": original}).status_code == 409
+        assert client.post(route, json={"token": original}).json() == recovered.json()
+        assert client.post(route, json={"token": replacement}).json() == recovered.json()
+        assert len(sent) == 2  # per-address send cooldown
+        assert client.post(f"{BASE}/verify-email", json={"token": replacement}).status_code == 200
+        assert client.post(route, json={"token": replacement}).json() == recovered.json()
+        assert len(sent) == 2
+        assert client.post(route, json={}).status_code == 422
+
+    def test_token_recovery_respects_failed_delivery_and_role_eligibility(self, client, db, monkeypatch):
+        _seed_public_roles(db)
+        sent = _capture_verification_email(monkeypatch)
+        client.post(f"{BASE}/register", json=_payload())
+        original = parse_qs(urlparse(sent[0]).query)["token"][0]
+        db.query(EmailDeliveryLog).one().created_at = datetime.now(timezone.utc) - timedelta(minutes=6)
+        db.commit()
+        def fail(*_args):
+            raise EmailDeliveryError("SMTP connection failed.")
+        monkeypatch.setattr(EmailService, "send_verification_email", fail)
+        assert client.post(f"{BASE}/resend-verification-token", json={"token": original}).status_code == 200
+        db.expire_all()
+        assert db.query(EmailVerificationToken).count() == 1
+        assert db.query(EmailVerificationToken).one().used_at is None
+        user = db.query(User).filter(User.email == "amina@example.com").one()
+        user.provider_portal_setup_pending = True
+        db.commit()
+        sent = _capture_verification_email(monkeypatch)
+        assert client.post(f"{BASE}/resend-verification-token", json={"token": original}).status_code == 200
+        assert not sent
+
     def test_resend_replaces_expired_link_only_after_successful_handoff(self, client, db, monkeypatch):
         _seed_public_roles(db)
         sent = _capture_verification_email(monkeypatch)

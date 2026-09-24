@@ -140,7 +140,7 @@ export function SignupPage() {
               : <>Your account was created, but we could not send a verification email to <strong>{form.email}</strong>. You do not need to sign up again.</>}
             </p>
             <p className={styles.muted}>Verification is required before signing in. Links expire in 24 hours. If you expected a message, check your spam folder.</p>
-            <VerificationResend initialEmail={form.email.trim().toLowerCase()} />
+            <VerificationResend email={form.email.trim().toLowerCase()} />
           </section>
         ) : (
           <form className={styles.form} onSubmit={handleSubmit} noValidate>

@@ -40,6 +40,11 @@ export async function resendVerification(email: string): Promise<MessageResponse
   return data;
 }
 
+export async function resendVerificationToken(token: string): Promise<MessageResponse> {
+  const { data } = await apiClient.post<MessageResponse>('/auth/resend-verification-token', { token });
+  return data;
+}
+
 export async function register(payload: RegistrationRequest): Promise<RegistrationResponse> {
   const { data } = await apiClient.post<RegistrationResponse>('/auth/register', payload);
   return data;

@@ -37,6 +37,7 @@ from app.schemas.auth import (
     RegistrationRequest,
     RegistrationResponse,
     VerificationResendRequest,
+    VerificationTokenResendRequest,
     UserProfile,
 )
 from app.schemas.common import MessageResponse
@@ -219,6 +220,29 @@ def resend_verification(
     return MessageResponse(
         message="If this email belongs to an unverified account, a verification link will be sent when available."
     )
+
+
+@router.post("/resend-verification-token", response_model=MessageResponse,
+             dependencies=[Depends(check_verification_resend_rate_limit)])
+def resend_verification_token(
+    body: VerificationTokenResendRequest,
+    db: Annotated[Session, Depends(get_db)],
+    background_tasks: BackgroundTasks,
+) -> MessageResponse:
+    """Acknowledge before resolving the original link or attempting delivery."""
+    background_tasks.add_task(_send_verification_token_background, db.get_bind(), body.token)
+    return MessageResponse(
+        message="If this link belongs to an unverified account, a verification link will be sent when available."
+    )
+
+
+def _send_verification_token_background(bind, token: str) -> None:
+    with sessionmaker(bind=bind)() as session:
+        try:
+            AuthService(session).send_verification_for_token(token)
+        except Exception:
+            session.rollback()
+            logger.error("verification.token_resend_unavailable")
 
 
 def _send_verification_background(bind, email: str) -> None:

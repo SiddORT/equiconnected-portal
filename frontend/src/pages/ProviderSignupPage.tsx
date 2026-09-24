@@ -277,7 +277,7 @@ export function ProviderSignupPage() {
               : <>Your provider application was saved, but we could not send a verification email to <strong>{form.email}</strong>. Do not submit another application.</>}
             </p>
             <p className={styles.muted}>After verification, your application enters administrator review. Verification links expire in 24 hours.</p>
-            <VerificationResend initialEmail={form.email.trim().toLowerCase()} />
+            <VerificationResend email={form.email.trim().toLowerCase()} />
           </section>
         ) : (
           <form className={styles.form} onSubmit={handleSubmit} noValidate>

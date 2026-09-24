@@ -278,6 +278,21 @@ class AuthService:
             self._db.rollback()
             return False
 
+    def send_verification_for_token(self, raw_token: str) -> bool:
+        """Allow recovery from an expired but never-used link without exposing its email."""
+        token = self._db.scalar(
+            select(EmailVerificationToken).where(
+                EmailVerificationToken.token_hash == self._hash_verification_token(raw_token),
+                EmailVerificationToken.used_at.is_(None),
+            )
+        )
+        if token is None:
+            return False
+        # End the lookup transaction before send_verification locks the user.
+        email = token.user.email
+        self._db.rollback()
+        return self.send_verification(email)
+
     def send_verification(self, email: str) -> bool:
         """Serialize resend per account. Never reveal eligibility to the caller."""
         from app.core.config import get_settings

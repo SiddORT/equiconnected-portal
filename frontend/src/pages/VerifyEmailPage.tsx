@@ -101,7 +101,7 @@ export function VerifyEmailPage() {
             </>
           )}
           {state === 'error' && <p className={styles.muted}>For your security, verification links can only be used once and expire after 24 hours.</p>}
-          {state === 'error' && <VerificationResend />}
+          {state === 'error' && <VerificationResend token={tokenRef.current} />}
           {state === 'error' && <Link className={styles.homeLink} to="/">Return to EquiConnected</Link>}
         </section>
       </section>

@@ -1,20 +1,24 @@
 import { useState } from 'react';
-import { resendVerification } from '@/api/auth';
+import { resendVerification, resendVerificationToken } from '@/api/auth';
 import { extractErrorMessage } from '@/api/client';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 
-export function VerificationResend({ initialEmail = '' }: { initialEmail?: string }) {
-  const [email, setEmail] = useState(initialEmail);
+type RecoveryTarget = { email: string; token?: never } | { token: string | null; email?: never };
+
+export function VerificationResend(target: RecoveryTarget) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const available = 'email' in target ? Boolean(target.email) : Boolean(target.token);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (!available || busy) return;
     setBusy(true);
     setMessage('');
     try {
-      const response = await resendVerification(email.trim());
+      const response = target.email
+        ? await resendVerification(target.email)
+        : await resendVerificationToken(target.token!);
       setMessage(response.message);
     } catch (error) {
       setMessage(extractErrorMessage(error, 'Could not request a link. Please try again later.'));
@@ -25,9 +29,8 @@ export function VerificationResend({ initialEmail = '' }: { initialEmail?: strin
 
   return (
     <form onSubmit={submit}>
-      <Input label="Email address" type="email" value={email}
-        onChange={(event) => setEmail(event.target.value)} required disabled={busy} />
-      <Button type="submit" disabled={busy}>Request a new verification link</Button>
+      <Button type="submit" disabled={busy || !available} loading={busy}>Request a new verification link</Button>
+      {!available && <p role="status">Without a verification link, we cannot request a new one here. Please use the link from your email or contact support.</p>}
       {message && <p role="status">{message}</p>}
     </form>
   );
