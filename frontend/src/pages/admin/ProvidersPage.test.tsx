@@ -146,6 +146,7 @@ describe('ProvidersPage', () => {
     }));
     render(<MemoryRouter><ProvidersPage /></MemoryRouter>);
     await screen.findByText('Clinic One');
+    expect(vi.mocked(providersApi.listProviders).mock.lastCall?.[0]).not.toHaveProperty('emergency_services_available');
     await user.click(screen.getByRole('button', { name: 'Next →' }));
     await waitFor(() => expect(providersApi.listProviders).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 2 })
@@ -154,7 +155,8 @@ describe('ProvidersPage', () => {
     await user.click(screen.getByRole('button', { name: /Filters/ }));
     await user.click(within(screen.getByRole('group', { name: 'Provider type' })).getByRole('button', { name: 'Clinics' }));
     const emergencyGroup = screen.getByRole('group', { name: 'Emergency services available' });
-    expect(within(emergencyGroup).getByRole('button', { name: 'All availability' }).getAttribute('aria-pressed')).toBe('true');
+    const allEmergencyButton = within(emergencyGroup).getByRole('button', { name: 'Emergency services' });
+    expect(allEmergencyButton.getAttribute('aria-pressed')).toBe('true');
     await user.click(within(emergencyGroup).getByRole('button', { name: 'Available' }));
     await waitFor(() => expect(providersApi.listProviders).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 1, provider_type: 'CLINIC', emergency_services_available: true })
@@ -163,6 +165,16 @@ describe('ProvidersPage', () => {
     await waitFor(() => expect(providersApi.listProviders).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 1, search: 'Clinic', provider_type: 'CLINIC', emergency_services_available: true })
     ));
+    await user.click(within(emergencyGroup).getByRole('button', { name: 'Unavailable' }));
+    await waitFor(() => expect(providersApi.listProviders).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, provider_type: 'CLINIC', emergency_services_available: false })
+    ));
+    await user.click(allEmergencyButton);
+    await waitFor(() => expect(providersApi.listProviders).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, provider_type: 'CLINIC', search: 'Clinic' })
+    ));
+    expect(vi.mocked(providersApi.listProviders).mock.lastCall?.[0]).not.toHaveProperty('emergency_services_available');
+    expect(allEmergencyButton.getAttribute('aria-pressed')).toBe('true');
     await user.click(within(emergencyGroup).getByRole('button', { name: 'Unavailable' }));
     await waitFor(() => expect(providersApi.listProviders).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 1, provider_type: 'CLINIC', emergency_services_available: false })

@@ -329,7 +329,7 @@ export function ProvidersPage() {
     {
       label: 'Emergency services available',
       options: [
-        { value: 'all', label: 'All availability' },
+        { value: 'all', label: 'Emergency services' },
         { value: 'yes', label: 'Available' },
         { value: 'no', label: 'Unavailable' },
       ],
