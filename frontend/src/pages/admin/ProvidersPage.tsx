@@ -126,8 +126,8 @@ export function ProvidersPage() {
   const columns: DataTableColumn<ProviderListItem>[] = [
     {
       key: 'provider',
-      label: 'Provider',
-      width: '1.8fr',
+      label: 'Provider name',
+      width: 'minmax(180px, 1.8fr)',
       render: (p) => (
         <span className={styles.providerCell}>
           <span className={styles.providerAvatar}>
@@ -137,7 +137,7 @@ export function ProvidersPage() {
             }
           </span>
           <span className={styles.providerInfo}>
-            <Link to={`/admin/providers/${p.id}`} className={styles.providerName}>
+            <Link to={`/admin/providers/${p.id}`} className={styles.providerName} title={p.name}>
               {p.name}
             </Link>
             <Badge variant="info" size="sm">{TYPE_LABELS[p.provider_type]}</Badge>
@@ -158,7 +158,7 @@ export function ProvidersPage() {
     },
     {
       key: 'emergency_services_available',
-      label: 'Emergency services',
+      label: 'Emergency services available',
       width: '150px',
       render: (p) => (
         <Badge variant={p.emergency_services_available ? 'success' : 'neutral'} size="sm">
@@ -291,7 +291,7 @@ export function ProvidersPage() {
   }
   if (emergencyFilter !== 'all') {
     activeChips.push({
-      label: `Emergency services: ${emergencyFilter === 'yes' ? 'Yes' : 'No'}`,
+      label: `Emergency services available: ${emergencyFilter === 'yes' ? 'Available' : 'Unavailable'}`,
       onClear: () => { setEmergencyFilter('all'); setPage(1); },
     });
   }
@@ -327,11 +327,11 @@ export function ProvidersPage() {
       onChange: resetAnd(setStabilityFilter),
     },
     {
-      label: 'Emergency services',
+      label: 'Emergency services available',
       options: [
-        { value: 'all', label: 'All' },
-        { value: 'yes', label: 'Yes' },
-        { value: 'no', label: 'No' },
+        { value: 'all', label: 'All availability' },
+        { value: 'yes', label: 'Available' },
+        { value: 'no', label: 'Unavailable' },
       ],
       value: emergencyFilter,
       onChange: resetAnd(setEmergencyFilter),
