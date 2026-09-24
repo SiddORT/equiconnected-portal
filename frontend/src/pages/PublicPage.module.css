@@ -734,7 +734,7 @@
 .memberInvite {
   width: 100%;
   margin-top: 24px;
-  padding: 26px clamp(24px, 6vw, 78px);
+  padding: 46px clamp(24px, 6vw, 78px);
   scroll-margin-top: 112px;
   background: var(--public-dark-deep);
   color: var(--public-on-dark);
@@ -1349,7 +1349,7 @@
 
   .memberInvite {
     margin-top: 20px;
-    padding: 24px;
+    padding: 32px 24px;
   }
 
   .memberInviteInner {
