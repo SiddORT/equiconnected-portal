@@ -202,6 +202,7 @@ export interface LocationPickerProps {
   disabled?: boolean;
   theme?: 'light' | 'dark';
   required?: boolean;
+  optionalState?: boolean;
   idPrefix?: string;
   className?: string;
 }
@@ -213,6 +214,7 @@ export function LocationPicker({
   disabled = false,
   theme = 'light',
   required = false,
+  optionalState = false,
   idPrefix = 'location',
   className = '',
 }: LocationPickerProps) {
@@ -222,8 +224,8 @@ export function LocationPicker({
     () => getCityOptions(value.country, value.state_province),
     [value.country, value.state_province]
   );
-  const stateRequired = required && states.length > 0;
-  const cityDisabled = disabled || !value.country || (states.length > 0 && !value.state_province);
+  const stateRequired = required && !optionalState && states.length > 0;
+  const cityDisabled = disabled || !value.country || (!optionalState && states.length > 0 && !value.state_province);
 
   return (
     <div className={`${styles.root} ${theme === 'dark' ? styles.dark : ''} ${className}`}>

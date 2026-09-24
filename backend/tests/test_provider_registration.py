@@ -5,13 +5,17 @@ from urllib.parse import parse_qs, urlparse
 from fastapi.testclient import TestClient
 
 from app.core.security import create_access_token
+from pydantic import ValidationError
+
 from app.models.enums import (
     ProviderApplicationStatus,
     ProviderStatus,
     PublicationStatus,
 )
-from app.models.provider import Provider
+from app.models.provider import Provider, ProviderLocation, ProviderSpecialization
 from app.models.provider_registration import ProviderRegistrationApplication
+from app.models.specialization import Specialization
+from app.schemas.auth import ProviderRegistrationRequest
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.repositories.provider_registration_repository import ProviderRegistrationRepository
@@ -41,6 +45,15 @@ def _payload(**overrides) -> dict:
         "provider_type": "CLINIC",
         "provider_name": "Amina Equine Clinic",
         "visit_stability": "STABLE_VISIT",
+        "professional_title": "Equine veterinarian",
+        "specialization_ids": ["dc06ab91-4687-44cf-acef-47fa29ef80ad"],
+        "years_experience": 8,
+        "working_address": "12 Stable Lane",
+        "stable_visit": True,
+        "clinic_hospital_visit": True,
+        "maximum_working_radius_km": 40,
+        "emergency_services_available": True,
+        "emergency_contact_number": "+971 50 555 1212",
         "accept_terms": True,
         "accept_privacy": True,
     }
@@ -71,6 +84,8 @@ def _admin_headers(user) -> dict[str, str]:
 
 def _verified_application(client: TestClient, db, monkeypatch) -> ProviderRegistrationApplication:
     _seed_provider_role(db)
+    db.add(Specialization(id=_payload()["specialization_ids"][0], name="Equine medicine", is_active=True))
+    db.commit()
     sent_urls = _capture_verification_email(monkeypatch)
     response = client.post(f"{AUTH}/provider-register", json=_payload())
     assert response.status_code == 201
@@ -125,6 +140,14 @@ class TestProviderRegistration:
         assert provider.name == "Amina Equine Clinic"
         assert provider.email == provider_user.email
         assert provider.phone == provider_user.mobile_number
+        assert provider.professional_title == "Equine veterinarian"
+        assert provider.years_experience == 8
+        assert provider.clinic_hospital_visit is True
+        assert provider.maximum_working_radius_km == 40
+        assert provider.emergency_services_available is True
+        assert provider.emergency_contact_number == "+971 50 555 1212"
+        assert db.query(ProviderLocation).filter_by(provider_id=provider.id).one().address_line_1 == "12 Stable Lane"
+        assert db.query(ProviderSpecialization).filter_by(provider_id=provider.id).count() == 1
         assert provider_user.is_active is True
 
         repeated = client.post(
@@ -140,6 +163,52 @@ class TestProviderRegistration:
         )
         assert approved_login.status_code == 200
         assert approved_login.json()["user"]["roles"] == ["provider"]
+
+    def test_signup_conditional_validation(self):
+        for provider_type in ("DOCTOR", "CLINIC", "HOSPITAL"):
+            base = _payload(provider_type=provider_type)
+            no_stable = ProviderRegistrationRequest.model_validate({
+                **base, "stable_visit": False, "visit_stability": "NOT_STABLE_VISIT",
+                "maximum_working_radius_km": 50, "emergency_services_available": False,
+                "emergency_contact_number": "+971 50 555 1212",
+            })
+            assert no_stable.maximum_working_radius_km is None
+            assert no_stable.emergency_contact_number is None
+            for updates in (
+                {"maximum_working_radius_km": None},
+                {"maximum_working_radius_km": 0},
+                {"emergency_services_available": True, "emergency_contact_number": None},
+                {"emergency_services_available": True, "emergency_contact_number": "   "},
+                {"specialization_ids": []},
+                {"professional_title": "  "},
+            ):
+                try:
+                    ProviderRegistrationRequest.model_validate({**base, **updates})
+                except ValidationError:
+                    pass
+                else:
+                    raise AssertionError(f"Expected validation error for {updates}")
+
+    def test_signup_specializations_are_public_active_only_and_validated(
+        self, client: TestClient, db, monkeypatch
+    ):
+        _seed_provider_role(db)
+        active_id = _payload()["specialization_ids"][0]
+        db.add(Specialization(id=active_id, name="Equine medicine", is_active=True))
+        db.add(Specialization(name="Inactive field", is_active=False))
+        db.commit()
+        result = client.get(f"{AUTH}/provider-specializations")
+        assert result.status_code == 200
+        assert result.json() == [{"id": active_id, "name": "Equine medicine"}]
+        sent = _capture_verification_email(monkeypatch)
+        rejected = client.post(
+            f"{AUTH}/provider-register",
+            json=_payload(specialization_ids=["c2032431-395a-4711-9c82-83be849718fd"]),
+        )
+        assert rejected.status_code == 422
+        assert db.query(ProviderRegistrationApplication).count() == 0
+        assert db.query(User).filter_by(email="amina.provider@example.com").count() == 0
+        assert not sent
 
     def test_rejection_preserves_application_without_listing(
         self, client: TestClient, db, seeded_admin, monkeypatch

@@ -10,6 +10,7 @@ from app.models.enums import (
     PublicationStatus,
 )
 from app.models.provider import Provider
+from app.models.provider import ProviderLocation, ProviderSpecialization
 from app.models.provider_registration import ProviderRegistrationApplication
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.provider_registration_repository import ProviderRegistrationRepository
@@ -64,9 +65,32 @@ class ProviderRegistrationService:
             publication_status=PublicationStatus.UNPUBLISHED,
             email=application.user.email,
             phone=application.user.mobile_number,
+            professional_title=application.professional_title,
+            years_experience=application.years_experience,
+            clinic_hospital_visit=application.clinic_hospital_visit,
+            maximum_working_radius_km=application.maximum_working_radius_km,
+            emergency_services_available=application.emergency_services_available,
+            emergency_contact_number=application.emergency_contact_number,
         )
         self._db.add(provider)
         self._db.flush()
+        if application.working_address:
+            self._db.add(
+                ProviderLocation(
+                    provider_id=provider.id,
+                    address_line_1=application.working_address,
+                    city=application.user.city,
+                    state_province=application.user.state_province,
+                    country=application.user.country,
+                    is_primary=True,
+                )
+            )
+        for specialization_id in application.specialization_ids or []:
+            self._db.add(
+                ProviderSpecialization(
+                    provider_id=provider.id, specialization_id=specialization_id
+                )
+            )
         application.provider_id = provider.id
         application.review_status = ProviderApplicationStatus.APPROVED
         application.reviewed_by_user_id = reviewer_id

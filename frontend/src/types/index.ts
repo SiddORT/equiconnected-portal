@@ -111,6 +111,15 @@ export interface ProviderRegistrationRequest {
   provider_type: ProviderType;
   provider_name: string;
   visit_stability: VisitStability;
+  professional_title: string;
+  specialization_ids: string[];
+  years_experience: number | null;
+  working_address: string;
+  stable_visit: boolean;
+  clinic_hospital_visit: boolean;
+  maximum_working_radius_km: number | null;
+  emergency_services_available: boolean;
+  emergency_contact_number: string | null;
   accept_terms: boolean;
   accept_privacy: boolean;
 }

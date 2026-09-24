@@ -21,6 +21,7 @@ from app.core.rate_limit import (
 )
 from app.core.security import decode_token
 from app.db.session import get_db
+from app.models.specialization import Specialization
 from app.schemas.auth import (
     EmailVerificationRequest,
     EmailVerificationResponse,
@@ -52,6 +53,18 @@ from app.services.email_service import EmailDeliveryError
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 logger = get_logger(__name__)
+
+
+@router.get("/provider-specializations")
+def provider_specializations(db: Annotated[Session, Depends(get_db)]) -> list[dict]:
+    """Public signup lookup exposing only active specialization master data."""
+    return [
+        {"id": str(item.id), "name": item.name}
+        for item in db.query(Specialization)
+        .filter(Specialization.is_active.is_(True))
+        .order_by(Specialization.name, Specialization.id)
+        .all()
+    ]
 
 REFRESH_COOKIE = "refresh_token"
 
@@ -143,6 +156,11 @@ def register_provider(
                 "code": "registration_unavailable",
                 "message": "Registration is temporarily unavailable. Please try again later.",
             },
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "invalid_provider_registration", "message": str(exc)},
         )
     except EmailDeliveryError:
         raise HTTPException(

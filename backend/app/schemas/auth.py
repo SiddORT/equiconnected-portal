@@ -83,8 +83,8 @@ class RegistrationRequest(BaseModel):
 
     @field_validator("state_province")
     @classmethod
-    def trim_state_province(cls, value: str) -> str:
-        return value.strip()
+    def trim_state_province(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
 
     @field_validator("mobile_number")
     @classmethod
@@ -119,6 +119,16 @@ class ProviderRegistrationRequest(RegistrationRequest):
     provider_type: ProviderType
     provider_name: str = Field(min_length=1, max_length=300)
     visit_stability: VisitStability
+    state_province: str | None = Field(default=None, max_length=100)
+    professional_title: str = Field(min_length=1, max_length=200)
+    specialization_ids: list[uuid.UUID] = Field(min_length=1)
+    years_experience: int = Field(ge=0, le=100)
+    working_address: str = Field(min_length=1, max_length=300)
+    stable_visit: bool
+    clinic_hospital_visit: bool
+    maximum_working_radius_km: float | None = Field(default=None, gt=0, allow_inf_nan=False, le=99999999.99)
+    emergency_services_available: bool
+    emergency_contact_number: str | None = Field(default=None, max_length=50)
     role: Literal["PROVIDER"] = "PROVIDER"
 
     @field_validator("provider_name")
@@ -128,6 +138,39 @@ class ProviderRegistrationRequest(RegistrationRequest):
         if not value:
             raise ValueError("Provider or practice name is required.")
         return value
+
+    @field_validator("professional_title", "working_address")
+    @classmethod
+    def trim_provider_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("This field is required.")
+        return value
+
+    @field_validator("specialization_ids")
+    @classmethod
+    def unique_specializations(cls, value: list[uuid.UUID]) -> list[uuid.UUID]:
+        if len(set(value)) != len(value):
+            raise ValueError("specialization_ids must not contain duplicates.")
+        return value
+
+    @model_validator(mode="after")
+    def validate_provider_fields(self):
+        expected = VisitStability.STABLE_VISIT if self.stable_visit else VisitStability.NOT_STABLE_VISIT
+        if self.visit_stability != expected:
+            raise ValueError("visit_stability must match stable_visit.")
+        if self.stable_visit and self.maximum_working_radius_km is None:
+            raise ValueError("maximum_working_radius_km is required for stable visits.")
+        if not self.stable_visit:
+            self.maximum_working_radius_km = None
+        if self.emergency_services_available:
+            contact = (self.emergency_contact_number or "").strip()
+            if not re.fullmatch(r"[0-9+\-()\s]{6,32}", contact):
+                raise ValueError("Enter a valid emergency contact number when emergency services are available.")
+            self.emergency_contact_number = contact
+        if not self.emergency_services_available:
+            self.emergency_contact_number = None
+        return self
 
 
 class EmailVerificationRequest(BaseModel):

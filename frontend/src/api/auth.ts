@@ -43,6 +43,11 @@ export async function registerProvider(
   return data;
 }
 
+export async function listProviderSignupSpecializations(): Promise<Array<{ id: string; name: string }>> {
+  const { data } = await apiClient.get<Array<{ id: string; name: string }>>('/auth/provider-specializations');
+  return data;
+}
+
 export async function verifyEmail(token: string): Promise<EmailVerificationResponse> {
   const { data } = await apiClient.post<EmailVerificationResponse>('/auth/verify-email', { token });
   return data;

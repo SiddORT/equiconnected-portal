@@ -48,6 +48,12 @@ class Provider(TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     email: Mapped[str | None] = mapped_column(String(254), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    professional_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    years_experience: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    clinic_hospital_visit: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    maximum_working_radius_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    emergency_services_available: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    emergency_contact_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
     website: Mapped[str | None] = mapped_column(String(500), nullable=True)
     visit_stability: Mapped[VisitStability] = mapped_column(
         Enum(VisitStability, name="visit_stability", native_enum=True),

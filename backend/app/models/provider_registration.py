@@ -2,8 +2,8 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, String
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, Integer, Boolean, Numeric
+from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
@@ -38,6 +38,17 @@ class ProviderRegistrationApplication(TimestampMixin, Base):
     visit_stability: Mapped[VisitStability] = mapped_column(
         Enum(VisitStability, name="visit_stability", native_enum=True), nullable=False
     )
+    professional_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    specialization_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
+        ARRAY(UUID(as_uuid=True)), nullable=True
+    )
+    years_experience: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    working_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    stable_visit: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    clinic_hospital_visit: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    maximum_working_radius_km: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    emergency_services_available: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    emergency_contact_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
     review_status: Mapped[ProviderApplicationStatus] = mapped_column(
         Enum(
             ProviderApplicationStatus,

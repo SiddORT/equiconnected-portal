@@ -38,6 +38,7 @@ from app.models.user import EmailVerificationToken
 from app.models.invitation import ProviderInvitation, ProviderPortalSetupToken
 from app.models.enums import InvitationStatus
 from app.models.provider_registration import ProviderRegistrationApplication
+from app.models.specialization import Specialization
 from app.services.email_service import EmailDeliveryError, EmailService
 
 logger = get_logger(__name__)
@@ -218,6 +219,16 @@ class AuthService:
         if self._users.get_by_email(email) is not None:
             raise DuplicateEmailError("An account with this email already exists.")
         try:
+            specializations = (
+                self._db.query(Specialization)
+                .filter(
+                    Specialization.id.in_(registration.specialization_ids),
+                    Specialization.is_active.is_(True),
+                )
+                .all()
+            )
+            if len(specializations) != len(registration.specialization_ids):
+                raise ValueError("One or more specialization IDs are missing or inactive.")
             provider_role = self._users.get_role_by_name("provider")
             if provider_role is None:
                 logger.error("provider_registration.configuration_missing", required_role="provider")
@@ -244,6 +255,15 @@ class AuthService:
                 provider_type=registration.provider_type,
                 provider_name=registration.provider_name,
                 visit_stability=registration.visit_stability,
+                professional_title=registration.professional_title,
+                specialization_ids=registration.specialization_ids,
+                years_experience=registration.years_experience,
+                working_address=registration.working_address,
+                stable_visit=registration.stable_visit,
+                clinic_hospital_visit=registration.clinic_hospital_visit,
+                maximum_working_radius_km=registration.maximum_working_radius_km,
+                emergency_services_available=registration.emergency_services_available,
+                emergency_contact_number=registration.emergency_contact_number,
                 review_status=ProviderApplicationStatus.AWAITING_EMAIL_VERIFICATION,
             )
             self._db.add(application)
