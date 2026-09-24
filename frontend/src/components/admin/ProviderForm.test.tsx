@@ -12,6 +12,7 @@ import {
 } from '@/api/providers';
 import { lookupProviderPostalCode } from '@/api/auth';
 import { listSpecializations } from '@/api/specializations';
+import { listLanguages } from '@/api/languages';
 
 vi.mock('@/api/providers', () => ({
   addProviderEmail: vi.fn(),
@@ -287,10 +288,73 @@ describe('ProviderForm visit stability', () => {
   it('renders the language master option and selection control for admin forms', async () => {
     render(<ProviderForm />);
     const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Languages' }).hasAttribute('disabled')).toBe(false));
     await user.click(screen.getByRole('button', { name: 'Languages' }));
     expect(screen.getByLabelText('Search languages')).toBeTruthy();
     expect(screen.getByRole('option', { name: /English/ })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Remove English' })).toBeNull();
+  });
+
+  it('saves filtered bulk selections and individual changes from both admin pickers', async () => {
+    vi.mocked(createProvider).mockResolvedValue({ id: 'bulk-provider', photos: [] } as unknown as Provider);
+    vi.mocked(listSpecializations).mockResolvedValueOnce({
+      data: [
+        { id: 'spec-a', name: 'Dental care', is_active: true },
+        { id: 'spec-b', name: 'Dental surgery', is_active: true },
+        { id: 'spec-c', name: 'Emergency care', is_active: true },
+      ],
+      meta: { page: 1, page_size: 100, total: 3, total_pages: 1 },
+    } as never);
+    vi.mocked(listLanguages).mockResolvedValueOnce({
+      data: [
+        { id: 'lang-en', name: 'English', code: 'en', is_active: true },
+        { id: 'lang-fr', name: 'French', code: 'fr', is_active: true },
+        { id: 'lang-de', name: 'German', code: 'de', is_active: true },
+      ],
+      meta: { page: 1, page_size: 100, total: 3, total_pages: 1 },
+    } as never);
+    const user = userEvent.setup();
+    render(<ProviderForm />);
+    const specs = await screen.findByRole('button', { name: 'Specializations' });
+    await waitFor(() => expect(specs.hasAttribute('disabled')).toBe(false));
+    await user.click(specs);
+    const specSearch = screen.getByRole('searchbox', { name: 'Search specializations' });
+    await user.type(specSearch, 'Dental');
+    await user.click(screen.getByRole('button', { name: 'Select all' }));
+    expect(specs.textContent).toContain('2 selected');
+    await user.clear(specSearch);
+    await user.click(screen.getByRole('option', { name: 'Emergency care' }));
+    await user.type(specSearch, 'Dental');
+    await user.click(screen.getByRole('button', { name: 'Clear all' }));
+    expect(specs.textContent).toContain('1 selected');
+    await user.clear(specSearch);
+    await user.click(screen.getByRole('option', { name: 'Dental care' }));
+    await user.click(specs);
+
+    const langs = screen.getByRole('button', { name: 'Languages' });
+    await user.click(langs);
+    const langSearch = screen.getByRole('searchbox', { name: 'Search languages' });
+    await user.type(langSearch, 'en');
+    await user.click(screen.getByRole('button', { name: 'Select all' }));
+    expect(langs.textContent).toContain('2 selected');
+    await user.clear(langSearch);
+    await user.click(screen.getByRole('option', { name: /German/ }));
+    await user.type(langSearch, 'en');
+    await user.click(screen.getByRole('button', { name: 'Clear all' }));
+    expect(langs.textContent).toContain('1 selected');
+    await user.click(screen.getByRole('option', { name: /English/ }));
+    await user.click(langs);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Provider type' }), 'CLINIC');
+    await user.type(screen.getByLabelText('Provider / practice name'), 'North Star');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await finishClinicWizard(user);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Create provider' }));
+    await waitFor(() => expect(createProvider).toHaveBeenCalledWith(expect.objectContaining({
+      specialization_ids: ['spec-c', 'spec-a'],
+      language_ids: ['lang-de', 'lang-en'],
+    })));
   });
 
   it('fills location from an explicitly chosen postal match and permits manual correction', async () => {

@@ -238,6 +238,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   );
   const [languages, setLanguages] = useState<Language[]>([]);
   const [languageError, setLanguageError] = useState<string | null>(null);
+  const [loadingLanguages, setLoadingLanguages] = useState(true);
   const [selectedLanguageIds, setSelectedLanguageIds] = useState<string[]>(
     initialData?.languages?.map((l) => l.id) ?? []
   );
@@ -298,6 +299,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
 
   const [specializations, setSpecializations] = useState<Specialization[]>([]);
   const [specsError, setSpecsError] = useState<string | null>(null);
+  const [loadingSpecializations, setLoadingSpecializations] = useState(true);
   const [specFilter, setSpecFilter] = useState('');
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -332,6 +334,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           : all);
       } catch (err) {
         if (!cancelled) setSpecsError(extractErrorMessage(err, 'Failed to load specializations.'));
+      } finally {
+        if (!cancelled) setLoadingSpecializations(false);
       }
     })();
     return () => { cancelled = true; };
@@ -356,6 +360,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           : all);
       } catch (err) {
         if (!cancelled) setLanguageError(extractErrorMessage(err, 'Failed to load languages.'));
+      } finally {
+        if (!cancelled) setLoadingLanguages(false);
       }
     })();
     return () => { cancelled = true; };
@@ -939,6 +945,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                 options={specializations}
                 selectedIds={selectedSpecIds}
                 onChange={setSelectedSpecIds}
+                loading={loadingSpecializations}
                 error={specsError ?? undefined}
               />
               <SignupMultiSelect
@@ -947,6 +954,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                 options={languages}
                 selectedIds={selectedLanguageIds}
                 onChange={setSelectedLanguageIds}
+                loading={loadingLanguages}
                 error={languageError ?? undefined}
               />
             </div>

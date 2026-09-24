@@ -41,12 +41,21 @@ export function SignupMultiSelect({
     `${item.name} ${item.code ?? ''}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())
   );
   const selected = selectedIds.map((id) => options.find((item) => item.id === id)).filter((item): item is Option => Boolean(item));
+  const allFilteredSelected = filtered.length > 0 && filtered.every((item) => selectedIds.includes(item.id));
   const id = label.toLowerCase().replace(/\W+/g, '-');
 
   function toggle(optionId: string) {
     onChange(selectedIds.includes(optionId)
       ? selectedIds.filter((id) => id !== optionId)
       : [...selectedIds, optionId]);
+  }
+
+  function toggleFiltered() {
+    if (disabled || loading || !filtered.length) return;
+    const matchingIds = new Set(filtered.map((item) => item.id));
+    onChange(allFilteredSelected
+      ? selectedIds.filter((itemId) => !matchingIds.has(itemId))
+      : [...selectedIds, ...filtered.filter((item) => !selectedIds.includes(item.id)).map((item) => item.id)]);
   }
 
   return (
@@ -62,7 +71,7 @@ export function SignupMultiSelect({
         disabled={disabled || loading || options.length === 0}
         onClick={() => { setOpen((value) => !value); setSearch(''); }}
       >
-        <span>{loading ? 'Loading…' : selected.length ? `${selected.length} selected` : `Select ${label.toLowerCase()}`}</span>
+        <span>{loading ? 'Loading…' : selectedIds.length ? `${selectedIds.length} selected` : `Select ${label.toLowerCase()}`}</span>
         <span aria-hidden="true">⌄</span>
       </button>
       {selected.length > 0 && (
@@ -81,7 +90,7 @@ export function SignupMultiSelect({
           ))}
         </div>
       )}
-      {open && (
+      {open && !disabled && (
         <div className={styles.dropdown} id={`${id}-list`}>
           <input
             ref={searchInput}
@@ -93,6 +102,14 @@ export function SignupMultiSelect({
             placeholder={`Search ${label.toLowerCase()}…`}
             aria-label={`Search ${label.toLowerCase()}`}
           />
+          <button
+            className={styles.bulkAction}
+            type="button"
+            disabled={loading || filtered.length === 0}
+            onClick={toggleFiltered}
+          >
+            {allFilteredSelected ? 'Clear all' : 'Select all'}
+          </button>
           <div className={styles.options} role="listbox" aria-label={label} aria-multiselectable="true">
             {filtered.map((item) => (
               <button
