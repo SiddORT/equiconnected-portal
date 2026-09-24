@@ -20,6 +20,13 @@ SAFE_FAILURE_MESSAGES = {
     "Unable to load the EquiConnected email logo.",
     "Unable to deliver email.",
     "SMTP server rejected the recipient.",
+    "SMTP connection failed.",
+    "SMTP TLS negotiation failed.",
+    "SMTP authentication failed.",
+    "SMTP handoff failed.",
+    "SMTP recipient rejected.",
+    "SMTP sender rejected.",
+    "Email delivery attempt could not be recorded.",
 }
 
 

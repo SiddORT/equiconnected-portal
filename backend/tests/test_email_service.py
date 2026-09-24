@@ -100,6 +100,37 @@ def test_email_delivery_rejects_a_recipient_refused_by_smtp(monkeypatch):
         )
 
 
+@pytest.mark.parametrize("failure,category", [
+    (email_service.smtplib.SMTPAuthenticationError(535, b"secret response"), "SMTP authentication failed."),
+    (email_service.smtplib.SMTPSenderRefused(550, b"secret response", "sender@example.test"), "SMTP sender rejected."),
+    (email_service.smtplib.SMTPNotSupportedError("secret response"), "SMTP TLS negotiation failed."),
+])
+def test_smtp_failure_categories_do_not_expose_server_response(monkeypatch, failure, category):
+    from app.repositories.email_delivery_repository import safe_failure_message
+    from types import SimpleNamespace
+    monkeypatch.setattr(email_service, "get_settings", lambda: SimpleNamespace(
+        SMTP_HOST="smtp.example.test", SMTP_PORT=587, SMTP_USER="user",
+        SMTP_PASSWORD="password", EMAIL_TLS=True, resolved_email_from="sender@example.test",
+    ))
+    class FailingSMTP(_FakeSMTP):
+        def starttls(self):
+            if isinstance(failure, email_service.smtplib.SMTPNotSupportedError):
+                raise failure
+        def login(self, *_args):
+            if isinstance(failure, email_service.smtplib.SMTPAuthenticationError):
+                raise failure
+        def sendmail(self, *_args):
+            raise failure
+    monkeypatch.setattr(email_service.smtplib, "SMTP", FailingSMTP)
+    with pytest.raises(email_service.EmailDeliveryError) as caught:
+        email_service.EmailService().send_verification_email(
+            "recipient@example.test", "https://example.test/verify/token",
+            datetime(2026, 8, 28, 10, 37),
+        )
+    assert safe_failure_message(caught.value) == category
+    assert "secret response" not in str(caught.value)
+
+
 def test_subscriber_confirmation_uses_branded_shell_and_reach_out_copy(monkeypatch):
     _FakeSMTP.sent_messages = []
     monkeypatch.setattr(

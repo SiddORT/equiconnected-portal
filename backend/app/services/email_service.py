@@ -1,5 +1,6 @@
 """SMTP-backed invitation email delivery."""
 import smtplib
+import ssl
 from datetime import datetime
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
@@ -182,19 +183,31 @@ class EmailService:
         if not settings.SMTP_HOST:
             raise EmailDeliveryError("SMTP_HOST is not configured; email was not sent.")
         message["From"] = settings.resolved_email_from
+        stage = "connection"
         try:
             with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15) as smtp:
                 if settings.EMAIL_TLS:
+                    stage = "TLS negotiation"
                     smtp.starttls()
                 if settings.SMTP_USER:
+                    stage = "authentication"
                     smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                stage = "SMTP handoff"
                 refused = smtp.sendmail(
                     settings.resolved_email_from, [recipient], message.as_string()
                 )
                 if refused:
                     raise EmailDeliveryError("SMTP server rejected the recipient.")
+        except smtplib.SMTPAuthenticationError as exc:
+            raise EmailDeliveryError("SMTP authentication failed.") from exc
+        except smtplib.SMTPRecipientsRefused as exc:
+            raise EmailDeliveryError("SMTP server rejected the recipient.") from exc
+        except smtplib.SMTPSenderRefused as exc:
+            raise EmailDeliveryError("SMTP sender rejected.") from exc
+        except (ssl.SSLError, smtplib.SMTPNotSupportedError) as exc:
+            raise EmailDeliveryError("SMTP TLS negotiation failed.") from exc
         except (OSError, smtplib.SMTPException) as exc:
-            raise EmailDeliveryError("Unable to deliver email.") from exc
+            raise EmailDeliveryError(f"SMTP {stage} failed.") from exc
 
     def send_invitation_email(
         self, recipient: str, provider_type: ProviderType, invitation_url: str, expires_at: datetime

@@ -17,6 +17,7 @@ import type {
 } from '@/types';
 import { DEFAULT_COUNTRY } from '@/utils/countryCodes';
 import styles from './SignupPage.module.css';
+import { VerificationResend } from './VerificationResend';
 
 type FormErrors = Partial<Record<keyof ProviderRegistrationRequest, string>>;
 
@@ -95,7 +96,7 @@ export function ProviderSignupPage() {
   const [mobileCountry, setMobileCountry] = useState(DEFAULT_COUNTRY);
   const [errors, setErrors] = useState<FormErrors>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState<boolean | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
@@ -227,7 +228,7 @@ export function ProviderSignupPage() {
     setSubmitting(true);
     setGlobalError(null);
     try {
-      await authApi.registerProvider({
+      const result = await authApi.registerProvider({
         ...form,
         email: form.email.trim().toLowerCase(),
         mobile_number: `${mobileCountry.dialCode} ${form.mobile_number.trim()}`,
@@ -242,7 +243,7 @@ export function ProviderSignupPage() {
           ? form.emergency_contact_number?.trim() ?? null : null,
         maximum_working_radius_km: form.stable_visit ? form.maximum_working_radius_km : null,
       });
-      setSubmitted(true);
+      setSubmitted(result.email_sent);
     } catch (error) {
       setGlobalError(
         getApiErrorCode(error) === 'registration_unavailable'
@@ -267,12 +268,16 @@ export function ProviderSignupPage() {
           <p className={styles.intro}>Create your account, verify your email, and we’ll review your application.</p>
         </header>
 
-        {submitted ? (
+        {submitted !== null ? (
           <section className={styles.success} aria-live="polite">
             <div className={styles.successMark} aria-hidden="true">✓</div>
-            <h2 className="text-display">Check your inbox</h2>
-            <p>We sent a secure verification link to <strong>{form.email}</strong>.</p>
-            <p className={styles.muted}>After verification, your provider application will enter administrator review. The link expires in 24 hours.</p>
+            <h2 className="text-display">{submitted ? 'Check your inbox' : 'Application saved'}</h2>
+            <p>{submitted
+              ? <>We sent a secure verification link to <strong>{form.email}</strong>.</>
+              : <>Your provider application was saved, but we could not send a verification email to <strong>{form.email}</strong>. Do not submit another application.</>}
+            </p>
+            <p className={styles.muted}>After verification, your application enters administrator review. Verification links expire in 24 hours.</p>
+            <VerificationResend initialEmail={form.email.trim().toLowerCase()} />
           </section>
         ) : (
           <form className={styles.form} onSubmit={handleSubmit} noValidate>

@@ -5,6 +5,7 @@
 - [Invitation email presentation](invitation-email-presentation.md) — use the dark, warm-gold launch aesthetic while keeping invitation CTA and security details prominent.
 - [Dashboard invitation analytics](dashboard-invitation-analytics.md) — accepted and rejected metrics are derived from the workflow’s existing invitation states.
 - [Email verification redemption](email-verification-redemption.md) — single-use verification needs both transactional token locking and a Strict Mode-safe client request.
+- [Verification delivery recovery](verification-delivery-recovery.md) — persist signup before SMTP and serialize resend by account without revealing eligibility.
 - [Role-aware auth redirects](role-aware-auth-redirects.md) — guards and sign-in pages must agree on each role’s destination to avoid redirect loops.
 - [Alembic migration heads](alembic-migration-heads.md) — reconcile sibling migrations before delivery so normal upgrades retain one canonical head.
 - [PostgreSQL enum migrations](postgresql-enum-migrations.md) — named enums need explicit check-first lifecycle handling so migration round-trips remain safe.

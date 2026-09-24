@@ -8,12 +8,18 @@ from urllib.parse import parse_qs, urlparse
 from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
 from fastapi.testclient import TestClient
+from fastapi import HTTPException
+from types import SimpleNamespace
+import pytest
 
 from app.models.user import EmailVerificationToken, User, UserRole
+from app.models.email_delivery_log import EmailDeliveryLog
+from app.models.enums import EmailPurpose
 from app.models.role import Role
 from app.core.security import create_access_token
 from app.repositories.user_repository import UserRepository
 from app.services.email_service import EmailService
+from app.services.email_service import EmailDeliveryError
 from app.services.auth_service import AuthService, VerificationTokenUsedError
 
 
@@ -61,6 +67,74 @@ def _capture_verification_email(monkeypatch) -> list[str]:
 
 
 class TestPublicRegistration:
+    def test_resend_is_rate_limited_per_ip(self):
+        from app.core.rate_limit import (
+            _verification_resend_attempts, check_verification_resend_rate_limit,
+        )
+        request = SimpleNamespace(client=SimpleNamespace(host="rate-limit-test"))
+        try:
+            for _ in range(5):
+                check_verification_resend_rate_limit(request)
+            with pytest.raises(HTTPException) as exc:
+                check_verification_resend_rate_limit(request)
+            assert exc.value.status_code == 429
+        finally:
+            _verification_resend_attempts.pop("rate-limit-test", None)
+
+    def test_failed_handoff_persists_and_resend_recovers_without_duplicate(self, client, db, monkeypatch):
+        _seed_public_roles(db)
+        def fail(*_args):
+            raise EmailDeliveryError("SMTP authentication failed.")
+        monkeypatch.setattr(EmailService, "send_verification_email", fail)
+        created = client.post(f"{BASE}/register", json=_payload())
+        assert created.status_code == 201
+        assert created.json()["email_sent"] is False
+        assert "could not be sent" in created.json()["message"]
+        assert db.query(User).count() == 1
+        assert db.query(EmailVerificationToken).count() == 0
+        assert db.query(EmailDeliveryLog).one().failure_message == "SMTP authentication failed."
+        assert client.post(f"{BASE}/login", json={
+            "email": "amina@example.com", "password": "HorseCare2026",
+        }).json()["detail"]["code"] == "email_not_verified"
+        assert client.post(f"{BASE}/register", json=_payload()).status_code == 409
+        sent = _capture_verification_email(monkeypatch)
+        generic = client.post(f"{BASE}/resend-verification", json={"email": "AMINA@example.com"})
+        unknown = client.post(f"{BASE}/resend-verification", json={"email": "unknown@example.com"})
+        assert generic.status_code == unknown.status_code == 200
+        assert generic.json() == unknown.json()
+        assert len(sent) == 1
+        assert client.post(f"{BASE}/resend-verification", json={"email": "amina@example.com"}).status_code == 200
+        assert len(sent) == 1
+        raw = parse_qs(urlparse(sent[0]).query)["token"][0]
+        assert client.post(f"{BASE}/verify-email", json={"token": raw}).status_code == 200
+        assert client.post(f"{BASE}/resend-verification", json={"email": "amina@example.com"}).json() == generic.json()
+        assert len(sent) == 1
+        assert db.query(User).count() == 1
+        assert [row.status for row in db.query(EmailDeliveryLog).order_by(EmailDeliveryLog.created_at)] == ["failed", "success"]
+
+    def test_concurrent_resends_only_send_once(self, client, db, monkeypatch):
+        from tests.conftest import TestingSessionLocal
+        _seed_public_roles(db)
+        monkeypatch.setattr(EmailService, "send_verification_email", lambda *_: (_ for _ in ()).throw(EmailDeliveryError("SMTP connection failed.")))
+        assert client.post(f"{BASE}/register", json=_payload()).json()["email_sent"] is False
+        sent = _capture_verification_email(monkeypatch)
+        barrier = threading.Barrier(2)
+        results = []
+        def resend():
+            session = TestingSessionLocal()
+            try:
+                barrier.wait(timeout=5)
+                results.append(AuthService(session).send_verification("amina@example.com"))
+            finally:
+                session.close()
+        threads = [threading.Thread(target=resend) for _ in range(2)]
+        for thread in threads: thread.start()
+        for thread in threads: thread.join(timeout=10)
+        assert all(not thread.is_alive() for thread in threads)
+        assert sorted(results) == [False, True]
+        assert len(sent) == 1
+        assert db.query(EmailVerificationToken).count() == 1
+
     def test_public_role_repair_migration_is_idempotent_and_preserves_existing_data(
         self, db, monkeypatch
     ):
@@ -228,6 +302,36 @@ class TestPublicRegistration:
 
 
 class TestEmailVerification:
+    def test_resend_replaces_expired_link_only_after_successful_handoff(self, client, db, monkeypatch):
+        _seed_public_roles(db)
+        sent = _capture_verification_email(monkeypatch)
+        assert client.post(f"{BASE}/register", json=_payload()).status_code == 201
+        original = parse_qs(urlparse(sent[0]).query)["token"][0]
+        old = db.query(EmailVerificationToken).one()
+        old.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        db.commit()
+        # A failed resend must not remove the existing token.
+        def fail(*_args):
+            raise EmailDeliveryError("SMTP connection failed.")
+        monkeypatch.setattr(EmailService, "send_verification_email", fail)
+        # Remove the successful-send cooldown by aging the attempt.
+        from app.models.email_delivery_log import EmailDeliveryLog
+        first_log = db.query(EmailDeliveryLog).one()
+        first_log.created_at = datetime.now(timezone.utc) - timedelta(minutes=6)
+        db.commit()
+        assert client.post(f"{BASE}/resend-verification", json={"email": "amina@example.com"}).status_code == 200
+        db.expire_all()
+        assert db.query(EmailVerificationToken).count() == 1
+        assert db.query(EmailVerificationToken).one().used_at is None
+        sent = _capture_verification_email(monkeypatch)
+        client.post(f"{BASE}/resend-verification", json={"email": "amina@example.com"})
+        assert len(sent) == 1
+        replacement = parse_qs(urlparse(sent[0]).query)["token"][0]
+        assert replacement != original
+        db.expire_all()
+        assert client.post(f"{BASE}/verify-email", json={"token": original}).status_code == 409
+        assert client.post(f"{BASE}/verify-email", json={"token": replacement}).status_code == 200
+
     def test_verification_allows_immediate_member_login_and_returns_verified_email(
         self, client: TestClient, db, monkeypatch
     ):

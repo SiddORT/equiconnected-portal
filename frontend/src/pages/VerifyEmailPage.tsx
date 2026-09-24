@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
 import * as authApi from '@/api/auth';
 import styles from './SignupPage.module.css';
+import { VerificationResend } from './VerificationResend';
 
 type VerificationState = 'verifying' | 'verified' | 'error';
 const REDIRECT_DELAY_MS = 1800;
@@ -100,6 +101,7 @@ export function VerifyEmailPage() {
             </>
           )}
           {state === 'error' && <p className={styles.muted}>For your security, verification links can only be used once and expire after 24 hours.</p>}
+          {state === 'error' && <VerificationResend />}
           {state === 'error' && <Link className={styles.homeLink} to="/">Return to EquiConnected</Link>}
         </section>
       </section>

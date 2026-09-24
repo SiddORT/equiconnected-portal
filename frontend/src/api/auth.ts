@@ -31,15 +31,24 @@ export async function getMe(): Promise<UserProfile> {
   return data;
 }
 
-export async function register(payload: RegistrationRequest): Promise<MessageResponse> {
-  const { data } = await apiClient.post<MessageResponse>('/auth/register', payload);
+export interface RegistrationResponse extends MessageResponse {
+  email_sent: boolean;
+}
+
+export async function resendVerification(email: string): Promise<MessageResponse> {
+  const { data } = await apiClient.post<MessageResponse>('/auth/resend-verification', { email });
+  return data;
+}
+
+export async function register(payload: RegistrationRequest): Promise<RegistrationResponse> {
+  const { data } = await apiClient.post<RegistrationResponse>('/auth/register', payload);
   return data;
 }
 
 export async function registerProvider(
   payload: ProviderRegistrationRequest
-): Promise<MessageResponse> {
-  const { data } = await apiClient.post<MessageResponse>('/auth/provider-register', payload);
+): Promise<RegistrationResponse> {
+  const { data } = await apiClient.post<RegistrationResponse>('/auth/provider-register', payload);
   return data;
 }
 

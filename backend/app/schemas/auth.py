@@ -193,6 +193,15 @@ class EmailVerificationRequest(BaseModel):
     token: str = Field(min_length=20, max_length=512)
 
 
+class VerificationResendRequest(BaseModel):
+    email: EmailStr
+
+
+class RegistrationResponse(BaseModel):
+    message: str
+    email_sent: bool
+
+
 class EmailVerificationResponse(BaseModel):
     """The email is returned only after a verification token is redeemed."""
 

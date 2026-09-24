@@ -168,7 +168,8 @@ class TestTransactionalEmailDeliveryLogs:
             "/api/v1/auth/register",
             json=_registration_payload("failed-verified-log@example.com"),
         )
-        assert verification_failure.status_code == 502
+        assert verification_failure.status_code == 201
+        assert verification_failure.json()["email_sent"] is False
 
         monkeypatch.setattr(EmailService, "send_invitation_email", lambda *_args, **_kwargs: None)
         invitation = client.post(

@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
@@ -35,6 +36,8 @@ from app.models.enums import (
     ProviderApplicationStatus,
 )
 from app.models.user import EmailVerificationToken
+from app.models.user import User
+from app.models.email_delivery_log import EmailDeliveryLog
 from app.models.invitation import ProviderInvitation, ProviderPortalSetupToken
 from app.models.enums import InvitationStatus
 from app.models.provider_registration import ProviderRegistrationApplication
@@ -116,6 +119,11 @@ class VerificationResult:
     is_provider_application: bool
 
 
+@dataclass(frozen=True)
+class RegistrationResult:
+    email_sent: bool
+
+
 class AuthService:
     def __init__(self, db: Session) -> None:
         self._db = db
@@ -127,10 +135,8 @@ class AuthService:
 
     # ── Public registration and verification ───────────────────────────────────
 
-    def register(self, registration: RegistrationRequest) -> None:
+    def register(self, registration: RegistrationRequest) -> RegistrationResult:
         """Create a public account and deliver its verification link."""
-        from app.core.config import get_settings
-
         email = registration.email.lower().strip()
         if self._users.get_by_email(email) is not None:
             raise DuplicateEmailError("An account with this email already exists.")
@@ -169,41 +175,6 @@ class AuthService:
                 is_active=True,
             )
 
-            raw_token = secrets.token_urlsafe(32)
-            expires_at = now + timedelta(
-                hours=get_settings().EMAIL_VERIFICATION_EXPIRE_HOURS
-            )
-            self._db.add(
-                EmailVerificationToken(
-                    user_id=user.id,
-                    token_hash=self._hash_verification_token(raw_token),
-                    expires_at=expires_at,
-                )
-            )
-            self._db.flush()
-
-            verification_url = (
-                f"{get_settings().PUBLIC_APP_URL.rstrip('/')}/verify-email"
-                f"?token={quote(raw_token, safe='')}"
-            )
-            attempt_id = self._email_logs.record_durable_attempt(
-                recipient_email=email,
-                purpose=EmailPurpose.ACCOUNT_VERIFICATION,
-            )
-            try:
-                self._email.send_verification_email(email, verification_url, expires_at)
-            except Exception as exc:
-                self._email_logs.complete_durable_attempt(
-                    attempt_id,
-                    status=EmailDeliveryStatus.FAILED,
-                    failure_message=safe_failure_message(exc),
-                )
-                self._db.rollback()
-                raise
-            self._email_logs.complete_durable_attempt(
-                attempt_id,
-                status=EmailDeliveryStatus.SUCCESS,
-            )
             self._db.commit()
         except IntegrityError as exc:
             self._db.rollback()
@@ -211,11 +182,10 @@ class AuthService:
         except RegistrationUnavailableError:
             self._db.rollback()
             raise
+        return RegistrationResult(email_sent=self._initial_verification(email))
 
-    def register_provider(self, registration: ProviderRegistrationRequest) -> None:
+    def register_provider(self, registration: ProviderRegistrationRequest) -> RegistrationResult:
         """Create an inactive provider application and deliver a verification link."""
-        from app.core.config import get_settings
-
         email = registration.email.lower().strip()
         if self._users.get_by_email(email) is not None:
             raise DuplicateEmailError("An account with this email already exists.")
@@ -277,40 +247,6 @@ class AuthService:
             self._db.flush()
             for language_id in registration.language_ids:
                 self._db.add(ProviderRegistrationLanguage(application_id=application.id, language_id=language_id))
-            raw_token = secrets.token_urlsafe(32)
-            expires_at = now + timedelta(
-                hours=get_settings().EMAIL_VERIFICATION_EXPIRE_HOURS
-            )
-            self._db.add(
-                EmailVerificationToken(
-                    user_id=user.id,
-                    token_hash=self._hash_verification_token(raw_token),
-                    expires_at=expires_at,
-                )
-            )
-            self._db.flush()
-            verification_url = (
-                f"{get_settings().PUBLIC_APP_URL.rstrip('/')}/verify-email"
-                f"?token={quote(raw_token, safe='')}"
-            )
-            attempt_id = self._email_logs.record_durable_attempt(
-                recipient_email=email,
-                purpose=EmailPurpose.ACCOUNT_VERIFICATION,
-            )
-            try:
-                self._email.send_verification_email(email, verification_url, expires_at)
-            except Exception as exc:
-                self._email_logs.complete_durable_attempt(
-                    attempt_id,
-                    status=EmailDeliveryStatus.FAILED,
-                    failure_message=safe_failure_message(exc),
-                )
-                self._db.rollback()
-                raise
-            self._email_logs.complete_durable_attempt(
-                attempt_id,
-                status=EmailDeliveryStatus.SUCCESS,
-            )
             self._audit.log(
                 action="provider_application.registered",
                 user_id=user.id,
@@ -328,6 +264,91 @@ class AuthService:
             self._db.rollback()
             raise DuplicateEmailError("An account with this email already exists.") from exc
         except RegistrationUnavailableError:
+            self._db.rollback()
+            raise
+        return RegistrationResult(email_sent=self._initial_verification(email))
+
+    def _initial_verification(self, email: str) -> bool:
+        # Account/application is already committed. A logging or SMTP failure
+        # must not turn this successful creation into an apparent failed signup.
+        try:
+            return self.send_verification(email)
+        except Exception:
+            logger.error("verification.handoff_unavailable")
+            self._db.rollback()
+            return False
+
+    def send_verification(self, email: str) -> bool:
+        """Serialize resend per account. Never reveal eligibility to the caller."""
+        from app.core.config import get_settings
+
+        try:
+            user = self._db.scalar(
+                select(User).where(User.email == email.lower().strip()).with_for_update()
+            )
+            if user is None or user.email_verified_at is not None or user.provider_portal_setup_pending:
+                return False
+            roles = {assignment.role.name for assignment in user.role_assignments}
+            if not roles.intersection({"horse_owner", "stable_manager", "provider"}):
+                return False
+            latest = self._db.scalar(
+                select(EmailDeliveryLog).where(
+                    EmailDeliveryLog.recipient_email == user.email,
+                    EmailDeliveryLog.purpose == EmailPurpose.ACCOUNT_VERIFICATION.value,
+                ).order_by(EmailDeliveryLog.created_at.desc(), EmailDeliveryLog.id.desc()).limit(1)
+            )
+            now = datetime.now(timezone.utc)
+            # Successful links remain usable; throttle repeated sends per address.
+            if latest and latest.status in (
+                EmailDeliveryStatus.SUCCESS.value, EmailDeliveryStatus.PENDING.value,
+            ) and now - latest.created_at < timedelta(minutes=5):
+                return False
+            raw_token = secrets.token_urlsafe(32)
+            expires_at = now + timedelta(hours=get_settings().EMAIL_VERIFICATION_EXPIRE_HOURS)
+            token = EmailVerificationToken(
+                user_id=user.id, token_hash=self._hash_verification_token(raw_token),
+                expires_at=expires_at,
+            )
+            self._db.add(token)
+            self._db.flush()
+            try:
+                attempt_id = self._email_logs.record_durable_attempt(
+                    recipient_email=user.email, purpose=EmailPurpose.ACCOUNT_VERIFICATION,
+                )
+            except Exception:
+                logger.error("verification.delivery_log_unavailable")
+                self._db.rollback()
+                return False
+            url = f"{get_settings().PUBLIC_APP_URL.rstrip('/')}/verify-email?token={quote(raw_token, safe='')}"
+            try:
+                self._email.send_verification_email(user.email, url, expires_at)
+            except Exception as exc:
+                try:
+                    self._email_logs.complete_durable_attempt(
+                        attempt_id, status=EmailDeliveryStatus.FAILED,
+                        failure_message=safe_failure_message(exc),
+                    )
+                except Exception:
+                    logger.error("verification.delivery_outcome_unavailable")
+                self._db.rollback()
+                return False
+            # Only replace old links after the new link was accepted by SMTP.
+            self._db.execute(
+                update(EmailVerificationToken).where(
+                    EmailVerificationToken.user_id == user.id,
+                    EmailVerificationToken.id != token.id,
+                    EmailVerificationToken.used_at.is_(None),
+                ).values(used_at=now)
+            )
+            try:
+                self._email_logs.complete_durable_attempt(
+                    attempt_id, status=EmailDeliveryStatus.SUCCESS,
+                )
+            except Exception:
+                logger.error("verification.delivery_outcome_unavailable")
+            self._db.commit()
+            return True
+        except Exception:
             self._db.rollback()
             raise
 

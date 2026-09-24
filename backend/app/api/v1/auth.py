@@ -10,8 +10,8 @@ from urllib.parse import quote
 import httpx
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, Query, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, HTTPException, Request, Response, Query, status
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.auth.dependencies import CurrentUser
 from app.core.config import get_settings
@@ -20,6 +20,7 @@ from app.core.rate_limit import (
     check_email_verification_rate_limit,
     check_login_rate_limit,
     check_registration_rate_limit,
+    check_verification_resend_rate_limit,
     check_postal_lookup_rate_limit,
 )
 from app.core.security import decode_token
@@ -34,6 +35,8 @@ from app.schemas.auth import (
     ProviderRegistrationRequest,
     ProviderPortalPasswordSetupRequest,
     RegistrationRequest,
+    RegistrationResponse,
+    VerificationResendRequest,
     UserProfile,
 )
 from app.schemas.common import MessageResponse
@@ -127,17 +130,17 @@ def _clear_refresh_cookie(response: Response) -> None:
 
 @router.post(
     "/register",
-    response_model=MessageResponse,
+    response_model=RegistrationResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(check_registration_rate_limit)],
 )
 def register(
     body: RegistrationRequest,
     db: Annotated[Session, Depends(get_db)],
-) -> MessageResponse:
+) -> RegistrationResponse:
     """Create a public account and send its email-verification link."""
     try:
-        AuthService(db).register(body)
+        result = AuthService(db).register(body)
     except DuplicateEmailError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -154,32 +157,27 @@ def register(
                 "message": "Registration is temporarily unavailable. Please try again later.",
             },
         )
-    except EmailDeliveryError:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail={
-                "code": "verification_email_failed",
-                "message": "We could not send your verification email. Please try again.",
-            },
-        )
-    return MessageResponse(
-        message="Account created. Please check your email to verify your account."
+    return RegistrationResponse(
+        email_sent=result.email_sent,
+        message=("Account created. Please check your email to verify your account."
+                 if result.email_sent else
+                 "Account created, but the verification email could not be sent. Request a new link below.")
     )
 
 
 @router.post(
     "/provider-register",
-    response_model=MessageResponse,
+    response_model=RegistrationResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(check_registration_rate_limit)],
 )
 def register_provider(
     body: ProviderRegistrationRequest,
     db: Annotated[Session, Depends(get_db)],
-) -> MessageResponse:
+) -> RegistrationResponse:
     """Submit a provider account application and send email verification."""
     try:
-        AuthService(db).register_provider(body)
+        result = AuthService(db).register_provider(body)
     except DuplicateEmailError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -201,17 +199,35 @@ def register_provider(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"code": "invalid_provider_registration", "message": str(exc)},
         )
-    except EmailDeliveryError:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail={
-                "code": "verification_email_failed",
-                "message": "We could not send your verification email. Please try again.",
-            },
-        )
-    return MessageResponse(
-        message="Provider application submitted. Please check your email to verify it."
+    return RegistrationResponse(
+        email_sent=result.email_sent,
+        message=("Provider application submitted. Please check your email to verify it."
+                 if result.email_sent else
+                 "Provider application saved, but the verification email could not be sent. Request a new link below.")
     )
+
+
+@router.post("/resend-verification", response_model=MessageResponse,
+             dependencies=[Depends(check_verification_resend_rate_limit)])
+def resend_verification(
+    body: VerificationResendRequest,
+    db: Annotated[Session, Depends(get_db)],
+    background_tasks: BackgroundTasks,
+) -> MessageResponse:
+    """Respond before lookup/SMTP so account existence cannot affect response time."""
+    background_tasks.add_task(_send_verification_background, db.get_bind(), str(body.email))
+    return MessageResponse(
+        message="If this email belongs to an unverified account, a verification link will be sent when available."
+    )
+
+
+def _send_verification_background(bind, email: str) -> None:
+    with sessionmaker(bind=bind)() as session:
+        try:
+            AuthService(session).send_verification(email)
+        except Exception:
+            session.rollback()
+            logger.error("verification.resend_unavailable")
 
 
 @router.post(

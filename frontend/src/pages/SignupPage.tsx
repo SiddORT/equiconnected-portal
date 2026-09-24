@@ -15,6 +15,7 @@ import type { PublicRoleSelection, RegistrationRequest } from '@/types';
 import { DEFAULT_COUNTRY } from '@/utils/countryCodes';
 import { getStateOptions } from '@/utils/geography';
 import styles from './SignupPage.module.css';
+import { VerificationResend } from './VerificationResend';
 
 type FormState = RegistrationRequest;
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -73,7 +74,7 @@ export function SignupPage() {
   const [mobileCountry, setMobileCountry] = useState(DEFAULT_COUNTRY);
   const [errors, setErrors] = useState<FormErrors>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState<boolean | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
@@ -95,7 +96,7 @@ export function SignupPage() {
     setSubmitting(true);
     setGlobalError(null);
     try {
-      await authApi.register({
+      const result = await authApi.register({
         ...form,
         email: form.email.trim().toLowerCase(),
         mobile_number: `${mobileCountry.dialCode} ${form.mobile_number.trim()}`,
@@ -103,7 +104,7 @@ export function SignupPage() {
         state_province: form.state_province.trim(),
         city: form.city.trim(),
       });
-      setSubmitted(true);
+      setSubmitted(result.email_sent);
     } catch (error) {
       const message = getApiErrorCode(error) === 'registration_unavailable'
         ? 'Registration is temporarily unavailable. Please try again later.'
@@ -130,15 +131,16 @@ export function SignupPage() {
           <p className={styles.intro}>Connect with exceptional equine care from day one.</p>
         </header>
 
-        {submitted ? (
+        {submitted !== null ? (
           <section className={styles.success} aria-live="polite">
             <div className={styles.successMark} aria-hidden="true">✓</div>
-            <h2 className="text-display">Check your inbox</h2>
-            <p>
-              We sent a secure verification link to <strong>{form.email}</strong>. Verify your
-              email to activate your account.
+            <h2 className="text-display">{submitted ? 'Check your inbox' : 'Account saved'}</h2>
+            <p>{submitted
+              ? <>We sent a secure verification link to <strong>{form.email}</strong>. Verify your email to activate your account.</>
+              : <>Your account was created, but we could not send a verification email to <strong>{form.email}</strong>. You do not need to sign up again.</>}
             </p>
-            <p className={styles.muted}>The link expires in 24 hours. If it is not in your inbox, check your spam folder.</p>
+            <p className={styles.muted}>Verification is required before signing in. Links expire in 24 hours. If you expected a message, check your spam folder.</p>
+            <VerificationResend initialEmail={form.email.trim().toLowerCase()} />
           </section>
         ) : (
           <form className={styles.form} onSubmit={handleSubmit} noValidate>

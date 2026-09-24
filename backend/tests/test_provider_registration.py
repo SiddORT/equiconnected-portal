@@ -19,9 +19,12 @@ from app.models.specialization import Specialization
 from app.models.language import Language, ProviderLanguage, ProviderRegistrationLanguage
 from app.schemas.auth import ProviderRegistrationRequest
 from app.models.user import User
+from app.models.user import EmailVerificationToken
+from app.models.email_delivery_log import EmailDeliveryLog
 from app.repositories.user_repository import UserRepository
 from app.repositories.provider_registration_repository import ProviderRegistrationRepository
 from app.services.email_service import EmailService
+from app.services.email_service import EmailDeliveryError
 from app.services.provider_registration_service import (
     ProviderApplicationDecisionError,
     ProviderRegistrationService,
@@ -100,6 +103,34 @@ def _verified_application(client: TestClient, db, monkeypatch) -> ProviderRegist
 
 
 class TestProviderRegistration:
+    def test_failed_verification_handoff_keeps_application_pending_until_resend(self, client, db, monkeypatch):
+        _seed_provider_role(db)
+        db.add(Specialization(id=_payload()["specialization_ids"][0], name="Equine medicine", is_active=True))
+        db.commit()
+        def fail(*_args):
+            raise EmailDeliveryError("SMTP TLS negotiation failed.")
+        monkeypatch.setattr(EmailService, "send_verification_email", fail)
+        created = client.post(f"{AUTH}/provider-register", json=_payload())
+        assert created.status_code == 201
+        assert created.json()["email_sent"] is False
+        application = db.query(ProviderRegistrationApplication).one()
+        assert application.review_status == ProviderApplicationStatus.AWAITING_EMAIL_VERIFICATION
+        assert db.query(User).filter_by(email="amina.provider@example.com").one().is_active is False
+        assert db.query(EmailDeliveryLog).one().failure_message == "SMTP TLS negotiation failed."
+        assert client.post(f"{AUTH}/provider-register", json=_payload()).status_code == 409
+        assert client.post(f"{AUTH}/login", json={
+            "email": "amina.provider@example.com", "password": "HorseCare2026",
+        }).json()["detail"]["code"] == "email_not_verified"
+        sent = _capture_verification_email(monkeypatch)
+        assert client.post(f"{AUTH}/resend-verification", json={"email": "amina.provider@example.com"}).status_code == 200
+        assert len(sent) == 1
+        token = parse_qs(urlparse(sent[0]).query)["token"][0]
+        assert client.post(f"{AUTH}/verify-email", json={"token": token}).status_code == 200
+        db.expire_all()
+        assert db.query(ProviderRegistrationApplication).one().review_status == ProviderApplicationStatus.PENDING_REVIEW
+        assert db.query(EmailVerificationToken).count() == 1
+        assert db.query(User).count() == 1
+
     def test_language_master_admin_and_public_selection(
         self, client: TestClient, db, seeded_admin, monkeypatch
     ):

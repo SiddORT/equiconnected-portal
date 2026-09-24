@@ -34,6 +34,7 @@ _subscriber_attempts: dict[str, deque[float]] = defaultdict(deque)
 _postal_lookup_attempts: dict[str, deque[float]] = defaultdict(deque)
 _registration_attempts: dict[str, deque[float]] = defaultdict(deque)
 _email_verification_attempts: dict[str, deque[float]] = defaultdict(deque)
+_verification_resend_attempts: dict[str, deque[float]] = defaultdict(deque)
 
 
 # ── Dependency ────────────────────────────────────────────────────────────────
@@ -184,4 +185,12 @@ def check_email_verification_rate_limit(request: Request) -> None:
         window_seconds=300,
         max_attempts=20,
         message="Too many verification attempts. Please try again later.",
+    )
+
+
+def check_verification_resend_rate_limit(request: Request) -> None:
+    """Limit anonymous resend requests independently of token redemption."""
+    _check_rate_limit(
+        request, _verification_resend_attempts, window_seconds=600, max_attempts=5,
+        message="Too many requests. Please try again later.",
     )

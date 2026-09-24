@@ -22,6 +22,7 @@ from app.core.rate_limit import (
     check_email_verification_rate_limit,
     check_login_rate_limit,
     check_registration_rate_limit,
+    check_verification_resend_rate_limit,
     check_subscriber_rate_limit,
 )
 from app.db.base import Base
@@ -187,6 +188,7 @@ def client(db):
     app.dependency_overrides[check_login_rate_limit] = _no_rate_limit
     app.dependency_overrides[check_registration_rate_limit] = _no_rate_limit
     app.dependency_overrides[check_email_verification_rate_limit] = _no_rate_limit
+    app.dependency_overrides[check_verification_resend_rate_limit] = _no_rate_limit
     app.dependency_overrides[check_subscriber_rate_limit] = _no_rate_limit
 
     with TestClient(app) as c:
