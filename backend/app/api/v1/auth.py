@@ -6,9 +6,11 @@ POST /api/v1/auth/logout
 GET  /api/v1/auth/me
 """
 import uuid
+from urllib.parse import quote
+import httpx
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, Query, status
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser
@@ -18,10 +20,12 @@ from app.core.rate_limit import (
     check_email_verification_rate_limit,
     check_login_rate_limit,
     check_registration_rate_limit,
+    check_postal_lookup_rate_limit,
 )
 from app.core.security import decode_token
 from app.db.session import get_db
 from app.models.specialization import Specialization
+from app.models.language import Language
 from app.schemas.auth import (
     EmailVerificationRequest,
     EmailVerificationResponse,
@@ -65,6 +69,41 @@ def provider_specializations(db: Annotated[Session, Depends(get_db)]) -> list[di
         .order_by(Specialization.name, Specialization.id)
         .all()
     ]
+
+@router.get("/provider-languages")
+def provider_languages(db: Annotated[Session, Depends(get_db)]) -> list[dict]:
+    return [{"id": str(x.id), "name": x.name, "code": x.code} for x in db.query(Language)
+            .filter(Language.is_active.is_(True)).order_by(Language.name, Language.id).all()]
+
+@router.get("/provider-postal-lookup", dependencies=[Depends(check_postal_lookup_rate_limit)])
+async def provider_postal_lookup(
+    postal_code: str = Query(min_length=1, max_length=32),
+) -> dict:
+    """Proxy Nominatim without selecting a candidate or accepting arbitrary URLs."""
+    value = postal_code.strip()
+    settings = get_settings()
+    if not value or any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -/" for ch in value):
+        return {"status": "no_match", "candidates": []}
+    try:
+        async with httpx.AsyncClient(timeout=settings.POSTAL_LOOKUP_TIMEOUT_SECONDS, follow_redirects=False) as client:
+            response = await client.get("https://nominatim.openstreetmap.org/search", params={"postalcode": value, "format": "jsonv2", "addressdetails": 1, "limit": 10},
+                headers={"Accept": "application/json", "User-Agent": f"{settings.APP_NAME}/{settings.APP_VERSION}"})
+        response.raise_for_status()
+        payload = response.json()
+        candidates = []
+        for place in payload if isinstance(payload, list) else []:
+            address = place.get("address") or {}
+            city = address.get("city") or address.get("town") or address.get("village") or address.get("municipality")
+            state = address.get("state") or address.get("province") or address.get("state_district")
+            country = address.get("country")
+            code = address.get("postcode") or value
+            if country and city and code:
+                candidates.append({"country": country, "country_code": (address.get("country_code") or "").upper(),
+                                   "state_province": state or "", "city": city, "postal_code": code,
+                                   "display_name": place.get("display_name")})
+        return {"status": "match" if candidates else "no_match", "candidates": candidates}
+    except (httpx.HTTPError, ValueError, TypeError):
+        return {"status": "unavailable", "candidates": []}
 
 REFRESH_COOKIE = "refresh_token"
 

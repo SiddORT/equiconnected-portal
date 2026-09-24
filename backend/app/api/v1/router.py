@@ -20,6 +20,7 @@ from app.api.v1.system_settings import (
     admin_router as system_settings_admin_router,
     public_router as system_settings_public_router,
 )
+from app.api.v1.languages import router as languages_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
@@ -39,3 +40,4 @@ api_v1_router.include_router(reviews_router)
 api_v1_router.include_router(provider_portal_router)
 api_v1_router.include_router(system_settings_public_router)
 api_v1_router.include_router(system_settings_admin_router)
+api_v1_router.include_router(languages_router)

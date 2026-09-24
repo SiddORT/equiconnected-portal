@@ -1,0 +1,14 @@
+.field { position: relative; display: grid; gap: 8px; min-width: 0; }
+.label { color: #e3d7c2; font-size: .9rem; font-weight: 600; }
+.trigger { display: flex; width: 100%; justify-content: space-between; align-items: center; padding: 12px 14px; border: 1px solid #6a5840; border-radius: 7px; background: #1b1915; color: #f5efe4; text-align: left; cursor: pointer; font: inherit; }
+.trigger:focus-visible, .search:focus-visible, .option:focus-visible, .chip:focus-visible { outline: 2px solid #d3b276; outline-offset: 2px; }
+.trigger:disabled { opacity: .55; cursor: not-allowed; }
+.selected { display: flex; gap: 7px; flex-wrap: wrap; }
+.chip { padding: 5px 10px; border: 1px solid #a17b48; border-radius: 16px; background: #32281a; color: #f5efe4; cursor: pointer; font: inherit; font-size: .8rem; }
+.dropdown { position: absolute; z-index: 10; top: 100%; left: 0; right: 0; padding: 9px; border: 1px solid #6a5840; border-radius: 7px; background: #1b1915; box-shadow: 0 16px 36px #0009; }
+.search { box-sizing: border-box; width: 100%; padding: 10px; border: 1px solid #6a5840; border-radius: 5px; background: #11100e; color: #f5efe4; font: inherit; }
+.options { max-height: 220px; overflow-y: auto; margin-top: 7px; }
+.option { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; border: 0; border-radius: 4px; background: transparent; color: #f5efe4; text-align: left; cursor: pointer; font: inherit; }
+.option:hover, .option[aria-selected="true"] { background: #3b2f1e; }
+.empty { padding: 6px 10px; color: #b6aa96; }
+.error { margin: 0; color: #ef9d9d; font-size: .8rem; }

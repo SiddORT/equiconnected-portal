@@ -1,6 +1,7 @@
 /** Public registration page for hospitals, clinics, and doctors. */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Country } from 'country-state-city';
 import { extractErrorMessage, getApiErrorCode } from '@/api/client';
 import * as authApi from '@/api/auth';
 import { Alert } from '@/components/ui/Alert';
@@ -8,6 +9,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LocationPicker } from '@/components/ui/LocationPicker';
 import { PhoneInput } from '@/components/ui/PhoneInput';
+import { SignupMultiSelect } from './SignupMultiSelect';
+import type { PostalCandidate } from '@/api/auth';
 import type {
   ProviderRegistrationRequest,
   ProviderType,
@@ -25,18 +28,19 @@ const initialForm: ProviderRegistrationRequest = {
   country: '',
   state_province: '',
   city: '',
+  postal_code: '',
   password: '',
   password_confirmation: '',
   role: 'PROVIDER',
   provider_type: 'HOSPITAL',
   provider_name: '',
-  visit_stability: 'STABLE_VISIT',
+  visit_stability: 'NOT_STABLE_VISIT',
   professional_title: '',
   specialization_ids: [],
+  language_ids: [],
   years_experience: null,
   working_address: '',
-  stable_visit: true,
-  clinic_hospital_visit: false,
+  stable_visit: false,
   maximum_working_radius_km: null,
   emergency_services_available: false,
   emergency_contact_number: null,
@@ -52,7 +56,7 @@ const providerTypes: Array<{ value: ProviderType; label: string; description: st
 
 export function validateProviderSignup(form: ProviderRegistrationRequest): FormErrors {
   const errors: FormErrors = {};
-  for (const field of ['first_name', 'last_name', 'provider_name', 'mobile_number', 'country', 'city', 'professional_title', 'working_address'] as const) {
+  for (const field of ['first_name', 'last_name', 'provider_name', 'mobile_number', 'country', 'city', 'postal_code', 'professional_title', 'working_address'] as const) {
     if (!form[field].trim()) errors[field] = 'This field is required';
   }
   if (!form.specialization_ids.length) errors.specialization_ids = 'Select at least one specialization';
@@ -98,6 +102,13 @@ export function ProviderSignupPage() {
   const [specializations, setSpecializations] = useState<Array<{ id: string; name: string }>>([]);
   const [specializationsError, setSpecializationsError] = useState<string | null>(null);
   const [loadingSpecializations, setLoadingSpecializations] = useState(true);
+  const [languages, setLanguages] = useState<Array<{ id: string; name: string; code: string }>>([]);
+  const [languagesError, setLanguagesError] = useState<string | null>(null);
+  const [loadingLanguages, setLoadingLanguages] = useState(true);
+  const [postalCandidates, setPostalCandidates] = useState<PostalCandidate[]>([]);
+  const [postalMessage, setPostalMessage] = useState('');
+  const [postalLoading, setPostalLoading] = useState(false);
+  const [selectedPostalCode, setSelectedPostalCode] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,6 +120,60 @@ export function ProviderSignupPage() {
       .finally(() => { if (!cancelled) setLoadingSpecializations(false); });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    authApi.listProviderSignupLanguages()
+      .then((items) => { if (!cancelled) setLanguages(items); })
+      .catch((error) => {
+        if (!cancelled) setLanguagesError(extractErrorMessage(error, 'Could not load languages. Please refresh the page.'));
+      })
+      .finally(() => { if (!cancelled) setLoadingLanguages(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const query = form.postal_code.trim();
+    if (query.length < 4 || query === selectedPostalCode) return;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setPostalLoading(true);
+      try {
+        const result = await authApi.lookupProviderPostalCode(query, controller.signal);
+        if (controller.signal.aborted) return;
+        setPostalCandidates(result.candidates);
+        setPostalMessage(result.status === 'no_match'
+          ? 'No matching place found. Enter the location manually.'
+          : result.status === 'unavailable'
+            ? 'Lookup is unavailable. Enter the location manually.'
+            : 'Choose a place below to fill your location.');
+      } catch {
+        if (!controller.signal.aborted) {
+          setPostalCandidates([]);
+          setPostalMessage('Lookup is unavailable. Enter the location manually.');
+        }
+      } finally {
+        if (!controller.signal.aborted) setPostalLoading(false);
+      }
+    }, 550);
+    return () => { controller.abort(); window.clearTimeout(timeout); };
+  }, [form.postal_code, selectedPostalCode]);
+
+  function selectPostalCandidate(candidate: PostalCandidate) {
+    setForm((current) => ({
+      ...current,
+      postal_code: candidate.postal_code || current.postal_code,
+      country: Country.getCountryByCode(candidate.country_code?.toUpperCase() ?? '')?.name ?? candidate.country,
+      state_province: candidate.state_province || '',
+      city: candidate.city,
+    }));
+    setSelectedPostalCode(candidate.postal_code || form.postal_code);
+    setPostalCandidates([]);
+    setPostalMessage('Location filled. You can correct it below.');
+    setErrors((current) => ({
+      ...current, postal_code: undefined, country: undefined, state_province: undefined, city: undefined,
+    }));
+  }
 
   function update<K extends keyof ProviderRegistrationRequest>(
     field: K,
@@ -132,14 +197,16 @@ export function ProviderSignupPage() {
     setGlobalError(null);
   }
 
-  function toggleSpecialization(id: string) {
+  function updatePostalCode(value: string) {
     setForm((current) => ({
-      ...current,
-      specialization_ids: current.specialization_ids.includes(id)
-        ? current.specialization_ids.filter((selectedId) => selectedId !== id)
-        : [...current.specialization_ids, id],
+      ...current, postal_code: value, country: '', state_province: '', city: '',
     }));
-    setErrors((current) => ({ ...current, specialization_ids: undefined }));
+    setSelectedPostalCode(null);
+    setPostalCandidates([]);
+    setPostalMessage('');
+    setErrors((current) => ({
+      ...current, postal_code: undefined, country: undefined, state_province: undefined, city: undefined,
+    }));
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -147,6 +214,10 @@ export function ProviderSignupPage() {
     const nextErrors = validateProviderSignup(form);
     if (loadingSpecializations || specializationsError || !specializations.length) {
       setGlobalError(specializationsError ?? 'Specializations are unavailable. Please try again later.');
+      return;
+    }
+    if (loadingLanguages || languagesError) {
+      setGlobalError(languagesError ?? 'Languages are unavailable. Please try again later.');
       return;
     }
     if (Object.keys(nextErrors).length) {
@@ -163,6 +234,7 @@ export function ProviderSignupPage() {
         country: form.country.trim(),
         state_province: form.state_province.trim(),
         city: form.city.trim(),
+        postal_code: form.postal_code.trim(),
         provider_name: form.provider_name.trim(),
         professional_title: form.professional_title.trim(),
         working_address: form.working_address.trim(),
@@ -230,60 +302,77 @@ export function ProviderSignupPage() {
               <Input label="Professional title" id="provider-professional-title" maxLength={200} containerClassName={styles.signupField} value={form.professional_title} onChange={(e) => update('professional_title', e.target.value)} error={errors.professional_title} disabled={submitting} required />
               <Input label="Years of experience" id="provider-years-experience" type="number" min="0" max="100" step="1" containerClassName={styles.signupField} value={form.years_experience ?? ''} onChange={(e) => update('years_experience', e.target.value === '' ? null : Number(e.target.value))} error={errors.years_experience} disabled={submitting} required />
             </div>
+            <SignupMultiSelect
+              label="Specializations"
+              options={specializations}
+              selectedIds={form.specialization_ids}
+              onChange={(ids) => { update('specialization_ids', ids); }}
+              disabled={submitting}
+              loading={loadingSpecializations}
+              error={specializationsError ?? (!loadingSpecializations && !specializations.length
+                ? 'No active specializations are available.' : errors.specialization_ids)}
+              required
+            />
+            <SignupMultiSelect
+              label="Languages"
+              options={languages}
+              selectedIds={form.language_ids}
+              onChange={(ids) => update('language_ids', ids)}
+              disabled={submitting}
+              loading={loadingLanguages}
+              error={languagesError ?? undefined}
+            />
             <div className={styles.roleSection}>
-              <span className={styles.roleLabel} id="provider-specializations-label">Specializations *</span>
-              {loadingSpecializations && <span className={styles.mobileLabel}>Loading specializations…</span>}
-              {specializationsError && <p className={styles.consentError} role="alert">{specializationsError}</p>}
-              {!loadingSpecializations && !specializationsError && specializations.length === 0 && (
-                <p className={styles.consentError} role="alert">No specializations are available. Please try again later.</p>
+              <Input label="Pincode / postal code" id="provider-postal-code" maxLength={32}
+                autoComplete="postal-code" containerClassName={styles.signupField} value={form.postal_code}
+                onChange={(event) => updatePostalCode(event.target.value)}
+                error={errors.postal_code} disabled={submitting} required />
+              {postalLoading && <span className={styles.mobileLabel} role="status">Looking up locations…</span>}
+              {!postalLoading && postalMessage && <span className={styles.mobileLabel} role="status">{postalMessage}</span>}
+              {postalCandidates.length > 0 && (
+                <div className={styles.postalResults} aria-label="Matching postal locations">
+                  {postalCandidates.map((candidate, index) => (
+                    <button type="button" className={styles.postalResult}
+                      key={`${candidate.postal_code}-${candidate.country}-${candidate.city}-${index}`}
+                      onClick={() => selectPostalCandidate(candidate)} disabled={submitting}>
+                      {candidate.display_name || [candidate.city, candidate.state_province, candidate.country]
+                        .filter(Boolean).join(', ')}
+                    </button>
+                  ))}
+                </div>
               )}
-              <div className={`${styles.roleOptions} ${styles.compactOptions}`} role="group" aria-labelledby="provider-specializations-label">
-                {specializations.map((specialization) => (
-                  <label className={`${styles.roleOption} ${styles.compactOption} ${form.specialization_ids.includes(specialization.id) ? styles.roleSelected : ''}`} key={specialization.id}>
-                    <input type="checkbox" checked={form.specialization_ids.includes(specialization.id)} onChange={() => toggleSpecialization(specialization.id)} disabled={submitting} />
-                    <span><strong>{specialization.name}</strong></span>
-                  </label>
-                ))}
-              </div>
-              {errors.specialization_ids && <p className={styles.consentError} role="alert">{errors.specialization_ids}</p>}
             </div>
             <LocationPicker value={form} onChange={(nextLocation) => { setForm((current) => ({ ...current, ...nextLocation })); setErrors((current) => ({ ...current, country: undefined, state_province: undefined, city: undefined })); setGlobalError(null); }} errors={{ country: errors.country, state_province: errors.state_province, city: errors.city }} disabled={submitting} theme="dark" required optionalState idPrefix="provider-signup-location" />
-            <Input label="Working location / address" id="provider-working-address" maxLength={300} autoComplete="street-address" containerClassName={styles.signupField} value={form.working_address} onChange={(e) => update('working_address', e.target.value)} error={errors.working_address} disabled={submitting} required />
-            <div className={styles.twoColumns}>
-              {([
-                { field: 'stable_visit', label: 'Stable visit' },
-                { field: 'clinic_hospital_visit', label: 'Clinic/Hospital visit' },
-              ] as const).map(({ field, label }) => (
-                <div className={styles.roleSection} key={field}>
-                  <span className={styles.roleLabel} id={`provider-${field}-label`}>{label}</span>
-                  <div className={`${styles.roleOptions} ${styles.compactOptions}`} role="radiogroup" aria-labelledby={`provider-${field}-label`}>
-                    {[true, false].map((option) => (
-                      <label className={`${styles.roleOption} ${styles.compactOption} ${form[field] === option ? styles.roleSelected : ''}`} key={String(option)}>
-                        <input type="radio" name={field} checked={form[field] === option} onChange={() => update(field, option)} disabled={submitting} />
-                        <span><strong>{option ? 'Yes' : 'No'}</strong></span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ))}
+            <Input label="Address" id="provider-working-address" maxLength={300} autoComplete="street-address" containerClassName={styles.signupField} value={form.working_address} onChange={(e) => update('working_address', e.target.value)} error={errors.working_address} disabled={submitting} required />
+            <div className={styles.conditionalRow}>
+              <label className={styles.serviceCheckbox} htmlFor="provider-stable-visit">
+                <input id="provider-stable-visit" type="checkbox" checked={form.stable_visit}
+                  onChange={(event) => update('stable_visit', event.target.checked)} disabled={submitting} />
+                Stable visit
+              </label>
+              {form.stable_visit && (
+                <Input label="Maximum Working Radius (KM)" id="provider-working-radius" type="number" min="0.1" step="any"
+                  containerClassName={styles.signupField} hint="Maximum travel distance from your working location."
+                  value={form.maximum_working_radius_km ?? ''}
+                  onChange={(e) => update('maximum_working_radius_km', e.target.value === '' ? null : Number(e.target.value))}
+                  error={errors.maximum_working_radius_km} disabled={submitting} required />
+              )}
             </div>
-            {form.stable_visit && (
-              <Input label="Maximum Working Radius (KM)" id="provider-working-radius" type="number" min="0.1" step="any" containerClassName={styles.signupField} hint="Maximum distance from your working location for stable or home visits." value={form.maximum_working_radius_km ?? ''} onChange={(e) => update('maximum_working_radius_km', e.target.value === '' ? null : Number(e.target.value))} error={errors.maximum_working_radius_km} disabled={submitting} required />
-            )}
-            <div className={styles.roleSection}>
-              <span className={styles.roleLabel} id="provider-emergency-label">Emergency services available</span>
-              <div className={`${styles.roleOptions} ${styles.compactOptions}`} role="radiogroup" aria-labelledby="provider-emergency-label">
-                {[true, false].map((option) => (
-                  <label className={`${styles.roleOption} ${styles.compactOption} ${form.emergency_services_available === option ? styles.roleSelected : ''}`} key={String(option)}>
-                    <input type="radio" name="emergency-services" checked={form.emergency_services_available === option} onChange={() => update('emergency_services_available', option)} disabled={submitting} />
-                    <span><strong>{option ? 'Yes' : 'No'}</strong></span>
-                  </label>
-                ))}
-              </div>
+            <div className={styles.conditionalRow}>
+              <label className={styles.serviceCheckbox} htmlFor="provider-emergency-services">
+                <input id="provider-emergency-services" type="checkbox"
+                  checked={form.emergency_services_available}
+                  onChange={(event) => update('emergency_services_available', event.target.checked)}
+                  disabled={submitting} />
+                Emergency services available
+              </label>
+              {form.emergency_services_available && (
+                <Input label="Emergency contact number" id="provider-emergency-number" type="tel" autoComplete="tel"
+                  maxLength={32} containerClassName={styles.signupField} value={form.emergency_contact_number ?? ''}
+                  onChange={(e) => update('emergency_contact_number', e.target.value)}
+                  error={errors.emergency_contact_number} disabled={submitting} required />
+              )}
             </div>
-            {form.emergency_services_available && (
-              <Input label="Emergency contact number" id="provider-emergency-number" type="tel" autoComplete="tel" maxLength={32} containerClassName={styles.signupField} value={form.emergency_contact_number ?? ''} onChange={(e) => update('emergency_contact_number', e.target.value)} error={errors.emergency_contact_number} disabled={submitting} required />
-            )}
             <div className={styles.twoColumns}>
               <Input label="Password" type={showPassword ? 'text' : 'password'} id="provider-password" autoComplete="new-password" placeholder="e.g. StableHorse7" containerClassName={styles.signupField} hint="At least 8 characters with upper- and lowercase letters and a number." value={form.password} onChange={(e) => update('password', e.target.value)} error={errors.password} disabled={submitting} required rightAdornment={<button type="button" className={styles.showHide} onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>{showPassword ? '🙈' : '👁'}</button>} />
               <Input label="Confirm password" type={showPasswordConfirmation ? 'text' : 'password'} id="provider-password-confirmation" autoComplete="new-password" placeholder="Repeat your password" containerClassName={styles.signupField} value={form.password_confirmation} onChange={(e) => update('password_confirmation', e.target.value)} error={errors.password_confirmation} disabled={submitting} required rightAdornment={<button type="button" className={styles.showHide} onClick={() => setShowPasswordConfirmation((visible) => !visible)} aria-label={showPasswordConfirmation ? 'Hide password confirmation' : 'Show password confirmation'} aria-pressed={showPasswordConfirmation}>{showPasswordConfirmation ? '🙈' : '👁'}</button>} />

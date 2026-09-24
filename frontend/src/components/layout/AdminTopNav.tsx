@@ -14,6 +14,7 @@ const DIRECTORY_ITEMS: NavItem[] = [
   { label: 'Providers', to: '/admin/providers', icon: '🏥' },
   { label: 'Provider applications', to: '/admin/provider-applications', icon: '✓' },
   { label: 'Specializations', to: '/admin/specializations', icon: '⚕' },
+  { label: 'Languages', to: '/admin/languages', icon: '🌐' },
   { label: 'Invitations', to: '/admin/invitations', icon: '✉' },
   { label: 'Reviews', to: '/admin/reviews', icon: '★' },
 ];

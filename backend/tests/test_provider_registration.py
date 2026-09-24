@@ -1,5 +1,6 @@
 """Provider account registration, verification, review, and staged-listing tests."""
 import threading
+from uuid import UUID
 from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
@@ -15,6 +16,7 @@ from app.models.enums import (
 from app.models.provider import Provider, ProviderLocation, ProviderSpecialization
 from app.models.provider_registration import ProviderRegistrationApplication
 from app.models.specialization import Specialization
+from app.models.language import Language, ProviderLanguage, ProviderRegistrationLanguage
 from app.schemas.auth import ProviderRegistrationRequest
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
@@ -39,6 +41,7 @@ def _payload(**overrides) -> dict:
         "country": "United Arab Emirates",
         "state_province": "Dubai",
         "city": "Dubai",
+        "postal_code": "00000",
         "password": "HorseCare2026",
         "password_confirmation": "HorseCare2026",
         "role": "PROVIDER",
@@ -50,7 +53,6 @@ def _payload(**overrides) -> dict:
         "years_experience": 8,
         "working_address": "12 Stable Lane",
         "stable_visit": True,
-        "clinic_hospital_visit": True,
         "maximum_working_radius_km": 40,
         "emergency_services_available": True,
         "emergency_contact_number": "+971 50 555 1212",
@@ -98,6 +100,54 @@ def _verified_application(client: TestClient, db, monkeypatch) -> ProviderRegist
 
 
 class TestProviderRegistration:
+    def test_language_master_admin_and_public_selection(
+        self, client: TestClient, db, seeded_admin, monkeypatch
+    ):
+        admin, _password = seeded_admin
+        headers = _admin_headers(admin)
+        created = client.post(
+            "/api/v1/admin/languages",
+            headers=headers,
+            json={"name": "Hindi", "code": "HI"},
+        )
+        assert created.status_code == 201
+        language_id = created.json()["id"]
+        assert created.json()["code"] == "hi"
+        assert client.get(f"{AUTH}/provider-languages").json() == [
+            {"id": language_id, "name": "Hindi", "code": "hi"}
+        ]
+        duplicate = client.post(
+            "/api/v1/admin/languages", headers=headers, json={"name": "Another", "code": "hi"}
+        )
+        assert duplicate.status_code == 409
+        edited = client.patch(
+            f"/api/v1/admin/languages/{language_id}", headers=headers,
+            json={"name": "Hindi language"},
+        )
+        assert edited.status_code == 200
+        assert edited.json()["name"] == "Hindi language"
+
+        _seed_provider_role(db)
+        db.add(Specialization(id=_payload()["specialization_ids"][0], name="Equine medicine", is_active=True))
+        db.commit()
+        sent_urls = _capture_verification_email(monkeypatch)
+        response = client.post(
+            f"{AUTH}/provider-register", json=_payload(language_ids=[language_id])
+        )
+        assert response.status_code == 201
+        application = db.query(ProviderRegistrationApplication).one()
+        assert db.query(ProviderRegistrationLanguage).filter_by(application_id=application.id).one().language_id == UUID(language_id)
+
+        deleted = client.delete(f"/api/v1/admin/languages/{language_id}", headers=headers)
+        assert deleted.status_code == 200
+        assert client.get(f"{AUTH}/provider-languages").json() == []
+        token = parse_qs(urlparse(sent_urls[0]).query)["token"][0]
+        assert client.post(f"{AUTH}/verify-email", json={"token": token}).status_code == 200
+        assert client.post(f"{APPLICATIONS}/{application.id}/approve", headers=headers).status_code == 200
+        provider_id = db.query(ProviderRegistrationApplication).one().provider_id
+        assert db.query(ProviderLanguage).filter_by(provider_id=provider_id).count() == 1
+        assert db.query(Language).filter_by(id=language_id).one().is_active is False
+
     def test_provider_registration_verification_and_atomic_approval(
         self, client: TestClient, db, seeded_admin, monkeypatch
     ):
@@ -142,11 +192,12 @@ class TestProviderRegistration:
         assert provider.phone == provider_user.mobile_number
         assert provider.professional_title == "Equine veterinarian"
         assert provider.years_experience == 8
-        assert provider.clinic_hospital_visit is True
+        assert provider.clinic_hospital_visit is None
         assert provider.maximum_working_radius_km == 40
         assert provider.emergency_services_available is True
         assert provider.emergency_contact_number == "+971 50 555 1212"
         assert db.query(ProviderLocation).filter_by(provider_id=provider.id).one().address_line_1 == "12 Stable Lane"
+        assert db.query(ProviderLocation).filter_by(provider_id=provider.id).one().postal_code == "00000"
         assert db.query(ProviderSpecialization).filter_by(provider_id=provider.id).count() == 1
         assert provider_user.is_active is True
 

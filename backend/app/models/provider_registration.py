@@ -42,6 +42,7 @@ class ProviderRegistrationApplication(TimestampMixin, Base):
     specialization_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
         ARRAY(UUID(as_uuid=True)), nullable=True
     )
+    postal_code: Mapped[str] = mapped_column(String(32), nullable=False)
     years_experience: Mapped[int | None] = mapped_column(Integer, nullable=True)
     working_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
     stable_visit: Mapped[bool | None] = mapped_column(Boolean, nullable=True)

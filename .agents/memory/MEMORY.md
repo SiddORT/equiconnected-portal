@@ -24,3 +24,4 @@
 - [Concurrent task validation](concurrent-task-validation.md) — rerun affected checks after concurrent merges because shared files can change after an earlier passing run.
 - [GSAP scroll parallax endpoints](gsap-scroll-parallax-endpoints.md) — define explicit from/to offsets for scrubbed parallax so it cannot settle into a static end state.
 - [Why section natural flow](why-section-natural-flow.md) — keep Why EquiConnected unpinned; its card content must remain continuously visible in normal document flow.
+- [Provider signup postal lookup](provider-signup-postal-lookup.md) — international postal codes can match multiple places; require an explicit choice and allow manual correction.

@@ -31,6 +31,7 @@ _invitation_attempts: dict[str, deque[float]] = defaultdict(deque)
 _public_visit_attempts: dict[str, deque[float]] = defaultdict(deque)
 _public_provider_attempts: dict[str, deque[float]] = defaultdict(deque)
 _subscriber_attempts: dict[str, deque[float]] = defaultdict(deque)
+_postal_lookup_attempts: dict[str, deque[float]] = defaultdict(deque)
 _registration_attempts: dict[str, deque[float]] = defaultdict(deque)
 _email_verification_attempts: dict[str, deque[float]] = defaultdict(deque)
 
@@ -169,6 +170,10 @@ def check_registration_rate_limit(request: Request) -> None:
         max_attempts=5,
         message="Too many registration attempts. Please try again later.",
     )
+
+def check_postal_lookup_rate_limit(request: Request) -> None:
+    _check_rate_limit(request, _postal_lookup_attempts, window_seconds=60, max_attempts=20,
+                      message="Too many postal lookup requests. Please try again later.")
 
 
 def check_email_verification_rate_limit(request: Request) -> None:

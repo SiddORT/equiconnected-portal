@@ -105,6 +105,7 @@ export interface ProviderRegistrationRequest {
   country: string;
   state_province: string;
   city: string;
+  postal_code: string;
   password: string;
   password_confirmation: string;
   role: 'PROVIDER';
@@ -113,10 +114,10 @@ export interface ProviderRegistrationRequest {
   visit_stability: VisitStability;
   professional_title: string;
   specialization_ids: string[];
+  language_ids: string[];
   years_experience: number | null;
   working_address: string;
   stable_visit: boolean;
-  clinic_hospital_visit: boolean;
   maximum_working_radius_km: number | null;
   emergency_services_available: boolean;
   emergency_contact_number: string | null;
@@ -363,6 +364,26 @@ export interface SpecializationCreate {
 export interface SpecializationUpdate {
   name?: string;
   description?: string | null;
+}
+
+// ── Languages ─────────────────────────────────────────────────────────────────
+
+export interface Language {
+  id: string;
+  name: string;
+  code: string;
+  is_active: boolean;
+}
+
+export interface LanguageCreate {
+  name: string;
+  code: string;
+}
+
+export interface LanguageUpdate {
+  name?: string;
+  code?: string;
+  is_active?: boolean;
 }
 
 // ── CSV import/export ─────────────────────────────────────────────────────────

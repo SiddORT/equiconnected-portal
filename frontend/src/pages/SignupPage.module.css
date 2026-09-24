@@ -161,6 +161,12 @@
 .roleOption:focus-within { outline: 2px solid #d3b276; outline-offset: 2px; }
 .compactOptions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .compactOption { min-height: 0; padding: 12px 14px; align-items: center; }
+.conditionalRow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: center; }
+.serviceCheckbox { display: flex; align-items: center; gap: 10px; color: #e3d7c2; cursor: pointer; font-weight: 600; font-size: .9rem; }
+.serviceCheckbox input { width: 18px; height: 18px; flex: none; accent-color: #b99052; }
+.postalResults { display: grid; max-height: 200px; overflow-y: auto; border: 1px solid #6a5840; border-radius: 7px; background: #1b1915; }
+.postalResult { padding: 10px 14px; border: 0; border-bottom: 1px solid #4a3b25; background: transparent; color: #f5efe4; text-align: left; cursor: pointer; font: inherit; }
+.postalResult:hover, .postalResult:focus-visible { background: #3b2f1e; }
 
 .consents { display: grid; gap: 7px; }
 .consent { display: flex; gap: 4px; align-items: flex-start; color: #d2c8b7; font-size: 0.86rem; line-height: 1.4; }
@@ -237,4 +243,5 @@
   .twoColumns,
   .roleOptions { grid-template-columns: 1fr; }
   .roleOption { min-height: auto; }
+  .conditionalRow { grid-template-columns: 1fr; }
 }

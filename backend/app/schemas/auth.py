@@ -122,14 +122,15 @@ class ProviderRegistrationRequest(RegistrationRequest):
     state_province: str | None = Field(default=None, max_length=100)
     professional_title: str = Field(min_length=1, max_length=200)
     specialization_ids: list[uuid.UUID] = Field(min_length=1)
+    language_ids: list[uuid.UUID] = Field(default_factory=list)
     years_experience: int = Field(ge=0, le=100)
     working_address: str = Field(min_length=1, max_length=300)
-    stable_visit: bool
-    clinic_hospital_visit: bool
+    stable_visit: bool = False
     maximum_working_radius_km: float | None = Field(default=None, gt=0, allow_inf_nan=False, le=99999999.99)
     emergency_services_available: bool
     emergency_contact_number: str | None = Field(default=None, max_length=50)
     role: Literal["PROVIDER"] = "PROVIDER"
+    postal_code: str = Field(min_length=1, max_length=32)
 
     @field_validator("provider_name")
     @classmethod
@@ -137,6 +138,14 @@ class ProviderRegistrationRequest(RegistrationRequest):
         value = value.strip()
         if not value:
             raise ValueError("Provider or practice name is required.")
+        return value
+
+    @field_validator("postal_code")
+    @classmethod
+    def trim_postal_code(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Postal code is required.")
         return value
 
     @field_validator("professional_title", "working_address")
@@ -152,6 +161,13 @@ class ProviderRegistrationRequest(RegistrationRequest):
     def unique_specializations(cls, value: list[uuid.UUID]) -> list[uuid.UUID]:
         if len(set(value)) != len(value):
             raise ValueError("specialization_ids must not contain duplicates.")
+        return value
+
+    @field_validator("language_ids")
+    @classmethod
+    def unique_languages(cls, value: list[uuid.UUID]) -> list[uuid.UUID]:
+        if len(set(value)) != len(value):
+            raise ValueError("language_ids must not contain duplicates.")
         return value
 
     @model_validator(mode="after")

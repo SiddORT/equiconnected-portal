@@ -1,0 +1,8 @@
+.backdrop { position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center; padding:var(--space-4); background:rgba(0,0,0,.45); }
+.panel { width:100%; max-width:520px; overflow:hidden; background:var(--color-neutral-0); border-radius:var(--radius-xl); box-shadow:0 20px 60px rgba(0,0,0,.18); }
+.header { display:flex; justify-content:space-between; align-items:center; padding:var(--space-5) var(--space-6); border-bottom:1px solid var(--border-default); color:var(--text-primary); }
+.header h2 { font-size:var(--text-lg); font-weight:var(--font-semibold); }
+.close { border:0; background:none; color:var(--text-muted); cursor:pointer; font-size:var(--text-base); padding:var(--space-1); }
+.body { display:flex; flex-direction:column; gap:var(--space-5); padding:var(--space-6); }
+.error { padding:var(--space-3) var(--space-4); color:var(--color-error-dark); background:var(--color-error-light); border:1px solid var(--color-error); border-radius:var(--radius-md); font-size:var(--text-sm); }
+.footer { display:flex; justify-content:flex-end; gap:var(--space-3); padding:var(--space-4) var(--space-6); background:var(--bg-subtle); border-top:1px solid var(--border-default); }

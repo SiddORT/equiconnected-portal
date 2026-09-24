@@ -11,6 +11,7 @@ from app.models.enums import (
 )
 from app.models.provider import Provider
 from app.models.provider import ProviderLocation, ProviderSpecialization
+from app.models.language import ProviderLanguage, ProviderRegistrationLanguage
 from app.models.provider_registration import ProviderRegistrationApplication
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.provider_registration_repository import ProviderRegistrationRepository
@@ -82,6 +83,7 @@ class ProviderRegistrationService:
                     city=application.user.city,
                     state_province=application.user.state_province,
                     country=application.user.country,
+                    postal_code=application.postal_code,
                     is_primary=True,
                 )
             )
@@ -91,6 +93,8 @@ class ProviderRegistrationService:
                     provider_id=provider.id, specialization_id=specialization_id
                 )
             )
+        for selection in self._db.query(ProviderRegistrationLanguage).filter_by(application_id=application.id).all():
+            self._db.add(ProviderLanguage(provider_id=provider.id, language_id=selection.language_id))
         application.provider_id = provider.id
         application.review_status = ProviderApplicationStatus.APPROVED
         application.reviewed_by_user_id = reviewer_id

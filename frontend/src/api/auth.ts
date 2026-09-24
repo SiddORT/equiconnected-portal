@@ -48,6 +48,30 @@ export async function listProviderSignupSpecializations(): Promise<Array<{ id: s
   return data;
 }
 
+export async function listProviderSignupLanguages(): Promise<Array<{ id: string; name: string; code: string }>> {
+  const { data } = await apiClient.get<Array<{ id: string; name: string; code: string }>>('/auth/provider-languages');
+  return data;
+}
+
+export interface PostalCandidate {
+  country: string;
+  country_code?: string;
+  state_province: string;
+  city: string;
+  postal_code: string;
+  display_name: string;
+}
+
+export async function lookupProviderPostalCode(postalCode: string, signal?: AbortSignal): Promise<{
+  status: 'match' | 'no_match' | 'unavailable';
+  candidates: PostalCandidate[];
+}> {
+  const { data } = await apiClient.get('/auth/provider-postal-lookup', {
+    params: { postal_code: postalCode }, signal,
+  });
+  return data;
+}
+
 export async function verifyEmail(token: string): Promise<EmailVerificationResponse> {
   const { data } = await apiClient.post<EmailVerificationResponse>('/auth/verify-email', { token });
   return data;

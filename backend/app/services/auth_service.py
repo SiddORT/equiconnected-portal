@@ -39,6 +39,7 @@ from app.models.invitation import ProviderInvitation, ProviderPortalSetupToken
 from app.models.enums import InvitationStatus
 from app.models.provider_registration import ProviderRegistrationApplication
 from app.models.specialization import Specialization
+from app.models.language import Language, ProviderRegistrationLanguage
 from app.services.email_service import EmailDeliveryError, EmailService
 
 logger = get_logger(__name__)
@@ -229,6 +230,11 @@ class AuthService:
             )
             if len(specializations) != len(registration.specialization_ids):
                 raise ValueError("One or more specialization IDs are missing or inactive.")
+            languages = self._db.query(Language).filter(
+                Language.id.in_(registration.language_ids), Language.is_active.is_(True)
+            ).all() if registration.language_ids else []
+            if len(languages) != len(registration.language_ids):
+                raise ValueError("One or more language IDs are missing or inactive.")
             provider_role = self._users.get_role_by_name("provider")
             if provider_role is None:
                 logger.error("provider_registration.configuration_missing", required_role="provider")
@@ -246,6 +252,7 @@ class AuthService:
                 country=registration.country,
                 state_province=registration.state_province,
                 city=registration.city,
+                postal_code=registration.postal_code,
                 terms_accepted_at=now,
                 privacy_accepted_at=now,
                 is_active=False,
@@ -259,14 +266,17 @@ class AuthService:
                 specialization_ids=registration.specialization_ids,
                 years_experience=registration.years_experience,
                 working_address=registration.working_address,
+                postal_code=registration.postal_code,
                 stable_visit=registration.stable_visit,
-                clinic_hospital_visit=registration.clinic_hospital_visit,
                 maximum_working_radius_km=registration.maximum_working_radius_km,
                 emergency_services_available=registration.emergency_services_available,
                 emergency_contact_number=registration.emergency_contact_number,
                 review_status=ProviderApplicationStatus.AWAITING_EMAIL_VERIFICATION,
             )
             self._db.add(application)
+            self._db.flush()
+            for language_id in registration.language_ids:
+                self._db.add(ProviderRegistrationLanguage(application_id=application.id, language_id=language_id))
             raw_token = secrets.token_urlsafe(32)
             expires_at = now + timedelta(
                 hours=get_settings().EMAIL_VERIFICATION_EXPIRE_HOURS

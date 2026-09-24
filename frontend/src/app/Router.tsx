@@ -39,6 +39,7 @@ import { ProviderAuthGuard } from '@/features/provider/ProviderAuthGuard';
 import { ProviderApplicationsPage } from '@/pages/admin/ProviderApplicationsPage';
 import { ProviderPasswordSetupPage } from '@/pages/ProviderPasswordSetupPage';
 import { SubscribersPage } from '@/pages/admin/SubscribersPage';
+import { LanguagesPage } from '@/pages/admin/LanguagesPage';
 
 const AnimationPage = lazy(() =>
   import('@/pages/AnimationPage').then((module) => ({ default: module.AnimationPage }))
@@ -81,6 +82,7 @@ export function AppRouter() {
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/dashboard" element={<DashboardPage />} />
             <Route path="/admin/specializations" element={<SpecializationsPage />} />
+            <Route path="/admin/languages" element={<LanguagesPage />} />
             <Route path="/admin/providers" element={<ProvidersPage />} />
             <Route path="/admin/providers/new" element={<ProviderNewPage />} />
             <Route path="/admin/providers/:id" element={<ProviderDetailPage />} />
