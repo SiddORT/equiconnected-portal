@@ -50,6 +50,62 @@ beforeEach(() => {
 });
 
 describe('PublicPage hero', () => {
+  it('greets a restored member and allows profile access and sign out without changing the landing sections', async () => {
+    const logout = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true, isLoading: false,
+      user: {
+        id: 'member', email: 'ada@example.com', first_name: 'Ada', last_name: 'Rider',
+        full_name: 'Ada Rider', role: 'horse_owner', roles: ['horse_owner'],
+        email_verified_at: '2026-08-31', last_successful_login_at: null, is_active: true,
+      },
+      login: vi.fn(), logout,
+    });
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+    expect(screen.getByText('Hi, Ada')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Profile' }).getAttribute('href')).toBe('/profile');
+    expect(screen.getByRole('heading', { name: 'Healthcare, Connected Around You.' })).toBeTruthy();
+    const menu = screen.getByRole('button', { name: 'Menu' });
+    await userEvent.setup().click(menu);
+    expect(menu.getAttribute('aria-expanded')).toBe('true');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Sign out' }));
+    expect(logout).toHaveBeenCalledOnce();
+  });
+
+  it('does not flash member controls during restoration or show them to non-members', () => {
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true, isLoading: true,
+      user: { id: 'admin', email: 'admin@example.com', first_name: 'Admin', last_name: null,
+        full_name: 'Admin', role: 'admin', roles: ['admin'], email_verified_at: '2026-08-31',
+        last_successful_login_at: null, is_active: true },
+      login: vi.fn(), logout: vi.fn(),
+    });
+    const view = render(<MemoryRouter><PublicPage /></MemoryRouter>);
+    expect(screen.queryByText(/Hi, /)).toBeNull();
+    view.unmount();
+    vi.mocked(useAuth).mockReturnValue({ ...vi.mocked(useAuth)(), isLoading: false });
+    render(<MemoryRouter><PublicPage /></MemoryRouter>);
+    expect(screen.queryByText(/Hi, /)).toBeNull();
+    expect(screen.getByRole('link', { name: 'Register as member' })).toBeTruthy();
+  });
+
+  it('shows the member greeting after a restored session resolves', () => {
+    const restored = {
+      id: 'member', email: 'ada@example.com', first_name: 'Ada', last_name: null,
+      full_name: 'Ada Rider', role: 'horse_owner', roles: ['horse_owner'],
+      email_verified_at: '2026-08-31', last_successful_login_at: null, is_active: true,
+    };
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: false, isLoading: true, user: null, login: vi.fn(), logout: vi.fn(),
+    });
+    const view = render(<MemoryRouter><PublicPage /></MemoryRouter>);
+    expect(screen.queryByText('Hi, Ada')).toBeNull();
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true, isLoading: false, user: restored, login: vi.fn(), logout: vi.fn(),
+    });
+    view.rerender(<MemoryRouter><PublicPage /></MemoryRouter>);
+    expect(screen.getByText('Hi, Ada')).toBeTruthy();
+  });
   it('defaults invalid or missing preferences to Blue and scopes the theme to the homepage', async () => {
     window.localStorage.setItem('equiconnected-public-theme', 'not-a-theme');
     render(<MemoryRouter><PublicPage /></MemoryRouter>);

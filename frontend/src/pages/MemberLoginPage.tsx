@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
+import { memberDestination } from '@/features/member/memberAccess';
 import { extractErrorMessage } from '@/api/client';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
@@ -26,7 +27,7 @@ interface FormErrors {
 }
 
 interface LoginLocationState {
-  from?: { pathname: string };
+  from?: { pathname: string; search?: string; hash?: string };
   verifiedEmail?: string;
   verifiedNotice?: string;
 }
@@ -47,11 +48,10 @@ function validate(form: FormState): FormErrors {
 }
 
 export function MemberLoginPage() {
-  const { isAuthenticated, isLoading, login } = useAuth();
+  const { isAuthenticated, isLoading, login, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const loginState = location.state as LoginLocationState | null;
-  const from = loginState?.from?.pathname ?? '/providers';
 
   const [form, setForm] = useState<FormState>(() => ({
     email: loginState?.verifiedEmail ?? '',
@@ -72,7 +72,7 @@ export function MemberLoginPage() {
   }, [loginState?.verifiedEmail, loginState?.verifiedNotice, navigate]);
 
   if (!isLoading && isAuthenticated) {
-    return <Navigate to={from} replace />;
+    return <Navigate to={memberDestination(user, loginState?.from)} replace />;
   }
 
   if (isLoading) {
@@ -100,7 +100,7 @@ export function MemberLoginPage() {
     setSubmitting(true);
     try {
       await login(form.email.trim().toLowerCase(), form.password);
-      navigate(from, { replace: true });
+      // The authenticated render picks a role-safe destination using the returned session.
     } catch (error) {
       setGlobalError(extractErrorMessage(error, 'Login failed. Please check your credentials.'));
     } finally {

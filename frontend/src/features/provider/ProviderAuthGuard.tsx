@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { hasMemberRole } from '@/features/member/memberAccess';
 
 export function ProviderAuthGuard() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -12,8 +13,7 @@ export function ProviderAuthGuard() {
   }
   const roles = user?.roles?.length ? user.roles : [user?.role ?? ''];
   if (!roles.includes('provider')) {
-    const member = roles.some((role) => role === 'horse_owner' || role === 'stable_manager');
-    return <Navigate to={member ? '/providers' : '/admin/dashboard'} replace />;
+    return <Navigate to={hasMemberRole(user) ? '/' : roles.includes('admin') ? '/admin/dashboard' : '/'} replace />;
   }
   return <Outlet />;
 }

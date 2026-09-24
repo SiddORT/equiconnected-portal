@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Alert } from '@/components/ui/Alert';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { memberDestination } from '@/features/member/memberAccess';
 import styles from './LoginPage.module.css';
 
 interface FormState {
@@ -74,7 +75,7 @@ export function LoginPage() {
   // role check, the admin guard and this page can redirect a member between
   // /admin/login and /admin/dashboard indefinitely.
   if (!isLoading && isAuthenticated) {
-    return <Navigate to={user?.role === 'admin' ? from : '/providers'} replace />;
+    return <Navigate to={user?.role === 'admin' ? from : memberDestination(user)} replace />;
   }
 
   if (isLoading) {
@@ -102,7 +103,7 @@ export function LoginPage() {
     setSubmitting(true);
     try {
       await login(form.email.trim().toLowerCase(), form.password);
-      navigate(from, { replace: true });
+      // Wait for the authenticated render to choose the correct destination for this role.
     } catch (err) {
       setGlobalError(extractErrorMessage(err, 'Login failed. Please check your credentials.'));
     } finally {

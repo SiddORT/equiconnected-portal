@@ -59,9 +59,11 @@ export function MemberProviderDetailPage() {
     }
   };
 
-  const back = `/providers${location.search}`;
+  const fromCareNearYou = location.state?.fromCareNearYou === true;
+  const back = fromCareNearYou ? '/#care-near-you' : `/providers${location.search}`;
+  const backLabel = fromCareNearYou ? 'Back to Care Near You' : 'Back to providers';
   if (loading) return <main className={styles.page}><div className={styles.loading} role="status"><LoadingSpinner /> <span>Loading provider…</span></div></main>;
-  if (!provider) return <main className={styles.page}><Alert variant="error">{notice?.text ?? 'Provider not found.'}</Alert><Link to={back} className={styles.profileLink}>Back to providers</Link></main>;
+  if (!provider) return <main className={styles.page}><Alert variant="error">{notice?.text ?? 'Provider not found.'}</Alert><Link to={back} className={styles.profileLink}>{backLabel}</Link></main>;
 
   const locationName = provider.location
     ? [provider.location.city, provider.location.state_province, provider.location.country].filter(Boolean).join(', ')
@@ -69,7 +71,7 @@ export function MemberProviderDetailPage() {
 
   return (
     <main className={styles.page}>
-      <Link to={back} className={styles.backLink}>← Back to providers</Link>
+      <Link to={back} className={styles.backLink}>← {backLabel}</Link>
       {notice && <Alert variant={notice.kind} onDismiss={() => setNotice(null)}>{notice.text}</Alert>}
       <header className={styles.detailHeader}>
         <div>

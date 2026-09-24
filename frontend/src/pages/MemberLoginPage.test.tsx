@@ -2,9 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ComponentProps } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { MemberLoginPage } from './MemberLoginPage';
 import { LoginPage } from './admin/LoginPage';
+import { useAuth } from '@/app/AuthContext';
 
 const { login, navigate } = vi.hoisted(() => ({
   login: vi.fn(),
@@ -12,18 +13,24 @@ const { login, navigate } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/app/AuthContext', () => ({
-  useAuth: () => ({
+  useAuth: vi.fn(() => ({
     isAuthenticated: false,
     isLoading: false,
     login,
     logout: vi.fn(),
     user: null,
-  }),
+  })),
 }));
 
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>();
-  return { ...actual, useNavigate: () => navigate };
+  return { ...actual, useNavigate: () => {
+    const realNavigate = actual.useNavigate();
+    return (...args: Parameters<typeof realNavigate>) => {
+      navigate(...args);
+      return realNavigate(...args);
+    };
+  } };
 });
 
 afterEach(() => {
@@ -31,12 +38,22 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
+const member = {
+  id: 'member', email: 'rider@example.com', first_name: 'Rider', last_name: null,
+  full_name: 'Rider', role: 'horse_owner', roles: ['horse_owner'],
+  email_verified_at: '2026-08-31', last_successful_login_at: null, is_active: true,
+};
+
 function renderMember(
   initialEntries: NonNullable<ComponentProps<typeof MemoryRouter>['initialEntries']> = ['/login']
 ) {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
-      <MemberLoginPage />
+      <Routes>
+        <Route path="/login" element={<MemberLoginPage />} />
+        <Route path="/" element={<p>Member home</p>} />
+        <Route path="/providers/:id" element={<p>Protected provider detail</p>} />
+      </Routes>
     </MemoryRouter>
   );
 }
@@ -121,7 +138,7 @@ describe('MemberLoginPage', () => {
   it('validates credentials, toggles password visibility, and returns to the requested page', async () => {
     const user = userEvent.setup();
     login.mockResolvedValue(undefined);
-    renderMember([{
+    const view = renderMember([{
       pathname: '/login',
       state: { from: { pathname: '/providers/demo-provider' } },
     }]);
@@ -141,18 +158,39 @@ describe('MemberLoginPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
     await waitFor(() => expect(login).toHaveBeenCalledWith('rider@example.com', 'SecureHorse7'));
-    expect(navigate).toHaveBeenCalledWith('/providers/demo-provider', { replace: true });
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true, isLoading: false, login, logout: vi.fn(), user: member,
+    });
+    view.rerender(<MemoryRouter initialEntries={[{
+      pathname: '/login',
+      state: { from: { pathname: '/providers/demo-provider' } },
+    }]}><Routes>
+      <Route path="/login" element={<MemberLoginPage />} />
+      <Route path="/providers/:id" element={<p>Protected provider detail</p>} />
+    </Routes></MemoryRouter>);
+    expect(await screen.findByText('Protected provider detail')).toBeTruthy();
+  });
+
+  it('sends a restored member without a protected destination to the landing page', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true, isLoading: false, login, logout: vi.fn(), user: member,
+    });
+    renderMember();
+    expect(await screen.findByText('Member home')).toBeTruthy();
   });
 
   it('preserves administrator validation, visibility control, and requested navigation', async () => {
     const user = userEvent.setup();
     login.mockResolvedValue(undefined);
-    render(
+    const view = render(
       <MemoryRouter initialEntries={[{
         pathname: '/admin/login',
         state: { from: { pathname: '/admin/invitations' } },
       }]}>
-        <LoginPage />
+        <Routes>
+          <Route path="/admin/login" element={<LoginPage />} />
+          <Route path="/admin/invitations" element={<p>Admin invitations</p>} />
+        </Routes>
       </MemoryRouter>
     );
 
@@ -169,6 +207,16 @@ describe('MemberLoginPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
     await waitFor(() => expect(login).toHaveBeenCalledWith('admin@example.com', 'SecureAdmin7'));
-    expect(navigate).toHaveBeenCalledWith('/admin/invitations', { replace: true });
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true, isLoading: false, login, logout: vi.fn(),
+      user: { ...member, role: 'admin', roles: ['admin'] },
+    });
+    view.rerender(<MemoryRouter initialEntries={[{
+      pathname: '/admin/login', state: { from: { pathname: '/admin/invitations' } },
+    }]}><Routes>
+      <Route path="/admin/login" element={<LoginPage />} />
+      <Route path="/admin/invitations" element={<p>Admin invitations</p>} />
+    </Routes></MemoryRouter>);
+    expect(await screen.findByText('Admin invitations')).toBeTruthy();
   });
 });

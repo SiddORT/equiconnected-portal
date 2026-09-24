@@ -22,7 +22,7 @@ function renderGuard(initialEntry: string) {
           <Route path="/profile" element={<p>Member profile</p>} />
         </Route>
         <Route path="/login" element={<p>Member login</p>} />
-        <Route path="/admin/login" element={<p>Admin login</p>} />
+        <Route path="/admin/dashboard" element={<p>Admin dashboard</p>} />
       </Routes>
     </MemoryRouter>
   );
@@ -60,7 +60,7 @@ describe('MemberAuthGuard', () => {
     });
 
     renderGuard('/profile');
-    expect(await screen.findByText('Admin login')).toBeTruthy();
+    expect(await screen.findByText('Admin dashboard')).toBeTruthy();
     expect(screen.queryByText('Member profile')).toBeNull();
   });
 });

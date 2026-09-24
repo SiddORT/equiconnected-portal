@@ -332,10 +332,42 @@
   border-radius: 2px;
   background: var(--public-surface, #fffefa);
   color: var(--public-text, #12394a);
-  cursor: pointer;
   font: inherit;
   text-align: left;
   transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.cardSelect {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.cardSelect:focus-visible {
+  outline: 3px solid var(--public-accent, #b78b33);
+  outline-offset: 3px;
+}
+
+.cardDetailLink {
+  display: inline-block;
+  margin-top: 12px;
+  color: var(--public-accent-strong, #836626);
+  font-size: .67rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.cardDetailLink:focus-visible {
+  outline: 3px solid var(--public-accent, #b78b33);
+  outline-offset: 3px;
 }
 
 .providerCard:hover,

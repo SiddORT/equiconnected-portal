@@ -31,6 +31,27 @@ afterEach(() => {
 });
 
 describe('MemberProviderDetailPage', () => {
+  it('returns to Care Near You when opened from a landing card, including when details fail', async () => {
+    vi.mocked(providersApi.getMemberProvider).mockResolvedValue(detail);
+    const view = render(
+      <MemoryRouter initialEntries={[{
+        pathname: '/providers/provider-1', state: { fromCareNearYou: true },
+      }]}>
+        <Routes><Route path="/providers/:id" element={<MemberProviderDetailPage />} /></Routes>
+      </MemoryRouter>
+    );
+    expect((await screen.findByRole('link', { name: '← Back to Care Near You' })).getAttribute('href')).toBe('/#care-near-you');
+    view.unmount();
+    vi.mocked(providersApi.getMemberProvider).mockRejectedValue(new Error('Not found'));
+    render(
+      <MemoryRouter initialEntries={[{
+        pathname: '/providers/provider-1', state: { fromCareNearYou: true },
+      }]}>
+        <Routes><Route path="/providers/:id" element={<MemberProviderDetailPage />} /></Routes>
+      </MemoryRouter>
+    );
+    expect((await screen.findByRole('link', { name: 'Back to Care Near You' })).getAttribute('href')).toBe('/#care-near-you');
+  });
   it('shows a hidden-comment explanation and submits an updated member review', async () => {
     vi.mocked(providersApi.getMemberProvider).mockResolvedValue(detail);
     vi.mocked(providersApi.saveMemberProviderReview).mockResolvedValue({

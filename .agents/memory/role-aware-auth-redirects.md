@@ -8,3 +8,7 @@ Admin authorization guards and the admin sign-in screen must choose destinations
 **Why:** Sending a member from an admin-only guard to the admin sign-in page while that page forwards every authenticated user back to the dashboard creates an immediate two-route navigation cycle. Browsers surface this as an update-depth error and leave the app appearing blank or permanently loading.
 
 **How to apply:** Whenever adding a protected route or auto-redirect, trace both the denied-route redirect and the sign-in-page authenticated redirect for every supported role. Keep an automated test for a signed-in member visiting both the protected admin route and the admin sign-in URL.
+
+For redirect tests, render the sign-in page inside matching `Routes` with destination routes and assert the destination content. Mocking `useNavigate` alone tests imperative calls but does not reliably capture redirects rendered by `<Navigate>`.
+
+**Why:** Tests that expected a navigation spy call after an authenticated render failed even though actual route transitions worked. A route-based assertion checks both the redirect and whether its target is reachable.

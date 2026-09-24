@@ -6,6 +6,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { hasMemberRole } from '@/features/member/memberAccess';
 
 interface AuthGuardProps {
   requiredRole?: string;
@@ -25,10 +26,7 @@ export function AuthGuard({ requiredRole }: AuthGuardProps) {
 
   if (requiredRole && user?.role !== requiredRole) {
     const roles = user?.roles?.length ? user.roles : [user?.role ?? ''];
-    const memberRoute = roles.some((role) => role === 'horse_owner' || role === 'stable_manager')
-      ? '/providers'
-      : '/';
-    return <Navigate to={memberRoute} replace />;
+    return <Navigate to={hasMemberRole(user) ? '/' : roles.includes('provider') ? '/provider/account' : '/'} replace />;
   }
 
   return <Outlet />;

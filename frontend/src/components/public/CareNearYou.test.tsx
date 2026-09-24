@@ -133,12 +133,18 @@ describe('CareNearYou', () => {
     expect(screen.getByRole('status').textContent).toContain('Loading connected providers');
     expect(await screen.findByRole('button', { name: /Dr. Mira Rao/ })).toBeTruthy();
     expect(screen.getByText('Sports Medicine')).toBeTruthy();
-    expect(screen.getByRole('link', { name: /FIND CARE NEAR ME/ }).getAttribute('href')).toBe('/member');
+    expect(screen.getByRole('link', { name: /FIND CARE NEAR ME/ }).getAttribute('href')).toBe('/providers');
     expect(screen.getByRole('button', { name: /Dr. Mira Rao/ }).getAttribute('aria-pressed')).toBe('true');
+    const detail = screen.getAllByRole('link', { name: /View full details/ })[0];
+    expect(detail.getAttribute('href')).toBe('/providers/doctor-1');
+    await user.tab();
+    detail.focus();
+    expect(document.activeElement).toBe(detail);
 
     await user.click(screen.getByRole('button', { name: 'Clinics' }));
 
     expect(screen.queryByRole('button', { name: /Dr. Mira Rao/ })).toBeNull();
+    expect(screen.getAllByRole('link', { name: /View full details/ })).toHaveLength(1);
     expect(screen.getByRole('button', { name: /Blue Meadow Clinic/ }).getAttribute('aria-pressed')).toBe('true');
     expect(leaflet.circleMarker).toHaveBeenLastCalledWith(
       [19.076, 72.8777],
@@ -184,7 +190,7 @@ describe('CareNearYou', () => {
     const findCareLink = screen.getByRole('link', { name: /FIND CARE NEAR ME/ });
 
     expect(actions).toBeTruthy();
-    expect(findCareLink.getAttribute('href')).toBe('/member');
+    expect(findCareLink.getAttribute('href')).toBe('/login');
     expect(findCareLink.classList.contains(styles.primaryCta)).toBe(true);
   });
 

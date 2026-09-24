@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ComponentProps } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ProviderLoginPage } from './ProviderLoginPage';
+import { useAuth } from '@/app/AuthContext';
 
 const { login, navigate } = vi.hoisted(() => ({
   login: vi.fn(),
@@ -11,13 +12,13 @@ const { login, navigate } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/app/AuthContext', () => ({
-  useAuth: () => ({
+  useAuth: vi.fn(() => ({
     isAuthenticated: false,
     isLoading: false,
     login,
     logout: vi.fn(),
     user: null,
-  }),
+  })),
 }));
 
 vi.mock('react-router-dom', async (importOriginal) => {
@@ -35,7 +36,10 @@ function renderProvider(
 ) {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
-      <ProviderLoginPage />
+      <Routes>
+        <Route path="/provider/login" element={<ProviderLoginPage />} />
+        <Route path="/provider/account" element={<p>Provider account</p>} />
+      </Routes>
     </MemoryRouter>
   );
 }
@@ -83,7 +87,7 @@ describe('ProviderLoginPage', () => {
     login.mockImplementation(() => new Promise<void>((resolve) => {
       resolveLogin = resolve;
     }));
-    renderProvider();
+    const view = renderProvider();
 
     fireEvent.submit(screen.getByRole('button', { name: 'Sign in to provider portal' }).closest('form')!);
     expect((await screen.findByRole('alert')).textContent).toContain('Enter your email address and password.');
@@ -103,7 +107,20 @@ describe('ProviderLoginPage', () => {
     expect(login).toHaveBeenCalledWith('provider@example.com', 'SecureHorse7');
 
     resolveLogin?.();
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/provider/account', { replace: true }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Signing in…' })).toBeNull());
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true, isLoading: false, login, logout: vi.fn(),
+      user: {
+        id: 'provider', email: 'provider@example.com', first_name: 'Provider', last_name: null,
+        full_name: 'Provider', role: 'provider', roles: ['provider'],
+        email_verified_at: '2026-08-31', last_successful_login_at: null, is_active: true,
+      },
+    });
+    view.rerender(<MemoryRouter initialEntries={['/provider/login']}><Routes>
+      <Route path="/provider/login" element={<ProviderLoginPage />} />
+      <Route path="/provider/account" element={<p>Provider account</p>} />
+    </Routes></MemoryRouter>);
+    expect(await screen.findByText('Provider account')).toBeTruthy();
   });
 
   it('returns authentication failures through an accessible, safe alert', async () => {

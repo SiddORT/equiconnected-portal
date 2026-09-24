@@ -6,6 +6,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { memberDestination } from '@/features/member/memberAccess';
 import styles from './ProviderLoginPage.module.css';
 
 interface LoginLocationState {
@@ -15,7 +16,7 @@ interface LoginLocationState {
 }
 
 export function ProviderLoginPage() {
-  const { isAuthenticated, isLoading, login } = useAuth();
+  const { isAuthenticated, isLoading, login, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as LoginLocationState | null;
@@ -33,7 +34,10 @@ export function ProviderLoginPage() {
   }, [navigate, state?.verifiedEmail, state?.verifiedNotice]);
 
   if (isLoading) return <LoadingScreen message="Checking session…" />;
-  if (isAuthenticated) return <Navigate to={state?.from?.pathname ?? '/provider/account'} replace />;
+  if (isAuthenticated) {
+    const roles = user?.roles?.length ? user.roles : [user?.role ?? ''];
+    return <Navigate to={roles.includes('provider') ? '/provider/account' : memberDestination(user)} replace />;
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -45,7 +49,7 @@ export function ProviderLoginPage() {
     setError(null);
     try {
       await login(email.trim().toLowerCase(), password);
-      navigate(state?.from?.pathname ?? '/provider/account', { replace: true });
+      // Let the authenticated render route according to the account role.
     } catch (requestError) {
       setError(extractErrorMessage(requestError, 'Sign in failed. Please check your credentials.'));
     } finally {

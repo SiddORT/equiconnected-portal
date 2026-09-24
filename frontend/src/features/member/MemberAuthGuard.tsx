@@ -11,7 +11,8 @@ export function MemberAuthGuard() {
   if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
 
   if (!hasMemberRole(user)) {
-    return <Navigate to="/admin/login" replace />;
+    const roles = user?.roles?.length ? user.roles : [user?.role ?? ''];
+    return <Navigate to={roles.includes('admin') ? '/admin/dashboard' : roles.includes('provider') ? '/provider/account' : '/'} replace />;
   }
   return <Outlet />;
 }

@@ -3,6 +3,8 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/app/AuthContext';
+import { hasMemberRole } from '@/features/member/memberAccess';
 import { extractErrorMessage } from '@/api/client';
 import { recordPublicVisit, registerSubscriber } from '@/api/public';
 import { systemCalendarDate, useTimeSettings } from '@/app/TimeSettingsContext';
@@ -38,6 +40,9 @@ function storePublicTheme(theme: PublicTheme) {
 }
 
 export function PublicPage() {
+  const { isAuthenticated, isLoading: authLoading, user, logout } = useAuth();
+  const member = !authLoading && isAuthenticated && hasMemberRole(user);
+  const [loggingOut, setLoggingOut] = useState(false);
   const pageRef = useRef<HTMLDivElement>(null);
   const memberInviteRef = useRef<HTMLElement>(null);
   const finalCtaRef = useRef<HTMLElement>(null);
@@ -166,6 +171,17 @@ export function PublicPage() {
     setMenuOpen(false);
   }
 
+  async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logout();
+      closeMenu();
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+
   return (
     <div className={styles.page} ref={pageRef} data-theme={theme}>
       {/* ── Background decorative elements ──────────────────────── */}
@@ -173,7 +189,7 @@ export function PublicPage() {
 
       <main className={styles.main} id="main-content">
         {/* ── Logo / Header ────────────────────────────────────── */}
-        <header className={styles.header} data-motion-header>
+        <header className={styles.header} data-motion-header data-member={member}>
           <Link to="/" className={styles.brand} aria-label="EquiConnected home">
             <img
               src="/equiconnected-logo.png"
@@ -182,6 +198,7 @@ export function PublicPage() {
               className={styles.brandLogo}
             />
           </Link>
+          {member && <span className={styles.memberGreeting}>Hi, {user?.first_name?.trim() || user?.full_name?.trim() || 'Member'}</span>}
           <nav className={`${styles.nav} ${menuOpen ? styles.navOpen : ''}`} aria-label="Primary navigation">
             <button
               type="button"
@@ -216,9 +233,18 @@ export function PublicPage() {
                     <option value="brown">Brown</option>
                   </select>
                 </div>
-                <Link to="/signup" className={styles.navMember} onClick={closeMenu} data-gsap-hover>
-                  Register as member
-                </Link>
+                {member ? (
+                  <>
+                    <Link to="/profile" className={styles.navMember} onClick={closeMenu}>Profile</Link>
+                    <button type="button" className={styles.navSignOut} onClick={() => void handleLogout()} disabled={loggingOut}>
+                      {loggingOut ? 'Signing out…' : 'Sign out'}
+                    </button>
+                  </>
+                ) : (
+                  <Link to="/signup" className={styles.navMember} onClick={closeMenu} data-gsap-hover>
+                    Register as member
+                  </Link>
+                )}
                 <Link to="/provider/signup" className={styles.navCta} onClick={closeMenu} data-gsap-hover>
                   Register as provider
                 </Link>

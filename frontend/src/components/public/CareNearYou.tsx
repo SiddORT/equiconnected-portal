@@ -234,7 +234,7 @@ export function CareNearYou({ theme = 'blue' }: { theme?: 'blue' | 'brown' }) {
             <span aria-hidden="true">⌖</span>
             {locationState === 'loading' ? 'Finding you…' : 'Use my location'}
           </button>
-          <Link to="/member" className={styles.primaryCta} data-gsap-hover>FIND CARE NEAR ME <span aria-hidden="true">↗</span></Link>
+          <Link to={canAccessMemberDetails ? '/providers' : '/login'} className={styles.primaryCta} data-gsap-hover>FIND CARE NEAR ME <span aria-hidden="true">↗</span></Link>
         </div>
       </div>
 
@@ -331,7 +331,7 @@ export function CareNearYou({ theme = 'blue' }: { theme?: 'blue' | 'brown' }) {
                 <div className={styles.memberGateActions}>
                   <Link
                     to="/login"
-                    state={{ from: { pathname: '/providers' } }}
+                    state={{ from: { pathname: '/' } }}
                     className={styles.memberGateLink}
                     aria-label="Log in as a member"
                   >
@@ -351,13 +351,11 @@ export function CareNearYou({ theme = 'blue' }: { theme?: 'blue' | 'brown' }) {
               const type = typeConfig[provider.provider_type];
               const selected = provider.id === selectedProvider?.id;
               return (
-                <button
+                <div
                   key={provider.id}
-                  type="button"
                   className={`${styles.providerCard} ${selected ? styles.providerCardSelected : ''}`}
-                  onClick={() => setSelectedId(provider.id)}
-                  aria-pressed={selected}
                 >
+                  <button type="button" className={styles.cardSelect} onClick={() => setSelectedId(provider.id)} aria-pressed={selected}>
                   <span className={styles.cardTopline}>
                     <span className={styles.providerType} style={{ color: type.color }}>
                       <span className={styles.typeDot} style={{ backgroundColor: type.color }} aria-hidden="true" />
@@ -376,7 +374,16 @@ export function CareNearYou({ theme = 'blue' }: { theme?: 'blue' | 'brown' }) {
                     <span>{provider.review_count} {provider.review_count === 1 ? 'review' : 'reviews'}</span>
                   </span>
                   <span className={styles.distance}>{formatDistance(provider.distance_km)}</span>
-                </button>
+                  </button>
+                  <Link
+                    to={`/providers/${provider.id}`}
+                    state={{ fromCareNearYou: true }}
+                    className={styles.cardDetailLink}
+                    onFocus={() => setSelectedId(provider.id)}
+                  >
+                    View full details <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
               );
             })}
             {canAccessMemberDetails && !loading && !error && providers.length > 0 && visibleProviders.length === 0 && (

@@ -43,12 +43,12 @@ describe('admin access redirects', () => {
           <Route element={<AuthGuard requiredRole="admin" />}>
             <Route path="/admin/dashboard" element={<p>Admin dashboard</p>} />
           </Route>
-          <Route path="/providers" element={<p>Member provider directory</p>} />
+          <Route path="/" element={<p>Member landing page</p>} />
         </Routes>
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Member provider directory')).toBeTruthy();
+    expect(await screen.findByText('Member landing page')).toBeTruthy();
     expect(screen.queryByText('Admin dashboard')).toBeNull();
   });
 
@@ -59,11 +59,11 @@ describe('admin access redirects', () => {
       <MemoryRouter initialEntries={['/admin/login']}>
         <Routes>
           <Route path="/admin/login" element={<LoginPage />} />
-          <Route path="/providers" element={<p>Member provider directory</p>} />
+          <Route path="/" element={<p>Member landing page</p>} />
         </Routes>
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Member provider directory')).toBeTruthy();
+    expect(await screen.findByText('Member landing page')).toBeTruthy();
   });
 });
