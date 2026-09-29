@@ -189,14 +189,12 @@ describe('PublicPage', () => {
   });
 
   it('submits a valid subscriber and announces success', async () => {
-    vi.mocked(publicApi.registerSubscriber).mockResolvedValue({ message: 'Thanks' });
     const user = userEvent.setup();
     renderPage();
 
     await user.selectOptions(screen.getByLabelText('Your role'), 'HORSE_OWNER');
     await user.type(screen.getByLabelText('Email address'), ' owner@example.com ');
     await user.click(screen.getByRole('button', { name: /keep me posted/i }));
-
     await waitFor(() => expect(publicApi.registerSubscriber).toHaveBeenCalledWith({
       email: 'owner@example.com',
       registration_type: 'HORSE_OWNER',
@@ -297,6 +295,12 @@ describe('PublicPage', () => {
     renderPage();
 
     expect(screen.getByRole('heading', { level: 1, name: /equine care/i })).toBeTruthy();
+    const intro = screen.getByRole('region', { name: /Every horse deserves care/i });
+    expect(within(intro).getByText(/A starting point for horse owners, riders and stable teams/)).toBeTruthy();
+    expect(within(intro).queryByRole('link')).toBeNull();
+    expect(screen.queryByText(/A clearer first step/i)).toBeNull();
+    expect(within(screen.getByRole('contentinfo')).getByRole('link', { name: 'How it works' }).getAttribute('href'))
+      .toBe('/#how-it-works');
     const sectionIds = ['care', 'how-it-works', 'find', 'owners', 'providers', 'visiting', 'emergency'];
     const sections = sectionIds.map((id) => document.getElementById(id));
     expect(sections.every(Boolean)).toBe(true);

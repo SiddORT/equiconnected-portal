@@ -201,10 +201,7 @@ export function PublicPage() {
             {' '}<span className={styles.inlinePhoto}><img src="/home-v2/statement-detail-2.jpg" alt="" /></span>
             {' '}<em>so the right one is always within reach.</em>
           </h2>
-          <div className={styles.introFoot}>
-            <p>A starting point for horse owners, riders and stable teams to learn about equine care providers and the information they share.</p>
-            <a className={styles.textLink} href="#how-it-works">A clearer first step <Arrow /></a>
-          </div>
+          <p className={styles.introLead}>A starting point for horse owners, riders and stable teams to learn about equine care providers and the information they share.</p>
         </section>
 
         <section className={styles.steps} id="how-it-works" aria-labelledby="steps-heading">
