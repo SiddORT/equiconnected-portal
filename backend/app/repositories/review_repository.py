@@ -68,6 +68,7 @@ class ReviewRepository:
     def list_discoverable(
         self,
         *,
+        name: str | None = None,
         provider_type: ProviderType | None,
         minimum_rating: float | None,
         page: int,
@@ -88,6 +89,10 @@ class ReviewRepository:
             Provider.status == ProviderStatus.ACTIVE,
             Provider.publication_status == PublicationStatus.PUBLISHED,
         ]
+        if name and (term := name.strip()):
+            # Treat wildcard characters as literal name characters.
+            escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            conditions.append(Provider.name.ilike(f"%{escaped}%", escape="\\"))
         if saved_only_member_id is not None:
             conditions.append(
                 select(ProviderFavorite.id).where(

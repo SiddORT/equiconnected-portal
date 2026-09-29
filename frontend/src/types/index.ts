@@ -1002,6 +1002,7 @@ export interface MemberProviderListParams {
   within_working_radius?: boolean;
   page?: number;
   page_size?: number;
+  name?: string;
 }
 
 export interface AdminProviderReview {

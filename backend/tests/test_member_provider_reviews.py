@@ -84,6 +84,38 @@ def _provider(
 
 
 class TestMemberProviderDiscoveryAndReviews:
+    def test_name_search_combines_filters_count_sort_and_pages_without_exposing_hidden_rows(self, client, db):
+        member = _member(db, "directory-name@example.com")
+        alpha = _provider(db, "Alpha Equine Care")
+        beta = _provider(db, "Beta Equine Care")
+        _provider(db, "Equine Draft", publication=PublicationStatus.UNPUBLISHED)
+        _provider(db, "Equine Inactive", status=ProviderStatus.INACTIVE)
+        _provider(db, "Other Clinic")
+        headers = _headers(member)
+
+        params = {"name": "  eQuInE  ", "provider_type": "CLINIC", "sort": "name", "page_size": 1}
+        first = client.get(MEMBER_BASE, headers=headers, params=params)
+        assert first.status_code == 200
+        assert first.json()["meta"]["total"] == 2
+        assert first.json()["meta"]["total_pages"] == 2
+        assert [item["id"] for item in first.json()["data"]] == [str(alpha.id)]
+        second = client.get(MEMBER_BASE, headers=headers, params={**params, "page": 2})
+        assert second.json()["meta"]["total"] == 2
+        assert [item["id"] for item in second.json()["data"]] == [str(beta.id)]
+
+        empty = client.get(MEMBER_BASE, headers=headers, params={"name": "no such provider"})
+        assert empty.json()["meta"]["total"] == 0
+        assert empty.json()["data"] == []
+        cleared = client.get(MEMBER_BASE, headers=headers, params={"name": "   "})
+        assert cleared.json()["meta"]["total"] == 3
+        assert client.get(MEMBER_BASE, headers=headers, params={"name": "%"}).json()["meta"]["total"] == 0
+        assert client.get(MEMBER_BASE, headers=headers, params={"name": "_"}).json()["meta"]["total"] == 0
+
+        member.email_verified_at = None
+        db.commit()
+        assert client.get(MEMBER_BASE, headers=headers, params=params).status_code == 403
+        assert client.get(MEMBER_BASE, params=params).status_code == 401
+
     def test_member_favorites_are_private_persistent_and_discoverable_only(self, client, db):
         first = _member(db, "favorites-first@example.com")
         second = _member(db, "favorites-second@example.com")

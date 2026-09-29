@@ -14,8 +14,8 @@ type State = { key: string; status: 'ready' | 'error'; data?: PaginatedResponse<
 const validCoordinates = (value?: Coordinates | null): value is Coordinates =>
   !!value && Number.isFinite(value.latitude) && Number.isFinite(value.longitude)
   && Math.abs(value.latitude) <= 90 && Math.abs(value.longitude) <= 180;
-const filterKeys = ['visit_stability', 'specialization_id', 'region', 'provider_type', 'minimum_rating', 'emergency_only', 'within_working_radius', 'closest_first'];
-const draftKeys = ['visit_stability', 'specialization_id', 'region', 'provider_type', 'minimum_rating', 'emergency_only'];
+const filterKeys = ['name', 'visit_stability', 'specialization_id', 'region', 'provider_type', 'minimum_rating', 'emergency_only', 'within_working_radius', 'closest_first'];
+const draftKeys = ['name', 'visit_stability', 'specialization_id', 'region', 'provider_type', 'minimum_rating', 'emergency_only'];
 const labelType = (value: ProviderType) => value.charAt(0) + value.slice(1).toLowerCase();
 
 function ProviderImage({ provider }: { provider: MemberProviderListItem }) {
@@ -109,6 +109,7 @@ export function ProviderDirectoryPage() {
     const requestedKey = key;
     providersApi.listMemberProviders({
       saved_only: savedOnly || undefined,
+      name: searchParams.get('name')?.trim() || undefined,
       provider_type: (searchParams.get('provider_type') || undefined) as ProviderType | undefined,
       visit_stability: (searchParams.get('visit_stability') || undefined) as VisitStability | undefined,
       specialization_id: searchParams.get('specialization_id') || undefined,
@@ -137,7 +138,7 @@ export function ProviderDirectoryPage() {
   const apply = (event: React.FormEvent) => {
     event.preventDefault();
     const updates: Record<string, string | null> = { page: '1' };
-    draftKeys.forEach(name => { updates[name] = draft.get(name); });
+    draftKeys.forEach(name => { updates[name] = name === 'name' ? draft.get(name)?.trim() || null : draft.get(name); });
     updateParams(updates);
   };
   const clearFilters = () => {
@@ -191,6 +192,10 @@ export function ProviderDirectoryPage() {
     </header>
     {locationMessage && <Alert variant="info" onDismiss={() => setLocationMessage(null)}>{locationMessage}</Alert>}
     <form className={styles.toolbar} aria-label="Provider directory filters" onSubmit={apply}>
+      <div className={`${styles.filterSegment} ${styles.nameSegment}`}>
+        <label htmlFor="provider-name-filter">Provider name</label>
+        <input id="provider-name-filter" type="search" maxLength={200} placeholder="Search by name" value={draft.get('name') || ''} onChange={e => setDraftValue('name', e.target.value)} />
+      </div>
       <div className={styles.filterSegment}>
         <label htmlFor="visit-filter">1 · Visit type</label>
         <select id="visit-filter" ref={filtersRef} value={draft.get('visit_stability') || ''} onChange={e => setDraftValue('visit_stability', e.target.value)}>

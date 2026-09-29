@@ -36,6 +36,39 @@ function DetailBackLink() {
 }
 
 describe('member provider directory', () => {
+  it('submits a trimmed name with other filters, resets the page, and clears empty search results', async () => {
+    const user = userEvent.setup();
+    vi.mocked(providersApi.listMemberProviders).mockImplementation(async params => (
+      params?.name ? { data: [], meta: { page: 1, page_size: 10, total: 0, total_pages: 1 } } : response
+    ));
+    renderPage('/providers?name=Old&page=3&region=Texas');
+    await waitFor(() => expect(providersApi.listMemberProviders).toHaveBeenCalledWith(expect.objectContaining({ name: 'Old', page: 3, region: 'Texas' })));
+    const input = screen.getByRole('searchbox', { name: 'Provider name' });
+    expect(input).toHaveProperty('value', 'Old');
+    await user.clear(input);
+    await user.type(input, '  New Care  ');
+    await user.click(screen.getByRole('button', { name: /apply filters/i }));
+    await waitFor(() => expect(providersApi.listMemberProviders).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'New Care', page: 1, region: 'Texas' })));
+    expect(await screen.findByRole('heading', { name: /no providers match/i })).toBeTruthy();
+    expect(screen.getByText('0', { selector: 'strong' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Clear Filters' }));
+    await waitFor(() => expect(providersApi.listMemberProviders).toHaveBeenLastCalledWith(expect.objectContaining({ name: undefined, page: 1, region: undefined })));
+    expect(input).toHaveProperty('value', '');
+    expect(await screen.findByRole('link', { name: /view profile/i })).toBeTruthy();
+  });
+
+  it('keeps a searched name in detail links, sorting, and pagination', async () => {
+    const user = userEvent.setup();
+    vi.mocked(providersApi.listMemberProviders).mockImplementation(async params => ({
+      data: [item], meta: { page: params?.page ?? 1, page_size: 10, total: 18, total_pages: 2 },
+    }));
+    renderPage('/providers?name=Equine');
+    expect((await screen.findByRole('link', { name: /view profile/i })).getAttribute('href')).toContain('name=Equine');
+    await user.selectOptions(screen.getByLabelText('Sort providers'), 'name');
+    await user.click(screen.getByRole('button', { name: /next/i }));
+    await waitFor(() => expect(providersApi.listMemberProviders).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'Equine', sort: 'name', page: 2 })));
+  });
+
   it('saves from results and lets members revisit and remove saved providers', async () => {
     vi.mocked(providersApi.saveMemberProvider).mockResolvedValue();
     vi.mocked(providersApi.removeSavedMemberProvider).mockResolvedValue();

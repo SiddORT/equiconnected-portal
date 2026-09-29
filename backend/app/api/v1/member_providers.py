@@ -149,6 +149,7 @@ def list_member_providers(
     svc: _Svc,
     db: _DB,
     saved_only: bool = Query(False),
+    name: str | None = Query(None, max_length=200),
     provider_type: ProviderType | None = Query(None),
     minimum_rating: float | None = Query(None, ge=1, le=5),
     visit_stability: VisitStability | None = Query(None),
@@ -177,6 +178,7 @@ def list_member_providers(
         if not within_working_radius:
             latitude = longitude = None
     rows, total = svc.list_discoverable(
+        name=name,
         provider_type=provider_type,
         minimum_rating=minimum_rating,
         page=page,
