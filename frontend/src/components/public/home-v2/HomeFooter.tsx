@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import styles from '@/pages/PublicPage.module.css';
+import styles from './HomeV2.module.css';
 
 export function HomeFooter({ member, careHref }: { member: boolean; careHref: string }) {
   return (
@@ -14,7 +14,14 @@ export function HomeFooter({ member, careHref }: { member: boolean; careHref: st
         <div>
           <span>Explore</span>
           <Link to={careHref}>Find care</Link>
-          <a href="/#owners">Owners &amp; stable teams</a>
+          <a href="/#owners">Owners &amp; riders</a>
+          <a href="/#how-it-works">How it works</a>
+        </div>
+        <div>
+          <span>Care network</span>
+          <a href="/#providers">For providers</a>
+          <a href="/#visiting">Visiting specialists</a>
+          <a href="/#emergency">Emergency information</a>
         </div>
         <div>
           <span>For providers</span>
@@ -35,7 +42,7 @@ export function HomeFooter({ member, careHref }: { member: boolean; careHref: st
       </div>
       <div className={styles.footerBottom}>
         <span>© {new Date().getFullYear()} EquiConnected</span>
-        <span>Made for better equine care connections.</span>
+        <span>Connecting the people who care for horses.</span>
       </div>
     </footer>
   );

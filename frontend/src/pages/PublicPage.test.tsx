@@ -72,8 +72,11 @@ describe('PublicPage', () => {
       const link = within(footer).getByRole('link', { name });
       expect(link.getAttribute('href')).toBe(href);
     }
-    expect(screen.getByRole('navigation', { name: 'Primary navigation' }).textContent)
-      .toContain('Sign in');
+    const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
+    expect(within(navigation).getByRole('link', { name: 'Sign in' }).getAttribute('href'))
+      .toBe('/login');
+    expect(within(navigation).getByRole('link', { name: 'Join EquiConnected' }).getAttribute('href'))
+      .toBe('/signup');
   });
 
   it('greets a signed-in member and provides profile, sign-out, and directory actions', async () => {
@@ -104,6 +107,11 @@ describe('PublicPage', () => {
     const hero = screen.getByRole('heading', { name: /Trusted equine care/i }).closest('section');
     expect(within(hero as HTMLElement).getByRole('link', { name: 'Find care' })
       .getAttribute('href')).toBe('/providers');
+    expect(within(hero as HTMLElement).getByRole('link', { name: 'Open directory' })
+      .getAttribute('href')).toBe('/providers');
+    const footer = within(screen.getByRole('contentinfo'));
+    expect(footer.getByRole('link', { name: 'Your profile' }).getAttribute('href')).toBe('/profile');
+    expect(footer.getByRole('link', { name: 'Provider directory' }).getAttribute('href')).toBe('/providers');
 
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(logout).toHaveBeenCalledOnce();
@@ -113,12 +121,16 @@ describe('PublicPage', () => {
     renderPage();
 
     expect(screen.queryByText(/Hi, /)).toBeNull();
-    expect(screen.getByRole('link', { name: 'Join EquiConnected' }).getAttribute('href')).toBe('/signup');
+    const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
+    expect(within(navigation).getByRole('link', { name: 'Join EquiConnected' }).getAttribute('href'))
+      .toBe('/signup');
     const hero = screen.getByRole('heading', { name: /Trusted equine care/i }).closest('section');
     expect(within(hero as HTMLElement).getByRole('link', { name: 'Find care' })
       .getAttribute('href')).toBe('/signup');
-    expect(screen.getByRole('link', { name: 'Explore the provider directory' })
+    expect(within(hero as HTMLElement).getByRole('link', { name: 'Join EquiConnected' })
       .getAttribute('href')).toBe('/signup');
+    expect(screen.getByRole('link', { name: 'Explore the directory' }).getAttribute('href'))
+      .toBe('/signup');
   });
 
   it('keeps member-only controls private while auth is restoring or resolves to a nonmember', () => {
@@ -237,7 +249,7 @@ describe('PublicPage', () => {
 
     renderPage();
 
-    const heading = screen.getByRole('heading', { name: /Good care begins with knowing/i });
+    const heading = screen.getByRole('heading', { name: /Every horse deserves care/i });
     await waitFor(() => expect(document.activeElement).toBe(heading));
     expect(scrollIntoView).toHaveBeenCalledOnce();
     expect(heading.getAttribute('tabindex')).toBe('-1');
@@ -268,13 +280,29 @@ describe('PublicPage', () => {
   it('renders the public care map feature without fabricating provider listings', async () => {
     renderPage();
 
-    expect(await screen.findByRole('heading', { name: 'Healthcare is closer than you think.' }))
-      .toBeTruthy();
+    const careSection = await screen.findByRole('region', { name: 'Healthcare is closer than you think.' });
+    expect(careSection).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Nearby providers' })).toBeTruthy();
     expect(screen.getByText('Care locations are on the way.')).toBeTruthy();
     expect(publicApi.listPublicProviders).toHaveBeenCalledOnce();
+    expect(publicApi.listPublicProviders).toHaveBeenCalledWith(undefined);
+    expect(within(careSection).queryByRole('link', { name: /View full details/ })).toBeNull();
     expect(screen.queryByRole('searchbox')).toBeNull();
     expect(screen.queryByRole('region', { name: 'Map of nearby equine care providers' }))
       .toBeNull();
+  });
+
+  it('keeps the V2 care journey sections in their intended order', () => {
+    renderPage();
+
+    expect(screen.getByRole('heading', { level: 1, name: /equine care/i })).toBeTruthy();
+    const sectionIds = ['care', 'how-it-works', 'care-near-you', 'owners', 'providers', 'visiting', 'emergency'];
+    const sections = sectionIds.map((id) => document.getElementById(id));
+    expect(sections.every(Boolean)).toBe(true);
+
+    for (let index = 1; index < sections.length; index += 1) {
+      const relation = sections[index - 1]!.compareDocumentPosition(sections[index]!);
+      expect(relation & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
   });
 });

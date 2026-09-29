@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom';
-import styles from '@/pages/PublicPage.module.css';
+import styles from './HomeV2.module.css';
 
 function Arrow() {
   return <span className={styles.arrow} aria-hidden="true">↗</span>;
 }
 
-export function HomeHero({ careHref }: { careHref: string }) {
+export function HomeHero({ careHref, member }: { careHref: string; member: boolean }) {
   return (
     <section className={styles.hero} aria-labelledby="hero-heading">
       <img
@@ -16,14 +16,16 @@ export function HomeHero({ careHref }: { careHref: string }) {
       />
       <div className={styles.heroShade} />
       <div className={styles.heroInner}>
-        <p className={styles.kicker}><span />Equine care, connected</p>
+        <p className={styles.kicker}><span />Equine healthcare, connected</p>
         <h1 id="hero-heading">Trusted equine care,<br /><em>connected.</em></h1>
         <p className={styles.heroLead}>
-          A clearer way for horse owners and stable teams to find equine care providers that fit their needs.
+          A clearer place to discover equine care providers and the details they choose to share.
         </p>
         <div className={styles.heroActions}>
           <Link to={careHref} className={styles.goldButton}>Find care <Arrow /></Link>
-          <Link to="/provider/signup" className={styles.ghostButton}>Join as a provider</Link>
+          <Link to={member ? '/providers' : '/signup'} className={styles.ghostButton}>
+            {member ? 'Open directory' : 'Join EquiConnected'}
+          </Link>
         </div>
         <p className={styles.memberNote}>Provider directory access is available to members.</p>
       </div>
@@ -33,7 +35,7 @@ export function HomeHero({ careHref }: { careHref: string }) {
         target="_blank"
         rel="noreferrer"
       >
-        Photo by Helena Lopes on Unsplash
+        Hero photograph · Helena Lopes / Unsplash
       </a>
       <a className={styles.scrollCue} href="#care" aria-label="Scroll to care options"><span />Explore</a>
     </section>

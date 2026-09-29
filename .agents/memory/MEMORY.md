@@ -32,3 +32,4 @@
 - [Wizard creation boundary](wizard-creation-boundary.md) — changing a navigation control into a submit control can let one browser interaction cross the review boundary.
 - [Frontend test concurrency](frontend-test-concurrency.md) — full-suite default worker parallelism can cause timing failures; verify with constrained workers.
 - [Legacy doctor availability](legacy-doctor-availability.md) — treat missing classification as unknown, not proof of ongoing availability.
+- [Home v2 source boundary](home-v2-source-boundary.md) — match the reference page visually without treating its prototype listings, search, reviews, or emergency contacts as live data.
