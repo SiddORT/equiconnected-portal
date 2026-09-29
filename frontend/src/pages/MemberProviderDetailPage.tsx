@@ -60,9 +60,9 @@ export function MemberProviderDetailPage() {
   };
 
   const fromCareNearYou = location.state?.fromCareNearYou === true;
-  const back = fromCareNearYou ? '/#care-near-you' : `/providers${location.search}`;
+  const back = fromCareNearYou ? '/providers' : `/providers${location.search}`;
   const directoryState = fromCareNearYou ? undefined : { directoryCoordinates: location.state?.directoryCoordinates };
-  const backLabel = fromCareNearYou ? 'Back to Care Near You' : 'Back to providers';
+  const backLabel = 'Back to providers';
   if (loading) return <main className={styles.page}><div className={styles.loading} role="status"><LoadingSpinner /> <span>Loading provider…</span></div></main>;
   if (!provider) return <main className={styles.page}><Alert variant="error">{notice?.text ?? 'Provider not found.'}</Alert><Link state={directoryState} to={back} className={styles.profileLink}>{backLabel}</Link></main>;
 

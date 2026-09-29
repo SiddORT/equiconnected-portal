@@ -21,13 +21,13 @@ export function Footer() {
         <nav aria-label="Footer navigation" className={styles.navigation} data-scroll-stagger>
           <FooterGroup title="Member" links={[
             { label: 'Find care', to: '/signup' },
-            { label: 'Care near you', to: '/#care-near-you' },
+            { label: 'Find equine care', to: '/#find' },
           ]} />
           <FooterGroup title="Provider" links={[
             { label: 'Join as a provider', to: '/provider/signup' },
-            { label: 'Doctors', to: '/#care-near-you' },
-            { label: 'Clinics', to: '/#care-near-you' },
-            { label: 'Hospitals', to: '/#care-near-you' },
+            { label: 'Doctors', to: '/#find' },
+            { label: 'Clinics', to: '/#find' },
+            { label: 'Hospitals', to: '/#find' },
           ]} />
           <FooterGroup title="Company" links={[
             { label: 'Why EquiConnected', to: '/#why-equiconnected' },

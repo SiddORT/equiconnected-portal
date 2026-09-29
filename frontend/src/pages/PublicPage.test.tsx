@@ -9,7 +9,6 @@ import { PublicPage } from './PublicPage';
 vi.mock('@/api/public', () => ({
   recordPublicVisit: vi.fn(() => Promise.resolve()),
   registerSubscriber: vi.fn(),
-  listPublicProviders: vi.fn(() => Promise.resolve([])),
 }));
 
 vi.mock('@/app/AuthContext', () => ({
@@ -51,7 +50,6 @@ beforeEach(() => {
   vi.mocked(useAuth).mockReturnValue(guestAuth());
   vi.mocked(publicApi.recordPublicVisit).mockResolvedValue(undefined);
   vi.mocked(publicApi.registerSubscriber).mockResolvedValue({ message: 'Thanks' });
-  vi.mocked(publicApi.listPublicProviders).mockResolvedValue([]);
 });
 
 describe('PublicPage', () => {
@@ -114,6 +112,8 @@ describe('PublicPage', () => {
     const footer = within(screen.getByRole('contentinfo'));
     expect(footer.getByRole('link', { name: 'Your profile' }).getAttribute('href')).toBe('/profile');
     expect(footer.getByRole('link', { name: 'Provider directory' }).getAttribute('href')).toBe('/providers');
+    expect(document.getElementById('care-near-you')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Explore the directory' }).getAttribute('href')).toBe('/providers');
 
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(logout).toHaveBeenCalledOnce();
@@ -156,7 +156,6 @@ describe('PublicPage', () => {
       },
     });
     const view = renderPage();
-    expect(screen.getByText('Checking member access…')).toBeTruthy();
     expect(screen.queryByText(/Hi, /)).toBeNull();
     expect(screen.queryByRole('link', { name: 'Profile' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
@@ -281,26 +280,24 @@ describe('PublicPage', () => {
     }
   });
 
-  it('renders the public care map feature without fabricating provider listings', async () => {
+  it('flows directly from Find equine care to Why EquiConnected without the removed explorer', () => {
     renderPage();
 
-    const careSection = await screen.findByRole('region', { name: 'Healthcare is closer than you think.' });
-    expect(careSection).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Nearby providers' })).toBeTruthy();
-    expect(screen.getByText('Care locations are on the way.')).toBeTruthy();
-    expect(publicApi.listPublicProviders).toHaveBeenCalledOnce();
-    expect(publicApi.listPublicProviders).toHaveBeenCalledWith(undefined);
-    expect(within(careSection).queryByRole('link', { name: /View full details/ })).toBeNull();
-    expect(screen.queryByRole('searchbox')).toBeNull();
-    expect(screen.queryByRole('region', { name: 'Map of nearby equine care providers' }))
-      .toBeNull();
+    const find = document.getElementById('find');
+    const why = screen.getByRole('heading', { name: /Built around how equine care really works/i }).closest('section');
+    expect(find?.nextElementSibling).toBe(why);
+    expect(document.getElementById('care-near-you')).toBeNull();
+    expect(screen.queryByText('Care near you')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Nearby providers' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Map of nearby equine care providers' })).toBeNull();
+    expect(document.querySelector('[href*="care-near-you"]')).toBeNull();
   });
 
   it('keeps the V2 care journey sections in their intended order', () => {
     renderPage();
 
     expect(screen.getByRole('heading', { level: 1, name: /equine care/i })).toBeTruthy();
-    const sectionIds = ['care', 'how-it-works', 'care-near-you', 'owners', 'providers', 'visiting', 'emergency'];
+    const sectionIds = ['care', 'how-it-works', 'find', 'owners', 'providers', 'visiting', 'emergency'];
     const sections = sectionIds.map((id) => document.getElementById(id));
     expect(sections.every(Boolean)).toBe(true);
 

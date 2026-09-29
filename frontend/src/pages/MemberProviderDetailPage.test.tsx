@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import * as providersApi from '@/api/providers';
 import { MemberProviderDetailPage } from './MemberProviderDetailPage';
 
@@ -31,7 +31,7 @@ afterEach(() => {
 });
 
 describe('MemberProviderDetailPage', () => {
-  it('returns to Care Near You when opened from a landing card, including when details fail', async () => {
+  it('returns legacy landing-card links to the directory, including when details fail', async () => {
     vi.mocked(providersApi.getMemberProvider).mockResolvedValue(detail);
     const view = render(
       <MemoryRouter initialEntries={[{
@@ -40,7 +40,7 @@ describe('MemberProviderDetailPage', () => {
         <Routes><Route path="/providers/:id" element={<MemberProviderDetailPage />} /></Routes>
       </MemoryRouter>
     );
-    expect((await screen.findByRole('link', { name: '← Back to Care Near You' })).getAttribute('href')).toBe('/#care-near-you');
+    expect((await screen.findByRole('link', { name: '← Back to providers' })).getAttribute('href')).toBe('/providers');
     view.unmount();
     vi.mocked(providersApi.getMemberProvider).mockRejectedValue(new Error('Not found'));
     render(
@@ -50,7 +50,31 @@ describe('MemberProviderDetailPage', () => {
         <Routes><Route path="/providers/:id" element={<MemberProviderDetailPage />} /></Routes>
       </MemoryRouter>
     );
-    expect((await screen.findByRole('link', { name: 'Back to Care Near You' })).getAttribute('href')).toBe('/#care-near-you');
+    expect((await screen.findByRole('link', { name: 'Back to providers' })).getAttribute('href')).toBe('/providers');
+  });
+  it('preserves directory search and coordinates on normal back navigation', async () => {
+    vi.mocked(providersApi.getMemberProvider).mockResolvedValue(detail);
+    const user = userEvent.setup();
+    function DirectoryReturn() {
+      const location = useLocation();
+      return <div>{location.search} / {JSON.stringify(location.state)}</div>;
+    }
+    render(
+      <MemoryRouter initialEntries={[{
+        pathname: '/providers/provider-1',
+        search: '?type=CLINIC',
+        state: { directoryCoordinates: { latitude: 30, longitude: -97 } },
+      }]}>
+        <Routes>
+          <Route path="/providers/:id" element={<MemberProviderDetailPage />} />
+          <Route path="/providers" element={<DirectoryReturn />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    const back = await screen.findByRole('link', { name: '← Back to providers' });
+    expect(back.getAttribute('href')).toBe('/providers?type=CLINIC');
+    await user.click(back);
+    expect(screen.getByText('?type=CLINIC / {"directoryCoordinates":{"latitude":30,"longitude":-97}}')).toBeTruthy();
   });
   it('shows a hidden-comment explanation and submits an updated member review', async () => {
     vi.mocked(providersApi.getMemberProvider).mockResolvedValue(detail);

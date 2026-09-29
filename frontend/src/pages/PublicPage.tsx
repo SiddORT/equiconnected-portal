@@ -8,7 +8,6 @@ import { hasMemberRole } from '@/features/member/memberAccess';
 import { extractErrorMessage } from '@/api/client';
 import { recordPublicVisit, registerSubscriber } from '@/api/public';
 import { systemCalendarDate, useTimeSettings } from '@/app/TimeSettingsContext';
-import { CareNearYou } from '@/components/public/CareNearYou';
 import { HomeFooter } from '@/components/public/home-v2/HomeFooter';
 import { HomeHero } from '@/components/public/home-v2/HomeHero';
 import categoryVet from '@/components/public/home-v2/media/category-vet.jpg';
@@ -294,10 +293,6 @@ export function PublicPage() {
             <Link to={careHref} className={styles.darkButton}>Explore the directory <Arrow /></Link>
           </div>
         </section>
-
-        <div className={styles.mapShell}>
-          <CareNearYou theme="brown" />
-        </div>
 
         <section className={styles.whySection} aria-labelledby="why-heading">
           <img className={styles.whyImage} src={whyPhoto} alt="Close portrait of a horse in soft outdoor light" loading="lazy" />

@@ -128,8 +128,6 @@
 .findPoints li { display: flex; align-items: center; gap: 9px; min-height: 38px; padding: 8px 10px; border: 1px solid var(--line); font-size: 10px; }
 .findPoints span { color: var(--gold); font-size: 14px; }
 .finePrint { font-size: 10px !important; }
-.mapShell { padding: 18px max(20px,calc((100vw - 1216px)/2)) clamp(72px,9vw,120px); background: var(--paper); --public-bg:#f7f3ea; --public-surface:#fbf8f1; --public-surface-raised:#eee8dc; --public-text:#383329; --public-text-deep:#27241e; --public-text-soft:#756f63; --public-text-faint:#8e877a; --public-accent:#a8874d; --public-accent-light:#d6c08d; --public-accent-pale:#f0e5ca; --public-accent-strong:#775d31; --public-accent-hover:#81683a; --public-dark:#383126; --public-dark-deep:#29251e; --public-border:rgba(52,46,36,.18); --public-on-dark:#fffaf2; --public-shadow:rgba(33,31,26,.14); --font-display:var(--serif); --font-sans:var(--sans); }
-.mapShell > section { margin-inline: auto; }
 
 .whySection { position: relative; display: grid; grid-template-columns: 1fr 1fr; min-height: 700px; overflow: hidden; background: var(--night); color: var(--paper); }
 .whyImage { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .55; }
@@ -315,7 +313,6 @@
   .findCopy h2, .ownersCopy h2, .providerCopy h2 { font-size: clamp(47px,12vw,61px); }
   .findPoints { gap: 8px; }
   .findPoints li { font-size: 9px; }
-  .mapShell { padding: 15px 15px 68px; }
   .whySection { display: flex; min-height: 740px; align-items: flex-end; }
   .whyImage { object-position: 38% center; }
   .whyShade { background: linear-gradient(0deg,rgba(27,31,25,.98) 4%,rgba(27,31,25,.88) 42%,rgba(27,31,25,.08) 100%); }
