@@ -2,15 +2,19 @@
 from __future__ import annotations
 
 from math import ceil
+from datetime import datetime, timezone
 from typing import Annotated
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser
 from app.db.session import get_db
 from app.models.enums import ProviderType, VisitStability
+from app.models.provider_favorite import ProviderFavorite
 from app.models.user import PUBLIC_ACCOUNT_ROLE_NAMES, User
 from app.repositories.audit_repository import context_from_request
 from app.repositories.review_repository import ReviewRepository
@@ -82,10 +86,11 @@ def _thumbnail(provider):
     )
 
 
-def _item(provider, average_rating, review_count, distance=None) -> MemberProviderListItem:
+def _item(provider, average_rating, review_count, distance=None, is_saved=False) -> MemberProviderListItem:
     thumbnail = _thumbnail(provider)
     return MemberProviderListItem(
         id=provider.id,
+        is_saved=is_saved,
         provider_type=provider.provider_type,
         name=provider.name,
         description=provider.description,
@@ -122,10 +127,28 @@ def member_provider_filters(user: MemberUser, svc: _Svc) -> dict:
     return svc.directory_facets()
 
 
+def _saved_ids(db: Session, member_id: UUID, provider_ids: list[UUID]) -> set[UUID]:
+    if not provider_ids:
+        return set()
+    return set(db.scalars(select(ProviderFavorite.provider_id).where(
+        ProviderFavorite.member_id == member_id,
+        ProviderFavorite.provider_id.in_(provider_ids),
+    )).all())
+
+
+def _not_found() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail={"code": "provider_not_found", "message": "Provider not found."},
+    )
+
+
 @router.get("", response_model=PaginatedResponse[MemberProviderListItem])
 def list_member_providers(
     user: MemberUser,
     svc: _Svc,
+    db: _DB,
+    saved_only: bool = Query(False),
     provider_type: ProviderType | None = Query(None),
     minimum_rating: float | None = Query(None, ge=1, le=5),
     visit_stability: VisitStability | None = Query(None),
@@ -167,10 +190,12 @@ def list_member_providers(
         region=region,
         emergency_only=emergency_only,
         sort=sort,
+        saved_only_member_id=user.id if saved_only else None,
     )
+    saved_ids = _saved_ids(db, user.id, [row[0].id for row in rows])
     return PaginatedResponse(
         data=[
-            _item(provider, average_rating, review_count, distance if closest_first else None)
+            _item(provider, average_rating, review_count, distance if closest_first else None, provider.id in saved_ids)
             for provider, average_rating, review_count, *rest in rows
             for distance in ([rest[0]] if rest else [None])
         ],
@@ -183,15 +208,33 @@ def list_member_providers(
     )
 
 
+@router.put("/{provider_id}/favorite", status_code=status.HTTP_204_NO_CONTENT)
+def save_provider(provider_id: UUID, user: MemberUser, svc: _Svc, db: _DB) -> None:
+    try:
+        svc.get_discoverable(provider_id)
+    except DiscoverableProviderNotFoundError:
+        raise _not_found()
+    db.execute(insert(ProviderFavorite).values(
+        id=uuid4(), member_id=user.id, provider_id=provider_id,
+        created_at=datetime.now(timezone.utc),
+    ).on_conflict_do_nothing(constraint="uq_provider_favorites_member_provider"))
+    db.commit()
+
+
+@router.delete("/{provider_id}/favorite", status_code=status.HTTP_204_NO_CONTENT)
+def remove_saved_provider(provider_id: UUID, user: MemberUser, db: _DB) -> None:
+    db.execute(delete(ProviderFavorite).where(
+        ProviderFavorite.provider_id == provider_id, ProviderFavorite.member_id == user.id,
+    ))
+    db.commit()
+
+
 @router.get("/{provider_id}", response_model=MemberProviderDetail)
-def get_member_provider(provider_id: UUID, user: MemberUser, svc: _Svc) -> MemberProviderDetail:
+def get_member_provider(provider_id: UUID, user: MemberUser, svc: _Svc, db: _DB) -> MemberProviderDetail:
     try:
         provider = svc.get_discoverable(provider_id)
     except DiscoverableProviderNotFoundError:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "provider_not_found", "message": "Provider not found."},
-        )
+        raise _not_found()
     average_rating, review_count = svc.totals(provider_id)
     visible_reviews = [
         PublicProviderReview(
@@ -204,7 +247,7 @@ def get_member_provider(provider_id: UUID, user: MemberUser, svc: _Svc) -> Membe
         for review, reviewer in svc.visible_reviews(provider_id)
     ]
     return MemberProviderDetail(
-        **_item(provider, average_rating, review_count).model_dump(),
+        **_item(provider, average_rating, review_count, is_saved=provider_id in _saved_ids(db, user.id, [provider_id])).model_dump(),
         visible_reviews=visible_reviews,
         own_review=(
             _review_response(own_review)

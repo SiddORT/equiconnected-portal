@@ -6,11 +6,11 @@ import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom
 import * as providersApi from '@/api/providers';
 import { ProviderDirectoryPage } from './ProviderDirectoryPage';
 
-vi.mock('@/api/providers', () => ({ listMemberProviders: vi.fn(), getMemberProviderFilters: vi.fn() }));
+vi.mock('@/api/providers', () => ({ listMemberProviders: vi.fn(), getMemberProviderFilters: vi.fn(), saveMemberProvider: vi.fn(), removeSavedMemberProvider: vi.fn() }));
 vi.mock('@/components/ui/LoadingSpinner', () => ({ LoadingSpinner: () => <span>loading</span> }));
 
 const item = {
-  id: 'p-1', provider_type: 'CLINIC' as const, name: 'Austin Equine Clinic',
+  id: 'p-1', is_saved: false, provider_type: 'CLINIC' as const, name: 'Austin Equine Clinic',
   description: 'Trusted care', thumbnail_url: '/clinic.jpg', thumbnail_alt_text: 'Clinic exterior',
   website: null, email: null, phone: null, visit_stability: 'STABLE_VISIT' as const,
   location: { city: 'Austin', state_province: 'Texas', country: 'United States' },
@@ -36,6 +36,22 @@ function DetailBackLink() {
 }
 
 describe('member provider directory', () => {
+  it('saves from results and lets members revisit and remove saved providers', async () => {
+    vi.mocked(providersApi.saveMemberProvider).mockResolvedValue();
+    vi.mocked(providersApi.removeSavedMemberProvider).mockResolvedValue();
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Save Austin Equine Clinic for later' }));
+    expect(providersApi.saveMemberProvider).toHaveBeenCalledWith('p-1');
+    await user.click(screen.getByRole('button', { name: 'Saved providers' }));
+    await waitFor(() => expect(providersApi.listMemberProviders).toHaveBeenCalledWith(expect.objectContaining({ saved_only: true })));
+    // The server is authoritative for a fresh saved-only result.
+    vi.mocked(providersApi.listMemberProviders).mockResolvedValue({ ...response, data: [{ ...item, is_saved: true }] });
+    await user.click(screen.getByRole('button', { name: 'All providers' }));
+    await user.click(screen.getByRole('button', { name: 'Saved providers' }));
+    await user.click(await screen.findByRole('button', { name: 'Remove Austin Equine Clinic from saved providers' }));
+    expect(providersApi.removeSavedMemberProvider).toHaveBeenCalledWith('p-1');
+  });
   it('combines type and rating filters in the request and preserves them on detail links', async () => {
     const user = userEvent.setup();
     renderPage('/providers?provider_type=CLINIC&minimum_rating=4');

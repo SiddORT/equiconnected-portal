@@ -48,6 +48,7 @@ _CLEANUP_TABLES = [
     "horses",
     "stable_profiles",
     "provider_reviews",
+    "provider_favorites",
     "provider_profile_updates",
     "provider_portal_setup_tokens",
     "provider_registration_applications",

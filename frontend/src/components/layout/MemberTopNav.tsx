@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
 import styles from './MemberTopNav.module.css';
 
@@ -32,6 +32,7 @@ export function MemberTopNav() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const navigationId = useId();
+  const location = useLocation();
   const displayName = formatMemberDisplayName(user?.full_name, user?.email);
 
   async function handleLogout() {
@@ -74,7 +75,7 @@ export function MemberTopNav() {
         >
           <NavLink
             to="/providers"
-            className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}
+            className={({ isActive }) => `${styles.link} ${isActive && new URLSearchParams(location.search).get('saved') !== 'true' ? styles.active : ''}`}
             onClick={() => setMenuOpen(false)}
           >
             Providers
@@ -85,6 +86,13 @@ export function MemberTopNav() {
             onClick={() => setMenuOpen(false)}
           >
             Profile
+          </NavLink>
+          <NavLink
+            to="/providers?saved=true"
+            className={({ isActive }) => `${styles.link} ${isActive && new URLSearchParams(location.search).get('saved') === 'true' ? styles.active : ''}`}
+            onClick={() => setMenuOpen(false)}
+          >
+            Saved providers
           </NavLink>
         </nav>
 

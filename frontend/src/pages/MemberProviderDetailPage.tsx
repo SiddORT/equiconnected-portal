@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ReviewCardList } from '@/components/reviews/ReviewCard';
 import { Select } from '@/components/ui/Select';
+import { SaveProviderButton } from '@/components/member/SaveProviderButton';
 import type { MemberProviderDetail } from '@/types';
 import styles from './ProviderDirectoryPage.module.css';
 
@@ -89,6 +90,8 @@ export function MemberProviderDetailPage() {
           <p>{locationName}</p>
         </div>
         <div className={styles.ratingBlock}>
+          <SaveProviderButton id={provider.id} name={provider.name} saved={provider.is_saved}
+            onChange={saved => setProvider(current => current ? { ...current, is_saved: saved } : current)} />
           <strong>{provider.average_rating?.toFixed(1) ?? '—'} ★</strong>
           <span>{provider.review_count} review{provider.review_count === 1 ? '' : 's'}</span>
         </div>

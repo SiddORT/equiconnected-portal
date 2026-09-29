@@ -84,6 +84,38 @@ def _provider(
 
 
 class TestMemberProviderDiscoveryAndReviews:
+    def test_member_favorites_are_private_persistent_and_discoverable_only(self, client, db):
+        first = _member(db, "favorites-first@example.com")
+        second = _member(db, "favorites-second@example.com")
+        visible = _provider(db, "Saved Clinic")
+        hidden = _provider(db, "Unpublished Clinic", publication=PublicationStatus.UNPUBLISHED)
+        url = f"{MEMBER_BASE}/{visible.id}/favorite"
+        first_headers = _headers(first)
+        second_headers = _headers(second)
+
+        assert client.put(url).status_code == 401
+        assert client.put(f"{MEMBER_BASE}/{hidden.id}/favorite", headers=first_headers).status_code == 404
+        assert client.put(url, headers=first_headers).status_code == 204
+        assert client.put(url, headers=first_headers).status_code == 204
+        assert client.get(f"{MEMBER_BASE}/{visible.id}", headers=first_headers).json()["is_saved"] is True
+        saved = client.get(f"{MEMBER_BASE}?saved_only=true", headers=first_headers)
+        assert saved.status_code == 200
+        assert saved.json()["meta"]["total"] == 1
+        assert [entry["id"] for entry in saved.json()["data"]] == [str(visible.id)]
+        assert saved.json()["data"][0]["is_saved"] is True
+        assert client.get(f"{MEMBER_BASE}?saved_only=true", headers=second_headers).json()["data"] == []
+        assert client.get(f"{MEMBER_BASE}/{visible.id}", headers=second_headers).json()["is_saved"] is False
+
+        visible.publication_status = PublicationStatus.UNPUBLISHED
+        db.commit()
+        assert client.get(f"{MEMBER_BASE}?saved_only=true", headers=first_headers).json()["data"] == []
+        assert client.put(url, headers=first_headers).status_code == 404
+        assert client.delete(url, headers=first_headers).status_code == 204
+        visible.publication_status = PublicationStatus.PUBLISHED
+        db.commit()
+        assert client.get(f"{MEMBER_BASE}?saved_only=true", headers=first_headers).json()["data"] == []
+        assert client.delete(url, headers=first_headers).status_code == 204
+
     def test_directory_facets_filters_sort_and_pages_use_published_data(self, client, db):
         member = _member(db, "directory-facets@example.com")
         a = _provider(db, "Alpha Stable")

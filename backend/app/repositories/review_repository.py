@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.enums import ProviderStatus, ProviderType, PublicationStatus, VisitStability
 from app.models.provider import Provider, ProviderLocation, ProviderReview, ProviderSpecialization
+from app.models.provider_favorite import ProviderFavorite
 from app.models.specialization import Specialization
 from app.models.user import User
 
@@ -80,12 +81,20 @@ class ReviewRepository:
         region: str | None = None,
         emergency_only: bool = False,
         sort: str = "relevance",
+        saved_only_member_id: UUID | None = None,
     ) -> tuple[list[Any], int]:
         totals = self._rating_totals()
         conditions = [
             Provider.status == ProviderStatus.ACTIVE,
             Provider.publication_status == PublicationStatus.PUBLISHED,
         ]
+        if saved_only_member_id is not None:
+            conditions.append(
+                select(ProviderFavorite.id).where(
+                    ProviderFavorite.provider_id == Provider.id,
+                    ProviderFavorite.member_id == saved_only_member_id,
+                ).exists()
+            )
         if provider_type is not None:
             conditions.append(Provider.provider_type == provider_type)
         if minimum_rating is not None:

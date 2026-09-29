@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -8,6 +9,8 @@ import { MemberProviderDetailPage } from './MemberProviderDetailPage';
 vi.mock('@/api/providers', () => ({
   getMemberProvider: vi.fn(),
   saveMemberProviderReview: vi.fn(),
+  saveMemberProvider: vi.fn(),
+  removeSavedMemberProvider: vi.fn(),
 }));
 vi.mock('@/app/TimeSettingsContext', () => ({
   useTimeSettings: () => ({
@@ -16,7 +19,7 @@ vi.mock('@/app/TimeSettingsContext', () => ({
 }));
 
 const detail = {
-  id: 'provider-1', provider_type: 'CLINIC' as const, name: 'Austin Equine Clinic',
+  id: 'provider-1', is_saved: false, provider_type: 'CLINIC' as const, name: 'Austin Equine Clinic',
   description: 'Trusted care', thumbnail_url: null, thumbnail_alt_text: null, website: null, email: null, phone: null,
   visit_stability: 'STABLE_VISIT' as const,
   location: { city: 'Austin', state_province: 'Texas', country: 'United States' },
@@ -31,6 +34,19 @@ afterEach(() => {
 });
 
 describe('MemberProviderDetailPage', () => {
+  it('saves and removes the provider on its profile', async () => {
+    vi.mocked(providersApi.getMemberProvider).mockResolvedValue(detail);
+    vi.mocked(providersApi.saveMemberProvider).mockResolvedValue();
+    vi.mocked(providersApi.removeSavedMemberProvider).mockResolvedValue();
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/providers/provider-1']}>
+      <Routes><Route path="/providers/:id" element={<MemberProviderDetailPage />} /></Routes>
+    </MemoryRouter>);
+    await user.click(await screen.findByRole('button', { name: 'Save Austin Equine Clinic for later' }));
+    expect(providersApi.saveMemberProvider).toHaveBeenCalledWith('provider-1');
+    await user.click(screen.getByRole('button', { name: 'Remove Austin Equine Clinic from saved providers' }));
+    expect(providersApi.removeSavedMemberProvider).toHaveBeenCalledWith('provider-1');
+  });
   it('returns legacy landing-card links to the directory, including when details fail', async () => {
     vi.mocked(providersApi.getMemberProvider).mockResolvedValue(detail);
     const view = render(

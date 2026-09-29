@@ -96,6 +96,14 @@ export async function getMemberProvider(id: string): Promise<MemberProviderDetai
   return data;
 }
 
+export async function saveMemberProvider(id: string): Promise<void> {
+  await apiClient.put(`/member/providers/${id}/favorite`);
+}
+
+export async function removeSavedMemberProvider(id: string): Promise<void> {
+  await apiClient.delete(`/member/providers/${id}/favorite`);
+}
+
 export async function saveMemberProviderReview(
   id: string,
   body: { rating: number; comment: string }

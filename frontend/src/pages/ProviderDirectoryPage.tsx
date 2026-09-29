@@ -4,6 +4,7 @@ import * as providersApi from '@/api/providers';
 import { extractErrorMessage } from '@/api/client';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
+import { SaveProviderButton } from '@/components/member/SaveProviderButton';
 import type { MemberProviderListItem, PaginatedResponse, ProviderType, VisitStability } from '@/types';
 import styles from './ProviderDirectoryPage.module.css';
 
@@ -25,7 +26,7 @@ function ProviderImage({ provider }: { provider: MemberProviderListItem }) {
     : <div className={styles.imageFallback} role="img" aria-label={`No photo available for ${provider.name}`}><img src="/logo.png" alt="" /><span>EquiConnected care partner</span></div>;
 }
 
-function ProviderCard({ provider, query, coordinates }: { provider: MemberProviderListItem; query: string; coordinates: Coordinates | null }) {
+function ProviderCard({ provider, query, coordinates, onSavedChange }: { provider: MemberProviderListItem; query: string; coordinates: Coordinates | null; onSavedChange: (saved: boolean) => void }) {
   const place = [provider.location?.city, provider.location?.state_province].filter(Boolean).join(', ') || 'Location not listed';
   const to = `/providers/${provider.id}${query ? `?${query}` : ''}`;
   return <article className={styles.card}>
@@ -45,6 +46,7 @@ function ProviderCard({ provider, query, coordinates }: { provider: MemberProvid
       <div className={styles.cardBottom}>
         <Link className={styles.detailLink} state={{ directoryCoordinates: coordinates, directoryLocationGranted: !!coordinates }} to={to}>View profile <span aria-hidden="true">↗</span></Link>
         <Link className={styles.contactLink} state={{ directoryCoordinates: coordinates, directoryLocationGranted: !!coordinates }} to={`${to}#contact`}>Contact details</Link>
+        <SaveProviderButton id={provider.id} name={provider.name} saved={provider.is_saved} onChange={onSavedChange} />
       </div>
     </div>
   </article>;
@@ -76,6 +78,7 @@ export function ProviderDirectoryPage() {
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
   const pageSize = Math.min(50, Math.max(1, Number(searchParams.get('page_size')) || 10));
   const view = searchParams.get('view') === 'grid' ? 'grid' : 'list';
+  const savedOnly = searchParams.get('saved') === 'true';
   const sort = searchParams.get('sort') === 'name' ? 'name' : 'relevance';
   const needsLocation = closestFirst || withinRadius;
   const key = `${query}|${needsLocation ? `${coordinates?.latitude},${coordinates?.longitude}` : ''}`;
@@ -105,6 +108,7 @@ export function ProviderDirectoryPage() {
     const id = ++requestId.current;
     const requestedKey = key;
     providersApi.listMemberProviders({
+      saved_only: savedOnly || undefined,
       provider_type: (searchParams.get('provider_type') || undefined) as ProviderType | undefined,
       visit_stability: (searchParams.get('visit_stability') || undefined) as VisitStability | undefined,
       specialization_id: searchParams.get('specialization_id') || undefined,
@@ -178,8 +182,12 @@ export function ProviderDirectoryPage() {
   return <main className={styles.page}>
     <header className={styles.intro}>
       <p className={styles.kicker}>The EquiConnected directory</p>
-      <h1>Find the Right Care for Your Horse</h1>
-      <p>Discover published equine professionals, clinics and hospitals. Refine by the care you need.</p>
+      <h1>{savedOnly ? 'Saved providers' : 'Find the Right Care for Your Horse'}</h1>
+      <p>{savedOnly ? 'Your personal shortlist of providers currently available in the directory.' : 'Discover published equine professionals, clinics and hospitals. Refine by the care you need.'}</p>
+      <div className={styles.savedNavigation}>
+        <button type="button" aria-pressed={!savedOnly} onClick={() => updateParams({ saved: null, page: '1' })}>All providers</button>
+        <button type="button" aria-pressed={savedOnly} onClick={() => updateParams({ saved: 'true', page: '1' })}>Saved providers</button>
+      </div>
     </header>
     {locationMessage && <Alert variant="info" onDismiss={() => setLocationMessage(null)}>{locationMessage}</Alert>}
     <form className={styles.toolbar} aria-label="Provider directory filters" onSubmit={apply}>
@@ -232,11 +240,16 @@ export function ProviderDirectoryPage() {
         <p>{current.message} Your filters are saved — try again in a moment.</p>
         <button type="button" onClick={() => { setResult(null); setRetry(n => n + 1); }}>Try Again</button>
       </div> : !ready?.data.length ? <div className={styles.statePanel}>
-        <span className={styles.stateIcon} aria-hidden="true">⌕</span><h2>No providers match your current filters.</h2>
-        <p>Try removing a filter or widening the region.</p>
-        <div className={styles.stateActions}><button type="button" onClick={clearFilters}>Clear Filters</button><button type="button" onClick={modify}>Modify Search</button></div>
+        <span className={styles.stateIcon} aria-hidden="true">⌕</span><h2>{savedOnly ? 'No saved providers match.' : 'No providers match your current filters.'}</h2>
+        <p>{savedOnly ? 'Save a provider from the directory to revisit it here, or clear your filters.' : 'Try removing a filter or widening the region.'}</p>
+        <div className={styles.stateActions}>{savedOnly && <button type="button" onClick={() => updateParams({ saved: null, page: '1' })}>Browse all providers</button>}<button type="button" onClick={clearFilters}>Clear Filters</button><button type="button" onClick={modify}>Modify Search</button></div>
       </div> : <>
-        <div className={view === 'grid' ? styles.grid : styles.list}>{ready.data.map(provider => <ProviderCard key={provider.id} provider={provider} query={query} coordinates={coordinates} />)}</div>
+        <div className={view === 'grid' ? styles.grid : styles.list}>{ready.data.map(provider => <ProviderCard key={provider.id} provider={provider} query={query} coordinates={coordinates} onSavedChange={saved => {
+          if (savedOnly && !saved) { setResult(null); setRetry(n => n + 1); }
+          else setResult(previous => previous?.status === 'ready' && previous.data
+            ? { ...previous, data: { ...previous.data, data: previous.data.data.map(item => item.id === provider.id ? { ...item, is_saved: saved } : item) } }
+            : previous);
+        }} />)}</div>
         <Pagination page={page} pageSize={pageSize} total={ready.meta.total} onPageChange={next => updateParams({ page: String(next) })} onPageSizeChange={size => updateParams({ page_size: String(size), page: '1' })} />
       </>}
     </section>

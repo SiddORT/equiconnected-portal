@@ -42,6 +42,7 @@ class MemberReviewUpsert(BaseModel):
 
 class MemberProviderListItem(BaseModel):
     id: UUID
+    is_saved: bool = False
     provider_type: ProviderType
     name: str
     description: str | None

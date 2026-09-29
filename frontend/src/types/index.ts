@@ -944,6 +944,7 @@ export interface PublicProviderReview {
 
 export interface MemberProviderListItem {
   id: string;
+  is_saved: boolean;
   provider_type: ProviderType;
   name: string;
   description: string | null;
@@ -987,6 +988,7 @@ export interface PublicProviderDiscovery {
 }
 
 export interface MemberProviderListParams {
+  saved_only?: boolean;
   provider_type?: ProviderType;
   minimum_rating?: number;
   visit_stability?: VisitStability;
