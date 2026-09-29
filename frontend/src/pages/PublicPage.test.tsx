@@ -291,6 +291,27 @@ describe('PublicPage', () => {
     expect(document.querySelector('[href*="care-near-you"]')).toBeNull();
   });
 
+  it('presents eight provider-shared benefits alongside the undimmed horse photo', () => {
+    renderPage();
+    const why = screen.getByRole('region', { name: 'Built around how equine care really works.' });
+    const benefits = within(why).getByRole('list', { name: 'What you can explore on EquiConnected' });
+    const items = within(benefits).getAllByRole('listitem');
+    expect(items).toHaveLength(8);
+    for (const title of [
+      'Shared locations', 'Provider details', 'Specialties', 'Stable visits',
+      'Emergency services', 'Languages', 'Member reviews', 'Visiting care',
+    ]) {
+      expect(within(benefits).getByText(title)).toBeTruthy();
+    }
+    expect(within(benefits).getByText(/confirm availability directly/i)).toBeTruthy();
+    expect(within(benefits).getByText(/Ask providers which languages they speak/i)).toBeTruthy();
+    expect(within(benefits).getByText(/when they’re available/i)).toBeTruthy();
+    expect(within(benefits).getByText(/Ask providers about travel and availability/i)).toBeTruthy();
+    expect(within(why).getByRole('img', { name: /horse in a bright, close-up black-and-white portrait/i })).toBeTruthy();
+    expect(within(why).getByText('Photo by Mahmoud Ayad on Unsplash')).toBeTruthy();
+    expect(within(why).queryByText(/verified profiles|qualifications checked|emergency lines and hours|results reflect where your horse is stabled/i)).toBeNull();
+  });
+
   it('presents Find Care as informational rather than a live radius search or fake filters', () => {
     renderPage();
     const find = within(screen.getByRole('region', { name: 'Care that actually reaches your stable.' }));

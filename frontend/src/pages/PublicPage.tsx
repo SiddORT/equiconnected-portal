@@ -302,19 +302,50 @@ export function PublicPage() {
           </div>
         </section>
 
-        <section className={styles.whySection} aria-labelledby="why-heading">
-          <img className={styles.whyImage} src={whyPhoto} alt="Close portrait of a horse in soft outdoor light" loading="lazy" />
-          <div className={styles.whyShade} />
+        <section className={styles.whySection} id="why" aria-labelledby="why-heading">
           <div className={styles.whyCopy}>
             <p className={styles.sectionKicker}>Why EquiConnected</p>
             <h2 id="why-heading">Built around how equine care <em>really works.</em></h2>
-            <p>Finding care can involve more than a name in a list. Explore the information providers share, and decide what feels right for your horse.</p>
-            <div className={styles.whyItems}>
-              <div className={styles.whyItem}><b>01</b><span><strong>Equine, by focus</strong>Made for people looking for horse care.</span></div>
-              <div className={styles.whyItem}><b>02</b><span><strong>Useful details</strong>Provider profiles bring shared information together.</span></div>
-              <div className={styles.whyItem}><b>03</b><span><strong>Your next step</strong>Connect directly with providers to discuss care.</span></div>
-            </div>
+            <p className={styles.whyLead}>Vets travel. Specialists visit for a season. Emergencies happen at 2am. Explore the details providers share, and decide what works for your horse.</p>
+            <ul className={styles.whyItems} aria-label="What you can explore on EquiConnected">
+              <li className={styles.whyItem}>
+                <span className={styles.whyIcon} aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z" /><circle cx="12" cy="9" r="2.3" /></svg></span>
+                <span><strong>Shared locations</strong>Browse the locations providers list.</span>
+              </li>
+              <li className={styles.whyItem}>
+                <span className={styles.whyIcon} aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M12 7v5l3.3 2" /></svg></span>
+                <span><strong>Provider details</strong>See information shared on each profile.</span>
+              </li>
+              <li className={styles.whyItem}>
+                <span className={styles.whyIcon} aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4.5 12h3l2-5 4 10 2-5h4" /><circle cx="12" cy="12" r="9" /></svg></span>
+                <span><strong>Specialties</strong>Explore the areas of care they list.</span>
+              </li>
+              <li className={styles.whyItem}>
+                <span className={styles.whyIcon} aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 18.5h17M5 18.5V10l7-5 7 5v8.5M9 18.5v-5h6v5" /></svg></span>
+                <span><strong>Stable visits</strong>Check whether stable visits are offered.</span>
+              </li>
+              <li className={styles.whyItem}>
+                <span className={styles.whyIcon} aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3.5v17M5 7h14M7.5 7l-4 7h8l-4-7Zm9 0-4 7h8l-4-7Z" /></svg></span>
+                <span><strong>Emergency services</strong>See when providers list them; confirm availability directly.</span>
+              </li>
+              <li className={styles.whyItem}>
+                <span className={styles.whyIcon} aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h10M9 3.5v2m3 0c-.5 4-3.5 7-7 9m1-6c1 2.5 3.5 4.7 6 5.5M15 19l3-8 3 8m-5-2h4" /></svg></span>
+                <span><strong>Languages</strong>Ask providers which languages they speak.</span>
+              </li>
+              <li className={styles.whyItem}>
+                <span className={styles.whyIcon} aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z" /></svg></span>
+                <span><strong>Member reviews</strong>Read reviews when they’re available.</span>
+              </li>
+              <li className={styles.whyItem}>
+                <span className={styles.whyIcon} aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M3.8 12h16.4M12 3.5c2 2.2 3 5.1 3 8.5s-1 6.3-3 8.5c-2-2.2-3-5.1-3-8.5s1-6.3 3-8.5Z" /></svg></span>
+                <span><strong>Visiting care</strong>Ask providers about travel and availability.</span>
+              </li>
+            </ul>
           </div>
+          <figure className={styles.whyVisual}>
+            <img className={styles.whyImage} src={whyPhoto} alt="A horse in a bright, close-up black-and-white portrait" loading="lazy" />
+            <figcaption className={styles.whyCredit}>Photo by Mahmoud Ayad on Unsplash</figcaption>
+          </figure>
         </section>
 
         <section className={styles.ownersSection} id="owners" aria-labelledby="owners-heading">
