@@ -118,15 +118,158 @@
 .findSection { display: grid; grid-template-columns: 1.03fr .97fr; align-items: center; gap: clamp(42px,8vw,112px); width: min(100% - 64px,1216px); margin: auto; padding: clamp(90px,11vw,154px) 0 clamp(70px,8vw,105px); scroll-margin-top: 90px; }
 .findImage { position: relative; min-height: 530px; overflow: hidden; background: var(--paper-deep); }
 .findImage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.imageNote { position: absolute; right: 0; bottom: 0; left: 0; display: grid; gap: 4px; padding: 44px 23px 18px; background: linear-gradient(0deg,rgba(27,27,22,.65),transparent); color: rgba(247,243,234,.9); font-size: 10px; }
-.imageNote a { color: inherit; font-size: 8px; opacity: .78; }
 .findCopy h2, .ownersCopy h2, .providerCopy h2 { max-width: 590px; margin: 16px 0 0; font: 400 clamp(50px,6.2vw,79px)/.95 var(--serif); letter-spacing: -.02em; }
 .findCopy h2 em, .ownersCopy h2 em, .providerCopy h2 em { color: var(--gold); }
 .findCopy > p:not(.sectionKicker), .ownersCopy > p:not(.sectionKicker), .providerCopy > p:not(.sectionKicker) { max-width: 475px; margin: 20px 0 0; color: var(--muted); font-size: 12px; line-height: 1.8; }
-.findPoints { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 10px; margin: 27px 0 27px; padding: 0; list-style: none; }
-.findPoints li { display: flex; align-items: center; gap: 9px; min-height: 38px; padding: 8px 10px; border: 1px solid var(--line); font-size: 10px; }
-.findPoints span { color: var(--gold); font-size: 14px; }
-.finePrint { font-size: 10px !important; }
+
+/* Find Care: an editorial photo paired with a deliberately illustrative radius. */
+.findSection .findImage {
+  min-height: 0;
+  height: clamp(510px, 51vw, 650px);
+  border-radius: 3px;
+  box-shadow: 0 24px 60px -44px rgba(39, 36, 30, .48);
+  overflow: visible;
+}
+.findSection .findImage > img { object-position: 52% center; border-radius: 3px; }
+.findSection .imageNote {
+  position: absolute;
+  bottom: 7px;
+  left: 7px;
+  max-width: calc(100% - 14px);
+  padding: 3px 6px;
+  border-radius: 2px;
+  background: rgba(32, 30, 26, .82);
+  color: #fff;
+  font-size: 9px;
+  line-height: 1.4;
+}
+.findSection .findCopy { max-width: 525px; }
+.findSection .findCopy .sectionKicker { color: #84734f; font-size: 9px; letter-spacing: .19em; }
+.findSection .findCopy h2 {
+  max-width: 560px;
+  margin-top: 15px;
+  font-size: clamp(47px, 5vw, 68px);
+  line-height: .99;
+  letter-spacing: -.025em;
+  text-wrap: balance;
+}
+.findSection .findCopy > p:not(.sectionKicker) {
+  max-width: 440px;
+  margin-top: 19px;
+  color: #625d53;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.findPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 23px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.findPills li {
+  min-height: 31px;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border: 1px solid rgba(111, 101, 80, .13);
+  border-radius: 999px;
+  background: #f0eadf;
+  color: #514d44;
+  font-size: 9px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.findMemberNote {
+  max-width: 420px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 23px 0 22px;
+  padding-top: 17px;
+  border-top: 1px solid rgba(39, 36, 30, .13);
+  color: #716b5f;
+  font-size: 10px;
+  line-height: 1.65;
+}
+.findMemberNote svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  fill: none;
+  stroke: #8a7955;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.findMemberNote strong {
+  display: block;
+  margin-bottom: 2px;
+  color: #37342d;
+  font-size: 10px;
+}
+.findSection .findCopy > .darkButton { min-height: 47px; padding-inline: 20px; gap: 28px; font-size: 10px; }
+.radiusCard {
+  position: absolute;
+  z-index: 1;
+  top: 13%;
+  right: -12px;
+  width: min(236px, 61%);
+  padding: 16px 17px 13px;
+  background: rgba(249, 246, 238, .97);
+  color: #38362f;
+  box-shadow: 0 18px 45px -25px rgba(28, 27, 22, .42);
+}
+.radiusEyebrow {
+  display: block;
+  color: #82775f;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.radiusDiagram {
+  position: relative;
+  width: 142px;
+  height: 128px;
+  margin: 7px auto 3px;
+}
+.radiusDiagram::before {
+  position: absolute;
+  inset: 9px 16px 3px;
+  border: 1px dashed rgba(145, 122, 78, .67);
+  border-radius: 50%;
+  background: rgba(216, 204, 175, .16);
+  content: '';
+}
+.radiusStable, .radiusProvider {
+  position: absolute;
+  z-index: 1;
+  color: #61594a;
+  font-size: 7px;
+  line-height: 1.2;
+}
+.radiusStable { top: 23px; left: 50px; }
+.radiusProvider { top: 79px; left: 39px; }
+.radiusStableDot, .radiusProviderDot {
+  position: absolute;
+  z-index: 1;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.radiusStableDot { top: 38px; left: 65px; background: #9d8754; }
+.radiusProviderDot { top: 57px; left: 68px; background: #37352e; }
+.radiusCaption {
+  display: block;
+  padding-top: 9px;
+  border-top: 1px solid rgba(39, 36, 30, .1);
+  color: #787266;
+  font-size: 7px;
+  line-height: 1.4;
+}
 
 .whySection { position: relative; display: grid; grid-template-columns: 1fr 1fr; min-height: 700px; overflow: hidden; background: var(--night); color: var(--paper); }
 .whyImage { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .55; }
@@ -249,7 +392,6 @@
   .visitingCopy { width: calc(100% - 44px); }
   .editorial { gap: 28px; }
   .emergency { gap: 27px; }
-  .findPoints { grid-template-columns: 1fr; }
   .subscribeForm { grid-template-columns: 1fr; }
 }
 @media (max-width: 900px) {
@@ -306,10 +448,8 @@
   .categoryCard:nth-child(2), .categoryCard:nth-child(3) { margin-top: 0; }
   .categoryCard h3 { font-size: 34px; }
   .findSection { width: calc(100% - 40px); grid-template-columns: 1fr; gap: 32px; padding: 76px 0 43px; }
-  .findImage { min-height: 380px; order: 2; }
+  .findImage { min-height: 380px; }
   .findCopy h2, .ownersCopy h2, .providerCopy h2 { font-size: clamp(47px,12vw,61px); }
-  .findPoints { gap: 8px; }
-  .findPoints li { font-size: 9px; }
   .whySection { display: flex; min-height: 740px; align-items: flex-end; }
   .whyImage { object-position: 38% center; }
   .whyShade { background: linear-gradient(0deg,rgba(27,31,25,.98) 4%,rgba(27,31,25,.88) 42%,rgba(27,31,25,.08) 100%); }
@@ -356,6 +496,24 @@
   .footerTop > p { font-size: 17px; }
   .footerLinks { grid-template-columns: 1fr 1fr; gap: 24px 15px; padding: 24px 0 28px; }
   .footerBottom { flex-direction: column; gap: 4px; font-size: 8px; }
+}
+@media (max-width: 900px) {
+  .findSection { width: min(100% - 44px, 680px); grid-template-columns: 1fr; gap: 38px; }
+  .findSection .findImage { height: 500px; }
+  .findSection .findCopy { max-width: 600px; }
+}
+@media (max-width: 767px) {
+  .findSection .findImage { height: 445px; min-height: 0; }
+  .findSection .findCopy { max-width: none; }
+  .findSection .findCopy h2 { max-width: 500px; font-size: clamp(47px, 11.8vw, 60px); }
+  .findMemberNote { margin-top: 20px; }
+  .radiusCard { top: 11%; right: 0; width: min(220px, 62%); padding: 14px 14px 11px; }
+}
+@media (max-width: 420px) {
+  .findSection .findImage { height: 405px; }
+  .radiusCard { width: 60%; }
+  .findPills { gap: 7px; }
+  .findPills li { padding-inline: 10px; font-size: 8px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .page *, .page *::before, .page *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

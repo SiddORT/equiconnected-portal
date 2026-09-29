@@ -272,22 +272,33 @@ export function PublicPage() {
         <section className={styles.findSection} id="find" aria-labelledby="find-heading">
           <div className={styles.findImage}>
             <img src={findCarePhoto} alt="A horse standing in a sunlit stable yard" loading="lazy" />
-            <span className={styles.imageNote}>
-              <span>A clear place to begin exploring equine care.</span>
-              <a href="https://unsplash.com/@weareambitious" target="_blank" rel="noreferrer">Photo by Ambitious Studio* | Rick Barrett</a>
-            </span>
+            <div className={styles.radiusCard}>
+              <span className={styles.radiusEyebrow}>A care radius</span>
+              <div className={styles.radiusDiagram} role="img" aria-label="Illustrative stable and provider within a care radius, not live results">
+                <span className={styles.radiusStable}>Your stable</span>
+                <span className={styles.radiusProvider}>Care provider</span>
+                <i className={styles.radiusStableDot} />
+                <i className={styles.radiusProviderDot} />
+              </div>
+              <span className={styles.radiusCaption}>Illustrative only · not live results</span>
+            </div>
+            <a className={styles.imageNote} href="https://unsplash.com/@weareambitious" target="_blank" rel="noreferrer">Photo by Ambitious Studio* | Rick Barrett on Unsplash</a>
           </div>
           <div className={styles.findCopy}>
             <p className={styles.sectionKicker}>Find equine care</p>
-            <h2 id="find-heading">Care that starts with <em>your horse.</em></h2>
-            <p>Explore providers by care type and location, then review the profile information they share. Directory details vary by provider, and full profiles are available to members.</p>
-            <ul className={styles.findPoints}>
-              <li><span aria-hidden="true">↗</span> Independent veterinary professionals</li>
-              <li><span aria-hidden="true">↗</span> Clinics and hospitals</li>
-              <li><span aria-hidden="true">↗</span> Provider-shared locations</li>
-              <li><span aria-hidden="true">↗</span> Details to guide your next step</li>
+            <h2 id="find-heading">Care that actually reaches your stable.</h2>
+            <p>Explore veterinary professionals, clinics and hospitals. See the care they share on their profiles, including whether a provider offers stable visits.</p>
+            <ul className={styles.findPills} aria-label="Care directory includes">
+              <li>Stable-visit details</li>
+              <li>Clinic &amp; hospital profiles</li>
+              <li>Provider-shared specialisms</li>
+              <li>Shared locations</li>
             </ul>
-            <Link to={careHref} className={styles.darkButton}>Explore the directory <Arrow /></Link>
+            <p className={styles.findMemberNote}>
+              <svg aria-hidden="true" viewBox="0 0 20 20"><rect x="4.5" y="8.5" width="11" height="8" rx="1.5" /><path d="M7 8.5V6a3 3 0 0 1 6 0v2.5" /></svg>
+              <span><strong>Members only</strong> Sign up to browse provider profiles and the details they share. Contact and street-address details are not shown publicly.</span>
+            </p>
+            <Link to={careHref} className={styles.darkButton}>Check all providers <Arrow /></Link>
           </div>
         </section>
 

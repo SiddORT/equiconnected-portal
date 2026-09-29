@@ -113,7 +113,7 @@ describe('PublicPage', () => {
     expect(footer.getByRole('link', { name: 'Your profile' }).getAttribute('href')).toBe('/profile');
     expect(footer.getByRole('link', { name: 'Provider directory' }).getAttribute('href')).toBe('/providers');
     expect(document.getElementById('care-near-you')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Explore the directory' }).getAttribute('href')).toBe('/providers');
+    expect(within(document.getElementById('find')!).getByRole('link', { name: 'Check all providers' }).getAttribute('href')).toBe('/providers');
 
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(logout).toHaveBeenCalledOnce();
@@ -131,7 +131,7 @@ describe('PublicPage', () => {
       .getAttribute('href')).toBe('/signup');
     expect(within(hero as HTMLElement).getByRole('link', { name: 'Join EquiConnected' })
       .getAttribute('href')).toBe('/signup');
-    expect(screen.getByRole('link', { name: 'Explore the directory' }).getAttribute('href'))
+    expect(within(document.getElementById('find')!).getByRole('link', { name: 'Check all providers' }).getAttribute('href'))
       .toBe('/signup');
     expect(screen.getByRole('link', { name: 'Explore Vets in the directory' }).getAttribute('href'))
       .toBe('/signup');
@@ -289,6 +289,27 @@ describe('PublicPage', () => {
     expect(screen.queryByRole('heading', { name: 'Nearby providers' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Map of nearby equine care providers' })).toBeNull();
     expect(document.querySelector('[href*="care-near-you"]')).toBeNull();
+  });
+
+  it('presents Find Care as informational rather than a live radius search or fake filters', () => {
+    renderPage();
+    const find = within(screen.getByRole('region', { name: 'Care that actually reaches your stable.' }));
+
+    expect(find.getByText('Find equine care')).toBeTruthy();
+    expect(find.getByText(/Illustrative only/i)).toBeTruthy();
+    expect(find.getByText(/Members only/i)).toBeTruthy();
+    expect(find.getByText(/street-address details are not shown publicly/i)).toBeTruthy();
+    expect(find.getByText(/including whether a provider offers stable visits/i)).toBeTruthy();
+    expect(find.getByRole('img', { name: /Illustrative stable and provider/i })).toBeTruthy();
+    const details = within(find.getByRole('list', { name: 'Care directory includes' }));
+    for (const label of ['Stable-visit details', 'Clinic & hospital profiles', 'Provider-shared specialisms', 'Shared locations']) {
+      expect(details.getByText(label)).toBeTruthy();
+    }
+    expect(find.queryByRole('button')).toBeNull();
+    expect(find.queryByRole('textbox')).toBeNull();
+    expect(find.queryByRole('combobox')).toBeNull();
+    expect(find.queryByRole('checkbox')).toBeNull();
+    expect(find.getByRole('link', { name: 'Check all providers' }).getAttribute('href')).toBe('/signup');
   });
 
   it('keeps the V2 care journey sections in their intended order', () => {
