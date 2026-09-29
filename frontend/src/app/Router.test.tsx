@@ -35,7 +35,7 @@ describe('AppRouter member entry', () => {
     render(<AppRouter />);
 
     await waitFor(() => expect(window.location.pathname).toBe('/'));
-    expect(screen.getByRole('heading', { name: 'Healthcare, Connected Around You.' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /Trusted equine care/i })).toBeTruthy();
   });
 
   it('preserves an anonymous provider-detail deep link through member sign-in', async () => {

@@ -1,174 +1,119 @@
 /**
- * Public landing page for the EquiConnected portal.
+ * Public EquiConnected homepage — editorial, horse-first storytelling.
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
 import { hasMemberRole } from '@/features/member/memberAccess';
 import { extractErrorMessage } from '@/api/client';
 import { recordPublicVisit, registerSubscriber } from '@/api/public';
 import { systemCalendarDate, useTimeSettings } from '@/app/TimeSettingsContext';
-import { HeroImageSlider } from '@/components/public/HeroImageSlider';
-import { HowItWorksScroll } from '@/components/public/HowItWorksScroll';
-import { SpecializationsScroll } from '@/components/public/SpecializationsScroll';
 import { CareNearYou } from '@/components/public/CareNearYou';
-import { WhyEquiConnected } from '@/components/public/WhyEquiConnected';
-import { Footer } from '@/components/layout/Footer';
-import { usePublicPageAnimations } from '@/hooks/usePublicPageAnimations';
+import { HomeFooter } from '@/components/public/home-v2/HomeFooter';
+import { HomeHero } from '@/components/public/home-v2/HomeHero';
 import type { SubscriberRegistrationType } from '@/types';
 import styles from './PublicPage.module.css';
 
-type PublicTheme = 'blue' | 'brown';
+const REGISTRATION_TYPES: Array<{ value: SubscriberRegistrationType; label: string }> = [
+  { value: 'HORSE_OWNER', label: 'Horse owner' },
+  { value: 'STABLE_MANAGER', label: 'Stable manager' },
+  { value: 'VET', label: 'Veterinary professional' },
+  { value: 'CLINIC', label: 'Clinic' },
+  { value: 'HOSPITAL', label: 'Hospital' },
+  { value: 'OTHER', label: 'Other' },
+];
 
-const PUBLIC_THEME_STORAGE_KEY = 'equiconnected-public-theme';
-
-function getStoredPublicTheme(): PublicTheme {
-  if (typeof window === 'undefined') return 'blue';
-  try {
-    return window.localStorage.getItem(PUBLIC_THEME_STORAGE_KEY) === 'brown' ? 'brown' : 'blue';
-  } catch {
-    return 'blue';
-  }
-}
-
-function storePublicTheme(theme: PublicTheme) {
-  try {
-    window.localStorage.setItem(PUBLIC_THEME_STORAGE_KEY, theme);
-  } catch {
-    // The selected theme still applies for this page view when storage is unavailable.
-  }
+function Arrow() {
+  return <span className={styles.arrow} aria-hidden="true">↗</span>;
 }
 
 export function PublicPage() {
   const { isAuthenticated, isLoading: authLoading, user, logout } = useAuth();
   const member = !authLoading && isAuthenticated && hasMemberRole(user);
-  const [loggingOut, setLoggingOut] = useState(false);
-  const pageRef = useRef<HTMLDivElement>(null);
-  const memberInviteRef = useRef<HTMLElement>(null);
-  const finalCtaRef = useRef<HTMLElement>(null);
   const { settings, isLoading: settingsLoading, error: settingsError } = useTimeSettings();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [email, setEmail] = useState('');
   const [registrationType, setRegistrationType] = useState<SubscriberRegistrationType | ''>('');
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [emailError, setEmailError] = useState('');
-  const [registrationTypeError, setRegistrationTypeError] = useState('');
+  const [roleError, setRoleError] = useState('');
   const [formError, setFormError] = useState('');
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [theme, setTheme] = useState<PublicTheme>(getStoredPublicTheme);
-
-  usePublicPageAnimations(pageRef);
+  const careHref = member ? '/providers' : '/signup';
+  const greeting = user?.first_name?.trim() || user?.full_name?.trim() || 'Member';
 
   useEffect(() => {
-    storePublicTheme(theme);
-  }, [theme]);
-
-  useLayoutEffect(() => {
-    const member = memberInviteRef.current;
-    const reference = finalCtaRef.current;
-    if (!member || !reference) return;
-
-    const matchHeight = () => {
-      const height = reference.getBoundingClientRect().height;
-      if (height > 0) member.style.minHeight = `${height}px`;
-    };
-    matchHeight();
-
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', matchHeight);
-      return () => {
-        window.removeEventListener('resize', matchHeight);
-        member.style.minHeight = '';
-      };
-    }
-    const observer = new ResizeObserver(matchHeight);
-    observer.observe(reference);
-    return () => {
-      observer.disconnect();
-      member.style.minHeight = '';
-    };
-  }, []);
-
-  useEffect(() => {
-    // Wait for the shared settings so the client-side once-per-day key agrees
-    // with the backend's system-calendar visit bucket.
     if (settingsLoading || settingsError) return;
-
     const storageKey = 'equiconnected-public-visit-date';
-    const today = systemCalendarDate(new Date(), settings.timezone);
-    if (window.localStorage.getItem(storageKey) === today) return;
-
-    window.localStorage.setItem(storageKey, today);
-    void recordPublicVisit().catch(() => {
-      window.localStorage.removeItem(storageKey);
-    });
+    try {
+      const today = systemCalendarDate(new Date(), settings.timezone);
+      if (window.localStorage.getItem(storageKey) === today) return;
+      window.localStorage.setItem(storageKey, today);
+      void recordPublicVisit().catch(() => window.localStorage.removeItem(storageKey));
+    } catch {
+      // Visit tracking is best-effort when browser storage is unavailable.
+      void recordPublicVisit().catch(() => undefined);
+    }
   }, [settings.timezone, settingsError, settingsLoading]);
 
   useEffect(() => {
-    let animationFrame = 0;
-
-    function revealHashTarget() {
-      window.cancelAnimationFrame(animationFrame);
-      animationFrame = window.requestAnimationFrame(() => {
-        const targetId = decodeURIComponent(window.location.hash.slice(1));
-        if (!targetId) return;
-
-        const target = document.getElementById(targetId);
+    let frame = 0;
+    const revealHashTarget = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const id = decodeURIComponent(window.location.hash.slice(1));
+        if (!id) return;
+        const target = document.getElementById(id);
         if (!target) return;
-
         target.scrollIntoView({ block: 'start' });
         const heading = target.querySelector<HTMLElement>('h1, h2');
         if (!heading) return;
-
-        const alreadyFocusable = heading.hasAttribute('tabindex');
-        if (!alreadyFocusable) heading.setAttribute('tabindex', '-1');
+        const hadTabIndex = heading.hasAttribute('tabindex');
+        if (!hadTabIndex) heading.setAttribute('tabindex', '-1');
         heading.focus({ preventScroll: true });
-        if (!alreadyFocusable) {
-          heading.addEventListener('blur', () => heading.removeAttribute('tabindex'), { once: true });
-        }
+        if (!hadTabIndex) heading.addEventListener('blur', () => heading.removeAttribute('tabindex'), { once: true });
       });
-    }
-
+    };
     revealHashTarget();
     window.addEventListener('hashchange', revealHashTarget);
     return () => {
-      window.cancelAnimationFrame(animationFrame);
+      window.cancelAnimationFrame(frame);
       window.removeEventListener('hashchange', revealHashTarget);
     };
   }, []);
 
-  async function handleNotify(event: React.FormEvent) {
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [menuOpen]);
+
+  async function handleNotify(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!registrationType) {
-      setRegistrationTypeError('Please choose how you would like to register.');
+      setRoleError('Please choose how you would like to register.');
       return;
     }
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setEmailError('Please enter a valid email address.');
       return;
     }
-
+    setRoleError('');
     setEmailError('');
-    setRegistrationTypeError('');
     setFormError('');
     setSubmitting(true);
     try {
       await registerSubscriber({ email: email.trim(), registration_type: registrationType });
       setSubmitted(true);
-    } catch (requestError) {
-      setFormError(
-        extractErrorMessage(
-          requestError,
-          'We could not save your registration. Please try again shortly.'
-        )
-      );
+    } catch (error) {
+      setFormError(extractErrorMessage(error, 'We could not save your registration. Please try again shortly.'));
     } finally {
       setSubmitting(false);
     }
-  }
-
-  function closeMenu() {
-    setMenuOpen(false);
   }
 
   async function handleLogout() {
@@ -176,313 +121,181 @@ export function PublicPage() {
     setLoggingOut(true);
     try {
       await logout();
-      closeMenu();
+      setMenuOpen(false);
     } finally {
       setLoggingOut(false);
     }
   }
 
+  function closeMenu() {
+    setMenuOpen(false);
+  }
+
   return (
-    <div className={styles.page} ref={pageRef} data-theme={theme}>
-      {/* ── Background decorative elements ──────────────────────── */}
-      <div className={styles.bgGlow} aria-hidden="true" />
-
-      <main className={styles.main} id="main-content">
-        {/* ── Logo / Header ────────────────────────────────────── */}
-        <header className={styles.header} data-motion-header data-member={member}>
+    <div className={styles.page}>
+      <a className={styles.skipLink} href="#main-content">Skip to content</a>
+      <header className={styles.header}>
+        <div className={styles.headerInner}>
           <Link to="/" className={styles.brand} aria-label="EquiConnected home">
-            <img
-              src="/equiconnected-logo.png"
-              alt=""
-              aria-hidden="true"
-              className={styles.brandLogo}
-            />
+            <img src="/equiconnected-logo.png" alt="" aria-hidden="true" />
           </Link>
-          {member && <span className={styles.memberGreeting}>Hi, {user?.first_name?.trim() || user?.full_name?.trim() || 'Member'}</span>}
-          <nav className={`${styles.nav} ${menuOpen ? styles.navOpen : ''}`} aria-label="Primary navigation">
-            <button
-              type="button"
-              className={styles.navToggle}
-              aria-expanded={menuOpen}
-              aria-controls="primary-navigation-menu"
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              <span>{menuOpen ? 'Close' : 'Menu'}</span>
-              <span className={styles.navToggleIcon} aria-hidden="true">
-                <span />
-                <span />
-              </span>
-            </button>
-            <div className={styles.navMenu} id="primary-navigation-menu">
-              <div className={styles.navLinks}>
-                <a href="/#about-us" onClick={closeMenu}>About</a>
-                <a href="/#specializations" onClick={closeMenu}>Specializations</a>
-                <a href="/#how-it-works" onClick={closeMenu}>Steps</a>
-                <a href="/#care-near-you" onClick={closeMenu}>Providers</a>
-                <a href="/#why-equiconnected" onClick={closeMenu}>Why us</a>
-              </div>
-              <div className={styles.navActions}>
-                <div className={styles.themeControl}>
-                  <label htmlFor="public-theme">Theme</label>
-                  <select
-                    id="public-theme"
-                    value={theme}
-                    onChange={(event) => setTheme(event.target.value as PublicTheme)}
-                  >
-                    <option value="blue">Blue</option>
-                    <option value="brown">Brown</option>
-                  </select>
-                </div>
-                {member ? (
-                  <>
-                    <Link to="/profile" className={styles.navMember} onClick={closeMenu}>Profile</Link>
-                    <button type="button" className={styles.navSignOut} onClick={() => void handleLogout()} disabled={loggingOut}>
-                      {loggingOut ? 'Signing out…' : 'Sign out'}
-                    </button>
-                  </>
-                ) : (
-                  <Link to="/signup" className={styles.navMember} onClick={closeMenu} data-gsap-hover>
-                    Register as member
-                  </Link>
-                )}
-                <Link to="/provider/signup" className={styles.navCta} onClick={closeMenu} data-gsap-hover>
-                  Register as provider
-                </Link>
-              </div>
-            </div>
+          {member && <span className={styles.greeting}>Hi, {greeting}</span>}
+          <button
+            className={`${styles.menuToggle} ${menuOpen ? styles.menuToggleOpen : ''}`}
+            type="button"
+            aria-expanded={menuOpen}
+            aria-controls="home-navigation"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            {menuOpen ? 'Close' : 'Menu'}
+            <span className={styles.menuGlyph} aria-hidden="true"><i /><i /></span>
+          </button>
+          <nav id="home-navigation" className={`${styles.navigation} ${menuOpen ? styles.navigationOpen : ''}`} aria-label="Primary navigation">
+            <a href="/#care" onClick={closeMenu}>Find care</a>
+            <a href="/#owners" onClick={closeMenu}>Owners &amp; stable teams</a>
+            <a href="/#providers" onClick={closeMenu}>For providers</a>
+            {member ? (
+              <>
+                <Link to="/profile" onClick={closeMenu}>Profile</Link>
+                <button type="button" className={styles.signOut} onClick={() => void handleLogout()} disabled={loggingOut}>
+                  {loggingOut ? 'Signing out…' : 'Sign out'}
+                </button>
+              </>
+            ) : (
+              <Link to="/login" onClick={closeMenu}>Sign in</Link>
+            )}
+            <Link className={styles.navJoin} to={member ? '/providers' : '/signup'} onClick={closeMenu}>
+              {member ? 'Directory' : 'Join EquiConnected'}
+            </Link>
           </nav>
-        </header>
+        </div>
+      </header>
 
-        {/* ── Hero ─────────────────────────────────────────────── */}
-        <section className={styles.hero} aria-labelledby="hero-heading" data-parallax-trigger>
-          <div className={styles.heroContent}>
-            <h1 id="hero-heading" className={styles.heading} data-hero-item>
-              Healthcare,{' '}
-              <span>Connected Around You.</span>
-            </h1>
-            <p className={styles.subtitle} data-hero-item>
-              Discover doctors, clinics and hospitals based on your specialization, location and care needs.
-            </p>
-            <div className={styles.ctas} data-hero-item>
-              <Link to="/signup" className={styles.primaryCta} data-gsap-hover>
-                Find care <span aria-hidden="true">↗</span>
-              </Link>
-              <Link to="/provider/signup" className={styles.secondaryCta} data-gsap-hover>
-                Join as a provider
-              </Link>
-            </div>
-            <p className={styles.trustLine} data-hero-item><span aria-hidden="true" />A clearer path to the right care</p>
-            <div className={styles.notifyBlock} data-hero-item>
-              <p className={styles.notifyHeading}>Not ready to sign up yet?</p>
-              {submitted ? (
-                <div className={styles.successMessage} role="status">
-                  <span className={styles.successIcon} aria-hidden="true">✓</span>
-                  <p>
-                    <strong>You&apos;re on the list.</strong><br />
-                    The EquiConnected team will be in touch soon.
-                  </p>
+      <main id="main-content">
+        <HomeHero careHref={careHref} />
+
+        <section className={styles.intro} id="care" aria-labelledby="intro-heading">
+          <div className={styles.introIndex}>01 <span>—</span> A connected care network</div>
+          <div className={styles.introBody}>
+            <p className={styles.sectionKicker}>For the people who care for horses</p>
+            <h2 id="intro-heading">Good care begins with knowing <em>where to look.</em></h2>
+            <p>EquiConnected brings equine providers and the people seeking care into one considered place. Explore by care category and location, then decide what feels right for your horse.</p>
+            <Link to={careHref} className={styles.textLink}>Explore the provider directory <Arrow /></Link>
+          </div>
+          <div className={styles.introSeal} aria-hidden="true"><span>EC</span><i /></div>
+        </section>
+
+        <section className={styles.steps} aria-labelledby="steps-heading">
+          <div className={styles.sectionHead}>
+            <div><p className={styles.sectionKicker}>A simpler way forward</p><h2 id="steps-heading">Four quiet steps.</h2></div>
+            <p>From the first search to a more informed next step.</p>
+          </div>
+          <ol className={styles.stepList}>
+            {[
+              ['01', 'Create your account', 'Join as a horse owner or stable manager to access provider profiles.'],
+              ['02', 'Explore care', 'Browse the directory and discover providers by category and location.'],
+              ['03', 'Compare the details', 'Review available profile information to understand each provider.'],
+              ['04', 'Make your connection', 'Choose who to contact and continue the conversation directly.'],
+            ].map(([number, title, description]) => (
+              <li key={number} className={styles.step}>
+                <span className={styles.stepNo}>{number}</span>
+                <h3>{title}</h3>
+                <p>{description}</p>
+                <span className={styles.stepRule} />
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className={styles.careSection} aria-labelledby="care-heading">
+          <div className={styles.careHeading}>
+            <p className={styles.sectionKicker}>Find your starting point</p>
+            <h2 id="care-heading">Different needs.<br /><em>One place to look.</em></h2>
+            <p>Discover equine care providers by the kind of practice you’re looking for.</p>
+          </div>
+          <div className={styles.careCards}>
+            {[
+              ['I', 'Veterinary professionals', 'Explore independent and practice-based veterinary providers.'],
+              ['II', 'Clinics', 'Find equine clinics and the care information they share.'],
+              ['III', 'Hospitals', 'Explore equine hospitals and their available profile details.'],
+            ].map(([number, title, description]) => (
+              <article className={styles.careCard} key={number}>
+                <span className={styles.careNumber}>{number}</span>
+                <div className={styles.careCardBottom}>
+                  <h3>{title}</h3>
+                  <p>{description}</p>
+                  <Link to={careHref} aria-label={`Explore ${title}`} className={styles.cardLink}>Explore directory <Arrow /></Link>
                 </div>
-              ) : (
-                <form onSubmit={handleNotify} className={styles.form} noValidate aria-label="Get launch updates">
-                  <div className={styles.notifyFields}>
-                    <div className={styles.notifyField}>
-                      <label htmlFor="registration-type" className={styles.formLabel}>Register as</label>
-                      <select
-                        id="registration-type"
-                        value={registrationType}
-                        onChange={(event) => {
-                          setRegistrationType(event.target.value as SubscriberRegistrationType | '');
-                          setRegistrationTypeError('');
-                          setFormError('');
-                        }}
-                        className={`${styles.registrationSelect} ${registrationTypeError ? styles['registrationSelect--error'] : ''}`}
-                        aria-describedby={registrationTypeError ? 'registration-type-error' : undefined}
-                        aria-invalid={!!registrationTypeError}
-                        required
-                        disabled={submitting}
-                      >
-                        <option value="">Choose your role</option>
-                        {REGISTRATION_TYPES.map((type) => (
-                          <option key={type.value} value={type.value}>{type.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className={styles.notifyField}>
-                      <label htmlFor="notify-email" className={styles.formLabel}>Email address</label>
-                      <input
-                        id="notify-email"
-                        type="email"
-                        value={email}
-                        onChange={(event) => {
-                          setEmail(event.target.value);
-                          setEmailError('');
-                          setFormError('');
-                        }}
-                        placeholder="your@email.com"
-                        className={`${styles.emailInput} ${emailError ? styles['emailInput--error'] : ''}`}
-                        aria-describedby={emailError ? 'notify-email-error' : undefined}
-                        aria-invalid={!!emailError}
-                        autoComplete="email"
-                        required
-                        disabled={submitting}
-                      />
-                    </div>
-                    <button type="submit" className={styles.notifyBtn} data-gsap-hover disabled={submitting}>
-                      {submitting ? 'Submitting…' : 'Keep me posted'}
-                    </button>
-                  </div>
-                  {registrationTypeError && (
-                    <p id="registration-type-error" className={styles.errorMsg} role="alert">
-                      {registrationTypeError}
-                    </p>
-                  )}
-                  {emailError && (
-                    <p id="notify-email-error" className={styles.errorMsg} role="alert">
-                      {emailError}
-                    </p>
-                  )}
-                  {formError && <p className={styles.errorMsg} role="alert">{formError}</p>}
-                </form>
-              )}
-            </div>
+              </article>
+            ))}
           </div>
-          <div className={styles.heroVisual} data-hero-media>
-            <HeroImageSlider />
-          </div>
+          <p className={styles.careFootnote}>Directory details vary by provider. Membership is required to view provider profiles.</p>
         </section>
 
-        <section id="about-us" className={styles.aboutSection} aria-labelledby="about-us-heading" data-about-section>
-          <div className={styles.aboutVisual}>
-            <img
-              className={styles.aboutImage}
-              src="/about-equiconnected-transparent.png"
-              alt="EquiConnected veterinary team caring for a horse"
-              loading="lazy"
-              data-about-image
-            />
-          </div>
-          <div className={styles.aboutCopy} data-about-copy>
-            <p className={styles.sectionEyebrow}><span aria-hidden="true" />About us</p>
-            <h2 id="about-us-heading">
-              Care that sees the <em>whole horse.</em>
-            </h2>
-            <p>
-              EquiConnected makes equine healthcare easier to understand and easier to reach.
-              We bring trusted doctors, clinics, and hospitals together so horse owners can
-              move from concern to confident care.
-            </p>
-            <p>
-              Every connection starts with context: the right specialization, the right location,
-              and the right people around your horse.
-            </p>
-            <div className={styles.aboutFacts}>
-              <div>
-                <strong>01</strong>
-                <span>One connected care network</span>
-              </div>
-              <div>
-                <strong>02</strong>
-                <span>Built around the horse</span>
-              </div>
-            </div>
-          </div>
-        </section>
+        <div className={styles.careMap}>
+          <CareNearYou theme="brown" />
+        </div>
 
-        <section id="member-join" ref={memberInviteRef} className={styles.memberInvite} aria-labelledby="member-invite-heading">
-          <div className={styles.memberInviteInner}>
-            <div className={styles.memberInviteCopy}>
-              <p className={styles.memberInviteEyebrow}>For horse owners <span aria-hidden="true">/</span> EquiConnected</p>
-              <h2 id="member-invite-heading">A better way to care for your horse starts here.</h2>
-              <p>Create a member account to discover equine doctors, clinics and hospitals near you.</p>
-            </div>
-            <Link to="/signup" className={styles.memberInviteCta}>
-              Register as a member <span aria-hidden="true">↗</span>
-            </Link>
+        <section className={styles.darkStory} id="owners" aria-labelledby="owners-heading">
+          <div className={styles.storyPhoto}>
+            <img src="/home-v2-hero.jpg" alt="A horse in open pasture, seen in the evening light" loading="lazy" />
+            <span className={styles.storyCaption}>Care is personal. Finding it should feel clearer.</span>
           </div>
-        </section>
-
-        <SpecializationsScroll />
-        <HowItWorksScroll />
-        <CareNearYou theme={theme} />
-
-        <section id="get-started" ref={finalCtaRef} className={styles.finalCta} aria-labelledby="final-cta-heading" data-parallax-trigger data-scroll-reveal>
-          <div className={styles.finalCtaCopy} data-scroll-reveal>
-            <p className={styles.sectionEyebrow}><span aria-hidden="true" />Keep moving forward</p>
-            <h2 id="final-cta-heading">Your healthcare network starts here.</h2>
-            <p>Find the care you need. Discover providers around you.</p>
-            <div className={styles.finalCtaActions}>
-              <Link to="/signup" className={styles.finalPrimaryCta} data-gsap-hover>
-                Find care <span aria-hidden="true">↗</span>
-              </Link>
-              <Link to="/provider/signup" className={styles.finalSecondaryCta} data-gsap-hover>
-                Join as a provider
-              </Link>
-            </div>
-          </div>
-          <div className={styles.finalCtaVisual} aria-hidden="true">
-            <img
-              className={styles.finalCtaImage}
-              src="/hospital1.png"
-              alt=""
-              data-subtle-parallax
-            />
-          </div>
-          <svg className={styles.connectionMotif} viewBox="0 0 260 220" aria-hidden="true">
-            <path d="M28 166C61 166 63 54 114 54s52 112 87 112 31-49 40-93" />
-            <path d="M31 166h209" />
-            <circle cx="28" cy="166" r="7" />
-            <circle cx="114" cy="54" r="7" />
-            <circle cx="201" cy="166" r="7" />
-            <circle cx="241" cy="73" r="7" />
-          </svg>
-        </section>
-
-        <WhyEquiConnected />
-
-        <section id="provider-join" className={styles.providerSection} aria-labelledby="provider-join-heading" data-scroll-reveal>
-          <div className={styles.providerVisual} data-scroll-reveal>
-            <img
-              className={styles.providerImage}
-              src="/provider-cta-equine-care.png"
-              alt="Equine veterinarian caring for a chestnut horse in a warm stable"
-              loading="lazy"
-            />
-          </div>
-          <div className={styles.providerCopy} data-scroll-reveal>
-            <p className={styles.sectionEyebrow}><span aria-hidden="true" />For providers</p>
-            <h2 id="provider-join-heading">Grow your presence with EquiConnected.</h2>
-            <p>
-              Put your practice in front of members looking for thoughtful equine care.
-              Share the information that helps people understand where you fit in their
-              healthcare journey.
-            </p>
-            <Link to="/provider/signup" className={styles.providerCta} data-gsap-hover>
-              Join as a provider <span aria-hidden="true">↗</span>
-            </Link>
-            <ul className={styles.providerTypes} aria-label="Provider types" data-scroll-stagger>
-              {PROVIDER_TYPES.map((type, index) => (
-                <li key={type} className={styles.providerType} data-stagger-item>
-                  <span className={styles.providerTypeNumber} aria-hidden="true">0{index + 1}</span>
-                  {type}
-                </li>
-              ))}
+          <div className={styles.storyCopy}>
+            <p className={styles.sectionKicker}>For owners &amp; stable teams</p>
+            <h2 id="owners-heading">The whole picture starts with <em>your horse.</em></h2>
+            <p>Whether you care for one horse or manage a stable, EquiConnected gives you a place to begin your search and learn about providers in your area.</p>
+            <ul>
+              <li><span>01</span> Browse a dedicated equine provider directory</li>
+              <li><span>02</span> Find information by provider type and location</li>
+              <li><span>03</span> Keep your next step in your hands</li>
             </ul>
+            <Link to={careHref} className={styles.goldButton}>Explore care <Arrow /></Link>
           </div>
+        </section>
+
+        <section className={styles.providerSection} id="providers" aria-labelledby="provider-heading">
+          <div className={styles.providerTopline}><span>For equine care providers</span><span>EquiConnected / 02</span></div>
+          <div className={styles.providerGrid}>
+            <h2 id="provider-heading">A profile that helps the right people <em>find you.</em></h2>
+            <div>
+              <p>Introduce your practice to horse owners and stable teams looking for equine care. Share the details that help people understand your services and how to reach you.</p>
+              <Link to="/provider/signup" className={styles.darkButton}>Create a provider account <Arrow /></Link>
+            </div>
+          </div>
+          <div className={styles.providerTypes}><span>Veterinary professionals</span><span>Clinics</span><span>Hospitals</span></div>
+        </section>
+
+        <section className={styles.comingSoon} aria-label="More from EquiConnected">
+          <span className={styles.comingMark} aria-hidden="true">EC</span>
+          <p className={styles.sectionKicker}>A network that grows with you</p>
+          <h2>More thoughtful connections<br />are <em>on the way.</em></h2>
+          <p>We’re continuing to build tools for the people who care for horses. Join the list for occasional EquiConnected updates.</p>
+          {submitted ? (
+            <div className={styles.successMessage} role="status"><strong>You’re on the list.</strong> The EquiConnected team will be in touch soon.</div>
+          ) : (
+            <form className={styles.subscribeForm} onSubmit={(event) => void handleNotify(event)} noValidate aria-label="Get EquiConnected updates">
+              <label>
+                <span>Your role</span>
+                <select value={registrationType} onChange={(event) => { setRegistrationType(event.target.value as SubscriberRegistrationType | ''); setRoleError(''); setFormError(''); }} aria-invalid={!!roleError} aria-describedby={roleError ? 'role-error' : undefined} required disabled={submitting}>
+                  <option value="">Choose a role</option>
+                  {REGISTRATION_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Email address</span>
+                <input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setEmailError(''); setFormError(''); }} placeholder="you@example.com" autoComplete="email" aria-invalid={!!emailError} aria-describedby={emailError ? 'email-error' : undefined} required disabled={submitting} />
+              </label>
+              <button type="submit" disabled={submitting}>{submitting ? 'Submitting…' : 'Keep me posted'} <Arrow /></button>
+              {roleError && <p id="role-error" className={styles.formError} role="alert">{roleError}</p>}
+              {emailError && <p id="email-error" className={styles.formError} role="alert">{emailError}</p>}
+              {formError && <p className={styles.formError} role="alert">{formError}</p>}
+            </form>
+          )}
         </section>
       </main>
 
-      <Footer />
+      <HomeFooter member={member} careHref={careHref} />
     </div>
   );
 }
-
-const PROVIDER_TYPES = ['Doctors', 'Clinics', 'Hospitals'];
-
-const REGISTRATION_TYPES: Array<{ value: SubscriberRegistrationType; label: string }> = [
-  { value: 'VET', label: 'Vet' },
-  { value: 'HORSE_OWNER', label: 'Horse Owner' },
-  { value: 'HOSPITAL', label: 'Hospital' },
-  { value: 'CLINIC', label: 'Clinic' },
-  { value: 'STABLE_MANAGER', label: 'Stable Manager' },
-  { value: 'OTHER', label: 'Other' },
-];
