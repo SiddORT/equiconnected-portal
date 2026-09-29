@@ -109,6 +109,8 @@ describe('PublicPage', () => {
       .getAttribute('href')).toBe('/providers');
     expect(within(hero as HTMLElement).getByRole('link', { name: 'Open directory' })
       .getAttribute('href')).toBe('/providers');
+    expect(screen.getByRole('link', { name: 'Explore Vets in the directory' }).getAttribute('href'))
+      .toBe('/providers');
     const footer = within(screen.getByRole('contentinfo'));
     expect(footer.getByRole('link', { name: 'Your profile' }).getAttribute('href')).toBe('/profile');
     expect(footer.getByRole('link', { name: 'Provider directory' }).getAttribute('href')).toBe('/providers');
@@ -130,6 +132,8 @@ describe('PublicPage', () => {
     expect(within(hero as HTMLElement).getByRole('link', { name: 'Join EquiConnected' })
       .getAttribute('href')).toBe('/signup');
     expect(screen.getByRole('link', { name: 'Explore the directory' }).getAttribute('href'))
+      .toBe('/signup');
+    expect(screen.getByRole('link', { name: 'Explore Vets in the directory' }).getAttribute('href'))
       .toBe('/signup');
   });
 

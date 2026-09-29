@@ -246,24 +246,27 @@ export function PublicPage() {
             <div className={styles.categoryHeading}>
               <p className={styles.sectionKicker}>Who you’ll find</p>
               <h2 id="categories-heading">Three kinds of care.<br /><em>One place to look.</em></h2>
-              <p>From independent veterinary professionals to clinics and hospitals, browse by the kind of practice you have in mind.</p>
+              <p>From independent veterinary professionals to clinics and hospitals, browse by practice type. Services vary by provider.</p>
             </div>
             <div className={styles.categoryGrid}>
               {[
-                ['i', 'Veterinary professionals', 'Independent and practice-based professionals sharing their equine care details.', categoryVet, 'Photo by Daniel Bonilla on Unsplash'],
-                ['ii', 'Clinics', 'Explore clinic profiles and the services and information they choose to share.', categoryClinic, 'Photo by Mathias Reding on Unsplash'],
-                ['iii', 'Hospitals', 'Learn about equine hospitals through their directory profiles.', categoryHospital, 'Photo by D. Gibson on Unsplash'],
-              ].map(([number, title, description, image, credit]) => (
-                <article className={styles.categoryCard} key={number as string}>
-                  <div className={styles.categoryPhoto}>
-                    <img src={image as string} alt="" loading="lazy" />
-                    <span className={styles.categoryNumber}>{number}</span>
-                  </div>
-                  <div className={styles.categoryCaption}><span>{number}</span><span>Equine care</span></div>
-                  <h3>{title}</h3>
-                  <p>{description}</p>
-                  <a className={styles.textLink} href={careHref} aria-label={`Explore ${title}`}>Explore directory <Arrow /></a>
-                  <span className={styles.categoryCredit}>{credit}</span>
+                { number: 'i', type: 'Veterinary professional', title: 'Vets', description: 'Independent and ambulatory vets — some visit your stable within their service area.', services: ['Health checks', 'Lameness exams', 'Dentistry'], image: categoryVet, credit: 'Photo by Daniel Bonilla on Unsplash' },
+                { number: 'ii', type: 'Clinic', title: 'Clinics', description: 'Equine clinics may provide diagnostics and outpatient treatment when your horse needs to travel.', services: ['X-ray & ultrasound', 'Outpatient', 'Rehabilitation'], image: categoryClinic, credit: 'Photo by Mathias Reding on Unsplash' },
+                { number: 'iii', type: 'Hospital', title: 'Hospitals', description: 'Equine hospitals may provide surgery, intensive care and advanced imaging.', services: ['Surgery', 'Intensive care', 'MRI & CT'], image: categoryHospital, credit: 'Photo by D. Gibson on Unsplash' },
+              ].map(({ number, type, title, description, services, image, credit }) => (
+                <article className={styles.categoryCard} key={number}>
+                  <Link to={careHref} className={styles.categoryLink} aria-label={`Explore ${title} in the directory`}>
+                    <div className={styles.categoryPhoto}>
+                      <img src={image} alt="" loading="lazy" />
+                      <span className={styles.categoryCredit}>{credit}</span>
+                    </div>
+                    <div className={styles.categoryCaption}><span>{number}</span> {type}</div>
+                    <h3>{title}</h3>
+                    <p>{description}</p>
+                    <ul className={styles.categoryServices} aria-label="Example services; offerings vary by provider">
+                      {services.map((service) => <li key={service}>{service}</li>)}
+                    </ul>
+                  </Link>
                 </article>
               ))}
             </div>

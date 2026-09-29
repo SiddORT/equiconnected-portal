@@ -8,3 +8,9 @@ Use the supplied Home v2 prototype as a visual and content-structure reference, 
 **Why:** The reference contains nonfunctional interactions and illustrative entities, while the portal has real authentication and provider data. A visually faithful page can otherwise promise capabilities or availability that the app does not have.
 
 **How to apply:** For future public homepage changes, match the reference's layout and media treatment, but route actions through actual app flows and keep reviews, visiting availability, and emergency guidance truthful until backed by verified data.
+
+Compare supplied design screenshots at their likely CSS viewport size, not the smaller size shown in chat. High-density captures can look like a narrow desktop screenshot after being scaled down.
+
+**Why:** Comparing a scaled high-density reference to the app at the thumbnail's pixel width makes correctly sized cards appear too large and encourages incorrect layout changes.
+
+**How to apply:** Inspect a reference image's intrinsic dimensions and estimate its capture scale before changing desktop container widths or card proportions.
