@@ -76,6 +76,11 @@ export async function getProviderPortalSpecializations(): Promise<ProviderSpecia
 
 // ── Member directory ────────────────────────────────────────────────────────
 
+export async function getMemberProviderFilters(): Promise<{ specializations: { id: string; name: string }[]; regions: string[] }> {
+  const { data } = await apiClient.get('/member/providers/filters');
+  return data;
+}
+
 export async function listMemberProviders(
   params?: MemberProviderListParams
 ): Promise<PaginatedResponse<MemberProviderListItem>> {

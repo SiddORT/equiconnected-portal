@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser
 from app.db.session import get_db
-from app.models.enums import ProviderType
+from app.models.enums import ProviderType, VisitStability
 from app.models.user import PUBLIC_ACCOUNT_ROLE_NAMES, User
 from app.repositories.audit_repository import context_from_request
 from app.repositories.review_repository import ReviewRepository
@@ -99,6 +99,10 @@ def _item(provider, average_rating, review_count, distance=None) -> MemberProvid
         average_rating=float(average_rating) if average_rating is not None else None,
         review_count=int(review_count or 0),
         distance_km=round(float(distance), 2) if distance is not None else None,
+        specializations=sorted(
+            link.specialization.name for link in provider.provider_specializations
+        ),
+        emergency_services_available=provider.emergency_services_available is True,
     )
 
 
@@ -113,12 +117,22 @@ def _review_response(review) -> MemberReviewResponse:
     )
 
 
+@router.get("/filters")
+def member_provider_filters(user: MemberUser, svc: _Svc) -> dict:
+    return svc.directory_facets()
+
+
 @router.get("", response_model=PaginatedResponse[MemberProviderListItem])
 def list_member_providers(
     user: MemberUser,
     svc: _Svc,
     provider_type: ProviderType | None = Query(None),
     minimum_rating: float | None = Query(None, ge=1, le=5),
+    visit_stability: VisitStability | None = Query(None),
+    specialization_id: UUID | None = Query(None),
+    region: str | None = Query(None, min_length=1, max_length=200),
+    emergency_only: bool = Query(False),
+    sort: str = Query("relevance", pattern="^(relevance|name)$"),
     closest_first: bool = Query(False),
     within_working_radius: bool = Query(False),
     latitude: float | None = Query(None, ge=-90, le=90),
@@ -148,6 +162,11 @@ def list_member_providers(
         longitude=longitude,
         closest_first=closest_first,
         within_working_radius=within_working_radius,
+        visit_stability=visit_stability,
+        specialization_id=specialization_id,
+        region=region,
+        emergency_only=emergency_only,
+        sort=sort,
     )
     return PaginatedResponse(
         data=[

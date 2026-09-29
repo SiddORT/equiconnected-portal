@@ -38,6 +38,11 @@ export function MemberProviderDetailPage() {
   };
 
   useEffect(() => { void load(); }, [id]);
+  useEffect(() => {
+    if (provider && location.hash === '#contact') {
+      document.getElementById('contact')?.scrollIntoView();
+    }
+  }, [provider, location.hash]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -61,7 +66,10 @@ export function MemberProviderDetailPage() {
 
   const fromCareNearYou = location.state?.fromCareNearYou === true;
   const back = fromCareNearYou ? '/providers' : `/providers${location.search}`;
-  const directoryState = fromCareNearYou ? undefined : { directoryCoordinates: location.state?.directoryCoordinates };
+  const directoryState = fromCareNearYou ? undefined : {
+    directoryCoordinates: location.state?.directoryCoordinates,
+    directoryLocationGranted: location.state?.directoryLocationGranted === true,
+  };
   const backLabel = 'Back to providers';
   if (loading) return <main className={styles.page}><div className={styles.loading} role="status"><LoadingSpinner /> <span>Loading provider…</span></div></main>;
   if (!provider) return <main className={styles.page}><Alert variant="error">{notice?.text ?? 'Provider not found.'}</Alert><Link state={directoryState} to={back} className={styles.profileLink}>{backLabel}</Link></main>;
@@ -90,7 +98,7 @@ export function MemberProviderDetailPage() {
         <article className={styles.detailCard}>
           <h2>About this provider</h2>
           <p>{provider.description || 'No description has been added yet.'}</p>
-          <dl className={styles.contactList}>
+          <dl id="contact" className={styles.contactList}>
             {provider.email && <><dt>Email</dt><dd><a href={`mailto:${provider.email}`}>{provider.email}</a></dd></>}
             {provider.phone && <><dt>Phone</dt><dd><a href={`tel:${provider.phone}`}>{provider.phone}</a></dd></>}
             {provider.website && <><dt>Website</dt><dd><a href={provider.website} target="_blank" rel="noreferrer">Visit website</a></dd></>}

@@ -23,6 +23,9 @@ class ReviewService:
     def list_discoverable(self, **kwargs):
         return self._repo.list_discoverable(**kwargs)
 
+    def directory_facets(self):
+        return self._repo.directory_facets()
+
     def get_discoverable(self, provider_id: UUID):
         provider = self._repo.get_discoverable(provider_id)
         if provider is None:

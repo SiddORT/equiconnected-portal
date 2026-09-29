@@ -55,6 +55,8 @@ class MemberProviderListItem(BaseModel):
     average_rating: float | None
     review_count: int
     distance_km: float | None = None
+    specializations: list[str] = Field(default_factory=list)
+    emergency_services_available: bool = False
 
 
 class MemberProviderDetail(MemberProviderListItem):

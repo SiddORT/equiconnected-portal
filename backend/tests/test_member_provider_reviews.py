@@ -84,6 +84,57 @@ def _provider(
 
 
 class TestMemberProviderDiscoveryAndReviews:
+    def test_directory_facets_filters_sort_and_pages_use_published_data(self, client, db):
+        member = _member(db, "directory-facets@example.com")
+        a = _provider(db, "Alpha Stable")
+        b = _provider(db, "Beta Stable")
+        hidden = _provider(db, "Hidden Stable", publication=PublicationStatus.UNPUBLISHED)
+        other = _provider(db, "Other Clinic")
+        other.visit_stability = VisitStability.NOT_STABLE_VISIT
+        a.emergency_services_available = True
+        b.emergency_services_available = True
+        hidden.emergency_services_available = True
+        spec = Specialization(name="Real Specialty", is_active=True)
+        hidden_spec = Specialization(name="Hidden Specialty", is_active=True)
+        db.add_all([spec, hidden_spec])
+        db.flush()
+        for provider in (a, b, hidden):
+            db.add(ProviderSpecialization(
+                provider_id=provider.id,
+                specialization_id=spec.id if provider != hidden else hidden_spec.id,
+            ))
+            location = db.query(ProviderLocation).filter_by(provider_id=provider.id).one()
+            location.state_province = "Texas"
+        db.commit()
+        headers = _headers(member)
+        assert client.get(f"{MEMBER_BASE}/filters").status_code == 401
+        facets = client.get(f"{MEMBER_BASE}/filters", headers=headers).json()
+        assert facets == {
+            "specializations": [{"id": str(spec.id), "name": "Real Specialty"}],
+            "regions": ["Texas"],
+        }
+        params = {
+            "visit_stability": "STABLE_VISIT",
+            "specialization_id": str(spec.id),
+            "region": "texas",
+            "emergency_only": "true",
+            "sort": "name",
+            "page_size": 1,
+        }
+        first = client.get(MEMBER_BASE, headers=headers, params=params)
+        assert first.status_code == 200
+        assert first.json()["meta"]["total"] == 2
+        assert first.json()["meta"]["total_pages"] == 2
+        assert first.json()["data"][0]["name"] == "Alpha Stable"
+        assert first.json()["data"][0]["specializations"] == ["Real Specialty"]
+        assert first.json()["data"][0]["emergency_services_available"] is True
+        second = client.get(MEMBER_BASE, headers=headers, params={**params, "page": 2})
+        assert second.json()["data"][0]["name"] == "Beta Stable"
+        no_match = client.get(MEMBER_BASE, headers=headers, params={**params, "provider_type": "DOCTOR"})
+        assert no_match.json()["meta"]["total"] == 0
+        assert no_match.json()["data"] == []
+        assert client.get(MEMBER_BASE, headers=headers, params={"sort": "invalid"}).status_code == 422
+
     def test_public_discovery_is_anonymous_bounded_and_coordinate_safe(self, client, db):
         reviewer = _member(db, "public-reviewer@example.com")
         visible = _provider(db, "Public Equine Doctor", provider_type=ProviderType.DOCTOR)

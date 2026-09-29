@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.enums import ProviderStatus, ProviderType, PublicationStatus, VisitStability
 from app.models.provider import Provider, ProviderLocation, ProviderReview, ProviderSpecialization
+from app.models.specialization import Specialization
 from app.models.user import User
 
 
@@ -74,6 +75,11 @@ class ReviewRepository:
         longitude: float | None,
         closest_first: bool = False,
         within_working_radius: bool = False,
+        visit_stability: VisitStability | None = None,
+        specialization_id: UUID | None = None,
+        region: str | None = None,
+        emergency_only: bool = False,
+        sort: str = "relevance",
     ) -> tuple[list[Any], int]:
         totals = self._rating_totals()
         conditions = [
@@ -84,6 +90,24 @@ class ReviewRepository:
             conditions.append(Provider.provider_type == provider_type)
         if minimum_rating is not None:
             conditions.append(totals.c.average_rating >= minimum_rating)
+        if visit_stability is not None:
+            conditions.append(Provider.visit_stability == visit_stability)
+        if emergency_only:
+            conditions.append(Provider.emergency_services_available.is_(True))
+        if specialization_id is not None:
+            conditions.append(
+                select(ProviderSpecialization.provider_id).where(
+                    ProviderSpecialization.provider_id == Provider.id,
+                    ProviderSpecialization.specialization_id == specialization_id,
+                ).exists()
+            )
+        if region is not None:
+            conditions.append(
+                select(ProviderLocation.id).where(
+                    ProviderLocation.provider_id == Provider.id,
+                    func.lower(ProviderLocation.state_province) == region.lower(),
+                ).exists()
+            )
 
         distance = None
         if latitude is not None and longitude is not None:
@@ -156,6 +180,8 @@ class ReviewRepository:
                 Provider.name,
                 Provider.id,
             )
+        elif sort == "name":
+            stmt = stmt.order_by(Provider.name, Provider.id)
         else:
             stmt = stmt.order_by(
                 totals.c.average_rating.desc().nulls_last(), Provider.name, Provider.id
@@ -164,6 +190,29 @@ class ReviewRepository:
             stmt.offset((page - 1) * page_size).limit(page_size)
         ).unique().all()
         return rows, total
+
+    def directory_facets(self) -> dict:
+        visible = (
+            Provider.status == ProviderStatus.ACTIVE,
+            Provider.publication_status == PublicationStatus.PUBLISHED,
+        )
+        specs = self._db.execute(
+            select(Specialization.id, Specialization.name)
+            .join(ProviderSpecialization, ProviderSpecialization.specialization_id == Specialization.id)
+            .join(Provider, Provider.id == ProviderSpecialization.provider_id)
+            .where(*visible)
+            .distinct().order_by(Specialization.name)
+        ).all()
+        regions = self._db.scalars(
+            select(ProviderLocation.state_province)
+            .join(Provider, Provider.id == ProviderLocation.provider_id)
+            .where(*visible, ProviderLocation.state_province.is_not(None))
+            .distinct().order_by(ProviderLocation.state_province)
+        ).all()
+        return {
+            "specializations": [{"id": str(id), "name": name} for id, name in specs],
+            "regions": [name for name in regions if name],
+        }
 
     def list_public_discoverable(
         self,
@@ -249,6 +298,9 @@ class ReviewRepository:
                 selectinload(Provider.photos),
                 selectinload(Provider.phones),
                 selectinload(Provider.emails),
+                selectinload(Provider.provider_specializations).selectinload(
+                    ProviderSpecialization.specialization
+                ),
             )
         )
 

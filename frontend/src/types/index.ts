@@ -957,6 +957,8 @@ export interface MemberProviderListItem {
   average_rating: number | null;
   review_count: number;
   distance_km: number | null;
+  specializations?: string[];
+  emergency_services_available?: boolean;
 }
 
 export interface MemberProviderDetail extends MemberProviderListItem {
@@ -987,6 +989,11 @@ export interface PublicProviderDiscovery {
 export interface MemberProviderListParams {
   provider_type?: ProviderType;
   minimum_rating?: number;
+  visit_stability?: VisitStability;
+  specialization_id?: string;
+  region?: string;
+  emergency_only?: boolean;
+  sort?: 'relevance' | 'name';
   closest_first?: boolean;
   latitude?: number;
   longitude?: number;

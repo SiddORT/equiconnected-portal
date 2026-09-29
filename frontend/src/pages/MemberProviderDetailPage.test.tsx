@@ -63,7 +63,7 @@ describe('MemberProviderDetailPage', () => {
       <MemoryRouter initialEntries={[{
         pathname: '/providers/provider-1',
         search: '?type=CLINIC',
-        state: { directoryCoordinates: { latitude: 30, longitude: -97 } },
+        state: { directoryCoordinates: { latitude: 30, longitude: -97 }, directoryLocationGranted: true },
       }]}>
         <Routes>
           <Route path="/providers/:id" element={<MemberProviderDetailPage />} />
@@ -74,7 +74,7 @@ describe('MemberProviderDetailPage', () => {
     const back = await screen.findByRole('link', { name: '← Back to providers' });
     expect(back.getAttribute('href')).toBe('/providers?type=CLINIC');
     await user.click(back);
-    expect(screen.getByText('?type=CLINIC / {"directoryCoordinates":{"latitude":30,"longitude":-97}}')).toBeTruthy();
+    expect(screen.getByText('?type=CLINIC / {"directoryCoordinates":{"latitude":30,"longitude":-97},"directoryLocationGranted":true}')).toBeTruthy();
   });
   it('shows a hidden-comment explanation and submits an updated member review', async () => {
     vi.mocked(providersApi.getMemberProvider).mockResolvedValue(detail);
