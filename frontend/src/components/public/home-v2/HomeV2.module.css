@@ -663,7 +663,7 @@
 
 .finalCta { position: relative; min-height: 710px; display: flex; align-items: center; overflow: hidden; background: #282922; color: var(--paper); text-align: left; }
 .finalCta > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 53%; }
-.finalCta::after { position: absolute; inset: 0; background: linear-gradient(90deg,rgba(18,19,16,.76),rgba(18,19,16,.34) 70%),linear-gradient(0deg,rgba(18,19,16,.3),transparent); content: ''; }
+.finalCta::after { position: absolute; inset: -1px; background: linear-gradient(90deg,rgba(18,19,16,.76),rgba(18,19,16,.34) 70%),linear-gradient(0deg,rgba(18,19,16,.36),rgba(18,19,16,.08)); content: ''; }
 .finalInner { position: relative; z-index: 1; width: min(100% - 64px,1390px); margin: 0 auto; padding: 110px 0; }
 .finalCredit { position: absolute; z-index: 2; right: 15px; bottom: 13px; color: rgba(247,243,234,.72) !important; font-size: 8px; }
 .finalCta h2 { max-width: 990px; margin: 19px 0 0; font: 400 clamp(65px,7vw,112px)/.94 var(--serif); letter-spacing: -.025em; }
