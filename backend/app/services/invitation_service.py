@@ -21,6 +21,7 @@ from app.models.user import User
 from app.core.security import hash_password
 from app.repositories.user_repository import UserRepository
 from app.models.provider import (
+    DirectProviderPortalAccess,
     ProviderEmail,
     ProviderLocation,
     ProviderPhone,
@@ -209,11 +210,13 @@ class InvitationService:
                     "An active invitation already exists for this provider type and email."
                 )
         if provider_id:
-            provider = self._providers.get_by_id(provider_id)
+            provider = self._providers.lock_provider(provider_id)
             if not provider:
                 raise ProviderNotFoundError(str(provider_id))
             if provider.provider_type != fields["provider_type"]:
                 raise ProviderTypeMismatchError("Provider type does not match the selected provider.")
+            if self._repo._db.get(DirectProviderPortalAccess, provider_id):
+                raise InvalidInvitationStateError("This provider already has direct portal access.")
         else:
             doctor_names = fields["provider_type"] == ProviderType.DOCTOR and (
                 fields.get("first_name") is not None or fields.get("last_name") is not None
@@ -382,6 +385,8 @@ class InvitationService:
             raise PortalAccessUnavailableError(
                 "Portal access can only be sent for a completed invitation."
             )
+        if self._repo._db.get(DirectProviderPortalAccess, invitation.provider_id):
+            raise PortalAccessUnavailableError("This provider already has direct portal access.")
 
         users = UserRepository(self._repo._db)
         existing = users.get_by_email(invitation.recipient_email)

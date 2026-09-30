@@ -1,3 +1,33 @@
+.portalAccessChoice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.portalAccessChoice h3 {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+}
+
+.portalAccessChoice p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.portalAccessCheckbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
 .form {
   display: grid;
   grid-template-columns: 1fr 1fr;

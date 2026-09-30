@@ -22,7 +22,10 @@ export function ProviderNewPage() {
       />
       <div className={styles.body}>
         <ProviderForm
-          onSuccess={(provider) => navigate(`/admin/providers/${provider.id}`)}
+          onSuccess={(provider, portalAccessIssue, portalAccessSentTo) => navigate(
+            `/admin/providers/${provider.id}`,
+            { state: { portalAccessIssue, portalAccessSentTo } }
+          )}
           onCancel={() => navigate('/admin/providers')}
         />
       </div>

@@ -40,6 +40,48 @@
   font-size: var(--text-sm);
 }
 
+.portalAccessPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.portalAccessMessage {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.portalAccessActions {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.portalAccessActions > :first-child {
+  flex: 1;
+  min-width: min(100%, 260px);
+}
+
+.portalSuccess {
+  margin: 0;
+  color: var(--color-success, #15803d);
+  font-size: var(--text-sm);
+}
+
+.portalDismiss {
+  display: block;
+  margin-top: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .sectionTitle {
   font-size: var(--text-base);
   font-weight: var(--font-semibold);

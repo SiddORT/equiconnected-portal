@@ -27,7 +27,7 @@ def public_account_access_issue(user: User) -> PublicAccountAccessIssue | None:
         )
     # Administrator-invited providers are linked directly to a completed
     # invitation rather than to the self-service application workflow.
-    if user.provider_portal_invitation is not None:
+    if user.provider_portal_invitation is not None or user.direct_provider_portal_access is not None:
         return None
     application = user.provider_registration_application
     if application is None:

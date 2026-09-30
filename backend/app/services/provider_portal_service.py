@@ -15,6 +15,7 @@ from app.models.enums import (
     ProviderProfileUpdateStatus,
 )
 from app.models.invitation import ProviderInvitation
+from app.models.provider import DirectProviderPortalAccess
 from app.models.provider_registration import ProviderRegistrationApplication
 from app.models.user import User
 from app.repositories.audit_repository import AuditContext, AuditRepository
@@ -99,6 +100,11 @@ class ProviderPortalService:
                 ProviderRegistrationApplication.provider_id.is_not(None),
             )
             .all()
+        )
+        provider_ids.update(
+            provider_id
+            for (provider_id,) in self._db.query(DirectProviderPortalAccess.provider_id)
+            .filter(DirectProviderPortalAccess.user_id == user.id).all()
         )
         if len(provider_ids) != 1:
             raise ProviderPortalUnavailableError()

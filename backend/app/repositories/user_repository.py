@@ -22,6 +22,7 @@ class UserRepository:
                 selectinload(User.role_assignments).joinedload(UserRole.role),
                 joinedload(User.provider_registration_application),
                 joinedload(User.provider_portal_invitation),
+                joinedload(User.direct_provider_portal_access),
             )
             .where(User.id == user_id)
         )
@@ -35,6 +36,7 @@ class UserRepository:
                 selectinload(User.role_assignments).joinedload(UserRole.role),
                 joinedload(User.provider_registration_application),
                 joinedload(User.provider_portal_invitation),
+                joinedload(User.direct_provider_portal_access),
             )
             .where(User.email == email.lower().strip())
         )

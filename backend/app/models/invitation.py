@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, String
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -72,18 +72,22 @@ class ProviderInvitation(TimestampMixin, Base):
 
 
 class ProviderPortalSetupToken(TimestampMixin, Base):
-    """Hashed, expiring, one-time initial-password token for an invited provider."""
+    """Hashed, expiring, one-time initial-password token for an owned provider."""
 
     __tablename__ = "provider_portal_setup_tokens"
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    invitation_id: Mapped[uuid.UUID] = mapped_column(
+    invitation_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("provider_invitations.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
+    )
+    direct_provider_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("direct_provider_portal_access.provider_id", ondelete="CASCADE"),
+        nullable=True, index=True,
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -98,7 +102,7 @@ class ProviderPortalSetupToken(TimestampMixin, Base):
         DateTime(timezone=True), nullable=True
     )
 
-    invitation: Mapped[ProviderInvitation] = relationship(
+    invitation: Mapped[ProviderInvitation | None] = relationship(
         "ProviderInvitation", back_populates="portal_setup_tokens"
     )
     user: Mapped["User"] = relationship(  # noqa: F821
@@ -107,4 +111,9 @@ class ProviderPortalSetupToken(TimestampMixin, Base):
 
     __table_args__ = (
         Index("ix_provider_portal_setup_tokens_invitation_active", "invitation_id", "used_at"),
+        # Exactly one ownership route must be present.
+        CheckConstraint(
+            "(invitation_id IS NOT NULL) <> (direct_provider_id IS NOT NULL)",
+            name="ck_provider_setup_token_owner",
+        ),
     )

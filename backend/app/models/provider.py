@@ -107,6 +107,9 @@ class Provider(TimestampMixin, Base):
     provider_registration_application: Mapped["ProviderRegistrationApplication | None"] = relationship(  # noqa: F821
         "ProviderRegistrationApplication", back_populates="provider", uselist=False
     )
+    direct_portal_access: Mapped["DirectProviderPortalAccess | None"] = relationship(
+        "DirectProviderPortalAccess", back_populates="provider", uselist=False, cascade="all, delete-orphan"
+    )
     profile_update: Mapped["ProviderProfileUpdate | None"] = relationship(  # noqa: F821
         "ProviderProfileUpdate",
         back_populates="provider",
@@ -148,6 +151,21 @@ class Provider(TimestampMixin, Base):
 
     def __repr__(self) -> str:
         return f"<Provider id={self.id} type={self.provider_type} name={self.name!r}>"
+
+
+class DirectProviderPortalAccess(TimestampMixin, Base):
+    """Explicit ownership reserved for an administrator-created listing."""
+
+    __tablename__ = "direct_provider_portal_access"
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("providers.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, unique=True
+    )
+    recipient_email: Mapped[str] = mapped_column(String(254), nullable=False)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    provider: Mapped["Provider"] = relationship(back_populates="direct_portal_access")
 
 
 class DoctorVisit(TimestampMixin, Base):

@@ -164,7 +164,7 @@ class EmailService:
             headline="Your provider portal<br>is ready.",
             body_html=(
                 "An EquiConnected administrator has enabled access to the provider "
-                "profile you submitted. Choose a password to begin maintaining your "
+                "profile. Choose a password to begin maintaining your "
                 "profile and viewing member feedback."
             ),
             action_label="Set your password",
@@ -280,7 +280,7 @@ class EmailService:
         expiry = expires_at.strftime("%B %d, %Y at %H:%M UTC")
         plain = (
             "Your EquiConnected provider portal is ready.\n\n"
-            "An administrator has enabled access to the provider profile you submitted. "
+            "An administrator has enabled access to your provider profile. "
             "Set your password to maintain the profile and view member feedback.\n\n"
             f"Set your password securely before {expiry}:\n{setup_url}\n\n"
             "This link can only be used once. If you were not expecting this email, "

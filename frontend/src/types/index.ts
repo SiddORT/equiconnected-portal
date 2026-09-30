@@ -442,6 +442,24 @@ export type ProviderType = 'HOSPITAL' | 'CLINIC' | 'DOCTOR';
 export type VisitStability = 'STABLE_VISIT' | 'NOT_STABLE_VISIT';
 export type ProviderStatus = 'ACTIVE' | 'INACTIVE';
 export type PublicationStatus = 'UNPUBLISHED' | 'PUBLISHED';
+export type ProviderPortalAccessStatus =
+  | 'eligible'
+  | 'pending'
+  | 'active'
+  | 'invitation'
+  | 'registration'
+  | 'unavailable';
+
+export interface ProviderPortalAccess {
+  status: ProviderPortalAccessStatus;
+  recipient_email: string | null;
+  email_id: string | null;
+  invitation_id: string | null;
+  sent_at: string | null;
+  message: string | null;
+  selectable_emails: Array<{ email_id: string | null; email: string }>;
+  can_revoke: boolean;
+}
 
 export interface ProviderListItem {
   id: string;

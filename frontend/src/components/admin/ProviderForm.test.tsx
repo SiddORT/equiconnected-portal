@@ -6,7 +6,8 @@ import { ProviderForm, type InvitationFormConfig } from './ProviderForm';
 import type { InvitationDraftProvider, Provider } from '@/types';
 import {
   addProviderEmail, addProviderPhone, addProviderSpecialization, createProvider,
-  getProvider, removeProviderEmail, removeProviderPhone, removeProviderSpecialization,
+  getProvider, getProviderPortalAccess, removeProviderEmail, removeProviderPhone, removeProviderSpecialization,
+  sendProviderPortalAccess,
   updateProvider, updateProviderLocation, updateProviderPublication, updateProviderStatus,
   uploadProviderPhoto,
 } from '@/api/providers';
@@ -21,9 +22,11 @@ vi.mock('@/api/providers', () => ({
   createProvider: vi.fn(),
   createProviderLocation: vi.fn(),
   getProvider: vi.fn(),
+  getProviderPortalAccess: vi.fn(),
   removeProviderEmail: vi.fn(),
   removeProviderPhone: vi.fn(),
   removeProviderSpecialization: vi.fn(),
+  sendProviderPortalAccess: vi.fn(),
   updateProvider: vi.fn(),
   updateProviderLocation: vi.fn(),
   updateProviderPublication: vi.fn(),
@@ -714,7 +717,8 @@ describe('ProviderForm visit stability', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
     await user.click(screen.getByRole('button', { name: 'Create provider' }));
 
-    await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(saved));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(onSuccess.mock.calls[0][0]).toBe(saved);
     expect(createProvider).toHaveBeenCalledTimes(1);
     expect(createProvider).toHaveBeenCalledWith(expect.objectContaining({
       name: 'North Star',
@@ -727,6 +731,92 @@ describe('ProviderForm visit stability', () => {
     }));
     expect(vi.mocked(createProvider).mock.calls[0][0]).not.toHaveProperty('clinic_hospital_visit');
     expect(vi.mocked(createProvider).mock.calls[0][0]).not.toHaveProperty('emergency_contact_name');
+  });
+
+  it('sends portal access to the selected address when opted in at review', async () => {
+    const saved = { id: 'provider-portal', photos: [] } as unknown as Provider;
+    const onSuccess = vi.fn();
+    vi.mocked(createProvider).mockResolvedValue(saved);
+    vi.mocked(getProviderPortalAccess).mockResolvedValue({
+      status: 'eligible', recipient_email: null, email_id: null, invitation_id: null,
+      sent_at: null, message: null,
+      can_revoke: false,
+      selectable_emails: [{ email_id: 'email-clinic', email: 'clinic@example.com' }],
+    });
+    vi.mocked(sendProviderPortalAccess).mockResolvedValue({
+      status: 'pending', recipient_email: 'clinic@example.com', email_id: 'email-clinic',
+      invitation_id: 'invitation-1', sent_at: '2025-01-01T00:00:00Z', message: 'Email sent',
+      can_revoke: true,
+      selectable_emails: [{ email_id: 'email-clinic', email: 'clinic@example.com' }],
+    });
+
+    render(<ProviderForm onSuccess={onSuccess} />);
+    const user = await beginAdminWizard();
+    await finishClinicWizard(user);
+
+    const optIn = screen.getByRole('checkbox', { name: 'Send portal access email after creating this provider' });
+    expect((optIn as HTMLInputElement).checked).toBe(false);
+    await user.click(optIn);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Portal access recipient' }), 'clinic@example.com');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Create provider' }));
+
+    await waitFor(() => expect(sendProviderPortalAccess).toHaveBeenCalledWith('provider-portal', 'email-clinic'));
+    expect(getProviderPortalAccess).toHaveBeenCalledWith('provider-portal');
+    expect(onSuccess.mock.calls[0][0]).toBe(saved);
+    expect(onSuccess.mock.calls[0][2]).toBe('clinic@example.com');
+    expect(createProvider).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(createProvider).mock.calls[0][0]).not.toHaveProperty('send_portal_access');
+  });
+
+  it('keeps the saved provider and reports the chosen recipient when access email delivery fails', async () => {
+    const saved = { id: 'provider-mail-error', photos: [] } as unknown as Provider;
+    const onSuccess = vi.fn();
+    vi.mocked(createProvider).mockResolvedValue(saved);
+    vi.mocked(getProviderPortalAccess).mockResolvedValue({
+      status: 'eligible', recipient_email: null, email_id: null, invitation_id: null,
+      sent_at: null, message: null,
+      can_revoke: false,
+      selectable_emails: [{ email_id: 'email-clinic', email: 'clinic@example.com' }],
+    });
+    vi.mocked(sendProviderPortalAccess).mockRejectedValue(new Error('Mail service unavailable'));
+
+    render(<ProviderForm onSuccess={onSuccess} />);
+    const user = await beginAdminWizard();
+    await finishClinicWizard(user);
+    await user.click(screen.getByRole('checkbox', { name: 'Send portal access email after creating this provider' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Portal access recipient' }), 'clinic@example.com');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Create provider' }));
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(onSuccess.mock.calls[0][0]).toBe(saved);
+    expect(onSuccess.mock.calls[0][1]).toEqual(expect.objectContaining({
+      recipient_email: 'clinic@example.com',
+      email_id: 'email-clinic',
+      message: expect.any(String),
+    }));
+    expect(sendProviderPortalAccess).toHaveBeenCalledWith('provider-mail-error', 'email-clinic');
+    expect(createProvider).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/Failed to save provider/)).toBeNull();
+  });
+
+  it('does not request or send portal access when the review opt-in is left off', async () => {
+    const saved = { id: 'provider-opt-out', photos: [] } as unknown as Provider;
+    const onSuccess = vi.fn();
+    vi.mocked(createProvider).mockResolvedValue(saved);
+
+    render(<ProviderForm onSuccess={onSuccess} />);
+    const user = await beginAdminWizard();
+    await finishClinicWizard(user);
+    expect((screen.getByRole('checkbox', { name: 'Send portal access email after creating this provider' }) as HTMLInputElement).checked).toBe(false);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Create provider' }));
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(onSuccess.mock.calls[0][0]).toBe(saved);
+    expect(getProviderPortalAccess).not.toHaveBeenCalled();
+    expect(sendProviderPortalAccess).not.toHaveBeenCalled();
   });
 
   it('ignores implicit submits and rapid repeat clicks across the review transition', async () => {

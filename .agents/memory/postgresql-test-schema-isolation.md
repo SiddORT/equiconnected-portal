@@ -14,3 +14,14 @@ the default development schema.
 **How to apply:** Any new test engine that selects a dedicated schema must make
 the selection durable for the connection before test setup, inserts, or cleanup
 run. Verify with a public-data preservation check after changing the fixture.
+
+Do not run separate backend pytest commands concurrently against the same test
+database. The suite recreates one shared test schema at session start and drops
+it at session end; another process can erase tables while a test is running.
+
+**Why:** Simultaneous focused test runs produced unrelated missing-table errors
+and failed schema creation, obscuring the actual implementation failures.
+
+**How to apply:** Combine backend test targets into one pytest invocation, or
+run separate invocations sequentially. Parallelize only unrelated checks such
+as the frontend build.

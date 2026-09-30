@@ -51,6 +51,7 @@ _CLEANUP_TABLES = [
     "provider_favorites",
     "provider_profile_updates",
     "provider_portal_setup_tokens",
+    "direct_provider_portal_access",
     "provider_registration_applications",
     "refresh_tokens",
     "email_verification_tokens",

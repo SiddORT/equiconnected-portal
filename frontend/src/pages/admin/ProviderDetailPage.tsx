@@ -3,7 +3,7 @@
  * Compact layout: Overview+Info (full) | Specializations+Locations (split) | Photos (full)
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
 import {
@@ -12,8 +12,11 @@ import {
   deleteProviderLocation,
   deleteProviderPhoto,
   getProvider,
+  getProviderPortalAccess,
   removeProviderSpecialization,
+  revokeProviderPortalAccess,
   setProviderThumbnail,
+  sendProviderPortalAccess,
   updateProviderLocation,
   createProviderVisit,
   updateProviderVisit,
@@ -36,7 +39,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { LocationPicker } from '@/components/ui/LocationPicker';
 import { Select } from '@/components/ui/Select';
 import { PageHeader } from '@/components/layout/PageHeader';
-import type { DoctorVisitCreate, LoadingState, Provider, Specialization } from '@/types';
+import type { DoctorVisitCreate, LoadingState, Provider, ProviderPortalAccess, Specialization } from '@/types';
 import styles from './ProviderDetailPage.module.css';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -102,12 +105,29 @@ export function ProviderDetailPage() {
   const { formatTimestamp } = useTimeSettings();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const initialPortalIssue = (location.state as {
+    portalAccessIssue?: { recipient_email: string; email_id: string | null; message: string };
+  } | null)?.portalAccessIssue;
 
   const [provider, setProvider] = useState<Provider | null>(null);
   const [loadState, setLoadState] = useState<LoadingState>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [portalAccess, setPortalAccess] = useState<ProviderPortalAccess | null>(null);
+  const [portalAccessLoading, setPortalAccessLoading] = useState(true);
+  const [portalAccessLoadError, setPortalAccessLoadError] = useState<string | null>(null);
+  const [portalAccessActionError, setPortalAccessActionError] = useState<string | null>(null);
+  const [portalAccessSuccess, setPortalAccessSuccess] = useState<string | null>(
+    (location.state as { portalAccessSentTo?: string } | null)?.portalAccessSentTo
+      ? `Portal access email sent to ${(location.state as { portalAccessSentTo: string }).portalAccessSentTo}.`
+      : null
+  );
+  const [portalAccessSending, setPortalAccessSending] = useState(false);
+  const [portalAccessRevoking, setPortalAccessRevoking] = useState(false);
+  const [selectedPortalEmailKey, setSelectedPortalEmailKey] = useState('');
+  const [creationPortalIssue, setCreationPortalIssue] = useState(initialPortalIssue ?? null);
 
   // Add-specialization select
   const [allSpecs, setAllSpecs] = useState<Specialization[]>([]);
@@ -162,12 +182,19 @@ export function ProviderDetailPage() {
   const [confirmProps, setConfirmProps] = useState<{
     title: string;
     message?: string;
+    confirmLabel: string;
     danger?: boolean;
     onConfirm: () => void;
-  }>({ title: '', onConfirm: () => {} });
+  }>({ title: '', confirmLabel: 'Remove', onConfirm: () => {} });
 
-  function openConfirm(title: string, message: string, onConfirm: () => void, danger = true) {
-    setConfirmProps({ title, message, danger, onConfirm });
+  function openConfirm(
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    danger = true,
+    confirmLabel = 'Remove'
+  ) {
+    setConfirmProps({ title, message, danger, confirmLabel, onConfirm });
     setConfirmOpen(true);
   }
 
@@ -191,6 +218,73 @@ export function ProviderDetailPage() {
   }, [id]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const loadPortalAccess = useCallback(async () => {
+    if (!id) return;
+    setPortalAccessLoading(true);
+    setPortalAccessLoadError(null);
+    try {
+      const result = await getProviderPortalAccess(id);
+      setPortalAccess(result);
+      const preferred = result.email_id != null
+        ? result.email_id
+        : result.selectable_emails.find((email) =>
+            email.email.toLowerCase() === result.recipient_email?.toLowerCase()
+          )?.email_id ?? result.selectable_emails[0]?.email_id;
+      setSelectedPortalEmailKey(preferred == null
+        ? (result.selectable_emails.some((email) => email.email_id === null) ? '__legacy_provider_email__' : '')
+        : preferred);
+    } catch (err) {
+      setPortalAccessLoadError(extractErrorMessage(err, 'Failed to load provider portal access.'));
+    } finally {
+      setPortalAccessLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => { void loadPortalAccess(); }, [loadPortalAccess]);
+
+  async function handleSendPortalAccess() {
+    if (!id || !portalAccess || !['eligible', 'pending'].includes(portalAccess.status)) return;
+    const selected = portalAccess.selectable_emails.find((email) =>
+      (email.email_id ?? '__legacy_provider_email__') === selectedPortalEmailKey
+    );
+    if (!selected) {
+      setPortalAccessActionError('Choose a valid contact email before sending portal access.');
+      setPortalAccessSuccess(null);
+      return;
+    }
+    setPortalAccessSending(true);
+    setPortalAccessActionError(null);
+    setPortalAccessSuccess(null);
+    try {
+      const updated = await sendProviderPortalAccess(id, selected.email_id);
+      setPortalAccess(updated);
+      setPortalAccessSuccess(updated.message || `Portal access email sent to ${updated.recipient_email ?? selected.email}.`);
+      await loadPortalAccess();
+    } catch (err) {
+      setPortalAccessActionError(`${extractErrorMessage(err, 'Unable to send portal access email.')} Recipient: ${selected.email}.`);
+    } finally {
+      setPortalAccessSending(false);
+    }
+  }
+
+  async function handleRevokePortalAccess() {
+    if (!id || !portalAccess?.can_revoke) return;
+    setPortalAccessRevoking(true);
+    setPortalAccessActionError(null);
+    setPortalAccessSuccess(null);
+    try {
+      const result = await revokeProviderPortalAccess(id);
+      await loadPortalAccess();
+      setPortalAccessSuccess(result.message || 'Pending portal access was canceled. The unactivated account has been permanently removed.');
+    } catch (err) {
+      setPortalAccessActionError(
+        `${extractErrorMessage(err, 'Unable to cancel pending portal access.')} Check the provider status and try again; pending access may still be active.`
+      );
+    } finally {
+      setPortalAccessRevoking(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -441,6 +535,14 @@ export function ProviderDetailPage() {
       />
 
       <div className={styles.body}>
+        {creationPortalIssue && (
+          <div className={`${styles.actionError} ${styles.colFull}`} role="alert">
+            Provider created, but portal access could not be sent to {creationPortalIssue.recipient_email}: {creationPortalIssue.message}
+            <button type="button" className={styles.portalDismiss} onClick={() => setCreationPortalIssue(null)}>
+              Dismiss
+            </button>
+          </div>
+        )}
         {actionError && (
           <div className={`${styles.actionError} ${styles.colFull}`} role="alert">{actionError}</div>
         )}
@@ -494,6 +596,78 @@ export function ProviderDetailPage() {
               </div>
             </dl>
           </div>
+        </Card>
+
+        <Card padding="none" shadow="sm" className={styles.colFull}>
+          <CardHeader><h2 className={styles.sectionTitle}>Provider portal access</h2></CardHeader>
+          <CardBody>
+            {portalAccessLoadError && (
+              <div className={styles.actionError} role="alert">
+                {portalAccessLoadError}
+                <Button variant="outline" size="sm" onClick={() => void loadPortalAccess()}>Retry</Button>
+              </div>
+            )}
+            {portalAccessLoading ? (
+              <p role="status">Loading portal access status…</p>
+            ) : portalAccess && (
+              <div className={styles.portalAccessPanel}>
+                <dl className={styles.infoStrip}>
+                  <div><dt>Status</dt><dd>{portalAccess.status.charAt(0).toUpperCase() + portalAccess.status.slice(1)}</dd></div>
+                  <div><dt>Recipient</dt><dd>{portalAccess.recipient_email ?? '—'}</dd></div>
+                  {portalAccess.sent_at && <div><dt>Last setup link issued</dt><dd>{formatTimestamp(portalAccess.sent_at)}</dd></div>}
+                </dl>
+                {portalAccess.message && <p className={styles.portalAccessMessage}>{portalAccess.message}</p>}
+                {portalAccessSuccess && <p className={styles.portalSuccess} role="status">{portalAccessSuccess}</p>}
+                {portalAccessActionError && <p className={styles.actionError} role="alert">{portalAccessActionError}</p>}
+                {['eligible', 'pending'].includes(portalAccess.status) && (
+                  <div className={styles.portalAccessActions}>
+                    <Select
+                      label="Contact email for portal access"
+                      value={selectedPortalEmailKey}
+                      onChange={(event) => setSelectedPortalEmailKey(event.target.value)}
+                      options={portalAccess.selectable_emails.map((email) => ({
+                        value: email.email_id ?? '__legacy_provider_email__',
+                        label: email.email,
+                      }))}
+                      placeholder="Choose a contact email"
+                      disabled={portalAccessSending || portalAccessRevoking || portalAccess.selectable_emails.length === 0}
+                    />
+                    <Button
+                      variant="primary"
+                      disabled={portalAccessSending || portalAccessRevoking || !selectedPortalEmailKey || portalAccess.selectable_emails.length === 0}
+                      loading={portalAccessSending}
+                      onClick={() => void handleSendPortalAccess()}
+                    >
+                      {portalAccess.status === 'pending' ? 'Resend portal access email' : 'Send portal access email'}
+                    </Button>
+                  </div>
+                )}
+                {portalAccess.can_revoke && (
+                  <div className={styles.portalAccessActions}>
+                    <Button
+                      variant="danger"
+                      disabled={portalAccessSending || portalAccessRevoking}
+                      loading={portalAccessRevoking}
+                      onClick={() => openConfirm(
+                        'Cancel pending portal access?',
+                        'This invalidates the pending setup link and permanently removes the unactivated account. The recipient will no longer be able to use that link. You can then send a new invitation to the corrected contact email.',
+                        () => void handleRevokePortalAccess(),
+                        true,
+                        'Cancel access'
+                      )}
+                    >
+                      Cancel pending access
+                    </Button>
+                  </div>
+                )}
+                {portalAccess.status === 'invitation' && portalAccess.invitation_id && (
+                  <Link to={`/admin/invitations?search=${encodeURIComponent(portalAccess.recipient_email ?? '')}`}>
+                    Open invitation workflow
+                  </Link>
+                )}
+              </div>
+            )}
+          </CardBody>
         </Card>
 
         {/* ── Professional info — doctors only ─────────────────────────────── */}
@@ -1111,7 +1285,7 @@ export function ProviderDetailPage() {
         open={confirmOpen}
         title={confirmProps.title}
         message={confirmProps.message}
-        confirmLabel="Remove"
+        confirmLabel={confirmProps.confirmLabel}
         danger={confirmProps.danger}
         onConfirm={() => {
           setConfirmOpen(false);

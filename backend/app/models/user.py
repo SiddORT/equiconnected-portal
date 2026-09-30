@@ -100,6 +100,9 @@ class User(TimestampMixin, Base):
         back_populates="portal_user",
         uselist=False,
     )
+    direct_provider_portal_access: Mapped["DirectProviderPortalAccess | None"] = relationship(  # noqa: F821
+        "DirectProviderPortalAccess", uselist=False, foreign_keys="DirectProviderPortalAccess.user_id",
+    )
     provider_portal_setup_tokens: Mapped[list["ProviderPortalSetupToken"]] = relationship(  # noqa: F821
         "ProviderPortalSetupToken", back_populates="user", cascade="all, delete-orphan"
     )

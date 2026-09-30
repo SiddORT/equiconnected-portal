@@ -18,9 +18,11 @@ import {
   createProvider,
   createProviderLocation,
   getProvider,
+  getProviderPortalAccess,
   removeProviderEmail,
   removeProviderPhone,
   removeProviderSpecialization,
+  sendProviderPortalAccess,
   updateProvider,
   updateProviderLocation,
   updateProviderPublication,
@@ -144,7 +146,11 @@ export interface InvitationFormConfig {
 interface ProviderFormProps {
   initialData?: Provider;
   invitation?: InvitationFormConfig;
-  onSuccess?: (provider: Provider) => void;
+  onSuccess?: (provider: Provider, portalAccessIssue?: {
+    recipient_email: string;
+    email_id: string | null;
+    message: string;
+  }, portalAccessSentTo?: string) => void;
   onCancel?: () => void;
 }
 
@@ -328,6 +334,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const [apiError, setApiError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
+  const [sendPortalAccessOnCreate, setSendPortalAccessOnCreate] = useState(false);
+  const [portalAccessEmail, setPortalAccessEmail] = useState('');
 
   // Load active specializations for the multi-select (page through all).
   useEffect(() => {
@@ -651,6 +659,10 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       return;
     }
     if (!validate()) return;
+    if (!inv && !isEdit && sendPortalAccessOnCreate && !portalAccessEmail) {
+      setApiError('Choose a valid contact email for portal access, or turn off the send option.');
+      return;
+    }
 
     if (inv) {
       setSubmitting(true);
@@ -917,9 +929,36 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           return;
         }
       }
+      let portalAccessSentTo: string | undefined;
+      let portalAccessIssue: {
+        recipient_email: string;
+        email_id: string | null;
+        message: string;
+      } | undefined;
+      if (!isEdit && sendPortalAccessOnCreate && portalAccessEmail) {
+        let emailId: string | null = null;
+        try {
+          const access = await getProviderPortalAccess(saved.id);
+          const selected = access.selectable_emails.find(
+            (item) => item.email.trim().toLowerCase() === portalAccessEmail.trim().toLowerCase()
+          );
+          if (!selected) {
+            throw new Error(`The selected email ${portalAccessEmail} is no longer available for portal access.`);
+          }
+          emailId = selected.email_id;
+          await sendProviderPortalAccess(saved.id, emailId);
+          portalAccessSentTo = selected.email;
+        } catch (portalErr) {
+          portalAccessIssue = {
+            recipient_email: portalAccessEmail,
+            email_id: emailId,
+            message: extractErrorMessage(portalErr, 'Unable to send portal access email.'),
+          };
+        }
+      }
       setSavedProviderId(null);
       submissionCompleted.current = true;
-      onSuccess?.(saved);
+      onSuccess?.(saved, portalAccessIssue, portalAccessSentTo);
     } catch (err) {
       setApiError(extractErrorMessage(err, 'Failed to save provider. Please try again.'));
     } finally {
@@ -929,6 +968,12 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   }
 
   const errs = { ...fieldErrors, ...(inv?.externalErrors ?? {}) };
+  const validPortalEmails = emailEntries
+    .map((entry) => entry.email.trim())
+    .filter((email, index, emails) =>
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
+      emails.findIndex((candidate) => candidate.toLowerCase() === email.toLowerCase()) === index
+    );
 
   return (
     <form onSubmit={handleSubmit} noValidate className={styles.form}>
@@ -1439,10 +1484,11 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       </Card>}
 
       {wizard && wizardStep === 4 && (
-        <ProviderWizardReview
-          locked={Boolean(savedProviderId)}
-          onEdit={setWizardStep}
-          sections={[
+        <>
+          <ProviderWizardReview
+            locked={Boolean(savedProviderId)}
+            onEdit={setWizardStep}
+            sections={[
             { title: 'Basic details', step: 0, items: [
               { label: 'Provider type', value: PROVIDER_TYPE_OPTIONS.find((option) => option.value === providerType)?.label ?? '' },
               { label: 'Name', value: name.trim() },
@@ -1489,8 +1535,39 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               { label: 'Address', value: [location.address_line_1, location.city, location.state_province, location.country].filter(Boolean).join(', ') },
               { label: 'Pincode / postal code', value: location.postal_code },
             ] },
-          ]}
-        />
+            ]}
+          />
+          {!isEdit && (
+            <section className={`${styles.portalAccessChoice} ${styles.cardFull}`} aria-labelledby="portal-access-choice-title">
+              <h3 id="portal-access-choice-title">Provider portal access</h3>
+              <label className={styles.portalAccessCheckbox}>
+                <input
+                  type="checkbox"
+                  checked={sendPortalAccessOnCreate}
+                  disabled={submitting || Boolean(savedProviderId) || validPortalEmails.length === 0}
+                  onChange={(event) => {
+                    setSendPortalAccessOnCreate(event.target.checked);
+                    setApiError(null);
+                  }}
+                />
+                <span>Send portal access email after creating this provider</span>
+              </label>
+              {sendPortalAccessOnCreate && (
+                <Select
+                  label="Portal access recipient"
+                  value={portalAccessEmail}
+                  onChange={(event) => setPortalAccessEmail(event.target.value)}
+                  options={validPortalEmails.map((email) => ({ value: email, label: email }))}
+                  placeholder="Choose a contact email"
+                  disabled={submitting || Boolean(savedProviderId)}
+                />
+              )}
+              {validPortalEmails.length === 0 && (
+                <p>No valid contact email is available. Add one in Contact &amp; location to send portal access.</p>
+              )}
+            </section>
+          )}
+        </>
       )}
 
       <footer className={`${styles.footer} ${styles.cardFull}`}>

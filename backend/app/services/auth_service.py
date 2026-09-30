@@ -39,6 +39,8 @@ from app.models.user import EmailVerificationToken
 from app.models.user import User
 from app.models.email_delivery_log import EmailDeliveryLog
 from app.models.invitation import ProviderInvitation, ProviderPortalSetupToken
+from app.models.provider import DirectProviderPortalAccess, Provider
+from app.schemas.provider import _valid_email
 from app.models.enums import InvitationStatus
 from app.models.provider_registration import ProviderRegistrationApplication
 from app.models.specialization import Specialization
@@ -415,6 +417,15 @@ class AuthService:
     def set_provider_portal_password(self, raw_token: str, password: str) -> None:
         """Atomically consume a first-password token and activate its linked user."""
         token_hash = self._hash_verification_token(raw_token)
+        # Direct sends serialize on the provider row. Lock it before the token
+        # so resend and redemption cannot race or acquire locks in reverse order.
+        candidate = self._db.scalar(
+            select(ProviderPortalSetupToken).where(ProviderPortalSetupToken.token_hash == token_hash)
+        )
+        if candidate is not None and candidate.direct_provider_id is not None:
+            self._db.scalar(
+                select(Provider).where(Provider.id == candidate.direct_provider_id).with_for_update(of=Provider)
+            )
         token = (
             self._db.query(ProviderPortalSetupToken)
             .filter(ProviderPortalSetupToken.token_hash == token_hash)
@@ -431,26 +442,44 @@ class AuthService:
         if token.expires_at <= now:
             raise ProviderPortalSetupTokenExpiredError("Provider portal link has expired.")
 
-        invitation = (
-            self._db.query(ProviderInvitation)
-            .filter(ProviderInvitation.id == token.invitation_id)
-            .with_for_update()
-            .first()
-        )
-        if (
-            invitation is None
-            or invitation.status != InvitationStatus.COMPLETED
-            or invitation.portal_user_id != token.user_id
-        ):
-            raise ProviderPortalSetupTokenUsedError(
-                "This provider portal link is no longer available."
+        if token.direct_provider_id is not None:
+            access = self._db.get(DirectProviderPortalAccess, token.direct_provider_id)
+            if access is None or access.user_id != token.user_id:
+                raise ProviderPortalSetupTokenUsedError("This provider portal link is no longer available.")
+            recipient = access.recipient_email
+            provider = self._db.get(Provider, access.provider_id)
+            contacts = (
+                {row.email.strip().lower() for row in provider.emails if _valid_email(row.email)}
+                if provider else set()
             )
+            if provider and _valid_email(provider.email):
+                contacts.add(provider.email.strip().lower())
+            if recipient not in contacts:
+                raise ProviderPortalSetupTokenUsedError("This provider portal link is no longer available.")
+            resource_type, resource_id, provider_id = "provider", str(access.provider_id), access.provider_id
+        else:
+            invitation = (
+                self._db.query(ProviderInvitation)
+                .filter(ProviderInvitation.id == token.invitation_id)
+                .with_for_update()
+                .first()
+            )
+            if (
+                invitation is None
+                or invitation.status != InvitationStatus.COMPLETED
+                or invitation.portal_user_id != token.user_id
+            ):
+                raise ProviderPortalSetupTokenUsedError(
+                    "This provider portal link is no longer available."
+                )
+            recipient = invitation.recipient_email
+            resource_type, resource_id, provider_id = "provider_invitation", str(invitation.id), invitation.provider_id
         user = self._users.get_by_id(token.user_id)
-        if user is None or user.email != invitation.recipient_email:
+        if user is None or user.email != recipient:
             raise ProviderPortalSetupTokenUsedError(
                 "This provider portal link is no longer available."
             )
-        if not user.provider_portal_setup_pending:
+        if not user.provider_portal_setup_pending or user.is_active:
             raise ProviderPortalSetupTokenUsedError(
                 "This provider portal link is no longer available."
             )
@@ -464,10 +493,10 @@ class AuthService:
             action="provider_portal.password_setup",
             user_id=user.id,
             actor_type="provider_portal",
-            resource_type="provider_invitation",
-            resource_id=str(invitation.id),
+            resource_type=resource_type,
+            resource_id=resource_id,
             summary="Set an initial provider portal password.",
-            metadata={"provider_id": str(invitation.provider_id)},
+            metadata={"provider_id": str(provider_id)},
         )
         self._db.commit()
 

@@ -27,6 +27,7 @@ import uuid as _uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser, require_role
@@ -71,6 +72,7 @@ from app.services.provider_service import (
     SpecializationNotFoundError,
     VisitNotFoundError,
 )
+from app.services.direct_provider_access_service import DirectAccessError, DirectProviderAccessService
 
 router = APIRouter(
     prefix="/admin/providers",
@@ -190,6 +192,39 @@ def create_provider(body: ProviderCreate, request: Request, user: CurrentUser, s
 
 
 # ── Get detail ────────────────────────────────────────────────────────────────
+
+class PortalAccessSendRequest(BaseModel):
+    email_id: UUID | None = None
+
+
+@router.get("/{id}/portal-access")
+def get_direct_portal_access(id: UUID, db: _DB):
+    try:
+        return DirectProviderAccessService(db).status(id)
+    except DirectAccessError as exc:
+        raise _404(exc.code, str(exc))
+
+
+@router.post("/{id}/portal-access")
+def send_direct_portal_access(id: UUID, body: PortalAccessSendRequest, request: Request, user: CurrentUser, db: _DB):
+    try:
+        return DirectProviderAccessService(db).send(
+            id, body.email_id, context=context_from_request(request, user.id)
+        )
+    except DirectAccessError as exc:
+        code = 404 if exc.code == "provider_not_found" else 502 if exc.code == "portal_access_delivery_failed" else 409
+        raise HTTPException(status_code=code, detail={"code": exc.code, "message": str(exc)})
+
+
+@router.post("/{id}/portal-access/revoke")
+def revoke_direct_portal_access(id: UUID, request: Request, user: CurrentUser, db: _DB):
+    try:
+        return DirectProviderAccessService(db).revoke(
+            id, context=context_from_request(request, user.id)
+        )
+    except DirectAccessError as exc:
+        code = 404 if exc.code == "provider_not_found" else 409
+        raise HTTPException(status_code=code, detail={"code": exc.code, "message": str(exc)})
 
 @router.get("/{id}", response_model=ProviderResponse)
 def get_provider(id: UUID, request: Request, user: CurrentUser, svc: _Svc):

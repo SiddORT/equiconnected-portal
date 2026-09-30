@@ -98,6 +98,7 @@ def _approved_registration_provider(
             provider_type=provider.provider_type,
             provider_name=provider.name,
             visit_stability=provider.visit_stability,
+            postal_code="12345",
             review_status=ProviderApplicationStatus.APPROVED,
         )
     )

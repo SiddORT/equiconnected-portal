@@ -1,11 +1,14 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { TimeSettingsProvider } from '@/app/TimeSettingsContext';
 import { ProviderDetailPage } from './ProviderDetailPage';
-import { deleteProviderPhoto, getProvider, setProviderThumbnail, updateProviderVisit, uploadProviderPhoto } from '@/api/providers';
-import type { Provider } from '@/types';
+import {
+  deleteProviderPhoto, getProvider, getProviderPortalAccess, revokeProviderPortalAccess, sendProviderPortalAccess,
+  setProviderThumbnail, updateProviderVisit, uploadProviderPhoto,
+} from '@/api/providers';
+import type { Provider, ProviderPortalAccess } from '@/types';
 
 vi.mock('@/api/providers', () => ({
   addProviderSpecialization: vi.fn(),
@@ -14,8 +17,11 @@ vi.mock('@/api/providers', () => ({
   deleteProviderLocation: vi.fn(),
   deleteProviderPhoto: vi.fn(),
   getProvider: vi.fn(),
+  getProviderPortalAccess: vi.fn(),
+  revokeProviderPortalAccess: vi.fn(),
   removeProviderSpecialization: vi.fn(),
   setProviderThumbnail: vi.fn(),
+  sendProviderPortalAccess: vi.fn(),
   updateProviderLocation: vi.fn(),
   updateProviderPublication: vi.fn(),
   updateProviderStatus: vi.fn(),
@@ -59,7 +65,105 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+beforeEach(() => {
+  vi.mocked(getProviderPortalAccess).mockResolvedValue({
+    status: 'eligible', recipient_email: null, email_id: null, invitation_id: null,
+    sent_at: null, message: null,
+    can_revoke: false,
+    selectable_emails: [
+      { email_id: 'email-1', email: 'main@example.com' },
+      { email_id: 'email-2', email: 'second@example.com' },
+    ],
+  });
+});
+
 describe('ProviderDetailPage doctor visits', () => {
+  it('lets admins select a contact and send access for an older eligible listing', async () => {
+    vi.mocked(getProvider).mockResolvedValue(doctor());
+    vi.mocked(sendProviderPortalAccess).mockResolvedValue({
+      status: 'pending', recipient_email: 'second@example.com', email_id: 'email-2',
+      invitation_id: null, sent_at: '2025-01-01T00:00:00Z', message: null,
+      can_revoke: true,
+      selectable_emails: [
+        { email_id: 'email-1', email: 'main@example.com' },
+        { email_id: 'email-2', email: 'second@example.com' },
+      ],
+    });
+    const user = userEvent.setup();
+    renderDetail();
+    const emailSelect = await screen.findByRole('combobox', { name: 'Contact email for portal access' });
+    await user.selectOptions(emailSelect, 'email-2');
+    await user.click(screen.getByRole('button', { name: 'Send portal access email' }));
+    await waitFor(() => expect(sendProviderPortalAccess).toHaveBeenCalledWith('provider-1', 'email-2'));
+    expect(await screen.findByText('Portal access email sent to second@example.com.')).toBeTruthy();
+  });
+
+  it('cancels pending access before resending to the corrected contact email', async () => {
+    const contacts = [
+      { email_id: 'email-1', email: 'old@example.com' },
+      { email_id: 'email-2', email: 'corrected@example.com' },
+    ];
+    vi.mocked(getProvider).mockResolvedValue(doctor());
+    vi.mocked(getProviderPortalAccess)
+      .mockResolvedValueOnce({
+        status: 'pending', recipient_email: 'old@example.com', email_id: 'email-1',
+        invitation_id: null, sent_at: '2025-01-01T00:00:00Z', message: null,
+        selectable_emails: contacts, can_revoke: true,
+      })
+      .mockResolvedValueOnce({
+        status: 'eligible', recipient_email: null, email_id: null,
+        invitation_id: null, sent_at: null, message: null,
+        selectable_emails: contacts, can_revoke: false,
+      })
+      .mockResolvedValueOnce({
+        status: 'pending', recipient_email: 'corrected@example.com', email_id: 'email-2',
+        invitation_id: null, sent_at: '2025-01-02T00:00:00Z', message: null,
+        selectable_emails: contacts, can_revoke: true,
+      });
+    vi.mocked(revokeProviderPortalAccess).mockResolvedValue({
+      status: 'eligible', recipient_email: null, email_id: null,
+      invitation_id: null, sent_at: null, message: 'Pending access canceled.',
+      selectable_emails: contacts, can_revoke: false,
+    });
+    vi.mocked(sendProviderPortalAccess).mockResolvedValue({
+      status: 'pending', recipient_email: 'corrected@example.com', email_id: 'email-2',
+      invitation_id: null, sent_at: '2025-01-02T00:00:00Z', message: null,
+      selectable_emails: contacts, can_revoke: true,
+    });
+
+    const user = userEvent.setup();
+    renderDetail();
+    await screen.findByRole('button', { name: 'Cancel pending access' });
+    expect(screen.getByText('Recipient').nextElementSibling?.textContent).toBe('old@example.com');
+    await user.click(await screen.findByRole('button', { name: 'Cancel pending access' }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText(/invalidates the pending setup link and permanently removes the unactivated account/i)).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel access' }));
+    await waitFor(() => expect(revokeProviderPortalAccess).toHaveBeenCalledWith('provider-1'));
+    expect(await screen.findByText('Pending access canceled.')).toBeTruthy();
+
+    const emailSelect = screen.getByRole('combobox', { name: 'Contact email for portal access' });
+    await user.selectOptions(emailSelect, 'email-2');
+    await user.click(screen.getByRole('button', { name: 'Send portal access email' }));
+    await waitFor(() => expect(sendProviderPortalAccess).toHaveBeenCalledWith('provider-1', 'email-2'));
+    expect(await screen.findByText('Portal access email sent to corrected@example.com.')).toBeTruthy();
+    expect(getProviderPortalAccess).toHaveBeenCalledTimes(3);
+  });
+
+  it('directs completed invitees to their invitation instead of a direct send', async () => {
+    vi.mocked(getProvider).mockResolvedValue(doctor());
+    vi.mocked(getProviderPortalAccess).mockResolvedValue({
+      status: 'invitation', recipient_email: 'main@example.com', email_id: null,
+      invitation_id: 'inv-1', sent_at: null, message: 'Use Send portal access in the completed invitation.',
+      can_revoke: false,
+      selectable_emails: [],
+    } satisfies ProviderPortalAccess);
+    renderDetail();
+    expect(await screen.findByRole('link', { name: 'Open invitation workflow' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /portal access email/i })).toBeNull();
+  });
+
   it('uploads the first gallery photo and displays the saved profile-photo badge', async () => {
     let current = doctor();
     vi.mocked(getProvider).mockImplementation(async () => current);
@@ -71,6 +175,7 @@ describe('ProviderDetailPage doctor visits', () => {
       return uploaded;
     });
     const user = userEvent.setup();
+
     const view = renderDetail();
     await user.click(await screen.findByRole('button', { name: /Add photos/ }));
     const fileInput = view.container.querySelector('input[type="file"]') as HTMLInputElement;
@@ -101,6 +206,7 @@ describe('ProviderDetailPage doctor visits', () => {
         thumbnail_url: remaining[0]?.storage_reference ?? null });
     });
     const user = userEvent.setup();
+
     renderDetail();
     expect(await screen.findByText('Profile photo')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Set as profile photo' }));

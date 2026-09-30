@@ -106,6 +106,7 @@ def create_invitation(body: InvitationCreate, request: Request, user: CurrentUse
     ))
     except DuplicateInvitationError as exc: raise _error(409, "duplicate_invitation", str(exc))
     except RecipientEmailInUseError as exc: raise _error(409, "recipient_email_in_use", str(exc))
+    except InvalidInvitationStateError as exc: raise _error(409, "invalid_invitation_state", str(exc))
     except (ProviderNotFoundError,): raise _error(404, "provider_not_found", "Provider was not found.")
     except ProviderTypeMismatchError as exc: raise _error(422, "provider_type_mismatch", str(exc))
     except EmailDeliveryError as exc: raise _error(502, "email_delivery_failed", str(exc))

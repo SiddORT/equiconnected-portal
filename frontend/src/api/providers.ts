@@ -34,6 +34,7 @@ import type {
   QualificationUpdate,
   DoctorVisitCreate,
   Provider as ProviderTypeResponse,
+  ProviderPortalAccess,
 } from '@/types';
 
 export async function getProviderPortalProfile(): Promise<ProviderPortalProfile> {
@@ -126,6 +127,29 @@ export async function listProviders(
 
 export async function getProvider(id: string): Promise<Provider> {
   const { data } = await apiClient.get<Provider>(`/admin/providers/${id}`);
+  return data;
+}
+
+export async function getProviderPortalAccess(id: string): Promise<ProviderPortalAccess> {
+  const { data } = await apiClient.get<ProviderPortalAccess>(`/admin/providers/${id}/portal-access`);
+  return data;
+}
+
+export async function sendProviderPortalAccess(
+  id: string,
+  email_id: string | null
+): Promise<ProviderPortalAccess> {
+  const { data } = await apiClient.post<ProviderPortalAccess>(
+    `/admin/providers/${id}/portal-access`,
+    { email_id }
+  );
+  return data;
+}
+
+export async function revokeProviderPortalAccess(id: string): Promise<ProviderPortalAccess> {
+  const { data } = await apiClient.post<ProviderPortalAccess>(
+    `/admin/providers/${id}/portal-access/revoke`
+  );
   return data;
 }
 

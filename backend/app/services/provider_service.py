@@ -25,6 +25,7 @@ from app.models.provider import (
 )
 from app.repositories.provider_repository import ProviderRepository
 from app.repositories.audit_repository import AuditContext, AuditRepository
+from app.services.direct_provider_access_service import invalidate_if_recipient_removed
 
 
 # ── Domain exceptions ─────────────────────────────────────────────────────────
@@ -260,6 +261,8 @@ class ProviderService:
         if "name" in update_fields and update_fields["name"] is not None:
             update_fields["name"] = update_fields["name"].strip()
         self._repo.update(provider, update_fields)
+        if "email" in update_fields:
+            invalidate_if_recipient_removed(self._repo._db, provider)
         # Apply doctor profile only when the provider is (now) a doctor.
         if doctor_profile and provider.provider_type == ProviderType.DOCTOR:
             has_values = any(v is not None for v in doctor_profile.values())
@@ -472,11 +475,14 @@ class ProviderService:
 
     def remove_provider_email(self, provider_id: UUID, email_id: UUID,
                               audit_context: AuditContext | None = None) -> None:
-        provider = self.get(provider_id)
+        provider = self._repo.lock_provider(provider_id)
+        if provider is None:
+            raise ProviderNotFoundError(str(provider_id))
         email = self._repo.get_email(provider_id, email_id)
         if email is None:
             raise EmailNotFoundError(str(email_id))
         self._repo.delete_email(email)
+        invalidate_if_recipient_removed(self._repo._db, provider, excluded_email_id=email_id)
         self._record("provider.email_removed", provider, "Removed a provider email address.", context=audit_context)
         self._repo.commit()
 
