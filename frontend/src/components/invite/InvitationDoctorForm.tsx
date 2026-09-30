@@ -1,9 +1,6 @@
 /**
  * InvitationDoctorForm — thin adapter that runs the shared DoctorForm in
- * invitation mode and adds the Organization Association section.
- *
- * Selected organizations are associated (as PENDING relationships) when the
- * invitation is submitted.
+ * invitation mode and delegates draft / submit to token endpoints.
  */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -14,8 +11,7 @@ import {
   submitInvitation,
 } from '@/api/invitations';
 import { DoctorForm } from '@/components/admin/DoctorForm';
-import { OrganizationAssociation } from './OrganizationAssociation';
-import type { InvitationDraftPayload, InvitationTokenData, OrgSearchResult } from '@/types';
+import type { InvitationDraftPayload, InvitationTokenData } from '@/types';
 import styles from './InvitationForms.module.css';
 
 interface InvitationDoctorFormProps {
@@ -27,7 +23,6 @@ export function InvitationDoctorForm({ token, data }: InvitationDoctorFormProps)
   const navigate = useNavigate();
   const [draftSaved, setDraftSaved] = useState(false);
   const [externalErrors, setExternalErrors] = useState<Record<string, string>>({});
-  const [selectedOrgs, setSelectedOrgs] = useState<OrgSearchResult[]>([]);
 
   async function handleSaveDraft(payload: InvitationDraftPayload) {
     setDraftSaved(false);
@@ -41,12 +36,7 @@ export function InvitationDoctorForm({ token, data }: InvitationDoctorFormProps)
     setDraftSaved(false);
     setExternalErrors({});
     try {
-      // Organizations are reconciled server-side in the same transaction as
-      // the submit, so a failed submit leaves no stray relationships behind.
-      await submitInvitation(token, {
-        ...payload,
-        organization_ids: selectedOrgs.map((org) => org.id),
-      });
+      await submitInvitation(token, payload);
     } catch (err) {
       setExternalErrors(extractSubmitFieldErrors(err));
       throw err;
@@ -71,9 +61,7 @@ export function InvitationDoctorForm({ token, data }: InvitationDoctorFormProps)
           onSubmit: handleSubmit,
           externalErrors,
         }}
-      >
-        <OrganizationAssociation token={token} selected={selectedOrgs} onChange={setSelectedOrgs} />
-      </DoctorForm>
+      />
     </div>
   );
 }

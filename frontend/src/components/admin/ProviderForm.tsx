@@ -58,6 +58,11 @@ import type {
 import styles from './ProviderForm.module.css';
 import wizardStyles from './ProviderWizard.module.css';
 import { invitationEmailEntries } from './invitationEmailEntries';
+import {
+  InvitationAddresses, InvitationServiceFields, invitationAddressesFromDraft,
+  invitationLocationsPayload, invitationServicePayload, invitationServiceValuesFromDraft,
+  validateInvitationServices,
+} from '@/components/invite/InvitationProfileFields';
 
 const PROVIDER_TYPE_OPTIONS = [
   { value: 'HOSPITAL', label: 'Hospital' },
@@ -248,6 +253,13 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const [maximumRadius, setMaximumRadius] = useState(initialData?.maximum_working_radius_km != null ? String(initialData.maximum_working_radius_km) : '');
   const [emergencyServices, setEmergencyServices] = useState(initialData?.emergency_services_available ?? false);
   const [emergencyNumber, setEmergencyNumber] = useState(initialData?.emergency_contact_number ?? '');
+  const [invitationServices, setInvitationServices] = useState(() =>
+    invitationServiceValuesFromDraft(inv?.initial ?? {
+      visit_stability: 'NOT_STABLE_VISIT', maximum_working_radius_km: null,
+      emergency_services_available: false, emergency_contact_number: null,
+    } as InvitationDraftProvider));
+  const [invitationAddresses, setInvitationAddresses] = useState(() =>
+    invitationAddressesFromDraft(inv?.initial.locations ?? []));
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(initialData?.thumbnail_url ?? null);
   const [savedProviderId, setSavedProviderId] = useState<string | null>(null);
@@ -445,7 +457,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     const errors: Record<string, string> = {};
     if (!providerType) errors.provider_type = 'Provider type is required.';
     if (!name.trim()) errors.name = 'Name is required.';
-    if (!visitStability) errors.visit_stability = 'Visit Stable is required.';
+    if (!(inv ? invitationServices.visit_stability : visitStability)) errors.visit_stability = 'Visit Stable is required.';
     if (wizard && !isEdit && providerType === 'DOCTOR' && !doctorAvailability)
       errors.doctor_availability = 'Choose ongoing or visiting availability.';
     if (wizard && providerType === 'DOCTOR' && !firstName.trim() &&
@@ -487,6 +499,15 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     if (!inv && emergencyServices && !emergencyNumber.trim() &&
       !(isEdit && initialData?.emergency_services_available && !initialData.emergency_contact_number))
       errors.emergency_contact_number = 'Emergency contact number is required.';
+    if (inv) {
+      Object.assign(errors, validateInvitationServices(invitationServices));
+      invitationAddresses.forEach((address, i) => {
+        const filled = Object.entries(address).some(([key, value]) => key !== 'key' && Boolean(value.trim()));
+        if (filled && !address.name.trim()) errors[`address_${i}_name`] = 'Location name is required.';
+        if (filled && !address.address_line_1.trim()) errors[`address_${i}_address_line_1`] = 'Address line 1 is required.';
+        if (filled && !address.city.trim()) errors[`address_${i}_city`] = 'City is required.';
+      });
+    }
     if (!inv && providerType === 'DOCTOR') {
       qualifications.forEach((q, i) => {
         if (!q.title.trim()) errors[`qualification_${i}`] = 'Qualification title is required.';
@@ -554,6 +575,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       description: description.trim() || null,
       website: website.trim() || null,
       specialization_ids: selectedSpecIds,
+      ...invitationServicePayload(invitationServices),
       phones: phoneEntries
         .filter((p) => p.number.trim())
         .map((p) => ({
@@ -566,23 +588,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         .map((e) => ({ email: e.email.trim(), is_primary: e.is_primary })),
     };
     if (name.trim()) payload.name = name.trim();
-    if (visitStability) payload.visit_stability = visitStability as VisitStability;
-    if (location.address_line_1.trim() && location.city.trim()) {
-      payload.locations = [
-        {
-          name: location.name.trim() || null,
-          address_line_1: location.address_line_1.trim(),
-          address_line_2: location.address_line_2.trim() || null,
-          city: location.city.trim(),
-          state_province: location.state_province.trim() || null,
-          country: location.country.trim() || null,
-          postal_code: location.postal_code.trim() || null,
-          latitude: location.latitude.trim() ? parseFloat(location.latitude) : null,
-          longitude: location.longitude.trim() ? parseFloat(location.longitude) : null,
-          is_primary: true,
-        },
-      ];
-    }
+    const locations = invitationLocationsPayload(invitationAddresses);
+    if (locations || invitationAddresses.length === 0) payload.locations = locations ?? [];
     return payload;
   }
 
@@ -1141,6 +1148,11 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               onChange={(e) => setSpecFilter(e.target.value)}
             />
           )}
+          {inv && specializations.length > 0 && (
+            <button type="button" onClick={() => setSelectedSpecIds((ids) =>
+              [...new Set([...ids, ...specializations.map((spec) => spec.id)])]
+            )}>Select all specializations</button>
+          )}
           {(() => {
             if (!specFilter) return null;
             const hiddenSelected = selectedSpecIds.filter(
@@ -1190,7 +1202,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       </Card>}
 
       {/* ── Classification ────────────────────────────────────────────────── */}
-      {(!wizard || wizardStep === 2) && <Card padding="lg" shadow="sm" className={wizard ? styles.cardFull : undefined}>
+      {wizard && wizardStep === 2 && <Card padding="lg" shadow="sm" className={styles.cardFull}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>{inv ? 'Classification' : 'Services, status & publication'}</h3>
           <div className={wizard ? styles.serviceLayout : styles.grid}>
@@ -1260,6 +1272,11 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           </div>
         </section>
       </Card>}
+      {inv && <Card padding="lg" shadow="sm" className={styles.cardFull}>
+        <InvitationServiceFields value={invitationServices} onChange={setInvitationServices}
+          errors={{ maximum_working_radius_km: errs.maximum_working_radius_km, emergency_contact_number: errs.emergency_contact_number }}
+          disabled={submitting} />
+      </Card>}
 
       {!inv && providerType === 'DOCTOR' && wizard && wizardStep === 2 && (
         <Card padding="lg" shadow="sm" className={styles.cardFull}>
@@ -1302,7 +1319,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       )}
 
       {/* ── Primary location — shown in both Add and Edit ─────────────────── */}
-      {(!wizard || wizardStep === 3) && <Card padding="lg" shadow="sm" className={`${wizard ? styles.cardFull : ''} ${styles.dropdownCard}`}>
+      {wizard && wizardStep === 3 && <Card padding="lg" shadow="sm" className={`${styles.cardFull} ${styles.dropdownCard}`}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>
             Provider location {isEdit && <span className={styles.optionalTag}>— existing records may be incomplete</span>}
@@ -1386,6 +1403,10 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             />
           </div>
         </section>
+      </Card>}
+      {inv && <Card padding="lg" shadow="sm" className={styles.cardFull}>
+        <InvitationAddresses value={invitationAddresses} onChange={setInvitationAddresses}
+          errors={errs} disabled={submitting} />
       </Card>}
 
       {wizard && wizardStep === 4 && (

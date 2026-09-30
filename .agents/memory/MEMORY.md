@@ -17,6 +17,7 @@
 - [PostgreSQL locking with eager relationships](postgres-locking-eager-relationships.md) — lock only the root row when optional eager joins are present.
 - [Provider invitation account boundary](provider-invitation-account-boundary.md) — existing EquiConnected accounts are never auto-linked to provider invitations.
 - [Invitation contact email suggestion](invitation-contact-email-suggestion.md) — invite delivery address starts as an editable contact suggestion; an intentionally empty saved list must stay empty.
+- [Invitation service compatibility](invitation-service-compatibility.md) — conditional service completeness applies to new-form submissions, not historical API clients.
 - [PostgreSQL test-schema isolation](postgresql-test-schema-isolation.md) — commit session search-path changes before pooled test connections can be reset.
 - [Homepage carousel selection](homepage-carousel-selection.md) — keep explicit card selection separate from passive rail browsing unless scroll state can be derived reliably.
 - [Single-panel scroll stories](scroll-step-highlighting.md) — derive one visible sticky panel from outer-track progress and preserve explicit click targets during smooth scrolling.

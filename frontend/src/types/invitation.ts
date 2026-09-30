@@ -46,6 +46,9 @@ export interface InvitationDraftProvider {
   phone: string | null;
   website: string | null;
   visit_stability: VisitStability;
+  maximum_working_radius_km?: number | null;
+  emergency_services_available?: boolean;
+  emergency_contact_number?: string | null;
   status: string;
   specialization_ids: string[];
   locations: DraftLocation[];
@@ -72,6 +75,9 @@ export interface InvitationDraftPayload {
   description?: string | null;
   website?: string | null;
   visit_stability?: VisitStability;
+  maximum_working_radius_km?: number | null;
+  emergency_services_available?: boolean;
+  emergency_contact_number?: string | null;
   specialization_ids?: string[];
   locations?: DraftLocation[];
   phones?: DraftPhone[];

@@ -32,6 +32,17 @@ import { Select } from '@/components/ui/Select';
 import { MultiEmailField, type EmailEntry } from './MultiEmailField';
 import { invitationEmailEntries } from './invitationEmailEntries';
 import { MultiPhoneField, type PhoneEntry } from './MultiPhoneField';
+import {
+  InvitationAddresses,
+  InvitationServiceFields,
+  invitationAddressesFromDraft,
+  invitationLocationsPayload,
+  invitationServicePayload,
+  invitationServiceValuesFromDraft,
+  validateInvitationServices,
+  type InvitationAddress,
+  type InvitationServiceValues,
+} from '@/components/invite/InvitationProfileFields';
 import type {
   DoctorCreate,
   DoctorResponse,
@@ -49,10 +60,6 @@ import styles from './DoctorForm.module.css';
 const VISIT_STABILITY_OPTIONS = [
   { value: 'STABLE_VISIT', label: 'Stable' },
   { value: 'NOT_STABLE_VISIT', label: 'Not stable' },
-];
-const INVITATION_VISIT_STABILITY_OPTIONS = [
-  { value: 'STABLE_VISIT', label: 'Yes' },
-  { value: 'NOT_STABLE_VISIT', label: 'No' },
 ];
 const STATUS_OPTIONS = [
   { value: 'ACTIVE', label: 'Active' },
@@ -90,9 +97,6 @@ interface DoctorFormProps {
 export function DoctorForm({ initialData, invitation, onSuccess, onCancel, children }: DoctorFormProps) {
   const isEdit = Boolean(initialData);
   const inv = invitation;
-  const visitStabilityOptions = inv
-    ? INVITATION_VISIT_STABILITY_OPTIONS
-    : VISIT_STABILITY_OPTIONS;
 
   // ── Core fields ──────────────────────────────────────────────────────────────
   const [name, setName] = useState(inv?.initial.name ?? initialData?.name ?? '');
@@ -102,6 +106,19 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
   const [website, setWebsite] = useState(inv?.initial.website ?? initialData?.website ?? '');
   const [visitStability, setVisitStability] = useState(
     inv?.initial.visit_stability ?? initialData?.visit_stability ?? ''
+  );
+  const [invitationServices, setInvitationServices] = useState<InvitationServiceValues>(() =>
+    inv ? invitationServiceValuesFromDraft(inv.initial) : {
+      visit_stability: '',
+      maximum_working_radius_km: '',
+      emergency_services_available: false,
+      emergency_country_code: '+1',
+      emergency_iso_code: 'US',
+      emergency_local_number: '',
+    }
+  );
+  const [invitationAddresses, setInvitationAddresses] = useState<InvitationAddress[]>(() =>
+    inv ? invitationAddressesFromDraft(inv.initial.locations) : []
   );
   const [biography, setBiography] = useState(inv?.initial.biography ?? initialData?.biography ?? '');
   const [yearsExperience, setYearsExperience] = useState(() => {
@@ -196,7 +213,17 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
   function validate(): boolean {
     const errors: Record<string, string> = {};
     if (!name.trim()) errors.name = 'Name is required.';
-    if (!visitStability) errors.visit_stability = 'Visit Stable is required.';
+    if (!(inv ? invitationServices.visit_stability : visitStability)) errors.visit_stability = 'Visit Stable is required.';
+    if (inv) {
+      Object.assign(errors, validateInvitationServices(invitationServices));
+      invitationAddresses.forEach((address, index) => {
+        const hasAddress = Object.entries(address).some(([key, value]) => key !== 'key' && Boolean(value.trim()));
+        if (!hasAddress) return;
+        if (!address.name.trim()) errors[`address_${index}_name`] = 'Location name is required.';
+        if (!address.address_line_1.trim()) errors[`address_${index}_address_line_1`] = 'Address line 1 is required.';
+        if (!address.city.trim()) errors[`address_${index}_city`] = 'City is required.';
+      });
+    }
     const phErrors: Record<number, string> = {};
     phoneEntries.forEach((p, i) => {
       if (!p.number.trim()) phErrors[i] = 'Enter a number or remove this row.';
@@ -233,9 +260,11 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
       emails: emailEntries
         .filter((e) => e.email.trim())
         .map((e) => ({ email: e.email.trim(), is_primary: e.is_primary })),
+      ...invitationServicePayload(invitationServices),
     };
     if (name.trim()) payload.name = name.trim();
-    if (visitStability) payload.visit_stability = visitStability as VisitStability;
+    const locations = invitationLocationsPayload(invitationAddresses);
+    if (locations || invitationAddresses.length === 0) payload.locations = locations ?? [];
     return payload;
   }
 
@@ -504,38 +533,65 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
       </Card>
 
       {/* ── Classification ─────────────────────────────────────────────────── */}
-      <Card padding="lg" shadow="sm">
+      {!inv && <Card padding="lg" shadow="sm">
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>Classification</h3>
           <div className={styles.grid}>
             <Select
               label="Visit Stable"
-              options={visitStabilityOptions}
+              options={VISIT_STABILITY_OPTIONS}
               placeholder="Select…"
               value={visitStability}
               onChange={(e) => setVisitStability(e.target.value)}
-              error={fieldErrors.visit_stability ?? inv?.externalErrors?.visit_stability}
+              error={fieldErrors.visit_stability}
               required
             />
-            {!inv && (
-              <>
-                <Select
-                  label="Status"
-                  options={STATUS_OPTIONS}
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as ProviderStatus)}
-                />
-                <Select
-                  label="Publication status"
-                  options={PUBLICATION_OPTIONS}
-                  value={publication}
-                  onChange={(e) => setPublication(e.target.value as PublicationStatus)}
-                />
-              </>
-            )}
+            <Select
+              label="Status"
+              options={STATUS_OPTIONS}
+              value={status}
+              onChange={(e) => setStatus(e.target.value as ProviderStatus)}
+            />
+            <Select
+              label="Publication status"
+              options={PUBLICATION_OPTIONS}
+              value={publication}
+              onChange={(e) => setPublication(e.target.value as PublicationStatus)}
+            />
           </div>
         </section>
-      </Card>
+      </Card>}
+
+      {inv && (
+        <>
+          <Card padding="lg" shadow="sm">
+            <InvitationServiceFields
+              value={invitationServices}
+              onChange={(value) => {
+                setInvitationServices(value);
+                setVisitStability(value.visit_stability);
+                setFieldErrors({});
+              }}
+              errors={{
+                maximum_working_radius_km: fieldErrors.maximum_working_radius_km ?? inv.externalErrors?.maximum_working_radius_km,
+                emergency_contact_number: fieldErrors.emergency_contact_number ?? inv.externalErrors?.emergency_contact_number,
+              }}
+              disabled={submitting || savingDraft}
+            />
+          </Card>
+          <Card padding="lg" shadow="sm" className={styles.cardFull}>
+            <InvitationAddresses
+              value={invitationAddresses}
+              onChange={(value) => {
+                setInvitationAddresses(value);
+                setFieldErrors({});
+              }}
+              errors={fieldErrors}
+              disabled={submitting || savingDraft}
+            />
+          </Card>
+        </>
+      )}
 
       {/* ── Specializations ────────────────────────────────────────────────── */}
       <Card padding="lg" shadow="sm" className={styles.cardFull}>
@@ -558,6 +614,11 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
               value={specFilter}
               onChange={(e) => setSpecFilter(e.target.value)}
             />
+          )}
+          {inv && specializations.length > 0 && (
+            <button type="button" onClick={() => setSelectedSpecIds((ids) =>
+              [...new Set([...ids, ...specializations.map((spec) => spec.id)])]
+            )}>Select all specializations</button>
           )}
           {(() => {
             if (!specFilter) return null;

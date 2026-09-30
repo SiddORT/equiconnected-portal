@@ -516,6 +516,73 @@ class TestPublicSave:
         data = resp.json()
         assert "id" in data
 
+    def test_service_details_and_locations_round_trip_through_draft(
+        self, client, admin_token, captured_email, db
+    ):
+        invitation = _create_invitation(
+            client, admin_token, recipient_email="service-draft@example.com"
+        )
+        token = captured_email["token"]
+        fields = {
+            "maximum_working_radius_km": 25,
+            "emergency_services_available": True,
+            "emergency_contact_number": "+15551234567",
+            "locations": [
+                {
+                    "name": "Main clinic",
+                    "address_line_1": "10 Main Street",
+                    "city": "Toronto",
+                    "country": "Canada",
+                    "is_primary": True,
+                }
+            ],
+        }
+
+        saved = client.post(f"{PUBLIC_BASE}/{token}/save", json=fields)
+        assert saved.status_code == 200, saved.text
+        provider = saved.json()["provider"]
+        assert provider["maximum_working_radius_km"] == 25
+        assert provider["emergency_services_available"] is True
+        assert provider["emergency_contact_number"] == "+15551234567"
+        assert provider["locations"][0]["city"] == "Toronto"
+
+        reopened = client.get(f"{PUBLIC_BASE}/{token}")
+        assert reopened.status_code == 200
+        assert reopened.json()["provider"]["maximum_working_radius_km"] == 25
+        assert reopened.json()["provider"]["emergency_contact_number"] == "+15551234567"
+        assert reopened.json()["provider"]["locations"][0]["address_line_1"] == "10 Main Street"
+        db.expire_all()
+        provider_model = db.get(Provider, uuid.UUID(invitation["provider_id"]))
+        assert len(provider_model.locations) == 1
+        assert provider_model.locations[0].is_primary is True
+
+    def test_disabling_service_options_clears_dependent_draft_values(
+        self, client, admin_token, captured_email
+    ):
+        _create_invitation(client, admin_token, recipient_email="clear-service@example.com")
+        token = captured_email["token"]
+        enabled = client.post(
+            f"{PUBLIC_BASE}/{token}/save",
+            json={
+                "maximum_working_radius_km": 12,
+                "emergency_services_available": True,
+                "emergency_contact_number": "+15551234567",
+            },
+        )
+        assert enabled.status_code == 200, enabled.text
+
+        disabled = client.post(
+            f"{PUBLIC_BASE}/{token}/save",
+            json={
+                "visit_stability": "NOT_STABLE_VISIT",
+                "emergency_services_available": False,
+            },
+        )
+        assert disabled.status_code == 200, disabled.text
+        provider = disabled.json()["provider"]
+        assert provider["maximum_working_radius_km"] is None
+        assert provider["emergency_contact_number"] is None
+
     def test_save_with_invalid_token_returns_404(self, client: TestClient):
         resp = client.post(
             f"{PUBLIC_BASE}/nonexistent-token/save",
@@ -590,6 +657,94 @@ class TestPublicSubmit:
 
         resp = client.post(f"{PUBLIC_BASE}/{token}/submit", json={})
         assert resp.status_code == 422
+
+    def test_service_details_are_conditionally_validated_on_submit(
+        self, client, admin_token, captured_email
+    ):
+        _create_invitation(client, admin_token, recipient_email="service-submit@example.com")
+        token = captured_email["token"]
+
+        missing_radius = client.post(
+            f"{PUBLIC_BASE}/{token}/submit",
+            json={
+                "name": "Radius Clinic",
+                "visit_stability": "STABLE_VISIT",
+                "maximum_working_radius_km": None,
+            },
+        )
+        assert missing_radius.status_code == 422
+        assert "positive maximum working radius" in missing_radius.json()["detail"]["message"]
+
+        missing_emergency_number = client.post(
+            f"{PUBLIC_BASE}/{token}/submit",
+            json={
+                "name": "Emergency Clinic",
+                "visit_stability": "NOT_STABLE_VISIT",
+                "emergency_services_available": True,
+            },
+        )
+        assert missing_emergency_number.status_code == 422
+        assert "complete international emergency contact number" in missing_emergency_number.json()["detail"]["message"]
+
+    @pytest.mark.parametrize(
+        "number",
+        (
+            "1 555 123 4567",
+            "+1 2345",
+            "+12345678901234567890",
+        ),
+    )
+    def test_submit_rejects_incomplete_or_malformed_emergency_numbers(
+        self, client, admin_token, captured_email, number
+    ):
+        _create_invitation(client, admin_token, recipient_email=f"bad-phone-{uuid.uuid4()}@example.com")
+        token = captured_email["token"]
+        response = client.post(
+            f"{PUBLIC_BASE}/{token}/submit",
+            json={
+                "name": "Emergency Clinic",
+                "visit_stability": "NOT_STABLE_VISIT",
+                "emergency_services_available": True,
+                "emergency_contact_number": number,
+            },
+        )
+        assert response.status_code == 422
+        assert "complete international emergency contact number" in response.json()["detail"]["message"]
+
+    def test_submit_accepts_formatted_full_number_saved_in_draft(
+        self, client, admin_token, captured_email
+    ):
+        _create_invitation(client, admin_token, recipient_email="saved-phone@example.com")
+        token = captured_email["token"]
+        saved = client.post(
+            f"{PUBLIC_BASE}/{token}/save",
+            json={
+                "emergency_contact_number": "+1 (555) 123-4567",
+            },
+        )
+        assert saved.status_code == 200, saved.text
+
+        response = client.post(
+            f"{PUBLIC_BASE}/{token}/submit",
+            json={
+                "name": "Emergency Clinic",
+                "visit_stability": "NOT_STABLE_VISIT",
+                "emergency_services_available": True,
+            },
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["provider"]["emergency_contact_number"] == "+1 (555) 123-4567"
+
+    def test_legacy_submit_payload_without_service_fields_remains_valid(
+        self, client, admin_token, captured_email
+    ):
+        _create_invitation(client, admin_token, recipient_email="legacy-submit@example.com")
+        token = captured_email["token"]
+        response = client.post(
+            f"{PUBLIC_BASE}/{token}/submit",
+            json={"name": "Legacy Clinic", "visit_stability": "STABLE_VISIT"},
+        )
+        assert response.status_code == 200, response.text
 
     def test_submit_expired_returns_410(
         self,

@@ -5,6 +5,7 @@ The _emit_event seam intentionally centralizes future audit-log integration.
 from __future__ import annotations
 
 import hashlib
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -88,6 +89,28 @@ class PortalAccessUnavailableError(InvitationError):
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _is_complete_international_phone(value: str | None) -> bool:
+    """Accept an international dial code plus a 6–15 digit local number."""
+    if not value or not re.fullmatch(r"\+[0-9\s().-]+", value.strip()):
+        return False
+    number = value.strip()
+    if "(" in number or ")" in number:
+        if (
+            number.count("(") != 1
+            or number.count(")") != 1
+            or not re.search(r"\([0-9][0-9\s.-]*\)", number)
+        ):
+            return False
+        number = re.sub(r"\([0-9][0-9\s.-]*\)", "0", number, count=1)
+        if "(" in number or ")" in number:
+            return False
+    compact = re.sub(r"[\s().-]", "", number)
+    digits = compact[1:]
+    # The country-code picker includes dial codes of up to four digits.
+    # A 1–4 digit code plus a 6–15 digit local number totals 7–19 digits.
+    return bool(digits) and digits[0] != "0" and 7 <= len(digits) <= 19
 
 
 class InvitationService:
@@ -530,6 +553,14 @@ class InvitationService:
                 value = value.strip()
             setattr(provider, name, value)
 
+        stability = fields.get("visit_stability", provider.visit_stability)
+        stability = stability.value if isinstance(stability, Enum) else stability
+        if stability == "NOT_STABLE_VISIT":
+            provider.maximum_working_radius_km = None
+        if fields.get("emergency_services_available") is False:
+            provider.emergency_contact_name = None
+            provider.emergency_contact_number = None
+
         if specialization_ids is not None:
             provider.provider_specializations.clear()
             self._providers.flush()
@@ -619,6 +650,13 @@ class InvitationService:
                 "phone": provider.phone,
                 "website": provider.website,
                 "visit_stability": provider.visit_stability.value,
+                "maximum_working_radius_km": (
+                    float(provider.maximum_working_radius_km)
+                    if provider.maximum_working_radius_km is not None
+                    else None
+                ),
+                "emergency_services_available": provider.emergency_services_available,
+                "emergency_contact_number": provider.emergency_contact_number,
                 "status": provider.status.value,
                 "specialization_ids": [
                     str(link.specialization_id)
@@ -707,6 +745,37 @@ class InvitationService:
         provider = self._apply_provider_fields(invitation, fields)
         if not provider or not provider.name.strip() or not provider.visit_stability:
             raise InvalidInvitationStateError("Provider name and visit stability are required.")
+        # Legacy API clients predate these optional service fields. Apply the
+        # conditional requirements only when a client participates in the new
+        # service-details contract; otherwise existing submit payloads remain
+        # valid.
+        service_fields = {
+            "maximum_working_radius_km",
+            "emergency_services_available",
+            "emergency_contact_number",
+        }
+        if service_fields.intersection(fields):
+            stability = provider.visit_stability
+            stability = stability.value if isinstance(stability, Enum) else stability
+            if (
+                stability == "STABLE_VISIT"
+                and (
+                    provider.maximum_working_radius_km is None
+                    or float(provider.maximum_working_radius_km) <= 0
+                )
+            ):
+                raise InvalidProviderDataError(
+                    "Stable visits require a positive maximum working radius."
+                )
+            if (
+                provider.emergency_services_available is True
+                and not _is_complete_international_phone(
+                    provider.emergency_contact_number
+                )
+            ):
+                raise InvalidProviderDataError(
+                    "Enter a complete international emergency contact number with a dial code and 6–15 local digits."
+                )
         if organization_ids is not None:
             self._reconcile_organizations(invitation, organization_ids)
         provider.status, provider.publication_status = ProviderStatus.UNDER_REVIEW, PublicationStatus.UNPUBLISHED

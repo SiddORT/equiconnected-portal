@@ -118,7 +118,7 @@ function CurrentPath() {
   return <output aria-label="Current path">{useLocation().pathname}</output>;
 }
 
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => { cleanup(); vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
 async function beginAdminWizard(type = 'CLINIC') {
   const user = userEvent.setup();
@@ -179,16 +179,19 @@ describe('ProviderForm visit stability', () => {
       .toBe('invited@example.com');
   });
 
-  it('uses Yes and No labels in invitation mode while preserving enum values and saved selection', () => {
-    render(<ProviderForm invitation={invitationConfig()} />);
-
-    const select = screen.getByRole('combobox', { name: 'Visit Stable' }) as HTMLSelectElement;
-    expect(Array.from(select.options).map((option) => [option.text, option.value])).toEqual([
-      ['Select…', ''],
-      ['Yes', 'STABLE_VISIT'],
-      ['No', 'NOT_STABLE_VISIT'],
-    ]);
-    expect(select.value).toBe('STABLE_VISIT');
+  it('restores saved invitation service details and addresses', () => {
+    render(<ProviderForm invitation={invitationConfig({
+      maximum_working_radius_km: 24,
+      emergency_services_available: true,
+      emergency_contact_number: '+91 9988776655',
+      locations: [{ name: 'North barn', address_line_1: '12 Lane', city: 'Delhi', country: 'India', postal_code: '110001', is_primary: true }],
+    })} />);
+    expect((screen.getByRole('checkbox', { name: 'Offers stable visits' }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText('Maximum working radius (km)') as HTMLInputElement).value).toBe('24');
+    expect((screen.getByRole('checkbox', { name: 'Emergency services available' }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('textbox', { name: 'Emergency contact number' }) as HTMLInputElement).value).toBe('9988776655');
+    expect((screen.getByLabelText('Location name') as HTMLInputElement).value).toBe('North barn');
+    expect((screen.getByLabelText('Postal / ZIP code') as HTMLInputElement).value).toBe('110001');
   });
 
   it('restores a saved non-stable invitation selection as No', () => {
@@ -198,10 +201,8 @@ describe('ProviderForm visit stability', () => {
       />
     );
 
-    expect(
-      (screen.getByRole('combobox', { name: 'Visit Stable' }) as HTMLSelectElement).value
-    ).toBe('NOT_STABLE_VISIT');
-    expect(screen.getByRole('option', { name: 'No', selected: true })).toBeTruthy();
+    expect((screen.getByRole('checkbox', { name: 'Offers stable visits' }) as HTMLInputElement).checked).toBe(false);
+    expect(screen.queryByLabelText('Maximum working radius (km)')).toBeNull();
   });
 
   it('keeps enum values in draft-save and submit payloads', async () => {
@@ -214,18 +215,105 @@ describe('ProviderForm visit stability', () => {
       />
     );
 
-    const select = screen.getByRole('combobox', { name: 'Visit Stable' });
-    await user.selectOptions(select, 'NOT_STABLE_VISIT');
+    const stable = screen.getByRole('checkbox', { name: 'Offers stable visits' });
+    await user.click(stable);
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(onSaveDraft).toHaveBeenCalledWith(
-      expect.objectContaining({ visit_stability: 'NOT_STABLE_VISIT' })
+      expect.objectContaining({ visit_stability: 'NOT_STABLE_VISIT', maximum_working_radius_km: null })
     ));
 
-    await user.selectOptions(select, 'STABLE_VISIT');
+    await user.click(stable);
+    await user.type(screen.getByLabelText('Maximum working radius (km)'), '15');
     await user.click(screen.getByRole('button', { name: 'Submit for review' }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({ visit_stability: 'STABLE_VISIT' })
+      expect.objectContaining({ visit_stability: 'STABLE_VISIT', maximum_working_radius_km: 15 })
     ));
+  });
+
+  it('requires valid conditional services, and clears both dependent values when unchecked', async () => {
+    const submit = vi.fn().mockResolvedValue(undefined);
+    const draft = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<ProviderForm invitation={invitationConfig({}, draft, submit)} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Emergency services available' }));
+    await user.click(screen.getByRole('button', { name: 'Submit for review' }));
+    expect(submit).not.toHaveBeenCalled();
+    expect(screen.getByText('Enter a valid emergency number with 6–15 digits.')).toBeTruthy();
+    await user.type(screen.getByLabelText('Maximum working radius (km)'), '18');
+    await user.type(screen.getByRole('textbox', { name: 'Emergency contact number' }), '9988776655');
+    await user.click(screen.getByRole('checkbox', { name: 'Offers stable visits' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Emergency services available' }));
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(draft).toHaveBeenCalledWith(expect.objectContaining({
+      visit_stability: 'NOT_STABLE_VISIT', maximum_working_radius_km: null,
+      emergency_services_available: false, emergency_contact_number: null,
+    })));
+  });
+
+  it('selects every specialization while a filter is active and retains individually chosen items', async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<ProviderForm invitation={{ ...invitationConfig({}, save), loadSpecializations: vi.fn().mockResolvedValue(
+      Array.from({ length: 8 }, (_, i) => ({ id: `spec-${i}`, name: i === 0 ? 'Dental' : `Care ${i}` }))
+    ) }} />);
+    await screen.findByRole('button', { name: 'Dental' });
+    await user.type(screen.getByPlaceholderText('Filter specializations…'), 'Dental');
+    await user.click(screen.getByRole('button', { name: 'Select all specializations' }));
+    await user.click(screen.getByRole('button', { name: /Dental/ }));
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
+      specialization_ids: Array.from({ length: 7 }, (_, i) => `spec-${i + 1}`),
+    })));
+  });
+
+  it('lets an invitee explicitly select a postal match and edit its address lines', async () => {
+    vi.mocked(lookupProviderPostalCode).mockResolvedValue({
+      status: 'match', candidates: [
+        { postal_code: '110001', country: 'India', country_code: 'IN', state_province: 'Delhi', city: 'New Delhi', display_name: 'New Delhi, Delhi' },
+        { postal_code: '110001', country: 'India', country_code: 'IN', state_province: 'Delhi', city: 'Delhi Cantonment', display_name: 'Delhi Cantonment' },
+      ],
+    });
+    const save = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<ProviderForm invitation={invitationConfig({}, save)} />);
+    await user.click(screen.getByRole('button', { name: /Add address/ }));
+    await user.type(screen.getByLabelText('Postal / ZIP code'), '110001');
+    expect(await screen.findByRole('button', { name: 'Delhi Cantonment' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'New Delhi, Delhi' }));
+    expect((screen.getByLabelText('City') as HTMLInputElement).value).toBe('New Delhi');
+    expect((screen.getByLabelText('Address line 1') as HTMLInputElement).value).toBe('');
+    await user.type(screen.getByLabelText('Location name'), 'Main');
+    await user.type(screen.getByLabelText('Address line 1'), '42 Stable Road');
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
+      locations: [expect.objectContaining({ name: 'Main', address_line_1: '42 Stable Road', city: 'New Delhi', postal_code: '110001' })],
+    })));
+  });
+
+  it('saves a changed emergency country code and accepts manual addresses when lookup is unavailable', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    Element.prototype.scrollIntoView = vi.fn();
+    vi.mocked(lookupProviderPostalCode).mockResolvedValue({ status: 'unavailable', candidates: [] });
+    const save = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<ProviderForm invitation={invitationConfig({ visit_stability: 'NOT_STABLE_VISIT' }, save)} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Emergency services available' }));
+    await user.click(screen.getByRole('button', { name: /Country code:/ }));
+    await user.type(screen.getByRole('textbox', { name: 'Search countries' }), 'India');
+    await user.click(screen.getByRole('option', { name: /India/ }));
+    await user.type(screen.getByRole('textbox', { name: 'Emergency contact number' }), '9988776655');
+    await user.click(screen.getByRole('button', { name: /Add address/ }));
+    await user.type(screen.getByLabelText('Postal / ZIP code'), '110001');
+    expect(await screen.findByText('Postal lookup is unavailable. You can enter the address manually.')).toBeTruthy();
+    await user.type(screen.getByLabelText('Location name'), 'South branch');
+    await user.type(screen.getByLabelText('Address line 1'), '12 Road');
+    await user.type(screen.getByLabelText('City'), 'Delhi');
+    await user.type(screen.getByLabelText('Country'), 'India');
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
+      emergency_contact_number: '+91 9988776655',
+      locations: [expect.objectContaining({ name: 'South branch', city: 'Delhi', country: 'India' })],
+    })));
   });
 
   it('uses a checkbox instead of a select for stable visits in administrator mode', async () => {

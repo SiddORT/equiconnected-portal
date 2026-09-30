@@ -1,5 +1,6 @@
 """Request and response schemas for provider invitations."""
 from datetime import datetime
+from math import isfinite
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -65,6 +66,9 @@ class DraftSaveRequest(BaseModel):
     phone: str | None = Field(None, max_length=50)
     website: str | None = Field(None, max_length=500)
     visit_stability: VisitStability | None = None
+    maximum_working_radius_km: float | None = None
+    emergency_services_available: bool | None = None
+    emergency_contact_number: str | None = Field(None, max_length=50)
     specialization_ids: list[UUID] | None = None
     locations: list[LocationCreate] | None = None
     phones: list[PhoneCreate] | None = None
@@ -75,6 +79,13 @@ class DraftSaveRequest(BaseModel):
     years_experience: int | None = Field(None, ge=0, le=100)
     experience_description: str | None = Field(None, max_length=5000)
     qualifications: list[QualificationCreate] | None = None
+
+    @field_validator("maximum_working_radius_km")
+    @classmethod
+    def radius_must_be_finite(cls, value: float | None) -> float | None:
+        if value is not None and not isfinite(value):
+            raise ValueError("maximum working radius must be finite")
+        return value
 
 
 class SubmitRequest(DraftSaveRequest):
