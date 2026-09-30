@@ -10,6 +10,7 @@ import { recordPublicVisit, registerSubscriber } from '@/api/public';
 import { systemCalendarDate, useTimeSettings } from '@/app/TimeSettingsContext';
 import { HomeFooter } from '@/components/public/home-v2/HomeFooter';
 import { HomeHero } from '@/components/public/home-v2/HomeHero';
+import { AudienceDropdown } from '@/components/public/home-v2/AudienceDropdown';
 import { ContactSection } from '@/components/public/home-v2/ContactSection';
 import { FindCareTags } from '@/components/public/home-v2/FindCareTags';
 import { EditorialReviewSlider } from '@/components/public/home-v2/EditorialReviewSlider';
@@ -108,7 +109,7 @@ export function PublicPage() {
   useEffect(() => {
     if (!menuOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false);
+      if (event.key === 'Escape' && !document.querySelector('[data-audience-dropdown] [aria-expanded="true"]')) setMenuOpen(false);
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
@@ -186,11 +187,11 @@ export function PublicPage() {
                 </button>
               </>
             ) : (
-              <Link to="/login" onClick={closeMenu}>Sign in</Link>
+              <AudienceDropdown action="signin" placement="navigation" onSelect={closeMenu} resetOn={menuOpen} />
             )}
-            <Link className={styles.navJoin} to={member ? '/providers' : '/signup'} onClick={closeMenu}>
-              {member ? 'Directory' : 'Join EquiConnected'}
-            </Link>
+            {member
+              ? <Link className={styles.navJoin} to="/providers" onClick={closeMenu}>Directory</Link>
+              : <AudienceDropdown action="join" placement="navigation" onSelect={closeMenu} resetOn={menuOpen} />}
           </nav>
         </div>
       </header>

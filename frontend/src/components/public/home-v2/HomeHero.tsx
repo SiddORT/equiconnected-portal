@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { AudienceDropdown } from './AudienceDropdown';
 import styles from './HomeV2.module.css';
 
 function Arrow() {
@@ -23,9 +24,9 @@ export function HomeHero({ member }: { member: boolean }) {
           A clearer place to discover equine care providers and the details they choose to share.
         </p>
         <div className={styles.heroActions}>
-          <Link to={member ? '/providers' : '/signup'} className={styles.goldButton}>
-            {member ? 'Open directory' : 'Join EquiConnected'} <Arrow />
-          </Link>
+          {member
+            ? <Link to="/providers" className={styles.goldButton}>Open directory <Arrow /></Link>
+            : <AudienceDropdown action="join" placement="hero" />}
         </div>
         <p className={styles.memberNote}>Provider directory access is available to members.</p>
       </div>

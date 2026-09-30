@@ -62,7 +62,7 @@ describe('PublicPage', () => {
     expect(Array.from(inner.children).map((element) => element.tagName)).toEqual(['P', 'H1', 'P', 'DIV', 'P']);
     expect(inner.children[0].textContent).toContain('Equine healthcare, connected');
     expect(inner.children[2].textContent).toContain('A clearer place to discover');
-    expect(within(inner.children[3] as HTMLElement).getByRole('link', { name: 'Join EquiConnected' }).getAttribute('href')).toBe('/signup');
+    expect(within(inner.children[3] as HTMLElement).getByRole('button', { name: 'Join EquiConnected' }).getAttribute('aria-expanded')).toBe('false');
     expect(inner.children[4].textContent).toBe('Provider directory access is available to members.');
     expect(hero.querySelector('[class*="heroLight"]')?.getAttribute('aria-hidden')).toBe('true');
     expect(within(hero).getByRole('link', { name: /Hero photograph · Helena Lopes/ }).getAttribute('href')).toBe('https://unsplash.com/@helenalopesph');
@@ -113,10 +113,63 @@ describe('PublicPage', () => {
       expect(link.getAttribute('href')).toBe(href);
     }
     const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
-    expect(within(navigation).getByRole('link', { name: 'Sign in' }).getAttribute('href'))
-      .toBe('/login');
-    expect(within(navigation).getByRole('link', { name: 'Join EquiConnected' }).getAttribute('href'))
-      .toBe('/signup');
+    expect(within(navigation).getByRole('button', { name: 'Sign in' }).getAttribute('aria-expanded')).toBe('false');
+    expect(within(navigation).getByRole('button', { name: 'Join EquiConnected' }).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('offers the existing member and provider journeys from both nav actions and the hero', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const nav = within(screen.getByRole('navigation', { name: 'Primary navigation' }));
+    const hero = within(screen.getByRole('heading', { name: /Trusted equine care/i }).closest('section')!);
+    const choices: Array<[ReturnType<typeof within>, string, string, string]> = [
+      [nav, 'Sign in', '/login', '/provider/login'],
+      [nav, 'Join EquiConnected', '/signup', '/provider/signup'],
+      [hero, 'Join EquiConnected', '/signup', '/provider/signup'],
+    ];
+    for (const [area, action, memberHref, providerHref] of choices) {
+      const trigger = area.getByRole('button', { name: action });
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      await user.click(trigger);
+      expect(trigger.getAttribute('aria-expanded')).toBe('true');
+      expect(area.getByRole('link', { name: 'Members — horse owners & stable managers' }).getAttribute('href')).toBe(memberHref);
+      expect(area.getByRole('link', { name: 'Providers — vets, clinics & hospitals' }).getAttribute('href')).toBe(providerHref);
+      await user.click(trigger);
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      expect(area.queryByRole('link', { name: 'Members — horse owners & stable managers' })).toBeNull();
+    }
+  });
+
+  it('supports keyboard focus and Escape, outside interaction, and mobile selection closure', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const nav = within(screen.getByRole('navigation', { name: 'Primary navigation' }));
+    const menu = screen.getByRole('button', { name: 'Menu' });
+    await user.click(menu);
+    const signin = nav.getByRole('button', { name: 'Sign in' });
+    await user.click(signin);
+    await user.tab();
+    expect(document.activeElement).toBe(nav.getByRole('link', { name: 'Members — horse owners & stable managers' }));
+    await user.keyboard('{Escape}');
+    expect(signin.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(signin);
+    expect(menu.getAttribute('aria-expanded')).toBe('true');
+
+    await user.click(signin);
+    await user.click(screen.getByRole('heading', { name: /Trusted equine care/i }));
+    expect(signin.getAttribute('aria-expanded')).toBe('false');
+
+    const join = nav.getByRole('button', { name: 'Join EquiConnected' });
+    await user.click(join);
+    await user.click(nav.getByRole('link', { name: 'Providers — vets, clinics & hospitals' }));
+    expect(menu.getAttribute('aria-expanded')).toBe('false');
+    expect(join.getAttribute('aria-expanded')).toBe('false');
+    expect(join.closest('nav')?.className).not.toContain('navigationOpen');
+    await user.click(menu);
+    expect(join.getAttribute('aria-expanded')).toBe('false');
+    await user.click(join);
+    await user.click(menu);
+    expect(join.getAttribute('aria-expanded')).toBe('false');
   });
 
   it('greets a signed-in member and provides profile, sign-out, and directory actions', async () => {
@@ -144,6 +197,8 @@ describe('PublicPage', () => {
     expect(screen.getByText('Hi, Ada')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Profile' }).getAttribute('href')).toBe('/profile');
     expect(screen.getByRole('link', { name: 'Directory' }).getAttribute('href')).toBe('/providers');
+    expect(screen.queryByRole('button', { name: 'Join EquiConnected' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull();
     const hero = screen.getByRole('heading', { name: /Trusted equine care/i }).closest('section');
     expect(within(hero as HTMLElement).getByRole('link', { name: 'Open directory' })
       .getAttribute('href')).toBe('/providers');
@@ -171,12 +226,10 @@ describe('PublicPage', () => {
 
     expect(screen.queryByText(/Hi, /)).toBeNull();
     const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
-    expect(within(navigation).getByRole('link', { name: 'Join EquiConnected' }).getAttribute('href'))
-      .toBe('/signup');
+    expect(within(navigation).getByRole('button', { name: 'Join EquiConnected' })).toBeTruthy();
     const hero = screen.getByRole('heading', { name: /Trusted equine care/i }).closest('section');
-    expect(within(hero as HTMLElement).getByRole('link', { name: 'Join EquiConnected' })
-      .getAttribute('href')).toBe('/signup');
-    expect(hero!.querySelectorAll('[class*="heroActions"] a')).toHaveLength(1);
+    expect(within(hero as HTMLElement).getByRole('button', { name: 'Join EquiConnected' })).toBeTruthy();
+    expect(hero!.querySelectorAll('[class*="heroActions"] a')).toHaveLength(0);
     expect(within(document.getElementById('find')!).getByRole('link', { name: 'Check all providers' }).getAttribute('href'))
       .toBe('/signup');
     const finalActions = document.getElementById('join')!.querySelector('[class*="finalActions"]') as HTMLElement;
@@ -273,8 +326,7 @@ describe('PublicPage', () => {
     expect(screen.queryByRole('link', { name: 'Profile' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Directory' })).toBeNull();
     const hero = screen.getByRole('heading', { name: /Trusted equine care/i }).closest('section');
-    expect(within(hero as HTMLElement).getByRole('link', { name: 'Join EquiConnected' })
-      .getAttribute('href')).toBe('/signup');
+    expect(within(hero as HTMLElement).getByRole('button', { name: 'Join EquiConnected' })).toBeTruthy();
   });
 
   it('validates subscriber role and email before sending a registration', async () => {

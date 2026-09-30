@@ -44,6 +44,20 @@
 .menuToggleOpen .menuGlyph i:first-child { transform: translateY(3px) rotate(45deg); }
 .menuToggleOpen .menuGlyph i:last-child { transform: translateY(-3px) rotate(-45deg); }
 
+.audienceDropdown { position: relative; }
+.audienceDropdown > button { cursor: pointer; white-space: nowrap; }
+.audienceSignIn { display: inline-flex; align-items: center; gap: 7px; padding: 6px 0; border: 0; background: transparent; color: inherit; }
+.audienceNavJoin > .navJoin { gap: 9px; border: 0; }
+.audienceChevron { display: inline-block; font-size: 18px; line-height: 1; transform: translateY(-2px); transition: transform .2s ease; }
+.audienceDropdown > button[aria-expanded="true"] .audienceChevron { transform: rotate(180deg) translateY(2px); }
+.audienceChoices { position: absolute; z-index: 30; top: calc(100% + 12px); right: 0; width: 312px; max-width: calc(100vw - 32px); padding: 7px; border: 1px solid rgba(39,36,30,.13); border-radius: 12px; background: var(--paper); color: var(--ink); box-shadow: 0 18px 42px rgba(16,17,13,.28); }
+.audienceChoices a { display: block; padding: 11px 13px; border-radius: 7px; color: var(--ink) !important; font-size: 14px; font-weight: 700; line-height: 1.4; }
+.audienceChoices a span { display: block; font-size: 12px; font-weight: 400; }
+.audienceChoices a:hover, .audienceChoices a:focus-visible { background: var(--paper-soft); }
+.audienceHero { width: fit-content; }
+.audienceHero > .goldButton { gap: 24px; }
+.audienceHero .audienceChoices { right: auto; left: 0; }
+
 .hero { position: relative; min-height: max(760px, 108svh); display: flex; align-items: center; overflow: hidden; background: #252a22; color: var(--paper); }
 .heroImage, .heroLight, .heroShade { position: absolute; inset: 0; width: 100%; height: 100%; }
 .heroImage { object-fit: cover; object-position: center 49%; transform-origin: 67% 42%; animation: heroDrift 7s ease-in-out infinite alternate; }
@@ -746,11 +760,14 @@
   .brand img { width: 158px; }
   .greeting { display: none; }
   .page .menuToggle { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; padding: 10px 0 10px 12px; border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 18px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-  .navigation { position: absolute; top: 65px; right: 14px; left: 14px; display: none; align-items: stretch; gap: 0; padding: 14px 21px 19px; background: var(--paper); color: var(--ink); box-shadow: 0 18px 48px rgba(16,17,13,.24); }
+  .navigation { position: absolute; top: 65px; right: 14px; left: 14px; display: none; align-items: stretch; gap: 0; max-height: calc(100dvh - 76px); overflow-y: auto; padding: 14px 21px 19px; background: var(--paper); color: var(--ink); box-shadow: 0 18px 48px rgba(16,17,13,.24); }
   .navigationOpen { display: grid; }
   .navigation > a:not(.navJoin) { padding: 10px 0; border-bottom: 1px solid var(--line); opacity: 1; font: 400 26.4px var(--serif); }
   .navigation .navJoin { margin-top: 13px; background: var(--gold-light); color: var(--ink) !important; }
   .navigation .signOut { padding: 11px 0; border-bottom: 1px solid var(--line); text-align: left; }
+  .navigation .audienceSignIn { width: 100%; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); font: 400 26.4px var(--serif); }
+  .navigation .audienceNavJoin > .navJoin { width: 100%; }
+  .navigation .audienceChoices { position: static; width: 100%; max-width: none; margin-top: 6px; box-shadow: none; }
 }
 @media (max-width: 900px) {
   .stepList { gap: 24px 18px; }
@@ -770,6 +787,7 @@
   .heroLead { max-width: 360px; margin-top: 20px; font-size: 13px; }
   .heroActions { display: grid; grid-template-columns: 1fr; max-width: 300px; gap: 9px; margin-top: 22px; }
   .goldButton, .ghostButton { min-height: 48px; justify-content: space-between; padding-inline: 19px; }
+  .audienceHero, .audienceHero > .goldButton { width: 100%; }
   .memberNote { max-width: 250px; font-size: 10px; }
   .photoCredit { bottom: 11px; left: 14px; font-size: 8px; }
   .scrollCue { right: 12px; bottom: 20px; font-size: 8px; }
