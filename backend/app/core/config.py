@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     SMTP_FROM_EMAIL: str = ""
+    ADMIN_EMAIL: str = ""
     EMAIL_FROM: str = "no-reply@equiconnected.local"
     EMAIL_TLS: bool = True
     PUBLIC_APP_URL: str = "http://localhost:5000"

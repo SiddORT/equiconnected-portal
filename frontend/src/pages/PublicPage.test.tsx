@@ -9,6 +9,7 @@ import { PublicPage } from './PublicPage';
 vi.mock('@/api/public', () => ({
   recordPublicVisit: vi.fn(() => Promise.resolve()),
   registerSubscriber: vi.fn(),
+  sendContactMessage: vi.fn(),
 }));
 
 vi.mock('@/app/AuthContext', () => ({
@@ -50,9 +51,33 @@ beforeEach(() => {
   vi.mocked(useAuth).mockReturnValue(guestAuth());
   vi.mocked(publicApi.recordPublicVisit).mockResolvedValue(undefined);
   vi.mocked(publicApi.registerSubscriber).mockResolvedValue({ message: 'Thanks' });
+  vi.mocked(publicApi.sendContactMessage).mockResolvedValue({ message: 'Your message was submitted.' });
 });
 
 describe('PublicPage', () => {
+  it('places a working contact form before the updates signup', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const contact = screen.getByRole('heading', { name: /Let’s talk horses/i }).closest('section') as HTMLElement;
+    const updates = screen.getByRole('heading', { name: /Stay close to what’s\s*happening next/i }).closest('section') as HTMLElement;
+    expect(contact.compareDocumentPosition(updates) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const form = within(contact).getByRole('form', { name: 'Contact EquiConnected' });
+    await user.type(within(form).getByRole('textbox', { name: 'Full name' }), 'Sam Rider');
+    await user.type(within(form).getByRole('textbox', { name: 'Email' }), 'sam@example.com');
+    await user.selectOptions(within(form).getByRole('combobox', { name: 'Enquiry type' }), 'partnership');
+    await user.type(within(form).getByRole('textbox', { name: 'Message' }), 'I would like to discuss a partnership.');
+    await user.click(within(form).getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => expect(publicApi.sendContactMessage).toHaveBeenCalledWith({
+      name: 'Sam Rider',
+      email: 'sam@example.com',
+      enquiry_type: 'partnership',
+      message: 'I would like to discuss a partnership.',
+    }));
+    expect(within(contact).getByRole('status').textContent).toContain('Thank you for reaching out.');
+  });
+
   it('provides the guest destinations in navigation and the footer', () => {
     renderPage();
     const footer = within(screen.getByRole('contentinfo'));

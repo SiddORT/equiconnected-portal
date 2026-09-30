@@ -10,6 +10,7 @@ import { recordPublicVisit, registerSubscriber } from '@/api/public';
 import { systemCalendarDate, useTimeSettings } from '@/app/TimeSettingsContext';
 import { HomeFooter } from '@/components/public/home-v2/HomeFooter';
 import { HomeHero } from '@/components/public/home-v2/HomeHero';
+import { ContactSection } from '@/components/public/home-v2/ContactSection';
 import { FindCareTags } from '@/components/public/home-v2/FindCareTags';
 import categoryVet from '@/components/public/home-v2/media/category-vet.jpg';
 import categoryClinic from '@/components/public/home-v2/media/category-clinic.jpg';
@@ -466,6 +467,8 @@ export function PublicPage() {
             </div>
           </div>
         </section>
+
+        <ContactSection />
 
         <section className={styles.comingSoon} aria-label="Get EquiConnected updates">
           <p className={styles.sectionKicker}>A network that grows with you</p>

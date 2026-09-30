@@ -7,10 +7,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.rate_limit import (
+    check_contact_rate_limit,
     check_public_provider_rate_limit,
     check_public_visit_rate_limit,
     check_subscriber_rate_limit,
 )
+from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.public_visit import PublicVisitDaily
 from app.models.enums import ProviderType
@@ -22,10 +24,42 @@ from app.schemas.subscriber import (
     SubscriberRegistrationResponse,
 )
 from app.schemas.review import PublicProviderDiscovery, PublicProviderLocation
+from app.schemas.contact import ContactMessageRequest
+from app.services.email_service import EmailDeliveryError, EmailService
 from app.services.subscriber_service import SubscriberService
 
 router = APIRouter(prefix="/public", tags=["Public"])
 _DB = Annotated[Session, Depends(get_db)]
+
+
+@router.post(
+    "/contact",
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(check_contact_rate_limit)],
+)
+def send_contact_message(body: ContactMessageRequest) -> dict[str, str]:
+    """Send an enquiry to the configured admin mailbox, without storing visitor details."""
+    recipient = get_settings().ADMIN_EMAIL.strip()
+    if not recipient:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "contact_unavailable", "message": "Contact messages are unavailable right now. Please try again later."},
+        )
+    try:
+        EmailService().send_contact_message(
+            recipient,
+            name=body.name,
+            email=str(body.email),
+            enquiry_type=body.enquiry_type,
+            phone=body.phone,
+            text=body.message,
+        )
+    except EmailDeliveryError:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"code": "contact_delivery_failed", "message": "We could not send your message. Please try again later."},
+        ) from None
+    return {"message": "Your message was submitted."}
 
 
 def _public_location(provider, latitude: float, longitude: float) -> PublicProviderLocation:

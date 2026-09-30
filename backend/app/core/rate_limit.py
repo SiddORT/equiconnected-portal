@@ -31,6 +31,7 @@ _invitation_attempts: dict[str, deque[float]] = defaultdict(deque)
 _public_visit_attempts: dict[str, deque[float]] = defaultdict(deque)
 _public_provider_attempts: dict[str, deque[float]] = defaultdict(deque)
 _subscriber_attempts: dict[str, deque[float]] = defaultdict(deque)
+_contact_attempts: dict[str, deque[float]] = defaultdict(deque)
 _postal_lookup_attempts: dict[str, deque[float]] = defaultdict(deque)
 _registration_attempts: dict[str, deque[float]] = defaultdict(deque)
 _email_verification_attempts: dict[str, deque[float]] = defaultdict(deque)
@@ -136,6 +137,17 @@ def check_subscriber_rate_limit(request: Request) -> None:
         window_seconds=600,
         max_attempts=5,
         message="Too many subscriber registrations. Please try again later.",
+    )
+
+
+def check_contact_rate_limit(request: Request) -> None:
+    """Bound anonymous enquiry sends and failed delivery attempts per IP."""
+    _check_rate_limit(
+        request,
+        _contact_attempts,
+        window_seconds=600,
+        max_attempts=3,
+        message="Too many messages. Please try again later.",
     )
 
 

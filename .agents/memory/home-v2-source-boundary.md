@@ -14,3 +14,9 @@ Compare supplied design screenshots at their likely CSS viewport size, not the s
 **Why:** Comparing a scaled high-density reference to the app at the thumbnail's pixel width makes correctly sized cards appear too large and encourages incorrect layout changes.
 
 **How to apply:** Inspect a reference image's intrinsic dimensions and estimate its capture scale before changing desktop container widths or card proportions.
+
+Treat the prototype's contact phone number, mailbox, and opening hours as examples, not published business details. Contact enquiries should go to the configured admin inbox without exposing that address in the public page.
+
+**Why:** Publishing unverified contact details can send real enquiries to the wrong destination or promise unavailable support hours.
+
+**How to apply:** Keep the visual contact layout, but only show business contact information after it has been confirmed by the owner; keep form-delivery failures visible to visitors.

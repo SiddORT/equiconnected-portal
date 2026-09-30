@@ -20,6 +20,30 @@ class EmailDeliveryError(Exception):
 
 
 class EmailService:
+    def send_contact_message(
+        self,
+        recipient: str,
+        *,
+        name: str,
+        email: str,
+        enquiry_type: str,
+        phone: str | None,
+        text: str,
+    ) -> None:
+        """Forward a bounded public enquiry as plain text; sender address stays fixed."""
+        message = MIMEText(
+            f"New EquiConnected contact enquiry\n\n"
+            f"Name: {name}\nEmail: {email}\n"
+            f"Enquiry type: {enquiry_type}\nPhone: {phone or 'Not provided'}\n\n"
+            f"Message:\n{text}\n",
+            "plain",
+            "utf-8",
+        )
+        message["Subject"] = "EquiConnected contact enquiry"
+        message["To"] = recipient
+        message["Reply-To"] = email
+        self._deliver(message, recipient)
+
     @staticmethod
     def _branded_html(
         *,
