@@ -53,6 +53,7 @@ def _provider(
     latitude: str | None = "30.267200",
     longitude: str | None = "-97.743100",
     maximum_working_radius_km: str | None = None,
+    years_experience: int | None = None,
 ):
     provider = Provider(
         provider_type=provider_type,
@@ -61,6 +62,7 @@ def _provider(
         status=status,
         publication_status=publication,
         description=f"{name} description",
+        years_experience=years_experience,
         maximum_working_radius_km=(
             Decimal(maximum_working_radius_km) if maximum_working_radius_km is not None else None
         ),
@@ -503,7 +505,7 @@ class TestMemberProviderDiscoveryAndReviews:
         self, client, db, seeded_admin
     ):
         reviewer = _member(db, "reviewer@example.com")
-        provider = _provider(db, "Review Clinic")
+        provider = _provider(db, "Review Clinic", years_experience=14)
         headers = _headers(reviewer)
 
         created = client.put(
@@ -530,6 +532,7 @@ class TestMemberProviderDiscoveryAndReviews:
         assert detail.status_code == 200
         assert detail.json()["review_count"] == 1
         assert detail.json()["average_rating"] == 5.0
+        assert detail.json()["years_experience"] == 14
         assert detail.json()["visible_reviews"][0]["comment"] == "Even better on our second visit"
 
         admin, _ = seeded_admin

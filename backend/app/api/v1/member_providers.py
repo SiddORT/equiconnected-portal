@@ -250,6 +250,11 @@ def get_member_provider(provider_id: UUID, user: MemberUser, svc: _Svc, db: _DB)
     ]
     return MemberProviderDetail(
         **_item(provider, average_rating, review_count, is_saved=provider_id in _saved_ids(db, user.id, [provider_id])).model_dump(),
+        years_experience=(
+            provider.years_experience
+            if provider.years_experience is not None
+            else provider.doctor_profile.years_experience if provider.doctor_profile else None
+        ),
         visible_reviews=visible_reviews,
         own_review=(
             _review_response(own_review)

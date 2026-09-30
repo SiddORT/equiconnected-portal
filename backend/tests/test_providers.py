@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import update
 
 from app.core.security import hash_password
+from app.models.doctor import DoctorProfile
 from app.models.provider import Provider
 from app.repositories.user_repository import UserRepository
 
@@ -1077,6 +1078,58 @@ class TestDoctorProfessionalFields:
         )
         assert data["doctor_profile"] == self.PROFILE
 
+    def test_legacy_doctor_service_dual_writes_years_and_response_falls_back(
+        self, client: TestClient, admin_token: str, db
+    ):
+        created = client.post(
+            "/api/v1/admin/doctors",
+            json={
+                "name": "Dr. Dual Write",
+                "visit_stability": "STABLE_VISIT",
+                "years_experience": 17,
+            },
+            headers=_auth(admin_token),
+        )
+        assert created.status_code == 201, created.text
+        doctor_id = uuid.UUID(created.json()["id"])
+        provider = db.get(Provider, doctor_id)
+        profile = db.get(DoctorProfile, doctor_id)
+        assert provider.years_experience == 17
+        assert profile.years_experience == 17
+
+        # Historical rows may have a canonical provider value but a NULL profile.
+        profile.years_experience = None
+        db.commit()
+        detail = client.get(
+            f"/api/v1/admin/doctors/{doctor_id}", headers=_auth(admin_token)
+        )
+        assert detail.status_code == 200
+        assert detail.json()["years_experience"] == 17
+
+        zero = client.patch(
+            f"/api/v1/admin/doctors/{doctor_id}",
+            json={"years_experience": 0},
+            headers=_auth(admin_token),
+        )
+        assert zero.status_code == 200, zero.text
+        assert zero.json()["years_experience"] == 0
+        db.refresh(provider)
+        db.refresh(profile)
+        assert provider.years_experience == 0
+        assert profile.years_experience == 0
+
+        cleared = client.patch(
+            f"/api/v1/admin/doctors/{doctor_id}",
+            json={"years_experience": None},
+            headers=_auth(admin_token),
+        )
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["years_experience"] is None
+        db.refresh(provider)
+        db.refresh(profile)
+        assert provider.years_experience is None
+        assert profile.years_experience is None
+
     def test_profile_persists_on_get(self, client: TestClient, admin_token: str):
         created = _create_provider(
             client, admin_token, "Dr. Bob", provider_type="DOCTOR", **self.PROFILE
@@ -1276,6 +1329,31 @@ class TestDoctorQualifications:
         detail = client.get(doctor_base, headers=_auth(admin_token))
         assert detail.status_code == 200
         assert detail.json()["qualifications"] == []
+
+
+def test_non_doctor_years_experience_admin_create_update_and_read(
+    client: TestClient, admin_token: str
+):
+    created = _create_provider(
+        client, admin_token, "Experience Hospital", years_experience=6
+    )
+    assert created["years_experience"] == 6
+    assert created["doctor_profile"] is None
+
+    updated = client.patch(
+        f"{BASE}/{created['id']}",
+        json={"years_experience": 0},
+        headers=_auth(admin_token),
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["years_experience"] == 0
+    assert updated.json()["doctor_profile"] is None
+
+    reopened = client.get(
+        f"{BASE}/{created['id']}", headers=_auth(admin_token)
+    )
+    assert reopened.status_code == 200
+    assert reopened.json()["years_experience"] == 0
 
 
 class TestAdminProviderForm:

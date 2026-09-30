@@ -149,6 +149,28 @@ async function finishClinicWizard(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('ProviderForm visit stability', () => {
+  it.each(['CLINIC', 'HOSPITAL'] as const)(
+    'prefills and saves zero years of experience in a %s invitation draft',
+    async (providerType) => {
+      const save = vi.fn().mockResolvedValue(undefined);
+      const user = userEvent.setup();
+      render(
+        <ProviderForm
+          invitation={{
+            ...invitationConfig({ years_experience: 0 }, save),
+            providerType,
+          }}
+        />
+      );
+
+      expect((screen.getByLabelText('Years of experience') as HTMLInputElement).value).toBe('0');
+      await user.click(screen.getByRole('button', { name: 'Save draft' }));
+      await waitFor(() => expect(save).toHaveBeenCalledWith(
+        expect.objectContaining({ years_experience: 0 })
+      ));
+    }
+  );
+
   it('does not expose general description or clear it in an invitation draft', async () => {
     const save = vi.fn().mockResolvedValue(undefined);
     const user = userEvent.setup();
@@ -762,6 +784,27 @@ describe('ProviderForm visit stability', () => {
 });
 
 describe('ProviderForm edit wizard', () => {
+  it.each(['CLINIC', 'HOSPITAL'] as const)(
+    'prefills and updates zero years of experience when editing a %s',
+    async (providerType) => {
+      const provider = existingProvider({ provider_type: providerType, years_experience: 0 });
+      vi.mocked(updateProvider).mockResolvedValue(provider);
+      vi.mocked(getProvider).mockResolvedValue(provider);
+      const user = userEvent.setup();
+      render(<ProviderForm initialData={provider} />);
+
+      expect((screen.getByLabelText('Years of experience') as HTMLInputElement).value).toBe('0');
+      await reachEditReview(user);
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+      await waitFor(() => expect(updateProvider).toHaveBeenCalledWith(
+        'provider-1',
+        expect.objectContaining({ years_experience: 0 })
+      ));
+    }
+  );
+
   it('keeps legacy emergency edits valid when the saved number is missing', async () => {
     const provider = existingProvider({ emergency_contact_number: null });
     vi.mocked(updateProvider).mockResolvedValue(provider);

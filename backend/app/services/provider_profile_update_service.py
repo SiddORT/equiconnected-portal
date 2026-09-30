@@ -30,7 +30,6 @@ class ProviderProfileUpdateConflictError(ProviderProfileUpdateDecisionError):
 _DOCTOR_FIELDS = {
     "professional_title",
     "biography",
-    "years_experience",
     "experience_description",
     "qualifications",
 }
@@ -54,6 +53,16 @@ def editable_profile_from_provider(provider: Provider) -> ProviderPortalEditable
         "email": provider.email,
         "phone": provider.phone,
         "website": provider.website,
+        "years_experience": (
+            provider.years_experience
+            if provider.years_experience is not None
+            else (
+                provider.doctor_profile.years_experience
+                if provider.provider_type == ProviderType.DOCTOR
+                and provider.doctor_profile is not None
+                else None
+            )
+        ),
         "visit_stability": provider.visit_stability,
         "specialization_ids": sorted(
             (link.specialization_id for link in provider.provider_specializations),
@@ -127,10 +136,6 @@ def editable_profile_from_provider(provider: Provider) -> ProviderPortalEditable
                     if provider.doctor_profile else None
                 ),
                 "biography": provider.doctor_profile.biography if provider.doctor_profile else None,
-                "years_experience": (
-                    provider.doctor_profile.years_experience
-                    if provider.doctor_profile else None
-                ),
                 "experience_description": (
                     provider.doctor_profile.experience_description
                     if provider.doctor_profile else None

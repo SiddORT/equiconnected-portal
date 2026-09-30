@@ -94,8 +94,8 @@ const WIZARD_STEPS = [
   { title: 'Review & create', description: 'Check everything before creating the provider.' },
 ];
 
-function wizardStepForField(key: string): number {
-  if (key === 'provider_type' || key === 'name') return 0;
+function wizardStepForField(key: string, providerType: string): number {
+  if (key === 'provider_type' || key === 'name' || (key === 'years_experience' && providerType !== 'DOCTOR')) return 0;
   if (['first_name', 'last_name', 'years_experience'].includes(key) || key.startsWith('qualification_')) return 1;
   if (['visit_stability', 'maximum_working_radius_km', 'emergency_contact_number', 'initial_visit', 'doctor_availability'].includes(key)) return 2;
   return 3;
@@ -226,11 +226,12 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const [professionalTitle, setProfessionalTitle] = useState(
     initialData?.doctor_profile?.professional_title ?? ''
   );
-  const [yearsExperience, setYearsExperience] = useState(
-    initialData?.doctor_profile?.years_experience != null
-      ? String(initialData.doctor_profile.years_experience)
-      : ''
-  );
+  const [yearsExperience, setYearsExperience] = useState(() => {
+    const value = inv?.initial.years_experience
+      ?? initialData?.years_experience
+      ?? initialData?.doctor_profile?.years_experience;
+    return value != null ? String(value) : '';
+  });
   const [biography, setBiography] = useState(initialData?.doctor_profile?.biography ?? '');
   const [experienceDescription, setExperienceDescription] = useState(
     initialData?.doctor_profile?.experience_description ?? ''
@@ -463,7 +464,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     if (wizard && providerType === 'DOCTOR' && !lastName.trim() &&
       (!isEdit || initialData?.provider_type !== 'DOCTOR' || Boolean(initialData.doctor_profile?.last_name)))
       errors.last_name = 'Last name is required.';
-    if (providerType === 'DOCTOR' && yearsExperience.trim()) {
+    if (yearsExperience.trim()) {
       const n = Number(yearsExperience);
       if (!Number.isInteger(n) || n < 0 || n > 100) {
         errors.years_experience = 'Years of experience must be a whole number between 0 and 100.';
@@ -536,7 +537,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.email.trim())) emErrors[i] = 'Enter a valid email address.';
     });
     const visibleErrors = Object.fromEntries(
-      Object.entries(errors).filter(([key]) => step === undefined || wizardStepForField(key) === step)
+      Object.entries(errors).filter(([key]) => step === undefined || wizardStepForField(key, providerType) === step)
     );
     const contactStep = step === undefined || step === 3;
     setPhoneErrors(contactStep ? phErrors : {});
@@ -546,7 +547,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       (!contactStep || (Object.keys(phErrors).length === 0 && Object.keys(emErrors).length === 0));
     if (!valid && step === undefined && wizard) {
       setWizardStep(Math.min(
-        ...Object.keys(errors).map(wizardStepForField),
+        ...Object.keys(errors).map((key) => wizardStepForField(key, providerType)),
         ...(Object.keys(phErrors).length || Object.keys(emErrors).length ? [3] : []),
       ));
     }
@@ -570,6 +571,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   function buildInvitationPayload(): InvitationDraftPayload {
     const payload: InvitationDraftPayload = {
       website: website.trim() || null,
+      years_experience: yearsExperience.trim() ? Number(yearsExperience) : null,
       specialization_ids: selectedSpecIds,
       ...invitationServicePayload(invitationServices),
       phones: phoneEntries
@@ -688,6 +690,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           provider_type: providerType as ProviderType,
           name: name.trim(),
           website: website.trim() || null,
+          years_experience: yearsExperience.trim() ? Number(yearsExperience) : null,
           ...(initialData.visit_stability === 'STABLE_VISIT' && initialData.maximum_working_radius_km == null &&
             visitStability === 'STABLE_VISIT' && !maximumRadius.trim()
             ? {} : {
@@ -708,7 +711,6 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           ...(providerType === 'DOCTOR'
             ? {
                 professional_title: professionalTitle.trim() || null,
-                years_experience: yearsExperience.trim() ? Number(yearsExperience) : null,
                 biography: biography.trim() || null,
                 experience_description: experienceDescription.trim() || null,
                 qualifications: qualifications.map((q, i) => ({
@@ -855,6 +857,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           name: name.trim(),
           visit_stability: visitStability as VisitStability,
           website: website.trim() || null,
+          years_experience: yearsExperience.trim() ? Number(yearsExperience) : null,
           status: status as ProviderStatus,
           publication_status: publication as PublicationStatus,
           specialization_ids: selectedSpecIds,
@@ -875,7 +878,6 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           ...(providerType === 'DOCTOR'
             ? {
                 professional_title: professionalTitle.trim() || null,
-                years_experience: yearsExperience.trim() ? Number(yearsExperience) : null,
                 biography: biography.trim() || null,
                 experience_description: experienceDescription.trim() || null,
                 first_name: firstName.trim() || null,
@@ -970,6 +972,19 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               required
               maxLength={300}
             />
+            {providerType !== 'DOCTOR' && (
+              <Input
+                label="Years of experience"
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                placeholder="0 to 100"
+                value={yearsExperience}
+                onChange={(e) => setYearsExperience(e.target.value)}
+                error={errs.years_experience}
+              />
+            )}
           </div>
 
           <Input

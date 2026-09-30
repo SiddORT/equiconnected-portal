@@ -44,6 +44,7 @@ def _portal_provider(
     name: str,
     publication_status: PublicationStatus,
     registered_account: bool = False,
+    years_experience: int | None = None,
 ):
     users = UserRepository(db)
     role = users.get_role_by_name("provider") or users.create_role("provider", "Provider portal")
@@ -54,6 +55,7 @@ def _portal_provider(
         status=ProviderStatus.ACTIVE,
         publication_status=publication_status,
         description="Approved description",
+        years_experience=years_experience,
     )
     db.add(provider)
     db.flush()
@@ -122,6 +124,90 @@ def test_unpublished_provider_saves_directly_without_a_review_request(client, db
     db.refresh(provider)
     assert provider.name == "Updated Draft Clinic"
     assert db.query(ProviderProfileUpdate).count() == 0
+
+
+def test_unpublished_non_doctor_can_directly_edit_and_read_years_experience(
+    client, db, seeded_admin
+):
+    admin, _ = seeded_admin
+    provider, account = _portal_provider(
+        db,
+        admin,
+        email="clinic-years-owner@example.com",
+        name="Years Clinic",
+        publication_status=PublicationStatus.UNPUBLISHED,
+        years_experience=7,
+    )
+    token = _login(client, account.email, "ProviderPass9")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    initial = client.get("/api/v1/provider/portal/profile", headers=headers)
+    assert initial.status_code == 200, initial.text
+    assert initial.json()["years_experience"] == 7
+    assert initial.json()["editable_profile"]["years_experience"] == 7
+
+    updated = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=headers,
+        json={"years_experience": 0},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["years_experience"] == 0
+    assert updated.json()["editable_profile"]["years_experience"] == 0
+    db.refresh(provider)
+    assert provider.years_experience == 0
+    assert provider.doctor_profile is None
+
+    # An omitted field in a subsequent patch must retain the canonical value.
+    renamed = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=headers,
+        json={"name": "Years Clinic Renamed"},
+    )
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["editable_profile"]["years_experience"] == 0
+    db.refresh(provider)
+    assert provider.years_experience == 0
+
+
+def test_published_non_doctor_years_experience_uses_review_and_applies_on_approval(
+    client, db, seeded_admin
+):
+    admin, admin_password = seeded_admin
+    provider, account = _portal_provider(
+        db,
+        admin,
+        email="published-years-owner@example.com",
+        name="Published Years Clinic",
+        publication_status=PublicationStatus.PUBLISHED,
+        years_experience=8,
+    )
+    token = _login(client, account.email, "ProviderPass9")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    submitted = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=headers,
+        json={"years_experience": 0},
+    )
+    assert submitted.status_code == 200, submitted.text
+    body = submitted.json()
+    assert body["years_experience"] == 8
+    assert body["editable_profile"]["years_experience"] == 0
+    assert body["profile_update"]["review_status"] == "PENDING_REVIEW"
+    update_id = body["profile_update"]["id"]
+    db.refresh(provider)
+    assert provider.years_experience == 8
+
+    admin_token = _login(client, admin.email, admin_password)
+    approved = client.post(
+        f"/api/v1/admin/provider-profile-updates/{update_id}/approve",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert approved.status_code == 200, approved.text
+    db.refresh(provider)
+    assert provider.years_experience == 0
+    assert approved.json()["proposed_profile"]["years_experience"] == 0
 
 
 def test_published_profile_update_isolated_then_rejected_and_resubmitted(client, db, seeded_admin):

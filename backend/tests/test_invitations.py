@@ -1536,3 +1536,83 @@ class TestSubmitOrganizationReconciliation:
         )
         assert resp.status_code == 200, resp.text
         assert self._relationships(db, inv.provider_id) == []
+
+
+def test_non_doctor_experience_saves_reopens_submits_and_is_visible_to_admin(
+    client, admin_token, captured_email, db
+):
+    invitation = _create_invitation(
+        client,
+        admin_token,
+        recipient_email="clinic-years@example.com",
+        provider_type="CLINIC",
+        provider_name="Years Clinic",
+    )
+    token = captured_email["token"]
+
+    saved = client.post(
+        f"{PUBLIC_BASE}/{token}/save", json={"years_experience": 12}
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["provider"]["years_experience"] == 12
+
+    reopened = client.get(f"{PUBLIC_BASE}/{token}")
+    assert reopened.status_code == 200
+    assert reopened.json()["provider"]["years_experience"] == 12
+
+    submitted = client.post(
+        f"{PUBLIC_BASE}/{token}/submit",
+        json={
+            "name": "Years Clinic",
+            "visit_stability": "STABLE_VISIT",
+            "years_experience": 0,
+        },
+    )
+    assert submitted.status_code == 200, submitted.text
+    assert submitted.json()["provider"]["years_experience"] == 0
+
+    provider_id = invitation["provider_id"]
+    provider = db.get(Provider, uuid.UUID(provider_id))
+    assert provider.years_experience == 0
+    admin_detail = client.get(
+        f"/api/v1/admin/providers/{provider_id}", headers=_auth(admin_token)
+    )
+    assert admin_detail.status_code == 200
+    assert admin_detail.json()["years_experience"] == 0
+    assert admin_detail.json()["doctor_profile"] is None
+
+
+def test_doctor_experience_falls_back_from_profile_and_mirrors_zero(
+    client, admin_token, captured_email, db
+):
+    invitation = _create_invitation(
+        client,
+        admin_token,
+        recipient_email="doctor-years@example.com",
+        provider_type="DOCTOR",
+        provider_name="Dr. Years",
+    )
+    token = captured_email["token"]
+    provider = db.get(Provider, uuid.UUID(invitation["provider_id"]))
+    provider.doctor_profile = DoctorProfile(
+        provider_id=provider.id, years_experience=18
+    )
+    db.commit()
+
+    opened = client.get(f"{PUBLIC_BASE}/{token}")
+    assert opened.status_code == 200
+    assert opened.json()["provider"]["years_experience"] == 18
+
+    submitted = client.post(
+        f"{PUBLIC_BASE}/{token}/submit",
+        json={
+            "name": "Dr. Years",
+            "visit_stability": "STABLE_VISIT",
+            "years_experience": 0,
+        },
+    )
+    assert submitted.status_code == 200, submitted.text
+    db.refresh(provider)
+    assert provider.years_experience == 0
+    assert provider.doctor_profile.years_experience == 0
+    assert submitted.json()["provider"]["years_experience"] == 0

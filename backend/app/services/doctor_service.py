@@ -138,6 +138,7 @@ class DoctorService:
                 status=status,
                 publication_status=publication_status,
                 website=website,
+                years_experience=years_experience,
             )
             # Doctor profile
             self._repo.create_profile(
@@ -200,6 +201,8 @@ class DoctorService:
         }
         provider_updates = {k: v for k, v in update_fields.items() if k not in profile_fields}
         profile_updates = {k: v for k, v in update_fields.items() if k in profile_fields}
+        if "years_experience" in profile_updates:
+            provider_updates["years_experience"] = profile_updates["years_experience"]
         changes = [
             {"field": key, "before": getattr(doctor, key), "after": value}
             for key, value in provider_updates.items() if getattr(doctor, key) != value

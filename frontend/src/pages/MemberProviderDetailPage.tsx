@@ -102,6 +102,7 @@ export function MemberProviderDetailPage() {
           <h2>About this provider</h2>
           <p>{provider.description || 'No description has been added yet.'}</p>
           <dl id="contact" className={styles.contactList}>
+            <dt>Years of experience</dt><dd>{provider.years_experience ?? '—'}</dd>
             {provider.email && <><dt>Email</dt><dd><a href={`mailto:${provider.email}`}>{provider.email}</a></dd></>}
             {provider.phone && <><dt>Phone</dt><dd><a href={`tel:${provider.phone}`}>{provider.phone}</a></dd></>}
             {provider.website && <><dt>Website</dt><dd><a href={provider.website} target="_blank" rel="noreferrer">Visit website</a></dd></>}

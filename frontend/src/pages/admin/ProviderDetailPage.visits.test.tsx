@@ -60,6 +60,18 @@ afterEach(() => {
 });
 
 describe('ProviderDetailPage doctor visits', () => {
+  it('displays a non-Doctor provider years of experience, including zero', async () => {
+    vi.mocked(getProvider).mockResolvedValue(doctor({
+      provider_type: 'CLINIC',
+      years_experience: 0,
+    }));
+
+    renderDetail();
+
+    const experienceLabel = await screen.findByText('Years of experience');
+    expect(experienceLabel.nextElementSibling?.textContent).toBe('0');
+  });
+
   it('shows doctor professional names but not the general provider description', async () => {
     vi.mocked(getProvider).mockResolvedValue(doctor({
       name: 'Mira Stone', description: 'Hidden general description',

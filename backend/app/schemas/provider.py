@@ -276,7 +276,7 @@ class ProviderCreate(BaseModel):
     emergency_services_available: bool = False
     emergency_contact_name: str | None = Field(None, max_length=200)
     emergency_contact_number: str | None = Field(None, max_length=50)
-    # Doctor-only professional profile fields (ignored for other types).
+    # Professional profile fields; years_experience is shared by all provider types.
     professional_title: str | None = Field(None, max_length=200)
     biography: str | None = Field(None, max_length=10000)
     years_experience: int | None = Field(None, ge=0, le=100)
@@ -331,7 +331,7 @@ class ProviderUpdate(BaseModel):
     phone: str | None = Field(None, max_length=50)
     website: str | None = Field(None, max_length=500)
     visit_stability: VisitStability | None = None
-    # Doctor-only professional profile fields (ignored for other types).
+    # Professional profile fields; years_experience is shared by all provider types.
     professional_title: str | None = Field(None, max_length=200)
     biography: str | None = Field(None, max_length=10000)
     years_experience: int | None = Field(None, ge=0, le=100)
@@ -390,6 +390,7 @@ class ProviderListItem(BaseModel):
     name: str
     email: str | None
     phone: str | None
+    years_experience: int | None = None
     visit_stability: VisitStability
     emergency_services_available: bool
     status: ProviderStatus
@@ -430,6 +431,16 @@ class ProviderListItem(BaseModel):
             name=provider.name,
             email=primary_email or provider.email,
             phone=primary_phone or provider.phone,
+            years_experience=(
+                provider.years_experience
+                if provider.years_experience is not None
+                else (
+                    provider.doctor_profile.years_experience
+                    if provider.provider_type == ProviderType.DOCTOR
+                    and getattr(provider, "doctor_profile", None) is not None
+                    else None
+                )
+            ),
             visit_stability=provider.visit_stability,
             emergency_services_available=provider.emergency_services_available is True,
             status=provider.status,
@@ -488,6 +499,16 @@ class ProviderResponse(ProviderListItem):
             description=provider.description,
             email=provider.email,
             phone=provider.phone,
+            years_experience=(
+                provider.years_experience
+                if provider.years_experience is not None
+                else (
+                    provider.doctor_profile.years_experience
+                    if provider.provider_type == ProviderType.DOCTOR
+                    and provider.doctor_profile is not None
+                    else None
+                )
+            ),
             website=provider.website,
             visit_stability=provider.visit_stability,
             status=provider.status,
@@ -571,6 +592,7 @@ class ProviderPortalResponse(BaseModel):
     id: UUID
     name: str
     description: str | None
+    years_experience: int | None = None
     email: str | None
     phone: str | None
     website: str | None
@@ -606,6 +628,16 @@ class ProviderPortalResponse(BaseModel):
             id=provider.id,
             name=provider.name,
             description=provider.description,
+            years_experience=(
+                provider.years_experience
+                if provider.years_experience is not None
+                else (
+                    provider.doctor_profile.years_experience
+                    if provider.provider_type == ProviderType.DOCTOR
+                    and provider.doctor_profile is not None
+                    else None
+                )
+            ),
             email=provider.email,
             phone=provider.phone,
             website=provider.website,

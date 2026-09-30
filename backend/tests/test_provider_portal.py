@@ -505,7 +505,12 @@ def test_doctor_portal_exposes_and_persists_clinical_profile_fields(client, db, 
     )
     db.add(doctor)
     db.flush()
-    db.add(DoctorProfile(provider_id=doctor.id, professional_title="DVM", biography="Original biography"))
+    db.add(DoctorProfile(
+        provider_id=doctor.id,
+        professional_title="DVM",
+        biography="Original biography",
+        years_experience=9,
+    ))
     account = users.create_user(
         email="doctor@portal.example.com",
         password_hash=hash_password("DoctorPass9"),
@@ -533,6 +538,8 @@ def test_doctor_portal_exposes_and_persists_clinical_profile_fields(client, db, 
     assert initial.status_code == 200, initial.text
     assert initial.json()["doctor_fields_available"] is True
     assert initial.json()["doctor_profile"]["professional_title"] == "DVM"
+    assert initial.json()["years_experience"] == 9
+    assert initial.json()["editable_profile"]["years_experience"] == 9
 
     updated = client.patch(
         "/api/v1/provider/portal/profile",
@@ -548,3 +555,8 @@ def test_doctor_portal_exposes_and_persists_clinical_profile_fields(client, db, 
     body = updated.json()
     assert body["doctor_profile"]["professional_title"] == "Equine Surgeon"
     assert body["qualifications"][0]["title"] == "Equine Medicine"
+    assert body["years_experience"] == 12
+    assert body["editable_profile"]["years_experience"] == 12
+    db.refresh(doctor)
+    assert doctor.years_experience == 12
+    assert doctor.doctor_profile.years_experience == 12

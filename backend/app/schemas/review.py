@@ -61,6 +61,7 @@ class MemberProviderListItem(BaseModel):
 
 
 class MemberProviderDetail(MemberProviderListItem):
+    years_experience: int | None = None
     visible_reviews: list[PublicProviderReview]
     own_review: MemberReviewResponse | None
 

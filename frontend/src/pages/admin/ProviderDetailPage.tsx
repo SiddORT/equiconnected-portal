@@ -481,6 +481,10 @@ export function ProviderDetailPage() {
                 </dd>
               </div>
               <div>
+                <dt>Years of experience</dt>
+                <dd>{p.years_experience ?? p.doctor_profile?.years_experience ?? '—'}</dd>
+              </div>
+              <div>
                 <dt>Created</dt>
                 <dd>{formatTimestamp(p.created_at)}</dd>
               </div>
@@ -502,7 +506,6 @@ export function ProviderDetailPage() {
                 p.doctor_profile.last_name ||
                 p.doctor_profile.professional_title ||
                 p.doctor_profile.biography ||
-                p.doctor_profile.years_experience != null ||
                 p.doctor_profile.experience_description) ? (
                 <dl className={`${styles.infoStrip} ${styles.professionalInfoStrip}`}>
                   <div><dt>First name</dt><dd>{p.doctor_profile.first_name ?? '—'}</dd></div>
@@ -510,10 +513,6 @@ export function ProviderDetailPage() {
                   <div>
                     <dt>Professional title</dt>
                     <dd>{p.doctor_profile.professional_title ?? '—'}</dd>
-                  </div>
-                  <div>
-                    <dt>Years of experience</dt>
-                    <dd>{p.doctor_profile.years_experience ?? '—'}</dd>
                   </div>
                   <div>
                     <dt>Biography</dt>

@@ -128,7 +128,6 @@ export function ProviderAccountPage() {
       } else {
         delete body.professional_title;
         delete body.biography;
-        delete body.years_experience;
         delete body.experience_description;
       }
       setSaving(true);
@@ -324,10 +323,12 @@ export function ProviderAccountPage() {
             <div className={styles.field}><span>Specializations</span><div className={styles.specializations}>
               {specializations.map((item) => <label key={item.id}><input type="checkbox" checked={form.specialization_ids?.includes(item.id) ?? false} onChange={(e) => update('specialization_ids', e.target.checked ? [...(form.specialization_ids ?? []), item.id] : (form.specialization_ids ?? []).filter((id) => id !== item.id))} disabled={saving} /> {item.name}</label>)}
             </div></div>
-            {profile.doctor_fields_available && <><div className={styles.sectionDivider} /><h2>Professional details</h2>
+            <div className={styles.sectionDivider} />
+            <h2>{profile.doctor_fields_available ? 'Professional details' : 'Experience'}</h2>
+            <Input label="Years of experience" id="portal-years" type="number" min="0" max="100" value={form.years_experience ?? ''} onChange={(e) => update('years_experience', e.target.value ? Number(e.target.value) : null)} disabled={saving} />
+            {profile.doctor_fields_available && <>
               <Input label="Professional title" id="portal-title" value={form.professional_title ?? ''} onChange={(e) => update('professional_title', e.target.value || null)} disabled={saving} />
               <label className={styles.field}>Biography<textarea className={styles.textarea} rows={4} value={form.biography ?? ''} onChange={(e) => update('biography', e.target.value || null)} disabled={saving} /></label>
-              <Input label="Years of experience" id="portal-years" type="number" min="0" max="100" value={form.years_experience ?? ''} onChange={(e) => update('years_experience', e.target.value ? Number(e.target.value) : null)} disabled={saving} />
             </>}
             <div className={styles.sectionDivider} />
             <ProviderProfileCollections

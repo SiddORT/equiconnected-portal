@@ -311,7 +311,11 @@ class DoctorResponse(BaseModel):
             thumbnail_url=thumbnail,
             professional_title=profile.professional_title if profile else None,
             biography=profile.biography if profile else None,
-            years_experience=profile.years_experience if profile else None,
+            years_experience=(
+                profile.years_experience
+                if profile is not None and profile.years_experience is not None
+                else provider.years_experience
+            ),
             experience_description=profile.experience_description if profile else None,
             specializations=specializations,
             qualifications=qualifications,

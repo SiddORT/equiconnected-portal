@@ -34,6 +34,22 @@ afterEach(() => {
 });
 
 describe('MemberProviderDetailPage', () => {
+  it('displays years of experience when the provider has a value', async () => {
+    vi.mocked(providersApi.getMemberProvider).mockResolvedValue({
+      ...detail,
+      years_experience: 12,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/providers/provider-1']}>
+        <Routes><Route path="/providers/:id" element={<MemberProviderDetailPage />} /></Routes>
+      </MemoryRouter>
+    );
+
+    const experienceLabel = await screen.findByText('Years of experience');
+    expect(experienceLabel.nextElementSibling?.textContent).toBe('12');
+  });
+
   it('saves and removes the provider on its profile', async () => {
     vi.mocked(providersApi.getMemberProvider).mockResolvedValue(detail);
     vi.mocked(providersApi.saveMemberProvider).mockResolvedValue();

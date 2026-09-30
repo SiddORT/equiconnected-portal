@@ -556,6 +556,7 @@ export interface Provider extends Omit<ProviderListItem, 'emergency_services_ava
   first_name: string | null;
   last_name: string | null;
   doctor_profile: DoctorProfileInfo | null;
+  years_experience?: number | null;
   description: string | null;
   website: string | null;
   specializations: ProviderSpecializationBrief[];
@@ -965,6 +966,7 @@ export interface MemberProviderListItem {
 }
 
 export interface MemberProviderDetail extends MemberProviderListItem {
+  years_experience?: number | null;
   visible_reviews: PublicProviderReview[];
   own_review: MemberProviderReview | null;
 }

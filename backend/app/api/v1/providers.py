@@ -157,7 +157,7 @@ def list_providers(
 
 @router.post("", response_model=ProviderResponse, status_code=status.HTTP_201_CREATED)
 def create_provider(body: ProviderCreate, request: Request, user: CurrentUser, svc: _Svc):
-    _PROFILE_FIELDS = {"professional_title", "biography", "years_experience", "experience_description", "first_name", "last_name"}
+    _PROFILE_FIELDS = {"professional_title", "biography", "experience_description", "first_name", "last_name"}
     core = body.model_dump(
         exclude={"admin_form_version", "specialization_ids", "primary_location", "phones", "emails", "language_ids", "qualifications", "initial_visit"}
         | _PROFILE_FIELDS
@@ -171,7 +171,7 @@ def create_provider(body: ProviderCreate, request: Request, user: CurrentUser, s
             ),
             phones=[p.model_dump() for p in body.phones],
             emails=[e.model_dump() for e in body.emails],
-            doctor_profile=body.model_dump(include=_PROFILE_FIELDS),
+            doctor_profile=body.model_dump(include=_PROFILE_FIELDS | {"years_experience"}),
             language_ids=body.language_ids,
             qualifications=[q.model_dump() for q in body.qualifications],
             admin_form_version=body.admin_form_version,
@@ -211,12 +211,14 @@ def get_provider(id: UUID, request: Request, user: CurrentUser, svc: _Svc):
 
 @router.patch("/{id}", response_model=ProviderResponse)
 def update_provider(id: UUID, body: ProviderUpdate, request: Request, user: CurrentUser, svc: _Svc):
-    _PROFILE_FIELDS = {"professional_title", "biography", "years_experience", "experience_description", "first_name", "last_name"}
+    _PROFILE_FIELDS = {"professional_title", "biography", "experience_description", "first_name", "last_name"}
     fields = body.model_dump(exclude_unset=True)
     admin_form_version = fields.pop("admin_form_version", None)
     language_ids = fields.pop("language_ids", None)
     qualifications = fields.pop("qualifications", None)
     doctor_profile = {k: fields.pop(k) for k in list(fields) if k in _PROFILE_FIELDS}
+    if "years_experience" in fields:
+        doctor_profile["years_experience"] = fields["years_experience"]
     try:
         provider = svc.update(id, update_fields=fields, doctor_profile=doctor_profile,
                               language_ids=language_ids,

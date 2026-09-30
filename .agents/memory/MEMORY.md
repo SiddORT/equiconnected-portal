@@ -18,6 +18,7 @@
 - [Provider invitation account boundary](provider-invitation-account-boundary.md) — existing EquiConnected accounts are never auto-linked to provider invitations.
 - [Invitation contact email suggestion](invitation-contact-email-suggestion.md) — invite delivery address starts as an editable contact suggestion; an intentionally empty saved list must stay empty.
 - [Invitation service compatibility](invitation-service-compatibility.md) — opt-in service and structured doctor-name rules preserve historical name-only API clients.
+- [Provider-wide experience](provider-wide-experience.md) — years of experience belongs to every provider type; keep legacy doctor-profile values compatible.
 - [PostgreSQL test-schema isolation](postgresql-test-schema-isolation.md) — commit session search-path changes before pooled test connections can be reset.
 - [Homepage carousel selection](homepage-carousel-selection.md) — keep explicit card selection separate from passive rail browsing unless scroll state can be derived reliably.
 - [Single-panel scroll stories](scroll-step-highlighting.md) — derive one visible sticky panel from outer-track progress and preserve explicit click targets during smooth scrolling.

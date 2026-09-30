@@ -84,6 +84,31 @@ function LocationProbe() {
 }
 
 describe('ProviderAccountPage', () => {
+  it.each(['CLINIC', 'HOSPITAL'] as const)(
+    'prefills and saves zero years of experience from the %s editable profile',
+    async () => {
+      const profile = {
+        ...portalProfile,
+        editable_profile: {
+          ...portalProfile.editable_profile,
+          years_experience: 0,
+        },
+      };
+      vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(profile);
+      vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+      vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(profile);
+
+      render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+      expect((await screen.findByLabelText('Years of experience') as HTMLInputElement).value).toBe('0');
+      await userEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+
+      await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
+        expect.objectContaining({ years_experience: 0 })
+      ));
+    }
+  );
+
   it('renders the editable workspace instead of the legacy approved-account placeholder', async () => {
     vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(portalProfile);
     vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
