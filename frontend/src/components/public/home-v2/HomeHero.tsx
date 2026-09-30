@@ -17,7 +17,7 @@ export function HomeHero({ careHref, member }: { careHref: string; member: boole
       <div className={styles.heroShade} />
       <div className={styles.heroInner}>
         <p className={styles.kicker}><span />Equine healthcare, connected</p>
-        <h1 id="hero-heading">Trusted equine care,<br /><em>connected.</em></h1>
+        <h1 id="hero-heading">Trusted equine<br />{' '}care, <em>connected.</em></h1>
         <p className={styles.heroLead}>
           A clearer place to discover equine care providers and the details they choose to share.
         </p>

@@ -182,6 +182,18 @@ describe('PublicPage', () => {
     expect(section.previousElementSibling?.id).toBe('visiting');
   });
 
+  it('keeps the visiting-care panel informational rather than suggesting published dates', () => {
+    renderPage();
+    const visiting = within(document.getElementById('visiting')!);
+    const guide = visiting.getByRole('complementary', { name: 'Planning a visiting care enquiry' });
+    expect(within(guide).getByText('Explore their services')).toBeTruthy();
+    expect(within(guide).getByText('Ask about travel')).toBeTruthy();
+    expect(within(guide).getByText('Check availability')).toBeTruthy();
+    expect(within(guide).getByText('Arrange timing directly with the provider.')).toBeTruthy();
+    expect(within(guide).queryByRole('button')).toBeNull();
+    expect(visiting.getByRole('link', { name: 'Explore provider profiles' }).getAttribute('href')).toBe('/signup');
+  });
+
   it('shows the requested category description below the heading without changing the cards', () => {
     renderPage();
 

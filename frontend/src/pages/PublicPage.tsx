@@ -199,7 +199,7 @@ export function PublicPage() {
 
         <section className={styles.intro} id="care" aria-labelledby="intro-heading">
           <h2 id="intro-heading">
-            Every horse deserves care from someone who knows horses.
+            Every horse deserves care from someone who<span className={styles.introDesktopBreak}><br /></span>{' '}knows horses.
             {' '}<span className={styles.inlinePhoto}><img src="/home-v2/statement-detail-1.jpg" alt="" /></span>
             {' '}EquiConnected brings together the vets, clinics and hospitals of the Emirates
             {' '}<span className={styles.inlinePhoto}><img src="/home-v2/statement-detail-2.jpg" alt="" /></span>
@@ -243,7 +243,7 @@ export function PublicPage() {
           <div className={styles.categoryWrap}>
             <div className={styles.categoryHeading}>
               <p className={styles.sectionKicker}>Who you’ll find</p>
-              <h2 id="categories-heading">Three kinds of care.<br /><em>One place to look.</em></h2>
+              <h2 id="categories-heading">Three kinds of care, one<br />{' '}<em>place to look.</em></h2>
               <p>From the ambulatory vet who knows your yard to the hospital with a surgical suite — all verified, all searchable.</p>
             </div>
             <div className={styles.categoryGrid}>
@@ -414,6 +414,14 @@ export function PublicPage() {
             <p>Some veterinary professionals travel to care for horses. Explore the services and locations providers share, then contact them directly to ask about availability.</p>
             <Link to={careHref} className={styles.lightButton}>Explore provider profiles <Arrow /></Link>
           </div>
+          <aside className={styles.visitingGuide} aria-label="Planning a visiting care enquiry">
+            <p>Planning a visiting care enquiry</p>
+            <ol>
+              <li><span>01</span><div><strong>Explore their services</strong><small>Read what a provider shares on their profile.</small></div></li>
+              <li><span>02</span><div><strong>Ask about travel</strong><small>Confirm whether they visit your area.</small></div></li>
+              <li><span>03</span><div><strong>Check availability</strong><small>Arrange timing directly with the provider.</small></div></li>
+            </ol>
+          </aside>
           <span className={styles.visitingCredit}>Photo by Filip Eliasson on Unsplash</span>
         </section>
 
