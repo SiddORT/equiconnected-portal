@@ -140,7 +140,7 @@ describe('PublicPage', () => {
   it('shows the requested category description below the heading without changing the cards', () => {
     renderPage();
 
-    const heading = screen.getByRole('heading', { name: /Three kinds of care/i });
+    const heading = document.getElementById('categories-heading')!;
     const section = heading.closest('section')!;
     expect(within(section).getByText('Who you’ll find')).toBeTruthy();
     expect(heading.nextElementSibling?.textContent).toBe(
@@ -189,6 +189,21 @@ describe('PublicPage', () => {
   });
 
   it('validates subscriber role and email before sending a registration', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: /keep me posted/i }));
+    expect(screen.getByRole('alert').textContent).toContain('Please choose how you would like to register.');
+    expect(publicApi.registerSubscriber).not.toHaveBeenCalled();
+
+    await user.selectOptions(screen.getByLabelText('Your role'), 'VET');
+    await user.type(screen.getByLabelText('Email address'), 'not-an-email');
+    await user.click(screen.getByRole('button', { name: /keep me posted/i }));
+    expect(screen.getByRole('alert').textContent).toContain('Please enter a valid email address.');
+    expect(publicApi.registerSubscriber).not.toHaveBeenCalled();
+  });
+
+  it('submits a valid subscriber and announces success', async () => {
     const user = userEvent.setup();
     renderPage();
 
@@ -249,11 +264,29 @@ describe('PublicPage', () => {
     window.history.replaceState(null, '', '/#care');
 
     renderPage();
-
     const heading = screen.getByRole('heading', { name: /Every horse deserves care/i });
     await waitFor(() => expect(document.activeElement).toBe(heading));
     expect(scrollIntoView).toHaveBeenCalledOnce();
     expect(heading.getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('keeps the owners anchor keyboard-accessible', async () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    window.history.replaceState(null, '', '/#owners');
+    renderPage();
+
+    const heading = screen.getByRole('heading', { name: 'Your horses, known by heart — and on file.' });
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+    expect(scrollIntoView).toHaveBeenCalledOnce();
   });
 
   it('opens the responsive navigation and closes it on Escape', async () => {
@@ -335,6 +368,44 @@ describe('PublicPage', () => {
     expect(find.queryByRole('combobox')).toBeNull();
     expect(find.queryByRole('checkbox')).toBeNull();
     expect(find.getByRole('link', { name: 'Check all providers' }).getAttribute('href')).toBe('/signup');
+  });
+
+  it('presents six honest owner steps, attributed imagery, and a guest signup action', () => {
+    renderPage();
+    const owners = within(screen.getByRole('region', { name: 'Your horses, known by heart — and on file.' }));
+    expect(owners.getByText('For horse owners & riders')).toBeTruthy();
+    expect(owners.getAllByRole('listitem')).toHaveLength(6);
+    for (const text of [
+      'Create your member profile', 'Add your horses', 'Include optional breed details',
+      'Add registration and microchip numbers if you have them',
+      'Browse provider-shared information', 'Save providers to revisit later',
+    ]) expect(owners.getByText(text)).toBeTruthy();
+    expect(owners.queryByText(/each horse’s stable location|search starts from|providers who reach that location/i)).toBeNull();
+    expect(owners.getByRole('img', { name: /horse owner standing close beside a chestnut horse/i })).toBeTruthy();
+    expect(owners.getByRole('img', { name: /close-up of a horse's eye/i })).toBeTruthy();
+    expect(owners.getByLabelText('Illustrative horse profile, not a member record')).toBeTruthy();
+    expect(owners.getByRole('link', { name: /Philippe Oursel/i }).getAttribute('href')).toBe('https://unsplash.com/@ourselp');
+    expect(owners.getByRole('link', { name: /Glen Carrie/i }).getAttribute('href')).toBe('https://unsplash.com/@glencarrie');
+    expect(owners.getByRole('link', { name: 'Create your account' }).getAttribute('href')).toBe('/signup');
+  });
+
+  it('routes owner members to horses and other members to their profile', () => {
+    const memberUser = {
+      id: 'member', email: 'member@example.com', first_name: 'Member', last_name: 'Rider',
+      full_name: 'Member Rider', role: 'horse_owner', roles: ['horse_owner'],
+      email_verified_at: '2026-08-31', last_successful_login_at: null, is_active: true,
+    };
+    vi.mocked(useAuth).mockReturnValue({ ...guestAuth(), isAuthenticated: true, user: memberUser });
+    const view = renderPage();
+    const owners = within(document.getElementById('owners')!);
+    expect(owners.getByRole('link', { name: 'Your horses' }).getAttribute('href')).toBe('/profile?section=horses');
+
+    vi.mocked(useAuth).mockReturnValue({
+      ...guestAuth(), isAuthenticated: true,
+      user: { ...memberUser, role: 'stable_manager', roles: ['stable_manager'] },
+    });
+    view.rerender(<MemoryRouter><PublicPage /></MemoryRouter>);
+    expect(owners.getByRole('link', { name: 'View your profile' }).getAttribute('href')).toBe('/profile');
   });
 
   it('keeps the V2 care journey sections in their intended order', () => {

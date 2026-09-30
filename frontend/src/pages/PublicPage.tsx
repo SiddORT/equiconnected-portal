@@ -23,6 +23,7 @@ import emergencyPhoto from '@/components/public/home-v2/media/emergency-care.jpg
 import finalPhoto from '@/components/public/home-v2/media/final-horses.jpg';
 import styles from '@/components/public/home-v2/HomeV2.module.css';
 import type { SubscriberRegistrationType } from '@/types';
+import ownerPortrait from '@/components/public/home-v2/media/owner-portrait.jpg';
 
 const REGISTRATION_TYPES: Array<{ value: SubscriberRegistrationType; label: string }> = [
   { value: 'HORSE_OWNER', label: 'Horse owner' },
@@ -52,6 +53,7 @@ export function PublicPage() {
   const [roleError, setRoleError] = useState('');
   const [formError, setFormError] = useState('');
   const careHref = member ? '/providers' : '/signup';
+  const horseOwner = member && (user?.roles?.length ? user.roles : [user?.role]).includes('horse_owner');
   const greeting = user?.first_name?.trim() || user?.full_name?.trim() || 'Member';
 
   useEffect(() => {
@@ -344,21 +346,34 @@ export function PublicPage() {
 
         <section className={styles.ownersSection} id="owners" aria-labelledby="owners-heading">
           <div className={styles.ownersCollage}>
-            <img className={styles.ownerMain} src="/home-v2-hero.jpg" alt="White horse moving through a green pasture" loading="lazy" />
-            <img className={styles.ownerDetail} src={ownerPhoto} alt="Close detail of a horse" loading="lazy" />
-            <span className={styles.ownerIndex}>For the ones who know them best</span>
-            <a className={styles.ownerCredit} href="https://unsplash.com/@glencarrie" target="_blank" rel="noreferrer">Horse detail · Glen Carrie / Unsplash</a>
+            <img className={styles.ownerMain} src={ownerPortrait} alt="A horse owner standing close beside a chestnut horse" loading="lazy" />
+            <img className={styles.ownerDetail} src={ownerPhoto} alt="Close-up of a horse's eye" loading="lazy" />
+            <div className={styles.ownerProfileMotif} aria-label="Illustrative horse profile, not a member record">
+              <span className={styles.ownerMotifLabel}>Horse profile · illustration</span>
+              <strong>Your horse</strong>
+              <span>Breed · registration · microchip</span>
+              <span className={styles.ownerMotifTag}>Details you choose to add</span>
+            </div>
+            <div className={styles.ownerCredits}>
+              <a href="https://unsplash.com/@ourselp" target="_blank" rel="noreferrer">Owner &amp; horse · Philippe Oursel / Unsplash</a>
+              <a href="https://unsplash.com/@glencarrie" target="_blank" rel="noreferrer">Horse detail · Glen Carrie / Unsplash</a>
+            </div>
           </div>
           <div className={styles.ownersCopy}>
             <p className={styles.sectionKicker}>For horse owners &amp; riders</p>
-            <h2 id="owners-heading">Your horse is at the heart of <em>every decision.</em></h2>
-            <p>A member account gives you access to provider profiles and the details they share, so you can find the care that feels right for your horse.</p>
-            <ul className={styles.ownerList}>
-              <li><span>01</span> Explore an equine-focused provider directory</li>
-              <li><span>02</span> See member-only profile information</li>
-              <li><span>03</span> Choose who to contact, and when</li>
-            </ul>
-            <Link to={member ? '/providers' : '/signup'} className={styles.darkButton}>{member ? 'Open provider directory' : 'Create your account'} <Arrow /></Link>
+            <h2 id="owners-heading">Your horses, known by heart — and on file.</h2>
+            <p>Keep each horse’s essentials together in your member profile. Browse provider information and save the ones you want to revisit.</p>
+            <ol className={styles.ownerList}>
+              <li><span aria-hidden="true">1</span> Create your member profile</li>
+              <li><span aria-hidden="true">2</span> Add your horses</li>
+              <li><span aria-hidden="true">3</span> Include optional breed details</li>
+              <li><span aria-hidden="true">4</span> Add registration and microchip numbers if you have them</li>
+              <li><span aria-hidden="true">5</span> Browse provider-shared information</li>
+              <li><span aria-hidden="true">6</span> Save providers to revisit later</li>
+            </ol>
+            <Link to={horseOwner ? '/profile?section=horses' : member ? '/profile' : '/signup'} className={styles.ownerAction}>
+              {horseOwner ? 'Your horses' : member ? 'View your profile' : 'Create your account'} <Arrow />
+            </Link>
           </div>
         </section>
 

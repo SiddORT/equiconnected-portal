@@ -7,4 +7,4 @@ When another task merges changes into files touched by the current work, treat a
 
 **Why:** A concurrent merge changed a shared public-page test after it had passed locally, leaving invalid declarations and broken test boundaries. Another merge restored an older shared form while leaving its styles and tests intact; the app still built, but requested controls disappeared.
 
-**How to apply:** Watch for task-merge updates while working on shared frontend files. After a merge, inspect the current diff and recent history, repair any integration damage, and rerun affected tests as well as the build immediately before completion.
+**How to apply:** Watch for task-merge updates while working on shared frontend files. After a merge, inspect the current diff and recent history, repair any integration damage, and rerun affected tests as well as the build immediately before completion. A previous passing run does not establish that the merged test file still compiles or that its assertions still target the right DOM nodes.

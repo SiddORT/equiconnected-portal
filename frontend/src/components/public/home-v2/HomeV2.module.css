@@ -370,16 +370,29 @@
   line-height: 1.4;
 }
 
-.ownersSection { width: min(100% - 64px,1216px); display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: clamp(44px,8vw,112px); margin: auto; padding: clamp(90px,11vw,150px) 0; scroll-margin-top: 90px; }
-.ownersCollage { position: relative; min-height: 550px; }
-.ownerMain { position: absolute; top: 0; left: 0; width: 77%; height: 90%; object-fit: cover; }
-.ownerDetail { position: absolute; right: 0; bottom: 0; width: 47%; height: 48%; object-fit: cover; border: 10px solid var(--paper); }
-.ownerIndex { position: absolute; right: 4px; top: 14px; writing-mode: vertical-rl; color: var(--gold); font-size: 9px; letter-spacing: .17em; text-transform: uppercase; }
-.ownerCredit { position: absolute; right: 0; bottom: -20px; color: var(--muted) !important; font-size: 8px; }
-.ownersCopy h2 { font-size: clamp(48px,5.5vw,72px); }
-.ownerList { display: grid; gap: 0; max-width: 440px; margin: 24px 0 27px; padding: 0; list-style: none; }
-.ownerList li { padding: 11px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
-.ownerList span { margin-right: 12px; color: var(--gold); font-size: 10px; }
+.ownersSection { width: min(100% - 64px,1216px); display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: center; gap: clamp(48px,6vw,90px); margin: auto; padding: clamp(90px,9vw,130px) 0; scroll-margin-top: 90px; }
+.ownersCollage { position: relative; height: clamp(500px,45vw,610px); min-width: 0; }
+.ownerMain { position: absolute; top: 0; left: 0; width: 68%; height: 82%; object-fit: cover; object-position: 50% center; border-radius: 999px 999px 5px 5px; }
+.ownerDetail { position: absolute; right: 0; bottom: 4%; width: 46%; aspect-ratio: 1; object-fit: cover; object-position: 55% 45%; border: 8px solid var(--paper); border-radius: 50%; }
+.ownerProfileMotif { position: absolute; left: 7%; bottom: 8%; z-index: 1; display: grid; gap: 4px; width: min(250px,57%); padding: 15px 18px; border-radius: 16px; background: var(--paper); box-shadow: 0 24px 42px -16px rgba(28,26,22,.32); color: var(--ink); font-size: 10px; line-height: 1.4; }
+.ownerMotifLabel { color: #806c48; font-size: 8px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.ownerProfileMotif strong { font: 400 27px/1 var(--serif); }
+.ownerMotifTag { justify-self: start; margin-top: 4px; padding: 4px 9px; border-radius: 99px; background: #ece4d3; color: #786339; font-size: 9px; }
+.ownerCredits { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; gap: 3px 12px; color: var(--muted); font-size: 9px; line-height: 1.4; }
+.ownerCredits a { text-decoration: underline; text-underline-offset: 2px; }
+.ownersCopy { min-width: 0; }
+.ownersCopy h2 { max-width: 560px; font-size: clamp(46px,4.5vw,65px); line-height: 1; }
+.ownersCopy > p:not(.sectionKicker) { max-width: 510px; font-size: 13px; line-height: 1.65; }
+.ownerList { display: grid; gap: 3px; margin: 30px 0 28px; padding: 0; list-style: none; }
+.ownerList li { display: flex; align-items: center; gap: 15px; min-height: 38px; color: var(--ink); font-size: 12px; line-height: 1.4; }
+.ownerList span { width: 24px; flex: 0 0 24px; color: #8d713b; font: italic 17px/1 var(--serif); text-align: center; }
+.ownerAction { display: inline-flex; align-items: center; justify-content: center; gap: 24px; min-height: 49px; padding: 0 24px; border-radius: 99px; background: #9b792e; color: #fff !important; font-size: 12px; font-weight: 700; transition: background .2s ease, transform .2s ease; }
+.ownerAction:hover { background: #806322; transform: translateY(-2px); }
+@media (min-width: 768px) and (max-width: 960px) {
+  .ownersSection { grid-template-columns: 1fr; gap: 44px; }
+  .ownersCollage { width: min(100%,650px); height: 550px; }
+  .ownersCopy { max-width: 650px; }
+}
 
 .providerSection { display: grid; grid-template-columns: 1fr 1fr; min-height: 620px; background: var(--paper-soft); scroll-margin-top: 80px; }
 .providerVisual { position: relative; min-height: 500px; overflow: hidden; }
@@ -469,7 +482,6 @@
   .findSection, .ownersSection, .editorial, .emergency { width: calc(100% - 44px); }
   .findSection { gap: 31px; }
   .ownersSection { gap: 34px; }
-  .ownersCollage { order: 2; }
   .providerVisual { min-height: 390px; }
   .providerCopy { padding: 58px 22px 65px; }
   .whySection { grid-template-columns: 1fr; }
@@ -495,7 +507,7 @@
   .categoryGrid { gap: 19px; }
   .findSection, .ownersSection { gap: 45px; }
   .findImage { min-height: 480px; }
-  .ownersCollage { min-height: 470px; }
+  .ownersCollage { height: 470px; }
   .providerCopy { padding: 55px 32px; }
 }
 @media (max-width: 620px) {
@@ -544,10 +556,14 @@
   .whyVisual { height: clamp(310px, 70vw, 390px); }
   .whyImage { object-position: 48% 55%; }
   .ownersSection { width: calc(100% - 40px); grid-template-columns: 1fr; gap: 33px; padding: 76px 0; }
-  .ownersCollage { min-height: 410px; order: 2; }
-  .ownerCredit { right: 0; bottom: -18px; }
-  .ownerMain { width: 82%; height: 88%; }
-  .ownerDetail { width: 47%; height: 45%; border-width: 7px; }
+  .ownersCollage { height: clamp(340px,105vw,480px); }
+  .ownerMain { width: 73%; height: 82%; }
+  .ownerDetail { width: 47%; bottom: 7%; border-width: 6px; }
+  .ownerProfileMotif { bottom: 10%; left: 4%; width: min(220px,61%); padding: 12px 13px; }
+  .ownerProfileMotif strong { font-size: 23px; }
+  .ownerCredits { font-size: 8px; }
+  .ownerList { margin: 23px 0 27px; }
+  .ownerAction { max-width: 100%; }
   .providerSection { grid-template-columns: 1fr; }
   .providerVisual { min-height: 350px; }
   .providerCopy { padding: 55px 21px 62px; }
