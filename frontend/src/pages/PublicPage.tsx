@@ -452,9 +452,6 @@ export function PublicPage() {
             <p>Start exploring EquiConnected. Provider profiles are available to members.</p>
             <div className={styles.finalActions}>
               <Link to={careHref} className={styles.goldButton}>Find a provider <Arrow /></Link>
-              <Link to={member ? '/providers' : '/signup'} className={styles.ghostButton}>
-                {member ? 'Open directory' : 'Join EquiConnected'}
-              </Link>
             </div>
           </div>
         </section>

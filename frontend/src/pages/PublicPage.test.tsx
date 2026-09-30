@@ -138,6 +138,9 @@ describe('PublicPage', () => {
     expect(footer.getByRole('link', { name: 'Provider directory' }).getAttribute('href')).toBe('/providers');
     expect(document.getElementById('care-near-you')).toBeNull();
     expect(within(document.getElementById('find')!).getByRole('link', { name: 'Check all providers' }).getAttribute('href')).toBe('/providers');
+    const finalActions = document.getElementById('join')!.querySelector('[class*="finalActions"]') as HTMLElement;
+    expect(within(finalActions).getByRole('link', { name: 'Find a provider' }).getAttribute('href')).toBe('/providers');
+    expect(within(finalActions).getAllByRole('link')).toHaveLength(1);
     const reviews = within(screen.getByRole('region', { name: 'In their words.' }));
     expect(reviews.getByRole('link', { name: 'Browse provider profiles' }).getAttribute('href')).toBe('/providers');
 
@@ -158,6 +161,9 @@ describe('PublicPage', () => {
     expect(hero!.querySelectorAll('[class*="heroActions"] a')).toHaveLength(1);
     expect(within(document.getElementById('find')!).getByRole('link', { name: 'Check all providers' }).getAttribute('href'))
       .toBe('/signup');
+    const finalActions = document.getElementById('join')!.querySelector('[class*="finalActions"]') as HTMLElement;
+    expect(within(finalActions).getByRole('link', { name: 'Find a provider' }).getAttribute('href')).toBe('/signup');
+    expect(within(finalActions).getAllByRole('link')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Explore Vets in the directory' }).getAttribute('href'))
       .toBe('/signup');
   });
