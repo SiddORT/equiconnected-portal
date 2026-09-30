@@ -338,8 +338,13 @@ describe('PublicPage', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: /equine care/i })).toBeTruthy();
     const intro = screen.getByRole('region', { name: /Every horse deserves care/i });
-    expect(within(intro).getByText(/A starting point for horse owners, riders and stable teams/)).toBeTruthy();
+    expect(within(intro).getByRole('heading', { level: 2, name: /Every horse deserves care from someone who knows horses/i })).toBeTruthy();
+    expect(within(intro).queryByText(/A starting point for horse owners, riders and stable teams/i)).toBeNull();
     expect(within(intro).queryByRole('link')).toBeNull();
+    const steps = screen.getByRole('region', { name: 'Four quiet steps.' });
+    expect(within(steps).getByText('How it works')).toBeTruthy();
+    expect(within(steps).getAllByRole('listitem')).toHaveLength(4);
+    expect(within(steps).queryByText(/Start with what your horse needs\. Explore the network at your own pace\./i)).toBeNull();
     expect(screen.queryByText(/A clearer first step/i)).toBeNull();
     expect(within(screen.getByRole('contentinfo')).getByRole('link', { name: 'How it works' }).getAttribute('href'))
       .toBe('/#how-it-works');

@@ -201,7 +201,6 @@ export function PublicPage() {
             {' '}<span className={styles.inlinePhoto}><img src="/home-v2/statement-detail-2.jpg" alt="" /></span>
             {' '}<em>so the right one is always within reach.</em>
           </h2>
-          <p className={styles.introLead}>A starting point for horse owners, riders and stable teams to learn about equine care providers and the information they share.</p>
         </section>
 
         <section className={styles.steps} id="how-it-works" aria-labelledby="steps-heading">
@@ -210,7 +209,6 @@ export function PublicPage() {
               <p className={styles.sectionKicker}>How it works</p>
               <h2 id="steps-heading">Four quiet steps.</h2>
             </div>
-            <p>Start with what your horse needs. Explore the network at your own pace.</p>
           </div>
           <ol className={styles.stepList}>
             {[
