@@ -46,6 +46,9 @@ describe('VisitingProviderCalendar', () => {
     vi.mocked(getDashboardVisits).mockResolvedValue(september);
     renderCalendar();
     expect(await screen.findByText('September 2026')).toBeTruthy();
+    const heading = screen.getByRole('heading', { name: 'Visiting providers' });
+    expect(heading.parentElement?.tagName).toBe('SECTION');
+    expect(heading.parentElement?.querySelector('[role="grid"]')).toBeTruthy();
     expect(getDashboardVisits).toHaveBeenCalledWith(undefined);
     const today = screen.getByRole('gridcell', { name: '2026-09-24, 2 visiting providers' });
     expect(today.getAttribute('aria-current')).toBe('date');
