@@ -37,6 +37,12 @@ p, h1, h2, h3, h4, h5, h6 {
   overflow-wrap: break-word;
 }
 
+/* Only paragraphs take the larger reading default. Component and page-level
+   font sizes remain authoritative for intentionally smaller copy. */
+p {
+  font-size: var(--text-2xl);
+}
+
 a {
   color: var(--text-link);
   text-decoration: none;
