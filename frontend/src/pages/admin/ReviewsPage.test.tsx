@@ -31,6 +31,11 @@ const response = {
   }],
   meta: { page: 1, page_size: 25, total: 1, total_pages: 1 },
 };
+const emptyResponse = {
+  ...response,
+  data: [],
+  meta: { ...response.meta, total: 0, total_pages: 0 },
+};
 
 afterEach(() => {
   cleanup();
@@ -38,6 +43,61 @@ afterEach(() => {
 });
 
 describe('ReviewsPage', () => {
+  it('shows the unfiltered empty state without pagination and retains visibility controls', async () => {
+    vi.mocked(adminApi.listAdminReviews).mockResolvedValue(emptyResponse);
+    render(<MemoryRouter><ReviewsPage /></MemoryRouter>);
+
+    expect(await screen.findByText('No reviews found')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Visible' })).toBeTruthy();
+    expect(screen.queryByLabelText('Pagination')).toBeNull();
+  });
+
+  it('hides pagination for an empty visibility filter and an empty provider scope', async () => {
+    const user = userEvent.setup();
+    vi.mocked(adminApi.listAdminReviews).mockImplementation(async (params) =>
+      params?.comment_visible === false || params?.provider_id ? emptyResponse : response
+    );
+    render(<MemoryRouter><ReviewsPage /></MemoryRouter>);
+
+    expect(await screen.findByLabelText('Pagination')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Hidden' }));
+    expect(await screen.findByText('No reviews found')).toBeTruthy();
+    expect(screen.getByText('Try selecting a different visibility filter.')).toBeTruthy();
+    expect(screen.queryByLabelText('Pagination')).toBeNull();
+
+    cleanup();
+    render(
+      <MemoryRouter initialEntries={['/admin/reviews?provider_id=123e4567-e89b-42d3-a456-426614174000']}>
+        <ReviewsPage />
+      </MemoryRouter>
+    );
+    expect(await screen.findByText('This provider has no reviews matching the selected filters.')).toBeTruthy();
+    expect(screen.queryByLabelText('Pagination')).toBeNull();
+    expect(screen.getByRole('button', { name: 'View all reviews' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'View all reviews' }));
+    expect(await screen.findByLabelText('Pagination')).toBeTruthy();
+  });
+
+  it('keeps populated pagination usable but hides stale controls during loading and errors', async () => {
+    const user = userEvent.setup();
+    let rejectNext!: (error: Error) => void;
+    const pending = new Promise<typeof response>((_, reject) => { rejectNext = reject; });
+    vi.mocked(adminApi.listAdminReviews)
+      .mockResolvedValueOnce({ ...response, meta: { ...response.meta, total: 30, total_pages: 2 } })
+      .mockImplementationOnce(() => pending);
+    render(<MemoryRouter><ReviewsPage /></MemoryRouter>);
+
+    expect(await screen.findByText('Showing 1 to 25 of 30 entries')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /Next/ }));
+    await waitFor(() => expect(adminApi.listAdminReviews).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 2 }),
+    ));
+    expect(screen.queryByLabelText('Pagination')).toBeNull();
+    rejectNext(new Error('Network unavailable'));
+    expect(await screen.findByText('Failed to load reviews')).toBeTruthy();
+    expect(screen.queryByLabelText('Pagination')).toBeNull();
+  });
+
   it('filters reviews by visibility and can hide a comment without removing the review', async () => {
     vi.mocked(adminApi.listAdminReviews).mockResolvedValue(response);
     vi.mocked(adminApi.setAdminReviewCommentVisibility).mockResolvedValue({
@@ -96,9 +156,11 @@ describe('ReviewsPage', () => {
     render(<MemoryRouter><ReviewsPage /></MemoryRouter>);
 
     expect(await screen.findByText('Failed to load reviews')).toBeTruthy();
+    expect(screen.queryByLabelText('Pagination')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('No reviews found')).toBeTruthy();
     expect(screen.getByText('Member reviews will appear here.')).toBeTruthy();
+    expect(screen.queryByLabelText('Pagination')).toBeNull();
   });
 
   it('removes a hidden review from the visible filter and refreshes the page', async () => {
@@ -113,10 +175,12 @@ describe('ReviewsPage', () => {
     render(<MemoryRouter initialEntries={['/admin/reviews?comment_visible=visible']}><ReviewsPage /></MemoryRouter>);
 
     expect(await screen.findByRole('button', { name: 'Hide' })).toBeTruthy();
+    expect(screen.getByLabelText('Pagination')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Hide' }));
 
     expect(await screen.findByText('No reviews found')).toBeTruthy();
     expect(screen.queryByTestId('review-card')).toBeNull();
+    expect(screen.queryByLabelText('Pagination')).toBeNull();
     expect(adminApi.listAdminReviews).toHaveBeenLastCalledWith(expect.objectContaining({ comment_visible: true }));
   });
 

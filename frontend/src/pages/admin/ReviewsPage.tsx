@@ -177,7 +177,7 @@ export function ReviewsPage() {
                 : 'Try selecting a different visibility filter.'}
           />
         )}
-        {loadState === 'success' && result && <Pagination page={page} pageSize={pageSize} total={result.meta.total} onPageChange={(next) => updateParams({ page: String(next) })} onPageSizeChange={(size) => updateParams({ page_size: String(size), page: '1' })} />}
+        {loadState === 'success' && result && result.meta.total > 0 && <Pagination page={page} pageSize={pageSize} total={result.meta.total} onPageChange={(next) => updateParams({ page: String(next) })} onPageSizeChange={(size) => updateParams({ page_size: String(size), page: '1' })} />}
       </div>
     </div>
   );

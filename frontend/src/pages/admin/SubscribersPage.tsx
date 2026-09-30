@@ -54,6 +54,9 @@ export function SubscribersPage() {
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const queryKey = `${search}|${registrationType}|${dateFrom}|${dateTo}|${page}|${pageSize}`;
+  const currentQueryKeyRef = useRef(queryKey);
+  currentQueryKeyRef.current = queryKey;
 
   const updateParams = useCallback(
     (updates: Record<string, string | null>) => {
@@ -68,6 +71,7 @@ export function SubscribersPage() {
   );
 
   const load = useCallback(async () => {
+    const requestedQueryKey = queryKey;
     setLoadState('loading');
     setErrorMessage(null);
     try {
@@ -80,16 +84,18 @@ export function SubscribersPage() {
         page_size: pageSize,
       });
       if (page > response.meta.total_pages && response.meta.total > 0) {
-        updateParams({ page: '1' });
+        if (currentQueryKeyRef.current === requestedQueryKey) updateParams({ page: '1' });
         return;
       }
+      if (currentQueryKeyRef.current !== requestedQueryKey) return;
       setResult(response);
       setLoadState('success');
     } catch (error) {
+      if (currentQueryKeyRef.current !== requestedQueryKey) return;
       setErrorMessage(extractErrorMessage(error, 'Failed to load subscribers.'));
       setLoadState('error');
     }
-  }, [dateFrom, dateTo, page, pageSize, registrationType, search, updateParams]);
+  }, [dateFrom, dateTo, page, pageSize, queryKey, registrationType, search, updateParams]);
 
   useEffect(() => {
     void load();
@@ -245,7 +251,7 @@ export function SubscribersPage() {
           }}
           ariaLabel="Subscribers"
         />
-        {loadState === 'success' && result && (
+        {loadState === 'success' && result && result.meta.total > 0 && (
           <Pagination
             page={page}
             pageSize={pageSize}
