@@ -166,9 +166,6 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const stepOrder = providerType === 'DOCTOR' ? [0, 1, 2, 3, 4] : [0, 2, 3, 4];
   const wizardPosition = stepOrder.indexOf(wizardStep);
   const [name, setName] = useState(inv?.initial.name ?? initialData?.name ?? '');
-  const [description, setDescription] = useState(
-    inv?.initial.description ?? initialData?.description ?? ''
-  );
   const [website, setWebsite] = useState(inv?.initial.website ?? initialData?.website ?? '');
   const [phoneEntries, setPhoneEntries] = useState<PhoneEntry[]>(() => {
     if (inv) {
@@ -572,7 +569,6 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
 
   function buildInvitationPayload(): InvitationDraftPayload {
     const payload: InvitationDraftPayload = {
-      description: description.trim() || null,
       website: website.trim() || null,
       specialization_ids: selectedSpecIds,
       ...invitationServicePayload(invitationServices),
@@ -691,7 +687,6 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           admin_form_version: 2,
           provider_type: providerType as ProviderType,
           name: name.trim(),
-          description: description.trim() || null,
           website: website.trim() || null,
           ...(initialData.visit_stability === 'STABLE_VISIT' && initialData.maximum_working_radius_km == null &&
             visitStability === 'STABLE_VISIT' && !maximumRadius.trim()
@@ -859,7 +854,6 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           provider_type: providerType as ProviderType,
           name: name.trim(),
           visit_stability: visitStability as VisitStability,
-          description: description.trim() || null,
           website: website.trim() || null,
           status: status as ProviderStatus,
           publication_status: publication as PublicationStatus,
@@ -977,17 +971,6 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               maxLength={300}
             />
           </div>
-
-          <FormField label="Description" optional htmlFor="provider-desc">
-            <textarea
-              id="provider-desc"
-              className={styles.textarea}
-              placeholder="Brief description of this provider…"
-              rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </FormField>
 
           <Input
             label="Website"

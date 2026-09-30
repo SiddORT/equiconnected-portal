@@ -149,6 +149,28 @@ async function finishClinicWizard(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('ProviderForm visit stability', () => {
+  it('does not expose general description or clear it in an invitation draft', async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<ProviderForm invitation={invitationConfig({}, save)} />);
+    expect(screen.queryByLabelText('Description')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(save).toHaveBeenCalled());
+    expect(save.mock.calls[0][0]).not.toHaveProperty('description');
+  });
+
+  it('keeps a saved description untouched when editing a provider', async () => {
+    vi.mocked(updateProvider).mockResolvedValue(existingProvider());
+    vi.mocked(getProvider).mockResolvedValue(existingProvider());
+    const user = userEvent.setup();
+    render(<MemoryRouter><ProviderForm initialData={existingProvider({ description: 'Existing description' })} /></MemoryRouter>);
+    expect(screen.queryByLabelText('Description')).toBeNull();
+    await reachEditReview(user);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateProvider).toHaveBeenCalled());
+    expect(vi.mocked(updateProvider).mock.calls[0][1]).not.toHaveProperty('description');
+  });
   it('prefills the invitation recipient and keeps an explicitly removed address out of the draft', async () => {
     const onSaveDraft = vi.fn().mockResolvedValue(undefined);
     const user = userEvent.setup();

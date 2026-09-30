@@ -215,11 +215,31 @@ class InvitationService:
             if provider.provider_type != fields["provider_type"]:
                 raise ProviderTypeMismatchError("Provider type does not match the selected provider.")
         else:
+            doctor_names = fields["provider_type"] == ProviderType.DOCTOR and (
+                fields.get("first_name") is not None or fields.get("last_name") is not None
+            )
+            if doctor_names and (
+                not str(fields.get("first_name") or "").strip()
+                or not str(fields.get("last_name") or "").strip()
+            ):
+                raise InvalidProviderDataError("First name and last name are required for a doctor invitation.")
+            display_name = (
+                f'{fields["first_name"].strip()} {fields["last_name"].strip()}'
+                if doctor_names else fields.get("provider_name") or recipient
+            )
+            if len(display_name) > 300:
+                raise InvalidProviderDataError("Doctor full name must be 300 characters or fewer.")
             provider = self._providers.create(
-                provider_type=fields["provider_type"], name=fields.get("provider_name") or recipient,
+                provider_type=fields["provider_type"], name=display_name,
                 visit_stability=fields["visit_stability"], status=ProviderStatus.DRAFT,
                 publication_status=PublicationStatus.UNPUBLISHED, email=recipient,
             )
+            if doctor_names:
+                provider.doctor_profile = DoctorProfile(
+                    provider_id=provider.id,
+                    first_name=fields["first_name"].strip(),
+                    last_name=fields["last_name"].strip(),
+                )
         if self._repo.has_active_for_provider_email(provider.id, recipient):
             self._repo.rollback()
             raise DuplicateInvitationError("An active invitation already exists for this provider and email.")
@@ -502,6 +522,8 @@ class InvitationService:
             "qualifications",
         }
         profile_fields = {
+            "first_name",
+            "last_name",
             "professional_title",
             "biography",
             "years_experience",
@@ -603,7 +625,10 @@ class InvitationService:
                 )
 
         if provider.provider_type == ProviderType.DOCTOR:
-            supplied_profile = {key: fields[key] for key in profile_fields if key in fields}
+            supplied_profile = {
+                key: fields[key].strip() if isinstance(fields[key], str) else fields[key]
+                for key in profile_fields if key in fields
+            }
             if supplied_profile:
                 if provider.doctor_profile is None:
                     provider.doctor_profile = DoctorProfile(
@@ -612,6 +637,13 @@ class InvitationService:
                 else:
                     for key, value in supplied_profile.items():
                         setattr(provider.doctor_profile, key, value)
+            if provider.doctor_profile and ({"first_name", "last_name", "name"}.intersection(fields)):
+                first = (provider.doctor_profile.first_name or "").strip()
+                last = (provider.doctor_profile.last_name or "").strip()
+                if first and last:
+                    if len(first) + len(last) + 1 > 300:
+                        raise InvalidProviderDataError("Doctor full name must be 300 characters or fewer.")
+                    provider.name = f"{first} {last}"
             qualifications = fields.get("qualifications")
             if qualifications is not None:
                 provider.qualifications.clear()
@@ -706,6 +738,8 @@ class InvitationService:
                             if provider.doctor_profile
                             else None
                         ),
+                        "first_name": provider.doctor_profile.first_name if provider.doctor_profile else None,
+                        "last_name": provider.doctor_profile.last_name if provider.doctor_profile else None,
                         "biography": (
                             provider.doctor_profile.biography
                             if provider.doctor_profile
@@ -743,6 +777,10 @@ class InvitationService:
         fields = dict(fields)
         organization_ids = fields.pop("organization_ids", None)
         provider = self._apply_provider_fields(invitation, fields)
+        if provider.provider_type == ProviderType.DOCTOR and {"first_name", "last_name"}.intersection(fields):
+            profile = provider.doctor_profile
+            if not profile or not (profile.first_name or "").strip() or not (profile.last_name or "").strip():
+                raise InvalidProviderDataError("First name and last name are required for a doctor invitation.")
         if not provider or not provider.name.strip() or not provider.visit_stability:
             raise InvalidInvitationStateError("Provider name and visit stability are required.")
         # Legacy API clients predate these optional service fields. Apply the

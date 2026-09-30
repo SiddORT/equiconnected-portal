@@ -41,6 +41,8 @@ export interface DraftPhoto {
 /** Provider snapshot returned by GET /provider/invitations/{token}. */
 export interface InvitationDraftProvider {
   name: string;
+  first_name?: string | null;
+  last_name?: string | null;
   description: string | null;
   email: string | null;
   phone: string | null;
@@ -72,6 +74,8 @@ export interface InvitationTokenData {
 /** Body for save-draft / submit token endpoints (fields optional for draft). */
 export interface InvitationDraftPayload {
   name?: string;
+  first_name?: string | null;
+  last_name?: string | null;
   description?: string | null;
   website?: string | null;
   visit_stability?: VisitStability;

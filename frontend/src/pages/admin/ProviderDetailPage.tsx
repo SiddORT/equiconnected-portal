@@ -489,7 +489,6 @@ export function ProviderDetailPage() {
                 <dd>{formatTimestamp(p.updated_at)}</dd>
               </div>
             </dl>
-            {p.description && <p className={styles.overviewDescription}>{p.description}</p>}
           </div>
         </Card>
 

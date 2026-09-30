@@ -208,6 +208,91 @@ class TestAdminAuth:
 # ── Admin create ──────────────────────────────────────────────────────────────
 
 class TestAdminCreate:
+    def test_new_doctor_names_round_trip_and_override_display_name(
+        self, client: TestClient, admin_token: str, db, captured_email: dict
+    ):
+        bad = client.post(ADMIN_BASE, headers=_auth(admin_token), json=_invitation_body(
+            recipient_email="invalid-doctor@example.com", provider_type="DOCTOR",
+            first_name=" ", last_name="Quinn",
+        ))
+        assert bad.status_code == 422
+        too_long = client.post(ADMIN_BASE, headers=_auth(admin_token), json=_invitation_body(
+            recipient_email="long-doctor@example.com", provider_type="DOCTOR",
+            first_name="A" * 150, last_name="B" * 150,
+        ))
+        assert too_long.status_code == 422
+        data = _create_invitation(
+            client, admin_token, recipient_email="named-doctor@example.com",
+            provider_type="DOCTOR", provider_name="Inconsistent",
+            first_name="  Avery ", last_name=" Quinn  ",
+        )
+        provider = db.get(Provider, uuid.UUID(data["provider_id"]))
+        assert provider.name == "Avery Quinn"
+        profile = db.get(DoctorProfile, provider.id)
+        assert (profile.first_name, profile.last_name) == ("Avery", "Quinn")
+        token = captured_email["token"]
+        snapshot = client.get(f"{PUBLIC_BASE}/{token}")
+        assert snapshot.status_code == 200
+        assert snapshot.json()["provider"]["first_name"] == "Avery"
+        draft = client.post(f"{PUBLIC_BASE}/{token}/save", json={
+            "first_name": "  Maya ", "last_name": " Singh ", "name": "Wrong display",
+        })
+        assert draft.status_code == 200, draft.text
+        assert draft.json()["provider"]["name"] == "Maya Singh"
+        assert draft.json()["provider"]["last_name"] == "Singh"
+        missing = client.post(f"{PUBLIC_BASE}/{token}/submit", json={
+            "name": "Wrong", "visit_stability": "NOT_STABLE_VISIT",
+            "first_name": " ", "last_name": "Singh",
+        })
+        assert missing.status_code == 422
+        completed = client.post(f"{PUBLIC_BASE}/{token}/submit", json={
+            "name": "Wrong", "visit_stability": "NOT_STABLE_VISIT",
+            "first_name": "  Mira ", "last_name": " Stone ",
+        })
+        assert completed.status_code == 200, completed.text
+        db.refresh(provider)
+        db.refresh(profile)
+        assert provider.name == "Mira Stone"
+        assert (profile.first_name, profile.last_name) == ("Mira", "Stone")
+
+    def test_legacy_doctor_and_existing_provider_invitations_stay_compatible(
+        self, client: TestClient, admin_token: str, db, captured_email: dict, existing_provider
+    ):
+        legacy = _create_invitation(client, admin_token, recipient_email="legacy-names@example.com",
+                                    provider_type="DOCTOR", provider_name="Dr. Legacy Name")
+        token = captured_email["token"]
+        snapshot = client.get(f"{PUBLIC_BASE}/{token}").json()["provider"]
+        assert snapshot["name"] == "Dr. Legacy Name"
+        assert snapshot["first_name"] is None
+        saved = client.post(f"{PUBLIC_BASE}/{token}/save", json={"first_name": "Legacy"})
+        assert saved.status_code == 200
+        assert saved.json()["provider"]["name"] == "Dr. Legacy Name"
+        final = client.post(f"{PUBLIC_BASE}/{token}/submit", json={
+            "name": "Dr. Legacy Name", "visit_stability": "NOT_STABLE_VISIT",
+            "first_name": "Legacy", "last_name": "Name",
+        })
+        assert final.status_code == 200, final.text
+        assert db.get(Provider, uuid.UUID(legacy["provider_id"])).name == "Legacy Name"
+        old_client = _create_invitation(client, admin_token, recipient_email="old-names@example.com",
+                                        provider_type="DOCTOR", provider_name="Old API Doctor")
+        assert client.post(f'{PUBLIC_BASE}/{captured_email["token"]}/submit',
+                           json={"name": "Old API Doctor", "visit_stability": "NOT_STABLE_VISIT"}).status_code == 200
+        assert db.get(Provider, uuid.UUID(old_client["provider_id"])).name == "Old API Doctor"
+        existing_provider.description = "Retain existing description"
+        db.commit()
+        existing = _create_invitation(client, admin_token, recipient_email="existing-names@example.com",
+                                      provider_type="HOSPITAL", provider_id=str(existing_provider.id))
+        assert existing["provider_id"] == str(existing_provider.id)
+        assert db.get(Provider, existing_provider.id).name == "Existing Hospital"
+        org_token = captured_email["token"]
+        assert client.post(f"{PUBLIC_BASE}/{org_token}/save", json={"website": "https://example.com"}).status_code == 200
+        submitted = client.post(f"{PUBLIC_BASE}/{org_token}/submit", json={
+            "name": "Existing Hospital", "visit_stability": "STABLE_VISIT",
+        })
+        assert submitted.status_code == 200, submitted.text
+        db.refresh(existing_provider)
+        assert existing_provider.description == "Retain existing description"
+
     def test_create_for_new_provider(
         self,
         client: TestClient,

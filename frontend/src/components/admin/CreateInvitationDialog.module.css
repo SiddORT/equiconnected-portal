@@ -1,5 +1,5 @@
 .backdrop { position: fixed; inset: 0; z-index: calc(var(--z-sticky) + 10); display: flex; align-items: center; justify-content: center; padding: var(--space-4); background: rgba(0, 0, 0, .45); }
-.panel { width: 100%; max-width: 540px; overflow: visible; border-radius: var(--radius-xl); background: var(--color-neutral-0); box-shadow: 0 20px 60px rgba(0,0,0,.18); }
+.panel { width: 100%; max-width: 540px; max-height: calc(100dvh - 2 * var(--space-4)); overflow-y: auto; border-radius: var(--radius-xl); background: var(--color-neutral-0); box-shadow: 0 20px 60px rgba(0,0,0,.18); }
 .header { display: flex; align-items: center; justify-content: space-between; padding: var(--space-5) var(--space-6); border-bottom: 1px solid var(--border-default); }
 .title { margin: 0; font-size: var(--text-lg); color: var(--text-primary); }
 .closeBtn { border: 0; background: none; color: var(--text-muted); cursor: pointer; font-size: var(--text-base); }

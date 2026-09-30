@@ -100,6 +100,8 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
 
   // ── Core fields ──────────────────────────────────────────────────────────────
   const [name, setName] = useState(inv?.initial.name ?? initialData?.name ?? '');
+  const [firstName, setFirstName] = useState(inv?.initial.first_name ?? '');
+  const [lastName, setLastName] = useState(inv?.initial.last_name ?? '');
   const [professionalTitle, setProfessionalTitle] = useState(
     inv?.initial.professional_title ?? initialData?.professional_title ?? ''
   );
@@ -212,7 +214,13 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
 
   function validate(): boolean {
     const errors: Record<string, string> = {};
-    if (!name.trim()) errors.name = 'Name is required.';
+    if (inv) {
+      if (!firstName.trim()) errors.first_name = 'First name is required.';
+      if (!lastName.trim()) errors.last_name = 'Last name is required.';
+      if (firstName.trim().length + lastName.trim().length + 1 > 300) {
+        errors.last_name = 'The full name must be 300 characters or fewer.';
+      }
+    } else if (!name.trim()) errors.name = 'Name is required.';
     if (!(inv ? invitationServices.visit_stability : visitStability)) errors.visit_stability = 'Visit Stable is required.';
     if (inv) {
       Object.assign(errors, validateInvitationServices(invitationServices));
@@ -262,7 +270,10 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
         .map((e) => ({ email: e.email.trim(), is_primary: e.is_primary })),
       ...invitationServicePayload(invitationServices),
     };
-    if (name.trim()) payload.name = name.trim();
+    if (firstName.trim() && lastName.trim()) payload.name = `${firstName.trim()} ${lastName.trim()}`;
+    else if (name.trim()) payload.name = name.trim();
+    payload.first_name = firstName.trim() || null;
+    payload.last_name = lastName.trim() || null;
     const locations = invitationLocationsPayload(invitationAddresses);
     payload.locations = locations ?? [];
     return payload;
@@ -456,15 +467,23 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>Basic information</h3>
           <div className={styles.grid}>
-            <Input
+            {inv ? (
+              <>
+                {(!inv.initial.first_name || !inv.initial.last_name) && inv.initial.name && (
+                  <p>Previously entered name: {inv.initial.name}. Enter the first and last names below to confirm them.</p>
+                )}
+                <Input label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} error={fieldErrors.first_name ?? inv.externalErrors?.first_name} required maxLength={150} />
+                <Input label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} error={fieldErrors.last_name ?? inv.externalErrors?.last_name} required maxLength={150} />
+              </>
+            ) : <Input
               label="Full name"
               placeholder="e.g. Dr. Priya Sharma"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              error={fieldErrors.name ?? inv?.externalErrors?.name}
+              error={fieldErrors.name}
               required
               maxLength={300}
-            />
+            />}
             <Input
               label="Professional title"
               placeholder="e.g. Senior Cardiologist"

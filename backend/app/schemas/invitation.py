@@ -3,7 +3,7 @@ from datetime import datetime
 from math import isfinite
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.models.enums import InvitationStatus, ProviderType, VisitStability
 from app.schemas.common import PaginatedResponse
@@ -16,12 +16,25 @@ class InvitationCreate(BaseModel):
     provider_type: ProviderType
     provider_id: UUID | None = None
     provider_name: str | None = Field(None, min_length=1, max_length=300)
+    first_name: str | None = Field(None, max_length=150)
+    last_name: str | None = Field(None, max_length=150)
     visit_stability: VisitStability = VisitStability.STABLE_VISIT
 
     @field_validator("provider_name")
     @classmethod
     def strip_name(cls, value: str | None) -> str | None:
         return value.strip() if value else value
+
+    @model_validator(mode="after")
+    def require_doctor_names(self):
+        if self.provider_id is None and self.provider_type == ProviderType.DOCTOR and (
+            "first_name" in self.model_fields_set or "last_name" in self.model_fields_set
+        ):
+            if not self.first_name or not self.first_name.strip() or not self.last_name or not self.last_name.strip():
+                raise ValueError("First name and last name are required for a doctor invitation.")
+            if len(self.first_name.strip()) + len(self.last_name.strip()) + 1 > 300:
+                raise ValueError("Doctor full name must be 300 characters or fewer.")
+        return self
 
 
 class InvitationResponse(BaseModel):
@@ -61,6 +74,8 @@ class InvitationTokenResponse(BaseModel):
 
 class DraftSaveRequest(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=300)
+    first_name: str | None = Field(None, max_length=150)
+    last_name: str | None = Field(None, max_length=150)
     description: str | None = Field(None, max_length=5000)
     email: EmailStr | None = None
     phone: str | None = Field(None, max_length=50)

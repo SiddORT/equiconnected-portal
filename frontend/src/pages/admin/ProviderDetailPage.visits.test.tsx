@@ -60,6 +60,19 @@ afterEach(() => {
 });
 
 describe('ProviderDetailPage doctor visits', () => {
+  it('shows doctor professional names but not the general provider description', async () => {
+    vi.mocked(getProvider).mockResolvedValue(doctor({
+      name: 'Mira Stone', description: 'Hidden general description',
+      doctor_profile: { first_name: 'Mira', last_name: 'Stone', professional_title: null,
+        biography: 'Equine specialist', years_experience: null, experience_description: null },
+    } as Provider));
+    renderDetail();
+    expect(await screen.findByRole('heading', { name: 'Professional info' })).toBeTruthy();
+    expect(screen.getByText('Mira')).toBeTruthy();
+    expect(screen.getByText('Stone')).toBeTruthy();
+    expect(screen.getByText('Equine specialist')).toBeTruthy();
+    expect(screen.queryByText('Hidden general description')).toBeNull();
+  });
   it('shows the exact empty visiting state and reloads after amending an upcoming trip', async () => {
     const empty = doctor();
     const upcoming = {

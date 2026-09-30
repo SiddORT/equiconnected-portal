@@ -27,10 +27,14 @@ export function CreateInvitationDialog({ onSuccess, onCancel, onDeliveryFailure 
   const emailRef = useRef<HTMLInputElement>(null);
   const [providerType, setProviderType] = useState<ProviderType>('HOSPITAL');
   const [providerName, setProviderName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [providerNameError, setProviderNameError] = useState<string | null>(null);
+  const [firstNameError, setFirstNameError] = useState<string | null>(null);
+  const [lastNameError, setLastNameError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
 
   useEffect(() => { emailRef.current?.focus(); }, []);
@@ -44,8 +48,18 @@ export function CreateInvitationDialog({ onSuccess, onCancel, onDeliveryFailure 
     event.preventDefault();
     setError(null);
     const normalizedProviderName = providerName.trim();
+    const normalizedFirstName = firstName.trim();
+    const normalizedLastName = lastName.trim();
     const normalizedEmail = email.trim();
-    if (!normalizedProviderName) {
+    if (providerType === 'DOCTOR') {
+      setFirstNameError(normalizedFirstName ? null : 'Enter a first name.');
+      setLastNameError(normalizedLastName ? null : 'Enter a last name.');
+      if (!normalizedFirstName || !normalizedLastName) return;
+      if (`${normalizedFirstName} ${normalizedLastName}`.length > 300) {
+        setLastNameError('The full name must be 300 characters or fewer.');
+        return;
+      }
+    } else if (!normalizedProviderName) {
       setProviderNameError('Enter a provider name.');
       return;
     }
@@ -60,7 +74,8 @@ export function CreateInvitationDialog({ onSuccess, onCancel, onDeliveryFailure 
       const invitation = await createInvitation({
         recipient_email: normalizedEmail,
         provider_type: providerType,
-        provider_name: normalizedProviderName,
+        provider_name: providerType === 'DOCTOR' ? `${normalizedFirstName} ${normalizedLastName}` : normalizedProviderName,
+        ...(providerType === 'DOCTOR' ? { first_name: normalizedFirstName, last_name: normalizedLastName } : {}),
       });
       onSuccess(invitation);
     } catch (err) {
@@ -96,14 +111,14 @@ export function CreateInvitationDialog({ onSuccess, onCancel, onDeliveryFailure 
               options={PROVIDER_TYPES}
               required
             />
-            <Input
-              label="Provider name"
-              value={providerName}
-              onChange={(event) => { setProviderName(event.target.value); setProviderNameError(null); }}
-              error={providerNameError ?? undefined}
-              placeholder="Enter provider name"
-              required
-            />
+            {providerType === 'DOCTOR' ? (
+              <>
+                <Input label="First name" value={firstName} onChange={(event) => { setFirstName(event.target.value); setFirstNameError(null); }} error={firstNameError ?? undefined} required maxLength={150} />
+                <Input label="Last name" value={lastName} onChange={(event) => { setLastName(event.target.value); setLastNameError(null); }} error={lastNameError ?? undefined} required maxLength={150} />
+              </>
+            ) : (
+              <Input label="Provider name" value={providerName} onChange={(event) => { setProviderName(event.target.value); setProviderNameError(null); }} error={providerNameError ?? undefined} placeholder="Enter provider name" required />
+            )}
             <Input
               ref={emailRef}
               type="email"
