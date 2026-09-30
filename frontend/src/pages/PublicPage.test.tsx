@@ -55,12 +55,12 @@ beforeEach(() => {
 });
 
 describe('PublicPage', () => {
-  it('places a working contact form before the updates signup', async () => {
+  it('places a working contact form after the updates signup', async () => {
     const user = userEvent.setup();
     renderPage();
     const contact = screen.getByRole('heading', { name: /Let’s talk horses/i }).closest('section') as HTMLElement;
     const updates = screen.getByRole('heading', { name: /Stay close to what’s\s*happening next/i }).closest('section') as HTMLElement;
-    expect(contact.compareDocumentPosition(updates) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(updates.compareDocumentPosition(contact) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     const form = within(contact).getByRole('form', { name: 'Contact EquiConnected' });
     await user.type(within(form).getByRole('textbox', { name: 'Full name' }), 'Sam Rider');

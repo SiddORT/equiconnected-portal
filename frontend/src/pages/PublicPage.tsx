@@ -476,8 +476,6 @@ export function PublicPage() {
           </div>
         </section>
 
-        <ContactSection />
-
         <section className={styles.comingSoon} aria-label="Get EquiConnected updates">
           <p className={styles.sectionKicker}>A network that grows with you</p>
           <h2>Stay close to what’s<br />happening <em>next.</em></h2>
@@ -504,6 +502,8 @@ export function PublicPage() {
             </form>
           )}
         </section>
+
+        <ContactSection />
       </main>
 
       <HomeFooter member={member} careHref={careHref} />
