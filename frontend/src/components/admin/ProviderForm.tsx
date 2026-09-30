@@ -589,13 +589,17 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     };
     if (name.trim()) payload.name = name.trim();
     const locations = invitationLocationsPayload(invitationAddresses);
-    if (locations || invitationAddresses.length === 0) payload.locations = locations ?? [];
+    payload.locations = locations ?? [];
     return payload;
   }
 
   async function handleSaveDraft() {
     if (!inv) return;
     setApiError(null);
+    if (invitationAddresses.length > 1) {
+      setFieldErrors((current) => ({ ...current, address_choice: 'Choose one saved address to keep before continuing.' }));
+      return;
+    }
     setSavingDraft(true);
     try {
       await inv.onSaveDraft(buildInvitationPayload());
@@ -637,6 +641,10 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   async function submitProvider() {
     if (submissionInProgress.current || submissionCompleted.current || (wizard && (wizardStep !== WIZARD_STEPS.length - 1 || !reviewReady))) return;
     setApiError(null);
+    if (inv && invitationAddresses.length > 1) {
+      setFieldErrors((current) => ({ ...current, address_choice: 'Choose one saved address to keep before continuing.' }));
+      return;
+    }
     if (!validate()) return;
 
     if (inv) {
@@ -1407,7 +1415,10 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         </section>
       </Card>}
       {inv && <Card padding="lg" shadow="sm" className={styles.cardFull}>
-        <InvitationAddresses value={invitationAddresses} onChange={setInvitationAddresses}
+        <InvitationAddresses value={invitationAddresses} onChange={(value) => {
+          setInvitationAddresses(value);
+          setFieldErrors((current) => ({ ...current, address_choice: '' }));
+        }}
           errors={errs} disabled={submitting} />
       </Card>}
 

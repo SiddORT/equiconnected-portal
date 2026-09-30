@@ -61,6 +61,7 @@ export function emptyInvitationAddress(key = 'address-0'): InvitationAddress {
 }
 
 export function invitationAddressesFromDraft(locations: DraftLocation[]): InvitationAddress[] {
+  if (locations.length === 0) return [emptyInvitationAddress()];
   return locations.map((location, index) => ({
     key: `address-${index}`,
     name: location.name ?? '',
@@ -141,11 +142,12 @@ export function validateInvitationServices(value: InvitationServiceValues): Invi
 }
 
 export function invitationLocationsPayload(addresses: InvitationAddress[]): DraftLocation[] | undefined {
+  if (addresses.length > 1) throw new Error('Choose one saved address before continuing.');
   const filled = addresses.filter((address) =>
     Object.entries(address).some(([key, field]) => key !== 'key' && Boolean(field.trim()))
   ).filter((address) => address.address_line_1.trim() && address.city.trim());
   if (filled.length === 0) return undefined;
-  return filled.map((address, index) => ({
+  return filled.map((address) => ({
     name: address.name.trim() || null,
     address_line_1: address.address_line_1.trim(),
     address_line_2: address.address_line_2.trim() || null,
@@ -153,7 +155,7 @@ export function invitationLocationsPayload(addresses: InvitationAddress[]): Draf
     state_province: address.state_province.trim() || null,
     country: address.country.trim() || null,
     postal_code: address.postal_code.trim() || null,
-    is_primary: index === 0,
+    is_primary: true,
   }));
 }
 
@@ -245,6 +247,8 @@ export function InvitationAddresses({
   const requestedPostalCodes = useRef(new Map(
     value.map((address) => [address.key, address.postal_code.trim()])
   ));
+  // Keep legacy choices available if the invitee changes their mind before saving.
+  const legacyAddresses = useRef(value.length > 1 ? value : []);
   const postalSignature = value.map((address) => `${address.key}:${address.postal_code.trim()}`).join('|');
 
   useEffect(() => {
@@ -325,67 +329,87 @@ export function InvitationAddresses({
   return (
     <section className={styles.section} aria-label="Practice addresses">
       <h3 className={styles.sectionTitle}>Practice addresses</h3>
-      <p className={styles.hint}>Add named locations where patients can visit you. Choose a postal-code match or enter location details manually.</p>
-      {value.map((address, index) => {
+      {legacyAddresses.current.length > 1 && (
+        <div className={styles.legacyChoices} role="group" aria-label="Choose an address to keep">
+          <p className={styles.hint}>This invitation has multiple saved addresses. Choose the one to keep before saving or submitting. The others will be removed from this invitation.</p>
+          {legacyAddresses.current.map((address, index) => (
+            <button type="button" className={styles.candidate} key={address.key} disabled={disabled}
+              aria-pressed={value.length === 1 && value[0].key === address.key}
+              onClick={() => onChange([address])}>
+              Keep {address.name.trim() || `Address ${index + 1}`} — {address.address_line_1}, {address.city}
+            </button>
+          ))}
+          {errors.address_choice && <p role="alert" className={styles.error}>{errors.address_choice}</p>}
+        </div>
+      )}
+      {value.length <= 1 && (
+      <>
+      <p className={styles.hint}>Choose a postal-code match or enter location details manually.</p>
+      {value.slice(0, 1).map((address, index) => {
         const addressLookup = lookup[address.key];
+        const postalId = `invitation-postal-${address.key}`;
+        const postalFeedback = addressLookup?.loading ||
+          (addressLookup?.message && addressLookup.message !== 'selected');
         return (
           <fieldset className={styles.addressCard} key={address.key}>
-            <legend>{address.name.trim() || `Address ${index + 1}`}</legend>
-            <Input label="Location name" placeholder="e.g. Main clinic" value={address.name}
-              onChange={(event) => update(index, { name: event.target.value })}
-              error={errors[`address_${index}_name`]} disabled={disabled} />
+            <legend>Practice address</legend>
+            <div className={styles.firstRow}>
+              <Input label="Location name" placeholder="e.g. Main clinic" value={address.name}
+                onChange={(event) => update(index, { name: event.target.value })}
+                error={errors[`address_${index}_name`]} disabled={disabled} />
+              <div className={styles.postalField}>
+                <Input label="Postal / ZIP code" id={postalId} autoComplete="postal-code" value={address.postal_code}
+                  aria-describedby={[
+                    errors[`address_${index}_postal_code`] ? `${postalId}-error` : '',
+                    postalFeedback ? `${postalId}-lookup` : '',
+                  ].filter(Boolean).join(' ') || undefined}
+                  onChange={(event) => {
+                    update(index, { postal_code: event.target.value });
+                    requestedPostalCodes.current.delete(address.key);
+                    setLookup((current) => ({ ...current, [address.key]: { candidates: [], message: '', loading: false } }));
+                  }}
+                  error={errors[`address_${index}_postal_code`]} disabled={disabled} />
+                {addressLookup?.loading && <p id={`${postalId}-lookup`} className={styles.hint} role="status">Looking up postal code…</p>}
+                {addressLookup?.message && addressLookup.message !== 'selected' && (
+                  <p id={`${postalId}-lookup`} className={styles.hint} role="status">{addressLookup.message}</p>
+                )}
+              {!!addressLookup?.candidates.length && (
+                <div className={styles.candidates} aria-label={`Postal matches for address ${index + 1}`}>
+                  {addressLookup.candidates.map((candidate, candidateIndex) => (
+                    <button className={styles.candidate} type="button" key={`${candidate.postal_code}-${candidate.city}-${candidateIndex}`}
+                      onClick={() => selectCandidate(index, candidate)} disabled={disabled}>
+                      {candidate.display_name}
+                    </button>
+                  ))}
+                  <button className={styles.manualButton} type="button"
+                    onClick={() => setLookup((current) => ({
+                      ...current,
+                      [address.key]: { candidates: [], message: 'Enter location details manually.', loading: false },
+                    }))} disabled={disabled}>
+                    Enter location manually
+                  </button>
+                </div>
+              )}
+              </div>
+            </div>
+            <div className={styles.placeRow}>
+              <Input label="Country" value={address.country}
+                onChange={(event) => update(index, { country: event.target.value })} disabled={disabled} />
+              <Input label="State / province" value={address.state_province}
+                onChange={(event) => update(index, { state_province: event.target.value })} disabled={disabled} />
+              <Input label="City" value={address.city} onChange={(event) => update(index, { city: event.target.value })}
+                error={errors[`address_${index}_city`]} disabled={disabled} />
+            </div>
             <Input label="Address line 1" value={address.address_line_1}
               onChange={(event) => update(index, { address_line_1: event.target.value })}
               error={errors[`address_${index}_address_line_1`]} disabled={disabled} />
             <Input label="Address line 2" value={address.address_line_2}
               onChange={(event) => update(index, { address_line_2: event.target.value })} disabled={disabled} />
-            <Input label="Postal / ZIP code" autoComplete="postal-code" value={address.postal_code}
-              onChange={(event) => {
-                update(index, { postal_code: event.target.value });
-                requestedPostalCodes.current.delete(address.key);
-                setLookup((current) => ({ ...current, [address.key]: { candidates: [], message: '', loading: false } }));
-              }}
-              error={errors[`address_${index}_postal_code`]} disabled={disabled} />
-            {addressLookup?.loading && <p className={styles.hint} role="status">Looking up postal code…</p>}
-            {addressLookup?.message && addressLookup.message !== 'selected' && (
-              <p className={styles.hint} role="status">{addressLookup.message}</p>
-            )}
-            {!!addressLookup?.candidates.length && (
-              <div className={styles.candidates} aria-label={`Postal matches for address ${index + 1}`}>
-                {addressLookup.candidates.map((candidate, candidateIndex) => (
-                  <button className={styles.candidate} type="button" key={`${candidate.postal_code}-${candidate.city}-${candidateIndex}`}
-                    onClick={() => selectCandidate(index, candidate)} disabled={disabled}>
-                    {candidate.display_name}
-                  </button>
-                ))}
-                <button className={styles.manualButton} type="button"
-                  onClick={() => setLookup((current) => ({
-                    ...current,
-                    [address.key]: { candidates: [], message: 'Enter location details manually.', loading: false },
-                  }))} disabled={disabled}>
-                  Enter location manually
-                </button>
-              </div>
-            )}
-            <Input label="City" value={address.city} onChange={(event) => update(index, { city: event.target.value })}
-              error={errors[`address_${index}_city`]} disabled={disabled} />
-            <Input label="State / province" value={address.state_province}
-              onChange={(event) => update(index, { state_province: event.target.value })} disabled={disabled} />
-            <Input label="Country" value={address.country}
-              onChange={(event) => update(index, { country: event.target.value })} disabled={disabled} />
-            {value.length > 1 && (
-              <button className={styles.removeButton} type="button" disabled={disabled}
-                onClick={() => onChange(value.filter((_, i) => i !== index))}>
-                Remove address
-              </button>
-            )}
           </fieldset>
         );
       })}
-      <button className={styles.addButton} type="button" disabled={disabled}
-        onClick={() => onChange([...value, emptyInvitationAddress(`address-${Date.now()}-${value.length}`)])}>
-        + Add address
-      </button>
+      </>
+      )}
     </section>
   );
 }

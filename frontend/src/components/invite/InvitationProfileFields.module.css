@@ -66,15 +66,29 @@
   font-weight: var(--font-medium);
 }
 
+.firstRow, .placeRow {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.firstRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.placeRow { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.firstRow > *, .placeRow > *, .postalField { min-width: 0; }
+.postalField, .legacyChoices { display: grid; gap: var(--space-2); min-width: 0; }
+.error { color: var(--color-error); margin: 0; }
+
+@media (max-width: 680px) {
+  .firstRow, .placeRow { grid-template-columns: minmax(0, 1fr); }
+}
+
 .candidates {
   display: grid;
   gap: var(--space-2);
 }
 
 .candidate,
-.manualButton,
-.addButton,
-.removeButton {
+.manualButton {
   width: fit-content;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-default);
@@ -86,12 +100,6 @@
 }
 
 .candidate:hover,
-.manualButton:hover,
-.addButton:hover,
-.removeButton:hover {
+.manualButton:hover {
   border-color: var(--color-primary-500);
-}
-
-.removeButton {
-  color: var(--color-error);
 }

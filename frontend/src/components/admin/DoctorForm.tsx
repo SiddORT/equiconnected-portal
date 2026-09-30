@@ -264,13 +264,17 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
     };
     if (name.trim()) payload.name = name.trim();
     const locations = invitationLocationsPayload(invitationAddresses);
-    if (locations || invitationAddresses.length === 0) payload.locations = locations ?? [];
+    payload.locations = locations ?? [];
     return payload;
   }
 
   async function handleSaveDraft() {
     if (!inv) return;
     setApiError(null);
+    if (invitationAddresses.length > 1) {
+      setFieldErrors((current) => ({ ...current, address_choice: 'Choose one saved address to keep before continuing.' }));
+      return;
+    }
     setSavingDraft(true);
     try {
       await inv.onSaveDraft(buildInvitationPayload());
@@ -284,6 +288,10 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setApiError(null);
+    if (inv && invitationAddresses.length > 1) {
+      setFieldErrors((current) => ({ ...current, address_choice: 'Choose one saved address to keep before continuing.' }));
+      return;
+    }
     if (!validate()) return;
 
     if (inv) {

@@ -276,17 +276,48 @@ describe('ProviderForm visit stability', () => {
     const save = vi.fn().mockResolvedValue(undefined);
     const user = userEvent.setup();
     render(<ProviderForm invitation={invitationConfig({}, save)} />);
-    await user.click(screen.getByRole('button', { name: /Add address/ }));
+    expect(screen.getAllByLabelText('Location name')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /Add address|Remove address/i })).toBeNull();
     await user.type(screen.getByLabelText('Postal / ZIP code'), '110001');
     expect(await screen.findByRole('button', { name: 'Delhi Cantonment' })).toBeTruthy();
+    expect(screen.getByLabelText('Postal / ZIP code').getAttribute('aria-describedby'))
+      .toContain(screen.getByRole('status').id);
     await user.click(screen.getByRole('button', { name: 'New Delhi, Delhi' }));
     expect((screen.getByLabelText('City') as HTMLInputElement).value).toBe('New Delhi');
+    await user.clear(screen.getByLabelText('City'));
+    await user.type(screen.getByLabelText('City'), 'Corrected Delhi');
     expect((screen.getByLabelText('Address line 1') as HTMLInputElement).value).toBe('');
     await user.type(screen.getByLabelText('Location name'), 'Main');
     await user.type(screen.getByLabelText('Address line 1'), '42 Stable Road');
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
-      locations: [expect.objectContaining({ name: 'Main', address_line_1: '42 Stable Road', city: 'New Delhi', postal_code: '110001' })],
+      locations: [expect.objectContaining({ name: 'Main', address_line_1: '42 Stable Road', city: 'Corrected Delhi', postal_code: '110001', is_primary: true })],
+    })));
+  });
+
+  it('lets hospital invitees save an empty address and choose manual entry after postal matches', async () => {
+    vi.mocked(lookupProviderPostalCode).mockResolvedValue({
+      status: 'match', candidates: [
+        { postal_code: '110001', country: 'India', country_code: 'IN', state_province: 'Delhi', city: 'New Delhi', display_name: 'New Delhi, India' },
+      ],
+    });
+    const save = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<ProviderForm invitation={{ ...invitationConfig({}, save), providerType: 'HOSPITAL' }} />);
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ locations: [] })));
+    await user.type(screen.getByLabelText('Postal / ZIP code'), '110001');
+    await screen.findByRole('button', { name: 'New Delhi, India' });
+    await user.click(screen.getByRole('button', { name: 'Enter location manually' }));
+    expect(screen.queryByRole('button', { name: 'New Delhi, India' })).toBeNull();
+    await user.type(screen.getByLabelText('Location name'), 'West hospital');
+    await user.type(screen.getByLabelText('Country'), 'India');
+    await user.type(screen.getByLabelText('City'), 'Agra');
+    await user.type(screen.getByLabelText('Address line 1'), '9 Hill Rd');
+    await user.type(screen.getByLabelText('Address line 2'), 'Suite 2');
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(save).toHaveBeenLastCalledWith(expect.objectContaining({
+      locations: [expect.objectContaining({ name: 'West hospital', city: 'Agra', address_line_2: 'Suite 2', is_primary: true })],
     })));
   });
 
@@ -302,7 +333,6 @@ describe('ProviderForm visit stability', () => {
     await user.type(screen.getByRole('textbox', { name: 'Search countries' }), 'India');
     await user.click(screen.getByRole('option', { name: /India/ }));
     await user.type(screen.getByRole('textbox', { name: 'Emergency contact number' }), '9988776655');
-    await user.click(screen.getByRole('button', { name: /Add address/ }));
     await user.type(screen.getByLabelText('Postal / ZIP code'), '110001');
     expect(await screen.findByText('Postal lookup is unavailable. You can enter the address manually.')).toBeTruthy();
     await user.type(screen.getByLabelText('Location name'), 'South branch');
@@ -313,6 +343,32 @@ describe('ProviderForm visit stability', () => {
     await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
       emergency_contact_number: '+91 9988776655',
       locations: [expect.objectContaining({ name: 'South branch', city: 'Delhi', country: 'India' })],
+    })));
+  });
+
+  it('requires a legacy address choice before saving or submitting a clinic invitation', async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const submit = vi.fn().mockResolvedValue(undefined);
+    const locations = [
+      { name: 'First', address_line_1: '1 First St', city: 'Delhi', is_primary: true },
+      { name: 'Second', address_line_1: '2 Second St', city: 'Mumbai', is_primary: false },
+    ];
+    const user = userEvent.setup();
+    render(<ProviderForm invitation={invitationConfig({ locations, visit_stability: 'NOT_STABLE_VISIT' }, save, submit)} />);
+    expect(screen.queryByLabelText('Location name')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await user.click(screen.getByRole('button', { name: 'Submit for review' }));
+    expect(save).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: /Keep Second/ }));
+    expect((screen.getByLabelText('Location name') as HTMLInputElement).value).toBe('Second');
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
+      locations: [expect.objectContaining({ name: 'Second', is_primary: true })],
+    })));
+    await user.click(screen.getByRole('button', { name: 'Submit for review' }));
+    await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({
+      locations: [expect.objectContaining({ name: 'Second', is_primary: true })],
     })));
   });
 

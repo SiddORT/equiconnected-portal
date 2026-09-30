@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
 import { DoctorForm, type DoctorInvitationFormConfig } from './DoctorForm';
 import type { InvitationDraftProvider } from '@/types';
 
@@ -172,24 +173,63 @@ describe('DoctorForm invitation services', () => {
     })));
   });
 
-  it('saves named address entries and omits partial address rows from draft payloads', async () => {
+  it('starts with one optional address, keeps field order and saves one completed location', async () => {
     const onSaveDraft = vi.fn().mockResolvedValue(undefined);
     const user = userEvent.setup();
     render(<DoctorForm invitation={invitationConfig(onSaveDraft)} />);
-    await user.click(screen.getByRole('button', { name: '+ Add address' }));
+    const address = screen.getByRole('group', { name: 'Practice address' });
+    const labels = Array.from(address.querySelectorAll('label')).map((label) => label.textContent?.trim());
+    expect(labels).toEqual(['Location name', 'Postal / ZIP code', 'Country', 'State / province', 'City', 'Address line 1', 'Address line 2']);
+    expect(screen.queryByRole('button', { name: /Add address|Remove address/i })).toBeNull();
+    const css = readFileSync('src/components/invite/InvitationProfileFields.module.css', 'utf8');
+    expect(css).toMatch(/\.firstRow\s*\{\s*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+    expect(css).toMatch(/\.placeRow\s*\{\s*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+    expect(css).toMatch(/@media \(max-width: 680px\)\s*\{[\s\S]*\.firstRow, \.placeRow \{ grid-template-columns: minmax\(0, 1fr\)/);
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(onSaveDraft).toHaveBeenLastCalledWith(expect.objectContaining({ locations: [] })));
     await user.type(screen.getByRole('textbox', { name: 'Location name' }), 'Main clinic');
     await user.type(screen.getByRole('textbox', { name: 'Address line 1' }), '4 Clinic Road');
     await user.type(screen.getByRole('textbox', { name: 'City' }), 'Austin');
-    await user.click(screen.getByRole('button', { name: '+ Add address' }));
-    await user.type(screen.getAllByRole('textbox', { name: 'Location name' })[1], 'Incomplete clinic');
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
-    await waitFor(() => expect(onSaveDraft).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(onSaveDraft).toHaveBeenLastCalledWith(expect.objectContaining({
       locations: [expect.objectContaining({
         name: 'Main clinic',
         address_line_1: '4 Clinic Road',
         city: 'Austin',
         is_primary: true,
       })],
+    })));
+  });
+
+  it('requires an explicit legacy address choice before draft save or submit', async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const submit = vi.fn().mockResolvedValue(undefined);
+    const config = invitationConfig(save, submit);
+    config.initial = { ...invitationDoctor, locations: [
+      { name: 'North', address_line_1: '1 North Rd', city: 'Calgary', is_primary: true },
+      { name: 'South', address_line_1: '2 South Rd', city: 'Austin', is_primary: false },
+    ] };
+    const user = userEvent.setup();
+    render(<DoctorForm invitation={config} />);
+    expect(screen.queryByLabelText('Location name')).toBeNull();
+    expect(screen.getByRole('button', { name: /Keep North/ })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await user.click(screen.getByRole('button', { name: 'Submit for review' }));
+    expect(save).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+    expect(screen.getByText('Choose one saved address to keep before continuing.')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /Keep South/ }));
+    expect((screen.getByLabelText('City') as HTMLInputElement).value).toBe('Austin');
+    await user.click(screen.getByRole('button', { name: /Keep North/ }));
+    expect((screen.getByLabelText('City') as HTMLInputElement).value).toBe('Calgary');
+    await user.click(screen.getByRole('button', { name: /Keep South/ }));
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
+      locations: [expect.objectContaining({ name: 'South', is_primary: true })],
+    })));
+    await user.click(screen.getByRole('button', { name: 'Submit for review' }));
+    await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({
+      locations: [expect.objectContaining({ name: 'South', is_primary: true })],
     })));
   });
 
