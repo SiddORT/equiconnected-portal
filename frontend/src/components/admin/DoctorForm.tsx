@@ -596,12 +596,19 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
       {/* ── Specializations ────────────────────────────────────────────────── */}
       <Card padding="lg" shadow="sm" className={styles.cardFull}>
         <section className={styles.section}>
-          <h3 className={styles.sectionTitle}>
-            Specializations
-            {selectedSpecIds.length > 0 && (
-              <span className={styles.specCountBadge}>{selectedSpecIds.length} selected</span>
+          <div className={styles.specHeadingRow}>
+            <h3 className={styles.sectionTitle}>
+              Specializations
+              {selectedSpecIds.length > 0 && (
+                <span className={styles.specCountBadge}>{selectedSpecIds.length} selected</span>
+              )}
+            </h3>
+            {inv && specializations.length > 0 && (
+              <button type="button" className={styles.selectAllButton} onClick={() => setSelectedSpecIds((ids) =>
+                [...new Set([...ids, ...specializations.map((spec) => spec.id)])]
+              )}><span aria-hidden="true" className={styles.selectAllIcon}>✓</span>Select all specializations</button>
             )}
-          </h3>
+          </div>
           {specsError && <p className={styles.fieldError} role="alert">{specsError}</p>}
           {!specsError && specializations.length === 0 && (
             <p className={styles.hint}>No active specializations available.</p>
@@ -614,11 +621,6 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
               value={specFilter}
               onChange={(e) => setSpecFilter(e.target.value)}
             />
-          )}
-          {inv && specializations.length > 0 && (
-            <button type="button" onClick={() => setSelectedSpecIds((ids) =>
-              [...new Set([...ids, ...specializations.map((spec) => spec.id)])]
-            )}>Select all specializations</button>
           )}
           {(() => {
             if (!specFilter) return null;

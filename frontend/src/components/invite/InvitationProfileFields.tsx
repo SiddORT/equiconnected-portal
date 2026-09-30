@@ -167,60 +167,64 @@ export function InvitationServiceFields({
   return (
     <section className={styles.section} aria-label="Visit and emergency services">
       <h3 className={styles.sectionTitle}>Visit and emergency services</h3>
-      <label className={styles.checkboxRow}>
-        <input
-          type="checkbox"
-          checked={stable}
-          disabled={disabled}
-          onChange={(event) => onChange({
-            ...value,
-            visit_stability: event.target.checked ? 'STABLE_VISIT' : 'NOT_STABLE_VISIT',
-            maximum_working_radius_km: event.target.checked ? value.maximum_working_radius_km : '',
-          })}
-        />
-        <span>Offers stable visits</span>
-      </label>
-      {stable && (
-        <Input
-          label="Maximum working radius (km)"
-          type="number"
-          min={0.01}
-          step="any"
-          value={value.maximum_working_radius_km}
-          onChange={(event) => onChange({ ...value, maximum_working_radius_km: event.target.value })}
-          error={errors.maximum_working_radius_km}
-          required
-          disabled={disabled}
-        />
-      )}
-      <label className={styles.checkboxRow}>
-        <input
-          type="checkbox"
-          checked={value.emergency_services_available}
-          disabled={disabled}
+      <div className={styles.serviceRow}>
+        <label className={styles.checkboxRow}>
+          <input
+            type="checkbox"
+            checked={stable}
+            disabled={disabled}
+            onChange={(event) => onChange({
+              ...value,
+              visit_stability: event.target.checked ? 'STABLE_VISIT' : 'NOT_STABLE_VISIT',
+              maximum_working_radius_km: event.target.checked ? value.maximum_working_radius_km : '',
+            })}
+          />
+          <span>Offers stable visits</span>
+        </label>
+        {stable && (
+          <Input
+            label="Maximum working radius (km)"
+            type="number"
+            min={0.01}
+            step="any"
+            value={value.maximum_working_radius_km}
+            onChange={(event) => onChange({ ...value, maximum_working_radius_km: event.target.value })}
+            error={errors.maximum_working_radius_km}
+            required
+            disabled={disabled}
+          />
+        )}
+      </div>
+      <div className={styles.serviceRow}>
+        <label className={styles.checkboxRow}>
+          <input
+            type="checkbox"
+            checked={value.emergency_services_available}
+            disabled={disabled}
             onChange={(event) => onChange({
               ...value,
               emergency_services_available: event.target.checked,
               ...(event.target.checked ? {} : { emergency_local_number: '' }),
             })}
-        />
-        <span>Emergency services available</span>
-      </label>
-      {value.emergency_services_available && (
-        <FormField label="Emergency contact number" required>
-          <PhoneInput
-            countryCode={value.emergency_country_code}
-            isoCode={value.emergency_iso_code}
-            number={value.emergency_local_number}
-            onCountryChange={(countryCode, isoCode) =>
-              onChange({ ...value, emergency_country_code: countryCode, emergency_iso_code: isoCode })}
-            onNumberChange={(number) => onChange({ ...value, emergency_local_number: number })}
-            error={errors.emergency_contact_number}
-            disabled={disabled}
-            ariaLabel="Emergency contact number"
           />
-        </FormField>
-      )}
+          <span>Emergency services available</span>
+        </label>
+        {value.emergency_services_available && (
+          <FormField label="Emergency contact number" required>
+            <PhoneInput
+              countryCode={value.emergency_country_code}
+              isoCode={value.emergency_iso_code}
+              number={value.emergency_local_number}
+              onCountryChange={(countryCode, isoCode) =>
+                onChange({ ...value, emergency_country_code: countryCode, emergency_iso_code: isoCode })}
+              onNumberChange={(number) => onChange({ ...value, emergency_local_number: number })}
+              error={errors.emergency_contact_number}
+              disabled={disabled}
+              ariaLabel="Emergency contact number"
+            />
+          </FormField>
+        )}
+      </div>
     </section>
   );
 }
