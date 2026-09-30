@@ -908,6 +908,30 @@ describe('ProviderForm edit wizard', () => {
     expect(uploadProviderPhoto).not.toHaveBeenCalled();
   });
 
+  it('restores a gallery-selected profile photo after remount and saves without re-uploading it', async () => {
+    const provider = existingProvider({
+      thumbnail_url: '/uploads/gallery-selected.webp',
+      photos: [
+        { id: 'photo-1', storage_reference: '/uploads/old.webp', is_thumbnail: false },
+        { id: 'photo-2', storage_reference: '/uploads/gallery-selected.webp', is_thumbnail: true },
+      ] as Provider['photos'],
+    });
+    vi.mocked(updateProvider).mockResolvedValue(provider);
+    const { unmount } = render(<MemoryRouter><ProviderForm initialData={provider} /></MemoryRouter>);
+    expect((screen.getByRole('img', { name: 'Profile preview' }) as HTMLImageElement).getAttribute('src'))
+      .toBe('/uploads/gallery-selected.webp');
+    unmount();
+    render(<MemoryRouter><ProviderForm initialData={provider} /></MemoryRouter>);
+    const user = userEvent.setup();
+    await reachEditReview(user);
+    expect((screen.getByRole('img', { name: 'Current provider profile photo' }) as HTMLImageElement).getAttribute('src'))
+      .toBe('/uploads/gallery-selected.webp');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateProvider).toHaveBeenCalled());
+    expect(uploadProviderPhoto).not.toHaveBeenCalled();
+  });
+
   it('reviews multiple doctor qualifications with optional details separately', async () => {
     const provider = existingProvider({
       provider_type: 'DOCTOR',

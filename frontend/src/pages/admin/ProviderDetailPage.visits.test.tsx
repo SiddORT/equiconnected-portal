@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { TimeSettingsProvider } from '@/app/TimeSettingsContext';
 import { ProviderDetailPage } from './ProviderDetailPage';
-import { getProvider, updateProviderVisit } from '@/api/providers';
+import { deleteProviderPhoto, getProvider, setProviderThumbnail, updateProviderVisit, uploadProviderPhoto } from '@/api/providers';
 import type { Provider } from '@/types';
 
 vi.mock('@/api/providers', () => ({
@@ -60,6 +60,63 @@ afterEach(() => {
 });
 
 describe('ProviderDetailPage doctor visits', () => {
+  it('uploads the first gallery photo and displays the saved profile-photo badge', async () => {
+    let current = doctor();
+    vi.mocked(getProvider).mockImplementation(async () => current);
+    vi.mocked(uploadProviderPhoto).mockImplementation(async () => {
+      const uploaded = { id: 'first', provider_id: 'provider-1',
+        storage_reference: '/uploads/first.png', is_thumbnail: true, display_order: 0,
+        alt_text: null, caption: null, created_at: '', updated_at: '' };
+      current = doctor({ photos: [uploaded], thumbnail_url: uploaded.storage_reference });
+      return uploaded;
+    });
+    const user = userEvent.setup();
+    const view = renderDetail();
+    await user.click(await screen.findByRole('button', { name: /Add photos/ }));
+    const fileInput = view.container.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(fileInput, new File(['image'], 'first.png', { type: 'image/png' }));
+    await user.click(await screen.findByRole('button', { name: 'Upload photo' }));
+    await waitFor(() => expect(uploadProviderPhoto).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('Profile photo')).toBeTruthy();
+    expect(current.thumbnail_url).toBe('/uploads/first.png');
+  });
+
+  it('shows gallery profile-photo selection after switching, deleting, and reloading', async () => {
+    const photos = [
+      { id: 'one', provider_id: 'provider-1', storage_reference: '/uploads/one.jpg',
+        is_thumbnail: true, display_order: 0, alt_text: null, caption: null, created_at: '', updated_at: '' },
+      { id: 'two', provider_id: 'provider-1', storage_reference: '/uploads/two.jpg',
+        is_thumbnail: false, display_order: 1, alt_text: null, caption: null, created_at: '', updated_at: '' },
+    ];
+    let current = doctor({ photos, thumbnail_url: photos[0].storage_reference });
+    vi.mocked(getProvider).mockImplementation(async () => current);
+    vi.mocked(setProviderThumbnail).mockImplementation(async (_id, photoId) => {
+      current = doctor({ photos: photos.map(p => ({ ...p, is_thumbnail: p.id === photoId })),
+        thumbnail_url: photos.find(p => p.id === photoId)!.storage_reference });
+      return current.photos.find(p => p.id === photoId)!;
+    });
+    vi.mocked(deleteProviderPhoto).mockImplementation(async (_id, photoId) => {
+      const remaining = current.photos.filter(p => p.id !== photoId);
+      current = doctor({ photos: remaining.map((p, i) => ({ ...p, is_thumbnail: i === 0 })),
+        thumbnail_url: remaining[0]?.storage_reference ?? null });
+    });
+    const user = userEvent.setup();
+    renderDetail();
+    expect(await screen.findByText('Profile photo')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Set as profile photo' }));
+    await waitFor(() => expect(setProviderThumbnail).toHaveBeenCalledWith('provider-1', 'two'));
+    expect(await screen.findByText('Profile photo')).toBeTruthy();
+    cleanup();
+    renderDetail();
+    await screen.findByText('Profile photo');
+    expect(current.thumbnail_url).toBe('/uploads/two.jpg');
+    const selectedCard = screen.getByText('Profile photo').closest('div[class*="photoCard"]')!;
+    await user.click(selectedCard.querySelector('button[class*="removeBtn"]')!);
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(deleteProviderPhoto).toHaveBeenCalledWith('provider-1', 'two'));
+    expect(current.thumbnail_url).toBe('/uploads/one.jpg');
+  });
+
   it('displays a non-Doctor provider years of experience, including zero', async () => {
     vi.mocked(getProvider).mockResolvedValue(doctor({
       provider_type: 'CLINIC',

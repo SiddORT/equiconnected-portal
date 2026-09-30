@@ -281,6 +281,12 @@ class ProviderRepository:
 
     # ── Photo sub-operations ──────────────────────────────────────────────────
 
+    def photos(self, provider_id: UUID) -> list[ProviderPhoto]:
+        return list(self._db.scalars(
+            select(ProviderPhoto).where(ProviderPhoto.provider_id == provider_id)
+            .order_by(ProviderPhoto.display_order, ProviderPhoto.created_at, ProviderPhoto.id)
+        ))
+
     def get_photo(self, provider_id: UUID, photo_id: UUID) -> ProviderPhoto | None:
         return self._db.scalar(
             select(ProviderPhoto).where(

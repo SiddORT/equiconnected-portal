@@ -484,9 +484,14 @@ class ProviderService:
 
     def add_photo(self, provider_id: UUID, *, fields: dict,
                   audit_context: AuditContext | None = None) -> ProviderPhoto:
-        provider = self.get(provider_id)
+        provider = self._repo.lock_provider(provider_id)
+        if provider is None:
+            raise ProviderNotFoundError(str(provider_id))
+        has_selection = any(photo.is_thumbnail for photo in self._repo.photos(provider_id))
         if fields.get("is_thumbnail"):
             self._repo.clear_thumbnail(provider_id)
+        else:
+            fields = {**fields, "is_thumbnail": not has_selection}
         photo = self._repo.add_photo(provider_id, **fields)
         self._record("provider.photo_added", provider, "Added a provider photo.", context=audit_context)
         self._repo.commit()
@@ -514,17 +519,25 @@ class ProviderService:
 
     def delete_photo(self, provider_id: UUID, photo_id: UUID,
                      audit_context: AuditContext | None = None) -> None:
-        provider = self.get(provider_id)
+        provider = self._repo.lock_provider(provider_id)
+        if provider is None:
+            raise ProviderNotFoundError(str(provider_id))
         photo = self._repo.get_photo(provider_id, photo_id)
         if photo is None:
             raise PhotoNotFoundError(str(photo_id))
+        was_selected = photo.is_thumbnail
         self._repo.delete_photo(photo)
+        remaining = self._repo.photos(provider_id)
+        if remaining and (was_selected or not any(p.is_thumbnail for p in remaining)):
+            remaining[0].is_thumbnail = True
         self._record("provider.photo_deleted", provider, "Deleted a provider photo.", context=audit_context)
         self._repo.commit()
 
     def set_thumbnail(self, provider_id: UUID, photo_id: UUID,
                       audit_context: AuditContext | None = None) -> ProviderPhoto:
-        provider = self.get(provider_id)
+        provider = self._repo.lock_provider(provider_id)
+        if provider is None:
+            raise ProviderNotFoundError(str(provider_id))
         photo = self._repo.get_photo(provider_id, photo_id)
         if photo is None:
             raise PhotoNotFoundError(str(photo_id))

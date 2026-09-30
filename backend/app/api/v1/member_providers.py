@@ -19,6 +19,7 @@ from app.models.user import PUBLIC_ACCOUNT_ROLE_NAMES, User
 from app.repositories.audit_repository import context_from_request
 from app.repositories.review_repository import ReviewRepository
 from app.schemas.common import PaginatedResponse, PaginationMeta
+from app.schemas.provider import selected_provider_photo
 from app.schemas.review import (
     DirectoryLocation,
     MemberProviderDetail,
@@ -75,15 +76,7 @@ def _contact(provider, field: str) -> str | None:
 
 
 def _thumbnail(provider):
-    if not provider.photos:
-        return None
-    return next(
-        (photo for photo in provider.photos if photo.is_thumbnail),
-        min(
-            provider.photos,
-            key=lambda photo: (photo.display_order, photo.created_at, str(photo.id)),
-        ),
-    )
+    return selected_provider_photo(provider.photos)
 
 
 def _item(provider, average_rating, review_count, distance=None, is_saved=False) -> MemberProviderListItem:

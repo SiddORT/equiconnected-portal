@@ -326,25 +326,25 @@ export function ProviderDetailPage() {
     setUploading(true);
     setActionError(null);
 
-    const results = await Promise.allSettled(
-      stagedPhotos.map((sp) =>
-        uploadProviderPhoto(p!.id, sp.file, {
+    const failed: string[] = [];
+    // Preserve the gallery's displayed order: the first successful upload
+    // becomes the profile photo when this provider has no selection yet.
+    for (const sp of stagedPhotos) {
+      try {
+        await uploadProviderPhoto(p!.id, sp.file, {
           alt_text: sp.alt_text.trim() || null,
           caption: sp.caption.trim() || null,
-        }).then(() => {
-          setStagedPhotos((prev) =>
-            prev.map((x) => (x.id === sp.id ? { ...x, status: 'done' } : x))
-          );
-        }).catch(() => {
-          setStagedPhotos((prev) =>
-            prev.map((x) => (x.id === sp.id ? { ...x, status: 'error' } : x))
-          );
-          throw sp.file.name;
-        })
-      )
-    );
-
-    const failed = results.filter((r) => r.status === 'rejected').map((r) => (r as PromiseRejectedResult).reason);
+        });
+        setStagedPhotos((prev) =>
+          prev.map((x) => (x.id === sp.id ? { ...x, status: 'done' } : x))
+        );
+      } catch {
+        setStagedPhotos((prev) =>
+          prev.map((x) => (x.id === sp.id ? { ...x, status: 'error' } : x))
+        );
+        failed.push(sp.file.name);
+      }
+    }
     await load();
 
     if (failed.length === 0) {
@@ -976,7 +976,7 @@ export function ProviderDetailPage() {
                   <div className={styles.stagedList}>
                     {stagedPhotos.map((sp) => (
                       <div key={sp.id} className={styles.stagedCard}>
-                        {/* Thumbnail */}
+                        {/* Photo preview */}
                         <div className={styles.stagedThumbWrap}>
                           <img src={sp.preview} alt={sp.file.name} className={styles.stagedThumbImg} />
                           {sp.status === 'uploading' && (
@@ -1067,7 +1067,7 @@ export function ProviderDetailPage() {
                       <div className={styles.photoPlaceholder}>🖼</div>
                     )}
                     <div className={styles.photoMeta}>
-                      {photo.is_thumbnail && <Badge variant="info" size="sm">Thumbnail</Badge>}
+                      {photo.is_thumbnail && <Badge variant="info" size="sm">Profile photo</Badge>}
                       {photo.caption && <p className={styles.photoCaption}>{photo.caption}</p>}
                       {photo.alt_text && <p className={styles.photoAlt}>Alt: {photo.alt_text}</p>}
                       <div className={styles.photoActions}>
@@ -1077,10 +1077,10 @@ export function ProviderDetailPage() {
                             size="sm"
                             disabled={busy}
                             onClick={() =>
-                              run(() => setProviderThumbnail(p.id, photo.id), 'Failed to set thumbnail.')
+                              run(() => setProviderThumbnail(p.id, photo.id), 'Failed to set profile photo.')
                             }
                           >
-                            Set thumbnail
+                            Set as profile photo
                           </Button>
                         )}
                         <button

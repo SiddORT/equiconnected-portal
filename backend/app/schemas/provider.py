@@ -152,6 +152,12 @@ class PhotoResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+def selected_provider_photo(photos):
+    """Choose the saved profile photo, or the first ordered legacy photo."""
+    ordered = sorted(photos, key=lambda p: (p.display_order, p.created_at, str(p.id)))
+    return next((photo for photo in ordered if photo.is_thumbnail), ordered[0] if ordered else None)
+
+
 # ── Phone ─────────────────────────────────────────────────────────────────────
 
 class PhoneCreate(BaseModel):
@@ -421,10 +427,7 @@ class ProviderListItem(BaseModel):
             (f"{p.country_code} {p.number}" for p in provider.phones if p.is_primary),
             next((f"{p.country_code} {p.number}" for p in provider.phones), None),
         )
-        thumbnail = next(
-            (ph.storage_reference for ph in provider.photos if ph.is_thumbnail),
-            next((ph.storage_reference for ph in provider.photos), None),
-        )
+        selected_photo = selected_provider_photo(provider.photos)
         return cls(
             id=provider.id,
             provider_type=provider.provider_type,
@@ -447,7 +450,7 @@ class ProviderListItem(BaseModel):
             publication_status=provider.publication_status,
             created_at=provider.created_at,
             updated_at=provider.updated_at,
-            thumbnail_url=thumbnail,
+            thumbnail_url=selected_photo.storage_reference if selected_photo else None,
             average_rating=average_rating,
             review_count=review_count,
         )
@@ -477,6 +480,7 @@ class ProviderResponse(ProviderListItem):
 
     @classmethod
     def from_provider(cls, provider) -> "ProviderResponse":
+        selected_photo = selected_provider_photo(provider.photos)
         return cls(
             doctor_availability=provider.doctor_availability,
             doctor_visits=[DoctorVisitResponse.model_validate(visit) for visit in provider.doctor_visits],
@@ -494,6 +498,7 @@ class ProviderResponse(ProviderListItem):
             languages=[ProviderLanguageBrief.model_validate(x.language) for x in provider.provider_languages],
             qualifications=[QualificationResponse.model_validate(x) for x in provider.qualifications],
             id=provider.id,
+            thumbnail_url=selected_photo.storage_reference if selected_photo else None,
             provider_type=provider.provider_type,
             name=provider.name,
             description=provider.description,

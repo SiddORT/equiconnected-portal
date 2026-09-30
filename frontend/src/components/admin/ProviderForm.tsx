@@ -910,7 +910,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             display_order: 0,
             is_thumbnail: true,
           });
-          saved = { ...saved, photos: [...saved.photos, uploaded], thumbnail_url: saved.thumbnail_url };
+          saved = { ...saved, photos: [...saved.photos, uploaded], thumbnail_url: uploaded.storage_reference };
         } catch (photoErr) {
           setSavedProviderId(saved.id);
           setPhotoError(`Provider saved, but the photo could not be uploaded. Please retry or edit provider ${saved.id}: ${extractErrorMessage(photoErr, 'upload failed')}`);

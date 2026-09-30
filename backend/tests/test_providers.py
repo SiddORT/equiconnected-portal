@@ -769,6 +769,81 @@ class TestLocations:
 # ── Photos ────────────────────────────────────────────────────────────────────
 
 class TestPhotos:
+    def test_profile_photo_selection_syncs_detail_and_list_through_add_switch_and_delete(
+        self, client: TestClient, admin_token: str,
+    ):
+        provider = _create_provider(client, admin_token, "Photo Clinic")
+        other = _create_provider(client, admin_token, "Other Clinic")
+        headers = _auth(admin_token)
+
+        def add(pid, name, order=0, selected=False):
+            response = client.post(
+                f"{BASE}/{pid}/photos",
+                json=_photo_body(storage_reference=f"/uploads/{name}.jpg",
+                                 display_order=order, is_thumbnail=selected),
+                headers=headers,
+            )
+            assert response.status_code == 201, response.text
+            return response.json()
+
+        def assert_selection(pid, expected):
+            detail = client.get(f"{BASE}/{pid}", headers=headers).json()
+            listing = client.get(BASE, headers=headers).json()["data"]
+            item = next(row for row in listing if row["id"] == pid)
+            assert detail["thumbnail_url"] == item["thumbnail_url"] == expected
+            assert sum(photo["is_thumbnail"] for photo in detail["photos"]) == (1 if expected else 0)
+            return detail
+
+        assert_selection(provider["id"], None)
+        first = add(provider["id"], "first", order=3)
+        assert first["is_thumbnail"] is True
+        second = add(provider["id"], "second", order=1)
+        assert second["is_thumbnail"] is False
+        other_photo = add(other["id"], "other")
+        assert_selection(provider["id"], first["storage_reference"])
+        assert_selection(other["id"], other_photo["storage_reference"])
+
+        switched = client.patch(f"{BASE}/{provider['id']}/photos/{second['id']}/thumbnail", headers=headers)
+        assert switched.status_code == 200
+        assert_selection(provider["id"], second["storage_reference"])
+        # Edit-form uploads explicitly replace the selection without removing gallery extras.
+        third = add(provider["id"], "form-upload", selected=True)
+        assert {photo["id"] for photo in assert_selection(provider["id"], third["storage_reference"])["photos"]} == {
+            first["id"], second["id"], third["id"],
+        }
+        assert client.delete(f"{BASE}/{provider['id']}/photos/{third['id']}", headers=headers).status_code == 204
+        # The lowest display order is next, even if it was uploaded later.
+        assert_selection(provider["id"], second["storage_reference"])
+        assert client.delete(f"{BASE}/{provider['id']}/photos/{second['id']}", headers=headers).status_code == 204
+        assert_selection(provider["id"], first["storage_reference"])
+        assert client.delete(f"{BASE}/{provider['id']}/photos/{first['id']}", headers=headers).status_code == 204
+        assert_selection(provider["id"], None)
+        assert_selection(other["id"], other_photo["storage_reference"])
+
+    def test_legacy_unselected_photos_have_ordered_detail_and_list_fallback(
+        self, client: TestClient, admin_token: str, db,
+    ):
+        from app.models.provider import ProviderPhoto
+
+        provider = _create_provider(client, admin_token, "Legacy Photos")
+        headers = _auth(admin_token)
+        for order, name in [(4, "late"), (1, "early")]:
+            response = client.post(
+                f"{BASE}/{provider['id']}/photos",
+                json=_photo_body(storage_reference=f"/uploads/{name}.jpg", display_order=order),
+                headers=headers,
+            )
+            assert response.status_code == 201
+        # Historical rows can have no saved selection.
+        db.query(ProviderPhoto).filter(ProviderPhoto.provider_id == uuid.UUID(provider["id"])).update(
+            {"is_thumbnail": False}, synchronize_session=False,
+        )
+        db.commit()
+        detail = client.get(f"{BASE}/{provider['id']}", headers=headers).json()
+        item = next(row for row in client.get(BASE, headers=headers).json()["data"] if row["id"] == provider["id"])
+        assert detail["thumbnail_url"] == item["thumbnail_url"] == "/uploads/early.jpg"
+        assert not any(photo["is_thumbnail"] for photo in detail["photos"])
+
     def test_upload_photo_with_multipart_file(self, client: TestClient, admin_token: str):
         """Multipart uploads coexist with the legacy JSON metadata contract."""
         provider = _create_provider(client, admin_token)

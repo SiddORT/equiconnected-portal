@@ -456,7 +456,7 @@ class TestMemberProviderDiscoveryAndReviews:
         }
 
     def test_directory_uses_selected_thumbnail_and_ordered_photo_fallback(
-        self, client, db
+        self, client, db, seeded_admin
     ):
         member = _member(db, "photos@example.com")
         selected = _provider(db, "Selected Photo Clinic")
@@ -500,6 +500,15 @@ class TestMemberProviderDiscoveryAndReviews:
         assert items["Selected Photo Clinic"]["thumbnail_alt_text"] == "Selected clinic entrance"
         assert items["Fallback Photo Clinic"]["thumbnail_url"] == "/uploads/providers/first.jpg"
         assert items["Fallback Photo Clinic"]["thumbnail_alt_text"] is None
+        admin, password = seeded_admin
+        token = client.post("/api/v1/auth/login", json={"email": admin.email, "password": password}).json()["access_token"]
+        admin_headers = {"Authorization": f"Bearer {token}"}
+        admin_items = {item["name"]: item for item in client.get(
+            "/api/v1/admin/providers", headers=admin_headers,
+        ).json()["data"]}
+        for name, provider in [("Selected Photo Clinic", selected), ("Fallback Photo Clinic", fallback)]:
+            detail = client.get(f"/api/v1/admin/providers/{provider.id}", headers=admin_headers).json()
+            assert detail["thumbnail_url"] == admin_items[name]["thumbnail_url"] == items[name]["thumbnail_url"]
 
     def test_member_can_upsert_one_review_and_hidden_comments_are_not_public(
         self, client, db, seeded_admin
