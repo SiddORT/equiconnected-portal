@@ -64,6 +64,8 @@ export function InvitationDoctorForm({ token, data }: InvitationDoctorFormProps)
       <DoctorForm
         invitation={{
           initial: data.provider,
+          recipientEmail: data.recipient_email,
+          emailsEdited: data.emails_edited,
           loadSpecializations: () => getInvitationSpecializations(token),
           onSaveDraft: handleSaveDraft,
           onSubmit: handleSubmit,

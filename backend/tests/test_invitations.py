@@ -464,6 +464,41 @@ class TestPublicGet:
 
 
 class TestPublicSave:
+    def test_invitation_email_can_be_removed_and_replaced_in_draft(
+        self,
+        client: TestClient,
+        admin_token: str,
+        captured_email: dict,
+        db,
+    ):
+        invitation = _create_invitation(
+            client, admin_token, recipient_email="invited@example.com"
+        )
+        token = captured_email["token"]
+        initial = client.get(f"{PUBLIC_BASE}/{token}")
+        assert initial.status_code == 200
+        assert initial.json()["recipient_email"] == "invited@example.com"
+        assert initial.json()["emails_edited"] is False
+
+        removed = client.post(f"{PUBLIC_BASE}/{token}/save", json={"emails": []})
+        assert removed.status_code == 200
+        assert removed.json()["emails_edited"] is True
+        assert removed.json()["provider"]["emails"] == []
+        assert removed.json()["provider"]["email"] is None
+        reopened = client.get(f"{PUBLIC_BASE}/{token}")
+        assert reopened.json()["emails_edited"] is True
+        assert reopened.json()["provider"]["emails"] == []
+
+        replaced = client.post(
+            f"{PUBLIC_BASE}/{token}/save",
+            json={"emails": [{"email": "office@example.com", "is_primary": True}]},
+        )
+        assert replaced.status_code == 200
+        assert replaced.json()["provider"]["emails"] == [
+            {"email": "office@example.com", "is_primary": True}
+        ]
+        assert db.get(Provider, uuid.UUID(invitation["provider_id"])).email is None
+
     def test_save_draft_updates_provider(
         self,
         client: TestClient,

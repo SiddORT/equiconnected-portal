@@ -30,6 +30,7 @@ import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { MultiEmailField, type EmailEntry } from './MultiEmailField';
+import { invitationEmailEntries } from './invitationEmailEntries';
 import { MultiPhoneField, type PhoneEntry } from './MultiPhoneField';
 import type {
   DoctorCreate,
@@ -69,6 +70,8 @@ const PUBLICATION_OPTIONS = [
  */
 export interface DoctorInvitationFormConfig {
   initial: InvitationDraftProvider;
+  recipientEmail: string;
+  emailsEdited: boolean;
   loadSpecializations: () => Promise<InvitationSpecialization[]>;
   onSaveDraft: (payload: InvitationDraftPayload) => Promise<void>;
   onSubmit: (payload: InvitationDraftPayload) => Promise<void>;
@@ -130,10 +133,7 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
   );
   const [emailEntries, setEmailEntries] = useState<EmailEntry[]>(() =>
     inv
-      ? inv.initial.emails.map((e) => ({
-          email: e.email,
-          is_primary: e.is_primary ?? false,
-        }))
+      ? invitationEmailEntries(inv.initial.emails, inv.recipientEmail, inv.emailsEdited)
       : initialData?.emails.map((e) => ({
           id: e.id,
           email: e.email,

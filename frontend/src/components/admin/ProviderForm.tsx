@@ -57,6 +57,7 @@ import type {
 } from '@/types';
 import styles from './ProviderForm.module.css';
 import wizardStyles from './ProviderWizard.module.css';
+import { invitationEmailEntries } from './invitationEmailEntries';
 
 const PROVIDER_TYPE_OPTIONS = [
   { value: 'HOSPITAL', label: 'Hospital' },
@@ -127,6 +128,8 @@ const EMPTY_LOCATION: LocationValues = {
 export interface InvitationFormConfig {
   providerType: ProviderType;
   initial: InvitationDraftProvider;
+  recipientEmail: string;
+  emailsEdited: boolean;
   loadSpecializations: () => Promise<InvitationSpecialization[]>;
   onSaveDraft: (payload: InvitationDraftPayload) => Promise<void>;
   onSubmit: (payload: InvitationDraftPayload) => Promise<void>;
@@ -192,10 +195,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   });
   const [emailEntries, setEmailEntries] = useState<EmailEntry[]>(() => {
     if (inv) {
-      return inv.initial.emails.map((e) => ({
-        email: e.email,
-        is_primary: e.is_primary ?? false,
-      }));
+      return invitationEmailEntries(inv.initial.emails, inv.recipientEmail, inv.emailsEdited);
     }
     if (!initialData) return [];
     if (initialData.emails.length > 0) {

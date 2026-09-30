@@ -53,6 +53,8 @@ class InvitationListResponse(PaginatedResponse[InvitationResponse]):
 class InvitationTokenResponse(BaseModel):
     id: UUID
     provider_type: ProviderType
+    recipient_email: EmailStr
+    emails_edited: bool
     provider: dict
 
 

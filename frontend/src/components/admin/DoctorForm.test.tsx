@@ -53,6 +53,8 @@ function invitationConfig(
 ): DoctorInvitationFormConfig {
   return {
     initial: invitationDoctor,
+    recipientEmail: 'invited-doctor@example.com',
+    emailsEdited: false,
     loadSpecializations: vi.fn().mockResolvedValue([]),
     onSaveDraft,
     onSubmit,
@@ -60,6 +62,25 @@ function invitationConfig(
 }
 
 afterEach(cleanup);
+
+it('starts with the doctor invitation recipient and lets the doctor add another email', async () => {
+  const onSaveDraft = vi.fn().mockResolvedValue(undefined);
+  const user = userEvent.setup();
+  render(<DoctorForm invitation={invitationConfig(onSaveDraft)} />);
+  expect((screen.getByRole('textbox', { name: 'Email address 1' }) as HTMLInputElement).value)
+    .toBe('invited-doctor@example.com');
+  await user.click(screen.getByRole('button', { name: /Add email/i }));
+  await user.type(screen.getByRole('textbox', { name: 'Email address 2' }), 'office@example.com');
+  await user.click(screen.getByRole('button', { name: 'Save draft' }));
+  await waitFor(() => expect(onSaveDraft).toHaveBeenCalledWith(
+    expect.objectContaining({
+      emails: [
+        { email: 'invited-doctor@example.com', is_primary: true },
+        { email: 'office@example.com', is_primary: false },
+      ],
+    })
+  ));
+});
 
 describe('DoctorForm visit stability', () => {
   it('uses Yes and No labels for restored invitation values', () => {

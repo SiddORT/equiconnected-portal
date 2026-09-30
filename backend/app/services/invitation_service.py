@@ -553,6 +553,23 @@ class InvitationService:
                 relationship.extend(
                     model(provider_id=provider.id, **record) for record in records
                 )
+        if fields.get("emails") is not None:
+            invitation.emails_edited = True
+            # The legacy contact email is set to the invitation recipient for
+            # new drafts. Removing that address must remove it from both stores.
+            if (
+                "email" not in fields
+                and provider.email
+                and provider.email.lower() == invitation.recipient_email.lower()
+                and not any(
+                    entry["email"].lower() == invitation.recipient_email.lower()
+                    for entry in fields["emails"]
+                )
+            ):
+                provider.email = next(
+                    (entry["email"] for entry in fields["emails"] if entry.get("is_primary")),
+                    None,
+                )
 
         if provider.provider_type == ProviderType.DOCTOR:
             supplied_profile = {key: fields[key] for key in profile_fields if key in fields}
@@ -593,6 +610,8 @@ class InvitationService:
         return {
             "id": invitation.id,
             "provider_type": invitation.provider_type,
+            "recipient_email": invitation.recipient_email,
+            "emails_edited": invitation.emails_edited,
             "provider": {
                 "name": provider.name,
                 "description": provider.description,

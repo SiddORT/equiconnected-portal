@@ -106,6 +106,8 @@ function invitationConfig(
   return {
     providerType: 'CLINIC',
     initial: { ...invitationProvider, ...overrides },
+    recipientEmail: 'invited@example.com',
+    emailsEdited: false,
     loadSpecializations: vi.fn().mockResolvedValue([]),
     onSaveDraft,
     onSubmit,
@@ -127,6 +129,8 @@ async function beginAdminWizard(type = 'CLINIC') {
 }
 
 async function finishClinicWizard(user: ReturnType<typeof userEvent.setup>) {
+  const availability = screen.queryByRole('combobox', { name: 'Availability' });
+  if (availability) await user.selectOptions(availability, 'ONGOING');
   await user.click(screen.getByRole('button', { name: 'Continue' }));
   await user.click(screen.getByRole('button', { name: /Add email/i }));
   await user.type(screen.getByRole('textbox', { name: 'Email address 1' }), 'clinic@example.com');
@@ -145,6 +149,36 @@ async function finishClinicWizard(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('ProviderForm visit stability', () => {
+  it('prefills the invitation recipient and keeps an explicitly removed address out of the draft', async () => {
+    const onSaveDraft = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<ProviderForm invitation={invitationConfig({}, onSaveDraft)} />);
+
+    expect((screen.getByRole('textbox', { name: 'Email address 1' }) as HTMLInputElement).value)
+      .toBe('invited@example.com');
+    await user.click(screen.getByRole('button', { name: 'Remove email 1' }));
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(onSaveDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ emails: [] })
+    ));
+  });
+
+  it('respects a saved empty list and suggests the recipient alongside existing contacts only once', () => {
+    const { unmount } = render(
+      <ProviderForm invitation={{ ...invitationConfig(), emailsEdited: true }} />
+    );
+    expect(screen.queryByRole('textbox', { name: 'Email address 1' })).toBeNull();
+    unmount();
+
+    render(<ProviderForm invitation={invitationConfig({
+      emails: [{ email: 'office@example.com', is_primary: true }],
+    })} />);
+    expect((screen.getByRole('textbox', { name: 'Email address 1' }) as HTMLInputElement).value)
+      .toBe('office@example.com');
+    expect((screen.getByRole('textbox', { name: 'Email address 2' }) as HTMLInputElement).value)
+      .toBe('invited@example.com');
+  });
+
   it('uses Yes and No labels in invitation mode while preserving enum values and saved selection', () => {
     render(<ProviderForm invitation={invitationConfig()} />);
 

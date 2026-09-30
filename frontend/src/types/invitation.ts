@@ -61,6 +61,8 @@ export interface InvitationDraftProvider {
 export interface InvitationTokenData {
   id: string;
   provider_type: ProviderType;
+  recipient_email: string;
+  emails_edited: boolean;
   provider: InvitationDraftProvider;
 }
 

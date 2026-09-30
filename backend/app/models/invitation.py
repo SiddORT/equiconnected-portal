@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -22,6 +22,7 @@ class ProviderInvitation(TimestampMixin, Base):
         Enum(ProviderType, name="provider_type", native_enum=True), nullable=False
     )
     recipient_email: Mapped[str] = mapped_column(String(254), nullable=False)
+    emails_edited: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     status: Mapped[InvitationStatus] = mapped_column(
         Enum(InvitationStatus, name="invitation_status", native_enum=True),
