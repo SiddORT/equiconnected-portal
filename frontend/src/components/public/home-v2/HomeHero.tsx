@@ -14,8 +14,8 @@ export function HomeHero({ member }: { member: boolean }) {
         alt="A white horse moving through a dark green pasture"
         fetchPriority="high"
       />
-      <div className={styles.heroLight} aria-hidden="true" />
       <div className={styles.heroShade} />
+      <div className={styles.heroLight} aria-hidden="true" />
       <div className={styles.heroInner}>
         <p className={styles.kicker}><span />Equine healthcare, connected</p>
         <h1 id="hero-heading">Trusted equine<br />{' '}care, <em>connected.</em></h1>
