@@ -1282,7 +1282,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           </div>
         </section>
       </Card>}
-      {inv && <Card padding="lg" shadow="sm" className={styles.cardFull}>
+      {inv && <Card padding="lg" shadow="sm" className={`${styles.cardFull} ${styles.dropdownCard}`}>
         <InvitationServiceFields value={invitationServices} onChange={setInvitationServices}
           errors={{ maximum_working_radius_km: errs.maximum_working_radius_km, emergency_contact_number: errs.emergency_contact_number }}
           disabled={submitting} />

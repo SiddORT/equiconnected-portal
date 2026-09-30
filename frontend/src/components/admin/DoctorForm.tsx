@@ -572,7 +572,7 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
 
       {inv && (
         <>
-          <Card padding="lg" shadow="sm">
+          <Card padding="lg" shadow="sm" className={styles.dropdownCard}>
             <InvitationServiceFields
               value={invitationServices}
               onChange={(value) => {

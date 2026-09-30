@@ -11,6 +11,12 @@
   grid-column: 1;
 }
 
+.form .dropdownCard {
+  overflow: visible;
+  position: relative;
+  z-index: 5;
+}
+
 @media (max-width: 900px) {
   .form {
     grid-template-columns: 1fr;
