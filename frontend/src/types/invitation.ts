@@ -53,6 +53,7 @@ export interface InvitationDraftProvider {
   emergency_contact_number?: string | null;
   status: string;
   specialization_ids: string[];
+  language_ids?: string[];
   locations: DraftLocation[];
   phones: DraftPhone[];
   emails: DraftEmail[];
@@ -83,6 +84,7 @@ export interface InvitationDraftPayload {
   emergency_services_available?: boolean;
   emergency_contact_number?: string | null;
   specialization_ids?: string[];
+  language_ids?: string[];
   locations?: DraftLocation[];
   phones?: DraftPhone[];
   emails?: DraftEmail[];

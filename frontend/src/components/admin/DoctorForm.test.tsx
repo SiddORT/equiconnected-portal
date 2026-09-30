@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { readFileSync } from 'node:fs';
 import { DoctorForm, type DoctorInvitationFormConfig } from './DoctorForm';
 import type { InvitationDraftProvider } from '@/types';
+import { listProviderSignupLanguages } from '@/api/auth';
 
 vi.mock('@/api/doctors', () => ({
   addDoctorSpecialization: vi.fn(),
@@ -27,6 +28,13 @@ vi.mock('@/api/specializations', () => ({
     data: [],
     meta: { page: 1, page_size: 100, total: 0, total_pages: 1 },
   }),
+}));
+
+vi.mock('@/api/auth', () => ({
+  listProviderSignupLanguages: vi.fn().mockResolvedValue([
+    { id: 'lang-en', name: 'English', code: 'en' },
+    { id: 'lang-fr', name: 'French', code: 'fr' },
+  ]),
 }));
 
 const invitationDoctor: InvitationDraftProvider = {
@@ -62,7 +70,7 @@ function invitationConfig(
   };
 }
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 it('starts with the doctor invitation recipient and lets the doctor add another email', async () => {
   const onSaveDraft = vi.fn().mockResolvedValue(undefined);
@@ -81,6 +89,57 @@ it('starts with the doctor invitation recipient and lets the doctor add another 
       ],
     })
   ));
+});
+
+it('selects invitation languages from the public catalog, saves, restores, and submits them', async () => {
+  const save = vi.fn().mockResolvedValue(undefined);
+  const submit = vi.fn().mockResolvedValue(undefined);
+  const user = userEvent.setup();
+  const config = invitationConfig(save, submit);
+  config.initial = { ...invitationDoctor, language_ids: ['lang-fr'] };
+  const { unmount } = render(<DoctorForm invitation={config} />);
+
+  await waitFor(() => expect(listProviderSignupLanguages).toHaveBeenCalled());
+  expect(screen.getByRole('button', { name: 'Remove French' })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Languages' }));
+  expect(screen.getByRole('option', { name: /French/ }).getAttribute('aria-selected')).toBe('true');
+  await user.click(screen.getByRole('option', { name: /French/ }));
+  await user.click(screen.getByRole('button', { name: 'Select all' }));
+  expect(screen.getByRole('option', { name: /English/ }).getAttribute('aria-selected')).toBe('true');
+  expect(screen.getByRole('option', { name: /French/ }).getAttribute('aria-selected')).toBe('true');
+  await user.click(screen.getByRole('button', { name: 'Save draft' }));
+  await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
+    language_ids: ['lang-en', 'lang-fr'],
+  })));
+
+  unmount();
+  const savedIds = save.mock.calls[0][0].language_ids;
+  const reopened = invitationConfig(save, submit);
+  reopened.initial = { ...invitationDoctor, language_ids: savedIds };
+  render(<DoctorForm invitation={reopened} />);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Remove English' })).toBeTruthy());
+  expect(screen.getByRole('button', { name: 'Remove French' })).toBeTruthy();
+  await user.type(screen.getByLabelText('First name'), 'Avery');
+  await user.type(screen.getByLabelText('Last name'), 'Quinn');
+  await user.click(screen.getByRole('button', { name: 'Submit for review' }));
+  await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({
+    language_ids: ['lang-en', 'lang-fr'],
+  })));
+});
+
+it('shows a public language-catalog error without dropping previously saved ids', async () => {
+  vi.mocked(listProviderSignupLanguages).mockRejectedValueOnce(new Error('Catalog unavailable'));
+  const save = vi.fn().mockResolvedValue(undefined);
+  const config = invitationConfig(save);
+  config.initial = { ...invitationDoctor, language_ids: ['retired-language'] };
+  const user = userEvent.setup();
+  render(<DoctorForm invitation={config} />);
+
+  expect(await screen.findByText('Failed to load languages.')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Save draft' }));
+  await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
+    language_ids: ['retired-language'],
+  })));
 });
 
 describe('DoctorForm invitation services', () => {
@@ -130,6 +189,8 @@ describe('DoctorForm invitation services', () => {
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.getByText('Enter a finite radius greater than 0 km.')).toBeTruthy();
     await user.type(screen.getByRole('spinbutton', { name: 'Maximum working radius (km)' }), '90');
+    await user.type(screen.getByLabelText('First name'), 'Avery');
+    await user.type(screen.getByLabelText('Last name'), 'Quinn');
     await user.click(screen.getByRole('button', { name: 'Submit for review' }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       visit_stability: 'STABLE_VISIT',
@@ -223,6 +284,8 @@ describe('DoctorForm invitation services', () => {
     await user.click(screen.getByRole('button', { name: /Keep North/ }));
     expect((screen.getByLabelText('City') as HTMLInputElement).value).toBe('Calgary');
     await user.click(screen.getByRole('button', { name: /Keep South/ }));
+    await user.type(screen.getByLabelText('First name'), 'Avery');
+    await user.type(screen.getByLabelText('Last name'), 'Quinn');
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
       locations: [expect.objectContaining({ name: 'South', is_primary: true })],
@@ -238,6 +301,8 @@ describe('DoctorForm invitation services', () => {
     const config = invitationConfig(undefined, onSubmit);
     config.initial = {
       ...invitationDoctor,
+      first_name: 'Avery',
+      last_name: 'Quinn',
       locations: [{
         name: 'North Clinic',
         address_line_1: '12 Stable Road',

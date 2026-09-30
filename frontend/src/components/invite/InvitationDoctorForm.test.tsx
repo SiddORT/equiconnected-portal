@@ -6,6 +6,10 @@ import { saveInvitationDraft, submitInvitation } from '@/api/invitations';
 import type { InvitationTokenData } from '@/types';
 import { InvitationDoctorForm } from './InvitationDoctorForm';
 
+vi.mock('@/api/auth', () => ({
+  listProviderSignupLanguages: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock('@/api/invitations', () => ({
   extractSubmitFieldErrors: vi.fn(() => ({})),
   getInvitationSpecializations: vi.fn().mockResolvedValue([]),

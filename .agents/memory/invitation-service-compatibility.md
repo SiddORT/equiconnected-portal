@@ -14,3 +14,9 @@ Structured doctor names follow the same opt-in compatibility boundary: new forms
 **Why:** Historical drafts may contain a title or multi-part full name that cannot be split reliably, and existing clients only know about the full provider name.
 
 **How to apply:** Show the original full name as editable guidance when structured names are missing; never infer an irreversible split. Require both names when a new invite uses structured fields and when the structured token flow completes, but leave name-only API submissions compatible.
+
+Language selection on an invitation follows the same optional-field boundary: omission retains existing selections, while an explicit empty list clears them. Invitees choose from the public active-language catalog, never admin-only endpoints.
+
+**Why:** Older token clients know nothing about language IDs, and treating their omission as an empty selection would silently erase saved provider languages. Invitation links are unauthenticated, so admin-only catalog requests cannot power their dropdown.
+
+**How to apply:** On later invitation form changes, preserve draft selections through GET, save, and submit; use an explicit list only when the form intends to replace them.

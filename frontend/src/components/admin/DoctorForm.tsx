@@ -24,11 +24,13 @@ import {
   removeProviderPhone,
 } from '@/api/providers';
 import { listSpecializations } from '@/api/specializations';
+import { listProviderSignupLanguages } from '@/api/auth';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { SignupMultiSelect } from '@/pages/SignupMultiSelect';
 import { MultiEmailField, type EmailEntry } from './MultiEmailField';
 import { invitationEmailEntries } from './invitationEmailEntries';
 import { MultiPhoneField, type PhoneEntry } from './MultiPhoneField';
@@ -53,6 +55,7 @@ import type {
   ProviderStatus,
   PublicationStatus,
   Specialization,
+  Language,
   VisitStability,
 } from '@/types';
 import styles from './DoctorForm.module.css';
@@ -169,6 +172,12 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
   const [selectedSpecIds, setSelectedSpecIds] = useState<string[]>(
     inv?.initial.specialization_ids ?? initialData?.specializations.map((s) => s.id) ?? []
   );
+  const [languages, setLanguages] = useState<Language[]>([]);
+  const [languageError, setLanguageError] = useState<string | null>(null);
+  const [loadingLanguages, setLoadingLanguages] = useState(true);
+  const [selectedLanguageIds, setSelectedLanguageIds] = useState<string[]>(
+    inv?.initial.language_ids ?? []
+  );
 
   // ── Form state ───────────────────────────────────────────────────────────────
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -205,6 +214,26 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const invitationMode = Boolean(inv);
+  useEffect(() => {
+    if (!invitationMode) {
+      setLoadingLanguages(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const catalog = await listProviderSignupLanguages();
+        if (!cancelled) setLanguages(catalog.map((language) => ({ ...language, is_active: true })));
+      } catch (err) {
+        if (!cancelled) setLanguageError(extractErrorMessage(err, 'Failed to load languages.'));
+      } finally {
+        if (!cancelled) setLoadingLanguages(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [invitationMode]);
 
   function toggleSpec(id: string) {
     setSelectedSpecIds((ids) =>
@@ -258,6 +287,7 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
       years_experience: yearsExperience ? Number(yearsExperience) : null,
       experience_description: experienceDescription.trim() || null,
       specialization_ids: selectedSpecIds,
+      language_ids: selectedLanguageIds,
       phones: phoneEntries
         .filter((p) => p.number.trim())
         .map((p) => ({
@@ -682,6 +712,24 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
           </div>
         </section>
       </Card>
+
+      {inv && (
+        <Card padding="lg" shadow="sm" className={styles.cardFull}>
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>Languages</h3>
+            <SignupMultiSelect
+              tone="light"
+              label="Languages"
+              options={languages}
+              selectedIds={selectedLanguageIds}
+              onChange={setSelectedLanguageIds}
+              loading={loadingLanguages}
+              error={languageError ?? undefined}
+              disabled={submitting || savingDraft}
+            />
+          </section>
+        </Card>
+      )}
 
       {children}
 

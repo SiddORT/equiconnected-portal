@@ -220,6 +220,9 @@ class ProviderRepository:
         for language_id in selected - existing.keys():
             self._db.add(ProviderLanguage(provider_id=provider_id, language_id=language_id))
         self._db.flush()
+        provider = self._db.get(Provider, provider_id)
+        if provider is not None:
+            self._db.expire(provider, ["provider_languages"])
 
     # ── Specialization sub-operations ─────────────────────────────────────────
 

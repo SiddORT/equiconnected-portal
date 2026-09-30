@@ -10,7 +10,7 @@ import {
   updateProvider, updateProviderLocation, updateProviderPublication, updateProviderStatus,
   uploadProviderPhoto,
 } from '@/api/providers';
-import { lookupProviderPostalCode } from '@/api/auth';
+import { listProviderSignupLanguages, lookupProviderPostalCode } from '@/api/auth';
 import { listSpecializations } from '@/api/specializations';
 import { listLanguages } from '@/api/languages';
 
@@ -37,6 +37,10 @@ vi.mock('@/api/doctors', () => ({
   deleteDoctorQualification: vi.fn(),
 }));
 vi.mock('@/api/auth', () => ({
+  listProviderSignupLanguages: vi.fn().mockResolvedValue([
+    { id: 'lang-en', name: 'English', code: 'en' },
+    { id: 'lang-fr', name: 'French', code: 'fr' },
+  ]),
   lookupProviderPostalCode: vi.fn().mockResolvedValue({ status: 'no_match', candidates: [] }),
 }));
 
@@ -434,9 +438,62 @@ describe('ProviderForm visit stability', () => {
     render(<ProviderForm invitation={invitationConfig()} />);
     expect(screen.queryByLabelText('First name')).toBeNull();
     expect(screen.queryByLabelText('Last name')).toBeNull();
-    expect(screen.queryByText('Languages')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Languages' })).toBeTruthy();
     expect(screen.queryByLabelText('Profile photo')).toBeNull();
     expect(screen.queryByText('Clinic / hospital visits')).toBeNull();
+  });
+
+  it('selects invitation languages from the public catalog, saves, restores, and submits them', async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const submit = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    const initial = invitationConfig({
+      visit_stability: 'NOT_STABLE_VISIT',
+      language_ids: ['lang-fr'],
+    }, save, submit);
+    const { unmount } = render(<ProviderForm invitation={initial} />);
+
+    await waitFor(() => expect(listProviderSignupLanguages).toHaveBeenCalled());
+    expect(screen.getByRole('button', { name: 'Remove French' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Languages' }));
+    expect(screen.getByRole('option', { name: /French/ }).getAttribute('aria-selected')).toBe('true');
+    await user.click(screen.getByRole('option', { name: /French/ }));
+    await user.click(screen.getByRole('button', { name: 'Select all' }));
+    expect(screen.getByRole('option', { name: /English/ }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('option', { name: /French/ }).getAttribute('aria-selected')).toBe('true');
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
+      language_ids: ['lang-en', 'lang-fr'],
+    })));
+
+    unmount();
+    const savedIds = save.mock.calls[0][0].language_ids;
+    render(<ProviderForm invitation={invitationConfig({
+      visit_stability: 'NOT_STABLE_VISIT',
+      language_ids: savedIds,
+    }, save, submit)} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Remove English' })).toBeTruthy());
+    expect(screen.getByRole('button', { name: 'Remove French' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Submit for review' }));
+    await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({
+      language_ids: ['lang-en', 'lang-fr'],
+    })));
+  });
+
+  it('shows a public language-catalog error without dropping previously saved ids', async () => {
+    vi.mocked(listProviderSignupLanguages).mockRejectedValueOnce(new Error('Catalog unavailable'));
+    const save = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(<ProviderForm invitation={invitationConfig({
+      language_ids: ['retired-language'],
+    }, save)} />);
+
+    expect(await screen.findByText('Failed to load languages.')).toBeTruthy();
+    expect(screen.getByText('Failed to load languages.').getAttribute('role')).toBe('alert');
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
+      language_ids: ['retired-language'],
+    })));
   });
 
   it('shows and requires a positive radius only for stable administrator visits', async () => {

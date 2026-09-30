@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Country } from 'country-state-city';
 import { extractErrorMessage } from '@/api/client';
-import { lookupProviderPostalCode, type PostalCandidate } from '@/api/auth';
+import { listProviderSignupLanguages, lookupProviderPostalCode, type PostalCandidate } from '@/api/auth';
 import {
   addProviderEmail,
   addProviderPhone,
@@ -245,7 +245,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const [languageError, setLanguageError] = useState<string | null>(null);
   const [loadingLanguages, setLoadingLanguages] = useState(true);
   const [selectedLanguageIds, setSelectedLanguageIds] = useState<string[]>(
-    initialData?.languages?.map((l) => l.id) ?? []
+    inv?.initial.language_ids ?? initialData?.languages?.map((l) => l.id) ?? []
   );
   const [languageFilter, setLanguageFilter] = useState('');
   const [maximumRadius, setMaximumRadius] = useState(initialData?.maximum_working_radius_km != null ? String(initialData.maximum_working_radius_km) : '');
@@ -364,18 +364,24 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const invitationMode = Boolean(inv);
   useEffect(() => {
-    if (inv) return;
     let cancelled = false;
     (async () => {
       try {
         let all: Language[] = [];
-        let page = 1;
-        for (;;) {
-          const result = await listLanguages({ is_active: true, page, page_size: 100 });
-          all.push(...result.data);
-          if (page >= result.meta.total_pages) break;
-          page += 1;
+        if (invitationMode) {
+          all = (await listProviderSignupLanguages()).map((language) => ({
+            ...language, is_active: true,
+          }));
+        } else {
+          let page = 1;
+          for (;;) {
+            const result = await listLanguages({ is_active: true, page, page_size: 100 });
+            all.push(...result.data);
+            if (page >= result.meta.total_pages) break;
+            page += 1;
+          }
         }
         if (!cancelled) setLanguages(initialData
           ? [...all, ...initialData.languages.filter((saved) => !all.some((item) => item.id === saved.id))]
@@ -387,7 +393,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       }
     })();
     return () => { cancelled = true; };
-  }, [inv]);
+  }, [invitationMode, initialData]);
 
   useEffect(() => {
     if (!wizard) return;
@@ -573,6 +579,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       website: website.trim() || null,
       years_experience: yearsExperience.trim() ? Number(yearsExperience) : null,
       specialization_ids: selectedSpecIds,
+      language_ids: selectedLanguageIds,
       ...invitationServicePayload(invitationServices),
       phones: phoneEntries
         .filter((p) => p.number.trim())
@@ -1015,6 +1022,17 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                 error={languageError ?? undefined}
               />
             </div>
+          )}
+          {inv && (
+            <SignupMultiSelect
+              tone="light"
+              label="Languages"
+              options={languages}
+              selectedIds={selectedLanguageIds}
+              onChange={setSelectedLanguageIds}
+              loading={loadingLanguages}
+              error={languageError ?? undefined}
+            />
           )}
           {!inv && (
             <FormField label="Profile photo" optional htmlFor="provider-photo">

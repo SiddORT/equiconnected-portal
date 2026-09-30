@@ -515,6 +515,7 @@ class InvitationService:
             raise InvitationNotFoundError()
         collection_fields = {
             "specialization_ids",
+            "language_ids",
             "locations",
             "phones",
             "emails",
@@ -549,6 +550,16 @@ class InvitationService:
                 if specialization is None or not specialization.is_active:
                     raise InvalidProviderDataError(
                         f"Specialization not found or inactive: {specialization_id}"
+                    )
+
+        language_ids = fields.get("language_ids")
+        if language_ids is not None:
+            language_ids = list(dict.fromkeys(language_ids))
+            for language_id in language_ids:
+                language = self._providers.get_language(language_id)
+                if language is None or not language.is_active:
+                    raise InvalidProviderDataError(
+                        f"Language not found or inactive: {language_id}"
                     )
 
         for field_name, unique_flag in (
@@ -591,6 +602,8 @@ class InvitationService:
                 )
                 for specialization_id in specialization_ids
             ]
+        if language_ids is not None:
+            self._providers.replace_languages(provider.id, language_ids)
         for field_name, model, relationship_name in (
             ("locations", ProviderLocation, "locations"),
             ("phones", ProviderPhone, "phones"),
@@ -704,6 +717,9 @@ class InvitationService:
                 "specialization_ids": [
                     str(link.specialization_id)
                     for link in provider.provider_specializations
+                ],
+                "language_ids": [
+                    str(link.language_id) for link in provider.provider_languages
                 ],
                 "locations": [
                     {

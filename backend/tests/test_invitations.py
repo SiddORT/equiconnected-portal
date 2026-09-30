@@ -46,6 +46,7 @@ from app.models.enums import (
 )
 from app.models.invitation import ProviderInvitation
 from app.models.doctor import DoctorProfile, DoctorQualification
+from app.models.language import Language, ProviderLanguage
 from app.models.provider import Provider, ProviderLocation, ProviderPhone
 from app.repositories.user_repository import UserRepository
 from app.repositories.invitation_repository import InvitationRepository
@@ -470,6 +471,25 @@ class TestAdminCreate:
 # ── Public endpoints ──────────────────────────────────────────────────────────
 
 class TestPublicGet:
+    def test_get_prefills_provider_language_ids(
+        self, client: TestClient, admin_token: str, existing_provider: Provider,
+        captured_email: dict, db,
+    ):
+        language = Language(name="English", code="en")
+        db.add(language)
+        db.flush()
+        db.add(ProviderLanguage(provider_id=existing_provider.id, language_id=language.id))
+        db.commit()
+        _create_invitation(
+            client, admin_token, recipient_email="language-prefill@example.com",
+            provider_id=str(existing_provider.id),
+        )
+
+        response = client.get(f"{PUBLIC_BASE}/{captured_email['token']}")
+
+        assert response.status_code == 200, response.text
+        assert response.json()["provider"]["language_ids"] == [str(language.id)]
+
     def test_get_valid_token_marks_accepted(
         self,
         client: TestClient,
@@ -549,6 +569,63 @@ class TestPublicGet:
 
 
 class TestPublicSave:
+    def test_language_ids_save_reload_omission_retention_and_explicit_clear(
+        self, client: TestClient, admin_token: str, captured_email: dict, db,
+    ):
+        invitation = _create_invitation(
+            client, admin_token, recipient_email="language-draft@example.com"
+        )
+        token = captured_email["token"]
+        provider = db.get(Provider, uuid.UUID(invitation["provider_id"]))
+        provider.description = "Keep this unrelated field"
+        first = Language(name="French", code="fr")
+        second = Language(name="Spanish", code="es")
+        db.add_all([first, second])
+        db.commit()
+
+        saved = client.post(
+            f"{PUBLIC_BASE}/{token}/save",
+            json={"language_ids": [str(first.id), str(first.id)]},
+        )
+        assert saved.status_code == 200, saved.text
+        assert saved.json()["provider"]["language_ids"] == [str(first.id)]
+        db.refresh(provider)
+        assert provider.description == "Keep this unrelated field"
+        assert db.query(ProviderLanguage).filter(
+            ProviderLanguage.provider_id == provider.id
+        ).count() == 1
+
+        # An older client omitting language_ids leaves the saved selection intact.
+        omitted = client.post(
+            f"{PUBLIC_BASE}/{token}/save", json={"website": "https://example.com"}
+        )
+        assert omitted.status_code == 200, omitted.text
+        assert omitted.json()["provider"]["language_ids"] == [str(first.id)]
+        reloaded = client.get(f"{PUBLIC_BASE}/{token}")
+        assert reloaded.json()["provider"]["language_ids"] == [str(first.id)]
+
+        # An explicitly empty list clears all language associations.
+        cleared = client.post(
+            f"{PUBLIC_BASE}/{token}/save", json={"language_ids": []}
+        )
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["provider"]["language_ids"] == []
+        assert db.query(ProviderLanguage).filter(
+            ProviderLanguage.provider_id == provider.id
+        ).count() == 0
+
+        selected_again = client.post(
+            f"{PUBLIC_BASE}/{token}/save",
+            json={"language_ids": [str(second.id)]},
+        )
+        assert selected_again.status_code == 200, selected_again.text
+        submitted_without_languages = client.post(
+            f"{PUBLIC_BASE}/{token}/submit",
+            json={"name": "Language Draft Clinic", "visit_stability": "STABLE_VISIT"},
+        )
+        assert submitted_without_languages.status_code == 200, submitted_without_languages.text
+        assert submitted_without_languages.json()["provider"]["language_ids"] == [str(second.id)]
+
     def test_invitation_email_can_be_removed_and_replaced_in_draft(
         self,
         client: TestClient,
@@ -701,6 +778,66 @@ class TestPublicSave:
 
 
 class TestPublicSubmit:
+    def test_submit_persists_and_returns_language_ids(
+        self, client: TestClient, admin_token: str, captured_email: dict, db,
+    ):
+        invitation = _create_invitation(
+            client, admin_token, recipient_email="language-submit@example.com"
+        )
+        language = Language(name="German", code="de")
+        db.add(language)
+        db.commit()
+
+        response = client.post(
+            f"{PUBLIC_BASE}/{captured_email['token']}/submit",
+            json={
+                "name": "Language Clinic",
+                "visit_stability": "STABLE_VISIT",
+                "language_ids": [str(language.id)],
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["provider"]["language_ids"] == [str(language.id)]
+        provider_id = uuid.UUID(invitation["provider_id"])
+        assert db.query(ProviderLanguage).filter(
+            ProviderLanguage.provider_id == provider_id,
+            ProviderLanguage.language_id == language.id,
+        ).count() == 1
+
+    def test_submit_rejects_inactive_language_and_save_rejects_unknown_language(
+        self, client: TestClient, admin_token: str, captured_email: dict, db,
+    ):
+        invitation = _create_invitation(
+            client, admin_token, recipient_email="invalid-language@example.com"
+        )
+        token = captured_email["token"]
+        inactive = Language(name="Inactive", code="xx", is_active=False)
+        db.add(inactive)
+        db.commit()
+
+        unknown_response = client.post(
+            f"{PUBLIC_BASE}/{token}/save",
+            json={"language_ids": [str(uuid.uuid4())]},
+        )
+        assert unknown_response.status_code == 422
+        assert unknown_response.json()["detail"]["code"] == "provider_validation_failed"
+
+        inactive_response = client.post(
+            f"{PUBLIC_BASE}/{token}/submit",
+            json={
+                "name": "Invalid Language Clinic",
+                "visit_stability": "STABLE_VISIT",
+                "language_ids": [str(inactive.id)],
+            },
+        )
+        assert inactive_response.status_code == 422
+        assert inactive_response.json()["detail"]["code"] == "provider_validation_failed"
+        provider_id = uuid.UUID(invitation["provider_id"])
+        assert db.query(ProviderLanguage).filter(
+            ProviderLanguage.provider_id == provider_id
+        ).count() == 0
+
     def test_submit_completes_invitation_and_sets_provider_status(
         self,
         client: TestClient,

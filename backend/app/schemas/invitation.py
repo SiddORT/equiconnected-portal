@@ -85,6 +85,7 @@ class DraftSaveRequest(BaseModel):
     emergency_services_available: bool | None = None
     emergency_contact_number: str | None = Field(None, max_length=50)
     specialization_ids: list[UUID] | None = None
+    language_ids: list[UUID] | None = None
     locations: list[LocationCreate] | None = None
     phones: list[PhoneCreate] | None = None
     emails: list[EmailCreate] | None = None
