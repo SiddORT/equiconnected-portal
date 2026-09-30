@@ -55,7 +55,10 @@ const providerTypes: Array<{ value: ProviderType; label: string; description: st
   { value: 'DOCTOR', label: 'Doctor / Vet', description: 'An independent equine professional.' },
 ];
 
-export function validateProviderSignup(form: ProviderRegistrationRequest): FormErrors {
+export function validateProviderSignup(
+  form: ProviderRegistrationRequest,
+  emergencyDialCode = DEFAULT_COUNTRY.dialCode
+): FormErrors {
   const errors: FormErrors = {};
   for (const field of ['first_name', 'last_name', 'provider_name', 'mobile_number', 'country', 'city', 'postal_code', 'professional_title', 'working_address'] as const) {
     if (!form[field].trim()) errors[field] = 'This field is required';
@@ -69,10 +72,18 @@ export function validateProviderSignup(form: ProviderRegistrationRequest): FormE
     || !Number.isFinite(form.maximum_working_radius_km) || form.maximum_working_radius_km <= 0)) {
     errors.maximum_working_radius_km = 'Enter a working radius greater than 0 km';
   }
-  if (form.emergency_services_available && !form.emergency_contact_number?.trim()) {
-    errors.emergency_contact_number = 'Emergency contact number is required';
-  } else if (form.emergency_services_available && !/^[0-9+\-()\s]{6,32}$/.test(form.emergency_contact_number?.trim() ?? '')) {
-    errors.emergency_contact_number = 'Enter a valid emergency contact number';
+  if (form.emergency_services_available) {
+    const localNumber = form.emergency_contact_number?.trim() ?? '';
+    const internationalNumber = `${emergencyDialCode} ${localNumber}`;
+    if (!localNumber) {
+      errors.emergency_contact_number = 'Emergency contact number is required';
+    } else if (!/^[0-9()\s.-]+$/.test(localNumber)
+      || !/^\+\d{1,4}$/.test(emergencyDialCode)
+      || !/^[-+0-9()\s]{6,32}$/.test(internationalNumber)
+      || (localNumber.match(/\d/g)?.length ?? 0) < 6
+      || (localNumber.match(/\d/g)?.length ?? 0) > 15) {
+      errors.emergency_contact_number = 'Enter a valid emergency number with 6–15 digits';
+    }
   }
   if (!form.email.trim()) errors.email = 'Email is required';
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.email = 'Enter a valid email address';
@@ -94,6 +105,7 @@ export function validateProviderSignup(form: ProviderRegistrationRequest): FormE
 export function ProviderSignupPage() {
   const [form, setForm] = useState<ProviderRegistrationRequest>(initialForm);
   const [mobileCountry, setMobileCountry] = useState(DEFAULT_COUNTRY);
+  const [emergencyCountry, setEmergencyCountry] = useState(DEFAULT_COUNTRY);
   const [errors, setErrors] = useState<FormErrors>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<boolean | null>(null);
@@ -212,7 +224,7 @@ export function ProviderSignupPage() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const nextErrors = validateProviderSignup(form);
+    const nextErrors = validateProviderSignup(form, emergencyCountry.dialCode);
     if (loadingSpecializations || specializationsError || !specializations.length) {
       setGlobalError(specializationsError ?? 'Specializations are unavailable. Please try again later.');
       return;
@@ -240,7 +252,7 @@ export function ProviderSignupPage() {
         professional_title: form.professional_title.trim(),
         working_address: form.working_address.trim(),
         emergency_contact_number: form.emergency_services_available
-          ? form.emergency_contact_number?.trim() ?? null : null,
+          ? `${emergencyCountry.dialCode} ${form.emergency_contact_number!.trim()}` : null,
         maximum_working_radius_km: form.stable_visit ? form.maximum_working_radius_km : null,
       });
       setSubmitted(result.email_sent);
@@ -372,10 +384,14 @@ export function ProviderSignupPage() {
                 Emergency services available
               </label>
               {form.emergency_services_available && (
-                <Input label="Emergency contact number" id="provider-emergency-number" type="tel" autoComplete="tel"
-                  maxLength={32} containerClassName={styles.signupField} value={form.emergency_contact_number ?? ''}
-                  onChange={(e) => update('emergency_contact_number', e.target.value)}
-                  error={errors.emergency_contact_number} disabled={submitting} required />
+                <div className={`${styles.signupField} ${styles.mobileField}`}>
+                  <span className={styles.mobileLabel}>Emergency contact number</span>
+                  <PhoneInput countryCode={emergencyCountry.dialCode} isoCode={emergencyCountry.code}
+                    number={form.emergency_contact_number ?? ''}
+                    onCountryChange={(dialCode, isoCode) => setEmergencyCountry((current) => ({ ...current, dialCode, code: isoCode }))}
+                    onNumberChange={(number) => update('emergency_contact_number', number)}
+                    error={errors.emergency_contact_number} disabled={submitting} ariaLabel="Emergency contact number" />
+                </div>
               )}
             </div>
             <div className={styles.twoColumns}>

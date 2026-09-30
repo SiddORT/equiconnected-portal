@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, afterEach } from 'vitest';
+import { describe, expect, it, vi, afterEach, beforeEach } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -26,12 +26,11 @@ vi.mock('@/components/ui/LocationPicker', () => ({
   LocationPicker: ({ onChange }: { onChange: (value: object) => void }) =>
     createElement('button', { type: 'button', onClick: () => onChange({ country: 'Canada', state_province: 'Alberta', city: 'Calgary' }) }, 'Choose test location'),
 }));
-vi.mock('@/components/ui/PhoneInput', () => ({
-  PhoneInput: ({ onNumberChange }: { onNumberChange: (value: string) => void }) =>
-    createElement('input', { 'aria-label': 'Mobile number', onChange: (event: React.ChangeEvent<HTMLInputElement>) => onNumberChange(event.target.value) }),
-}));
-
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.stubGlobal('matchMedia', () => ({ matches: false }));
+  Element.prototype.scrollIntoView = vi.fn();
+});
+afterEach(() => { cleanup(); vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
 const validApplication: ProviderRegistrationRequest = {
   first_name: 'Amina',
@@ -91,6 +90,19 @@ describe('provider registration validation', () => {
     })).toEqual({});
   });
 
+  it('validates the local emergency digits and the API-length international value', () => {
+    const enabled = { ...validApplication, emergency_services_available: true };
+    expect(validateProviderSignup({ ...enabled, emergency_contact_number: '12345' }).emergency_contact_number)
+      .toMatch(/6–15 digits/);
+    expect(validateProviderSignup({ ...enabled, emergency_contact_number: '123456x' }).emergency_contact_number)
+      .toMatch(/valid emergency/);
+    expect(validateProviderSignup({ ...enabled, emergency_contact_number: '123456789012345' }, '+971'))
+      .toEqual({});
+    expect(validateProviderSignup({
+      ...enabled, emergency_contact_number: '1 2 3 4 5 6 7 8 9 0 1 2 3 4 5',
+    }, '+971').emergency_contact_number).toMatch(/valid emergency/);
+  });
+
   it('requires an active specialization selection and professional experience', () => {
     expect(validateProviderSignup({
       ...validApplication, specialization_ids: [], years_experience: null,
@@ -98,6 +110,78 @@ describe('provider registration validation', () => {
       specialization_ids: 'Select at least one specialization',
       years_experience: 'Enter years of experience between 0 and 100',
     });
+  });
+});
+
+async function fillRequiredProviderFields(user: ReturnType<typeof userEvent.setup>) {
+  render(createElement(MemoryRouter, null, createElement(ProviderSignupPage)));
+  await screen.findByRole('button', { name: /Specializations/ });
+  await user.click(screen.getByRole('button', { name: /Specializations/ }));
+  await user.click(screen.getByRole('option', { name: 'Emergency care' }));
+  await user.click(screen.getByRole('button', { name: /Specializations/ }));
+  await user.type(screen.getByLabelText('Provider or practice name'), 'Equine Clinic');
+  await user.type(screen.getByLabelText('First name'), 'Amina');
+  await user.type(screen.getByLabelText('Last name'), 'Vet');
+  await user.type(screen.getByLabelText('Email address'), 'amina@example.com');
+  await user.type(screen.getByLabelText('Mobile number'), '5551234567');
+  await user.type(screen.getByLabelText('Professional title'), 'Veterinarian');
+  await user.type(screen.getByLabelText('Years of experience'), '8');
+  await user.type(screen.getByLabelText('Pincode / postal code'), 'T2P 1J9');
+  await user.click(screen.getByRole('button', { name: 'Choose test location' }));
+  await user.type(screen.getByLabelText('Address'), '42 Stable Road');
+  await user.type(screen.getByLabelText('Password', { exact: true }), 'HorseCare2026');
+  await user.type(screen.getByLabelText('Confirm password'), 'HorseCare2026');
+  await user.click(document.getElementById('provider-accept-terms')!);
+  await user.click(document.getElementById('provider-accept-privacy')!);
+}
+
+describe('provider signup emergency phone picker', () => {
+  it('shows a searchable, keyboard-selectable country without changing the mobile code and submits an international emergency number', async () => {
+    const user = userEvent.setup();
+    await fillRequiredProviderFields(user);
+    expect(screen.queryByLabelText('Emergency contact number')).toBeNull();
+    await user.click(screen.getByLabelText('Emergency services available'));
+    const emergency = screen.getByLabelText('Emergency contact number');
+    const [mobilePicker, emergencyPicker] = screen.getAllByRole('button', { name: /Country code: United States \+1/ });
+    await user.click(emergencyPicker);
+    const search = screen.getByRole('textbox', { name: 'Search countries' });
+    await user.type(search, 'United Kingdom');
+    expect(screen.getByRole('option', { name: /United Kingdom.*\+44/ })).toBeTruthy();
+    await user.keyboard('{Enter}');
+    expect(emergencyPicker.getAttribute('aria-label')).toBe('Country code: United Kingdom +44');
+    expect(mobilePicker.getAttribute('aria-label')).toBe('Country code: United States +1');
+    await user.type(emergency, '20 1234 5678');
+    await user.click(screen.getByRole('button', { name: 'Submit provider application' }));
+    await waitFor(() => expect(authApi.registerProvider).toHaveBeenCalledWith(expect.objectContaining({
+      mobile_number: '+1 5551234567',
+      emergency_services_available: true,
+      emergency_contact_number: '+44 20 1234 5678',
+    })));
+  });
+
+  it('blocks empty and invalid emergency numbers, then clears the number when emergency services are switched off', async () => {
+    const user = userEvent.setup();
+    await fillRequiredProviderFields(user);
+    const toggle = screen.getByLabelText('Emergency services available');
+    const submit = screen.getByRole('button', { name: 'Submit provider application' });
+    await user.click(toggle);
+    await user.click(submit);
+    expect(screen.getByRole('alert', { name: '' }).textContent).toContain('Emergency contact number is required');
+    expect(authApi.registerProvider).not.toHaveBeenCalled();
+    const emergency = screen.getByLabelText('Emergency contact number');
+    await user.type(emergency, '123x');
+    await user.click(submit);
+    expect(screen.getByText(/Enter a valid emergency number with 6–15 digits/)).toBeTruthy();
+    expect(authApi.registerProvider).not.toHaveBeenCalled();
+    await user.clear(emergency);
+    await user.type(emergency, '5551234567');
+    await user.click(toggle);
+    expect(screen.queryByLabelText('Emergency contact number')).toBeNull();
+    await user.click(submit);
+    await waitFor(() => expect(authApi.registerProvider).toHaveBeenCalledWith(expect.objectContaining({
+      emergency_services_available: false,
+      emergency_contact_number: null,
+    })));
   });
 });
 
