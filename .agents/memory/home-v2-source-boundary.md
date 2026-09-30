@@ -9,6 +9,12 @@ Use the supplied Home v2 prototype as a visual and content-structure reference, 
 
 **How to apply:** For future public homepage changes, match the reference's layout and media treatment, but route actions through actual app flows and keep reviews, visiting availability, and emergency guidance truthful until backed by verified data.
 
+Keep actual review comments on member-only provider profiles; the public homepage's review slider should use informational guidance rather than reviewer quotes.
+
+**Why:** The user explicitly chose informational slides for guests instead of making moderated review excerpts publicly visible.
+
+**How to apply:** Do not surface reviewer text on the guest homepage or create a public review-excerpt endpoint without a new explicit decision about broader visibility.
+
 Compare supplied design screenshots at their likely CSS viewport size, not the smaller size shown in chat. High-density captures can look like a narrow desktop screenshot after being scaled down.
 
 **Why:** Comparing a scaled high-density reference to the app at the thumbnail's pixel width makes correctly sized cards appear too large and encourages incorrect layout changes.

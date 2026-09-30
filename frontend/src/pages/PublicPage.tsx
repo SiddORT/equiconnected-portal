@@ -12,6 +12,7 @@ import { HomeFooter } from '@/components/public/home-v2/HomeFooter';
 import { HomeHero } from '@/components/public/home-v2/HomeHero';
 import { ContactSection } from '@/components/public/home-v2/ContactSection';
 import { FindCareTags } from '@/components/public/home-v2/FindCareTags';
+import { EditorialReviewSlider } from '@/components/public/home-v2/EditorialReviewSlider';
 import categoryVet from '@/components/public/home-v2/media/category-vet.jpg';
 import categoryClinic from '@/components/public/home-v2/media/category-clinic.jpg';
 import categoryHospital from '@/components/public/home-v2/media/category-hospital.jpg';
@@ -425,25 +426,7 @@ export function PublicPage() {
           <span className={styles.visitingCredit}>Photo by Filip Eliasson on Unsplash</span>
         </section>
 
-        <section className={styles.editorial} aria-labelledby="editorial-heading">
-          <div className={styles.editorialIntro}>
-            <p className={styles.sectionKicker}>Ratings &amp; reviews</p>
-            <h2 id="editorial-heading">In their words.</h2>
-          </div>
-          <div className={styles.editorialBody}>
-            <div className={styles.editorialThought}>
-              <span className={styles.editorialRule} aria-hidden="true" />
-              <p className={styles.editorialStatement}>A little more context. A conversation that starts in the right place.</p>
-              <p className={styles.editorialSupport}>When someone has shared a real experience, it can help you know what to ask next.</p>
-            </div>
-            <aside className={styles.editorialCard} aria-label="How reviews appear">
-              <p className={styles.editorialCardLabel}>A note on feedback</p>
-              <h3>Only what’s really there.</h3>
-              <p>Reviews and ratings appear on provider profiles only when real member feedback is available. Open a profile to find it alongside the information the provider shares.</p>
-              <Link to={careHref} className={styles.textLink}>Browse provider profiles <Arrow /></Link>
-            </aside>
-          </div>
-        </section>
+        <EditorialReviewSlider careHref={careHref} />
 
         <section className={styles.emergency} id="emergency" aria-labelledby="emergency-heading">
           <div className={styles.emergencyCopy}>

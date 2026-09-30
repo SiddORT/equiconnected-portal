@@ -164,7 +164,8 @@ describe('PublicPage', () => {
       .toBe('/signup');
   });
 
-  it('presents reviews as conditional profile information, not an example testimonial or carousel', () => {
+  it('cycles through truthful review guidance without publishing member feedback', async () => {
+    const user = userEvent.setup();
     renderPage();
     const section = screen.getByRole('region', { name: 'In their words.' });
     const reviews = within(section);
@@ -174,9 +175,18 @@ describe('PublicPage', () => {
     expect(reviews.getByText(/reviews and ratings appear on provider profiles only when real member feedback is available/i)).toBeTruthy();
     expect(reviews.getByText(/open a profile to find it alongside the information the provider shares/i)).toBeTruthy();
     expect(reviews.getByRole('link', { name: 'Browse provider profiles' }).getAttribute('href')).toBe('/signup');
-    expect(reviews.queryByRole('button')).toBeNull();
+    expect(reviews.getByRole('button', { name: 'Show review guide slide 1 of 3' }).getAttribute('aria-current')).toBe('true');
+    await user.click(reviews.getByRole('button', { name: 'Next review guide slide' }));
+    expect(reviews.getByText('Read the experience, then check the details.')).toBeTruthy();
+    expect(reviews.queryByText('A little more context. A conversation that starts in the right place.')).toBeNull();
+    expect(reviews.getByRole('button', { name: 'Show review guide slide 2 of 3' }).getAttribute('aria-current')).toBe('true');
+    await user.click(reviews.getByRole('button', { name: 'Show review guide slide 3 of 3' }));
+    expect(reviews.getByText('Your next question matters as much as a rating.')).toBeTruthy();
+    await user.click(reviews.getByRole('button', { name: 'Next review guide slide' }));
+    expect(reviews.getByText('A little more context. A conversation that starts in the right place.')).toBeTruthy();
+    await user.click(reviews.getByRole('button', { name: 'Previous review guide slide' }));
+    expect(reviews.getByText('Your next question matters as much as a rating.')).toBeTruthy();
     expect(reviews.queryByRole('img')).toBeNull();
-    expect(section.querySelector('[aria-label*="slide"], [aria-label*="rating"], [aria-label*="star"]')).toBeNull();
     expect(section.textContent).not.toMatch(/(?:\d(?:\.\d)?\s*(?:from \d+ reviews|\/5)|mariam|lameness specialist)/i);
     expect(section.nextElementSibling?.id).toBe('emergency');
     expect(section.previousElementSibling?.id).toBe('visiting');

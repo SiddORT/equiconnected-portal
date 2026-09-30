@@ -552,12 +552,29 @@
   padding: clamp(80px, 7vw, 110px) 0 clamp(75px, 7vw, 105px);
   background: var(--paper);
 }
+.editorialIntro { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
 .editorialIntro .sectionKicker { color: #887044; letter-spacing: .25em; }
 .editorialIntro h2 {
   margin: 12px 0 0;
   font: 400 clamp(51px, 6.2vw, 78px)/.95 var(--serif);
   letter-spacing: -.025em;
 }
+.editorialControls { display: flex; flex: none; gap: 8px; align-self: center; }
+.editorialControls button {
+  width: 43px;
+  height: 43px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(64, 54, 38, .25);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 19px;
+  transition: background .2s ease, color .2s ease;
+}
+.editorialControls button:last-child, .editorialControls button:hover { background: var(--ink); color: var(--paper); }
+.editorialControls button:focus-visible, .editorialDots button:focus-visible { outline: 2px solid #94713b; outline-offset: 3px; }
 .editorialBody {
   display: grid;
   grid-template-columns: minmax(0, 1.85fr) minmax(280px, .88fr);
@@ -623,6 +640,10 @@
   color: #423b2e;
   font-size: 10px;
 }
+.editorialDots { display: flex; gap: 3px; margin-top: 22px; }
+.editorialDots button { width: 25px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.editorialDots button::after { width: 9px; height: 3px; display: block; background: #cbc8c0; content: ''; }
+.editorialDots button[aria-current="true"]::after { width: 23px; background: #907039; }
 
 .emergency { width: min(100% - 64px,1390px); display: grid; grid-template-columns: .95fr 1.05fr; align-items: center; gap: 8vw; margin: 0 auto; padding: 0 0 clamp(80px,8vw,120px); scroll-margin-top: 95px; }
 .emergencyCopy h2 { max-width: 500px; margin: 16px 0 0; font: 400 clamp(47px,5.4vw,69px)/.96 var(--serif); }
@@ -827,6 +848,7 @@
   .editorialThought { max-width: 620px; }
   .editorialStatement { max-width: 600px; font-size: clamp(35px, 7.6vw, 47px); }
   .editorialCard { max-width: 560px; }
+  .editorialIntro { align-items: flex-end; }
 }
 @media (max-width: 420px) {
   .findSection .findImage { height: 405px; }
