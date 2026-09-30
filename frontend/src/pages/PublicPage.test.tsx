@@ -128,10 +128,9 @@ describe('PublicPage', () => {
     expect(screen.getByRole('link', { name: 'Profile' }).getAttribute('href')).toBe('/profile');
     expect(screen.getByRole('link', { name: 'Directory' }).getAttribute('href')).toBe('/providers');
     const hero = screen.getByRole('heading', { name: /Trusted equine care/i }).closest('section');
-    expect(within(hero as HTMLElement).getByRole('link', { name: 'Find care' })
-      .getAttribute('href')).toBe('/providers');
     expect(within(hero as HTMLElement).getByRole('link', { name: 'Open directory' })
       .getAttribute('href')).toBe('/providers');
+    expect(hero!.querySelectorAll('[class*="heroActions"] a')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Explore Vets in the directory' }).getAttribute('href'))
       .toBe('/providers');
     const footer = within(screen.getByRole('contentinfo'));
@@ -154,10 +153,9 @@ describe('PublicPage', () => {
     expect(within(navigation).getByRole('link', { name: 'Join EquiConnected' }).getAttribute('href'))
       .toBe('/signup');
     const hero = screen.getByRole('heading', { name: /Trusted equine care/i }).closest('section');
-    expect(within(hero as HTMLElement).getByRole('link', { name: 'Find care' })
-      .getAttribute('href')).toBe('/signup');
     expect(within(hero as HTMLElement).getByRole('link', { name: 'Join EquiConnected' })
       .getAttribute('href')).toBe('/signup');
+    expect(hero!.querySelectorAll('[class*="heroActions"] a')).toHaveLength(1);
     expect(within(document.getElementById('find')!).getByRole('link', { name: 'Check all providers' }).getAttribute('href'))
       .toBe('/signup');
     expect(screen.getByRole('link', { name: 'Explore Vets in the directory' }).getAttribute('href'))
@@ -251,7 +249,7 @@ describe('PublicPage', () => {
     expect(screen.queryByRole('link', { name: 'Profile' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Directory' })).toBeNull();
     const hero = screen.getByRole('heading', { name: /Trusted equine care/i }).closest('section');
-    expect(within(hero as HTMLElement).getByRole('link', { name: 'Find care' })
+    expect(within(hero as HTMLElement).getByRole('link', { name: 'Join EquiConnected' })
       .getAttribute('href')).toBe('/signup');
   });
 

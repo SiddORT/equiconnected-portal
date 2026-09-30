@@ -5,7 +5,7 @@ function Arrow() {
   return <span className={styles.arrow} aria-hidden="true">↗</span>;
 }
 
-export function HomeHero({ careHref, member }: { careHref: string; member: boolean }) {
+export function HomeHero({ member }: { member: boolean }) {
   return (
     <section className={styles.hero} aria-labelledby="hero-heading">
       <img
@@ -22,9 +22,8 @@ export function HomeHero({ careHref, member }: { careHref: string; member: boole
           A clearer place to discover equine care providers and the details they choose to share.
         </p>
         <div className={styles.heroActions}>
-          <Link to={careHref} className={styles.goldButton}>Find care <Arrow /></Link>
-          <Link to={member ? '/providers' : '/signup'} className={styles.ghostButton}>
-            {member ? 'Open directory' : 'Join EquiConnected'}
+          <Link to={member ? '/providers' : '/signup'} className={styles.goldButton}>
+            {member ? 'Open directory' : 'Join EquiConnected'} <Arrow />
           </Link>
         </div>
         <p className={styles.memberNote}>Provider directory access is available to members.</p>

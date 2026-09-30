@@ -196,7 +196,7 @@ export function PublicPage() {
       </header>
 
       <main id="main-content">
-        <HomeHero careHref={careHref} member={member} />
+        <HomeHero member={member} />
 
         <section className={styles.intro} id="care" aria-labelledby="intro-heading">
           <h2 id="intro-heading">
