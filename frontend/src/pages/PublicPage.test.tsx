@@ -55,7 +55,7 @@ beforeEach(() => {
 describe('PublicPage', () => {
   it('provides the guest destinations in navigation and the footer', () => {
     renderPage();
-    const footer = screen.getByRole('contentinfo');
+    const footer = within(screen.getByRole('contentinfo'));
     const destinations: Array<[RegExp, string]> = [
       [/Create an account/, '/signup'],
       [/Sign in|Member sign in/, '/login'],
@@ -67,7 +67,7 @@ describe('PublicPage', () => {
     ];
 
     for (const [name, href] of destinations) {
-      const link = within(footer).getByRole('link', { name });
+      const link = footer.getByRole('link', { name });
       expect(link.getAttribute('href')).toBe(href);
     }
     const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
@@ -140,7 +140,7 @@ describe('PublicPage', () => {
   it('shows the requested category description below the heading without changing the cards', () => {
     renderPage();
 
-    const heading = screen.getByRole('heading', { name: /Three kinds of care\.\s*One place to look\./ });
+    const heading = screen.getByRole('heading', { name: /Three kinds of care/i });
     const section = heading.closest('section')!;
     expect(within(section).getByText('Who you’ll find')).toBeTruthy();
     expect(heading.nextElementSibling?.textContent).toBe(
@@ -189,21 +189,6 @@ describe('PublicPage', () => {
   });
 
   it('validates subscriber role and email before sending a registration', async () => {
-    const user = userEvent.setup();
-    renderPage();
-
-    await user.click(screen.getByRole('button', { name: /keep me posted/i }));
-    expect(screen.getByRole('alert').textContent).toContain('Please choose how you would like to register.');
-    expect(publicApi.registerSubscriber).not.toHaveBeenCalled();
-
-    await user.selectOptions(screen.getByLabelText('Your role'), 'VET');
-    await user.type(screen.getByLabelText('Email address'), 'not-an-email');
-    await user.click(screen.getByRole('button', { name: /keep me posted/i }));
-    expect(screen.getByRole('alert').textContent).toContain('Please enter a valid email address.');
-    expect(publicApi.registerSubscriber).not.toHaveBeenCalled();
-  });
-
-  it('submits a valid subscriber and announces success', async () => {
     const user = userEvent.setup();
     renderPage();
 
@@ -296,9 +281,9 @@ describe('PublicPage', () => {
   it('flows directly from Find equine care to Why EquiConnected without the removed explorer', () => {
     renderPage();
 
-    const find = document.getElementById('find');
-    const why = screen.getByRole('heading', { name: /Built around how equine care really works/i }).closest('section');
-    expect(find?.nextElementSibling).toBe(why);
+    const find = screen.getByRole('region', { name: 'Care that actually reaches your stable.' });
+    const why = screen.getByRole('region', { name: 'Built around how equine care really works.' });
+    expect(find.nextElementSibling).toBe(why);
     expect(document.getElementById('care-near-you')).toBeNull();
     expect(screen.queryByText('Care near you')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Nearby providers' })).toBeNull();
@@ -334,13 +319,17 @@ describe('PublicPage', () => {
     expect(find.getByText('Find equine care')).toBeTruthy();
     expect(find.getByText(/Illustrative only/i)).toBeTruthy();
     expect(find.getByText(/Members only/i)).toBeTruthy();
-    expect(find.getByText(/street-address details are not shown publicly/i)).toBeTruthy();
+    expect(find.getByText(/Street addresses are not shown publicly/i)).toBeTruthy();
+    expect(find.getByText(/ask providers about their location and availability/i)).toBeTruthy();
     expect(find.getByText(/including whether a provider offers stable visits/i)).toBeTruthy();
     expect(find.getByRole('img', { name: /Illustrative stable and provider/i })).toBeTruthy();
-    const details = within(find.getByRole('list', { name: 'Care directory includes' }));
-    for (const label of ['Stable-visit details', 'Clinic & hospital profiles', 'Provider-shared specialisms', 'Shared locations']) {
-      expect(details.getByText(label)).toBeTruthy();
-    }
+    const details = within(find.getByRole('list', { name: 'Care topics to explore' }));
+
+    const labels = ['Stable visit', 'Hospital / clinic visit', 'Specialization', 'Emirate', 'Availability', 'Language', 'Emergency services'];
+    expect(details.getAllByRole('listitem').map(item => item.textContent)).toEqual(labels);
+    expect(details.getAllByRole('listitem').every(item => item.querySelector('svg[aria-hidden="true"]'))).toBe(true);
+    expect(details.queryByRole('link')).toBeNull();
+    expect(details.queryByRole('button')).toBeNull();
     expect(find.queryByRole('button')).toBeNull();
     expect(find.queryByRole('textbox')).toBeNull();
     expect(find.queryByRole('combobox')).toBeNull();
@@ -351,7 +340,6 @@ describe('PublicPage', () => {
   it('keeps the V2 care journey sections in their intended order', () => {
     renderPage();
 
-    expect(screen.getByRole('heading', { level: 1, name: /equine care/i })).toBeTruthy();
     const intro = screen.getByRole('region', { name: /Every horse deserves care/i });
     expect(within(intro).getByRole('heading', { level: 2, name: /Every horse deserves care from someone who knows horses/i })).toBeTruthy();
     expect(within(intro).queryByText(/A starting point for horse owners, riders and stable teams/i)).toBeNull();

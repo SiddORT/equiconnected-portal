@@ -160,54 +160,51 @@
 .findPills {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin: 23px 0 0;
+  gap: 9px 8px;
+  margin: 27px 0 0;
   padding: 0;
   list-style: none;
 }
 .findPills li {
-  min-height: 31px;
+  min-height: 36px;
   display: inline-flex;
   align-items: center;
-  padding: 5px 12px;
-  border: 1px solid rgba(111, 101, 80, .13);
+  gap: 8px;
+  padding: 7px 12px;
   border-radius: 999px;
-  background: #f0eadf;
-  color: #514d44;
-  font-size: 9px;
-  line-height: 1.3;
+  background: #eee8dc;
+  color: #302c25;
+  font-size: 11px;
+  line-height: 1.4;
   white-space: nowrap;
 }
-.findMemberNote {
-  max-width: 420px;
+.findPills svg { width: 17px; height: 17px; flex: 0 0 auto; color: #8c7545; }
+.findSection .findCopy > p.findMemberNote {
+  max-width: 495px;
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  margin: 23px 0 22px;
-  padding-top: 17px;
-  border-top: 1px solid rgba(39, 36, 30, .13);
-  color: #716b5f;
-  font-size: 10px;
-  line-height: 1.65;
+  gap: 19px;
+  margin: 38px 0 0;
+  color: #484236;
+  font-size: 13px;
+  line-height: 1.6;
 }
 .findMemberNote svg {
-  width: 15px;
-  height: 15px;
+  width: 19px;
+  height: 19px;
   flex: 0 0 auto;
-  margin-top: 2px;
+  margin-top: 3px;
   fill: none;
-  stroke: #8a7955;
-  stroke-width: 1.25;
+  stroke: #8c7545;
+  stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 .findMemberNote strong {
-  display: block;
-  margin-bottom: 2px;
-  color: #37342d;
-  font-size: 10px;
+  color: #27241e;
+  font-size: inherit;
 }
-.findSection .findCopy > .darkButton { min-height: 47px; padding-inline: 20px; gap: 28px; font-size: 10px; }
+.findSection .findCopy > .darkButton { min-height: 53px; margin-top: 37px; padding-inline: 24px; gap: 25px; font-size: 12px; }
 .radiusCard {
   position: absolute;
   z-index: 1;
@@ -597,14 +594,15 @@
   .findSection .findImage { height: 445px; min-height: 0; }
   .findSection .findCopy { max-width: none; }
   .findSection .findCopy h2 { max-width: 500px; font-size: clamp(47px, 11.8vw, 60px); }
-  .findMemberNote { margin-top: 20px; }
+  .findSection .findCopy > p.findMemberNote { margin-top: 30px; }
   .radiusCard { top: 11%; right: 0; width: min(220px, 62%); padding: 14px 14px 11px; }
 }
 @media (max-width: 420px) {
   .findSection .findImage { height: 405px; }
   .radiusCard { width: 60%; }
-  .findPills { gap: 7px; }
-  .findPills li { padding-inline: 10px; font-size: 8px; }
+  .findPills { gap: 8px 7px; }
+  .findPills li { padding-inline: 10px; font-size: 10px; }
+  .findSection .findCopy > p.findMemberNote { gap: 12px; font-size: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .page *, .page *::before, .page *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

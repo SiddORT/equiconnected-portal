@@ -10,6 +10,7 @@ import { recordPublicVisit, registerSubscriber } from '@/api/public';
 import { systemCalendarDate, useTimeSettings } from '@/app/TimeSettingsContext';
 import { HomeFooter } from '@/components/public/home-v2/HomeFooter';
 import { HomeHero } from '@/components/public/home-v2/HomeHero';
+import { FindCareTags } from '@/components/public/home-v2/FindCareTags';
 import categoryVet from '@/components/public/home-v2/media/category-vet.jpg';
 import categoryClinic from '@/components/public/home-v2/media/category-clinic.jpg';
 import categoryHospital from '@/components/public/home-v2/media/category-hospital.jpg';
@@ -286,15 +287,10 @@ export function PublicPage() {
             <p className={styles.sectionKicker}>Find equine care</p>
             <h2 id="find-heading">Care that actually reaches your stable.</h2>
             <p>Explore veterinary professionals, clinics and hospitals. See the care they share on their profiles, including whether a provider offers stable visits.</p>
-            <ul className={styles.findPills} aria-label="Care directory includes">
-              <li>Stable-visit details</li>
-              <li>Clinic &amp; hospital profiles</li>
-              <li>Provider-shared specialisms</li>
-              <li>Shared locations</li>
-            </ul>
+            <FindCareTags />
             <p className={styles.findMemberNote}>
               <svg aria-hidden="true" viewBox="0 0 20 20"><rect x="4.5" y="8.5" width="11" height="8" rx="1.5" /><path d="M7 8.5V6a3 3 0 0 1 6 0v2.5" /></svg>
-              <span><strong>Members only</strong> Sign up to browse provider profiles and the details they share. Contact and street-address details are not shown publicly.</span>
+              <span><strong>Members only.</strong> Provider profiles, contact details and reviews are available to members. Street addresses are not shown publicly; ask providers about their location and availability.</span>
             </p>
             <Link to={careHref} className={styles.darkButton}>Check all providers <Arrow /></Link>
           </div>
