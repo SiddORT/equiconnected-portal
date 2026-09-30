@@ -137,6 +137,21 @@ describe('PublicPage', () => {
       .toBe('/signup');
   });
 
+  it('shows the requested category description below the heading without changing the cards', () => {
+    renderPage();
+
+    const heading = screen.getByRole('heading', { name: /Three kinds of care\.\s*One place to look\./ });
+    const section = heading.closest('section')!;
+    expect(within(section).getByText('Who you’ll find')).toBeTruthy();
+    expect(heading.nextElementSibling?.textContent).toBe(
+      'From the ambulatory vet who knows your yard to the hospital with a surgical suite — all verified, all searchable.',
+    );
+    expect(within(section).queryByText(/From independent veterinary professionals/)).toBeNull();
+    for (const title of ['Vets', 'Clinics', 'Hospitals']) {
+      expect(within(section).getByRole('heading', { level: 3, name: title })).toBeTruthy();
+    }
+  });
+
   it('keeps member-only controls private while auth is restoring or resolves to a nonmember', () => {
     vi.mocked(useAuth).mockReturnValue({
       ...guestAuth(),

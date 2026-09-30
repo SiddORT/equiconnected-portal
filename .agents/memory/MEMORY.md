@@ -33,3 +33,4 @@
 - [Frontend test concurrency](frontend-test-concurrency.md) — full-suite default worker parallelism can cause timing failures; verify with constrained workers.
 - [Legacy doctor availability](legacy-doctor-availability.md) — treat missing classification as unknown, not proof of ongoing availability.
 - [Home v2 source boundary](home-v2-source-boundary.md) — match the reference page visually without treating its prototype listings, search, reviews, or emergency contacts as live data.
+- [Headless Chromium mobile checks](headless-chromium-mobile-checks.md) — CLI window size may bottom out at 500px; use device emulation for narrower responsive checks.

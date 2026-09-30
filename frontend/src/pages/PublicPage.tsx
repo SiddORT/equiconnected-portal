@@ -240,7 +240,7 @@ export function PublicPage() {
             <div className={styles.categoryHeading}>
               <p className={styles.sectionKicker}>Who you’ll find</p>
               <h2 id="categories-heading">Three kinds of care.<br /><em>One place to look.</em></h2>
-              <p>From independent veterinary professionals to clinics and hospitals, browse by practice type. Services vary by provider.</p>
+              <p>From the ambulatory vet who knows your yard to the hospital with a surgical suite — all verified, all searchable.</p>
             </div>
             <div className={styles.categoryGrid}>
               {[
