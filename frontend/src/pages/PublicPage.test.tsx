@@ -81,6 +81,10 @@ describe('PublicPage', () => {
   it('provides the guest destinations in navigation and the footer', () => {
     renderPage();
     const footer = within(screen.getByRole('contentinfo'));
+    expect(footer.getByRole('link', { name: 'Find a provider' }).getAttribute('href')).toBe('/signup');
+    expect(footer.getByRole('link', { name: 'List your practice' }).getAttribute('href')).toBe('/provider/signup');
+    expect(footer.getByRole('link', { name: 'Contact us' }).getAttribute('href')).toBe('/#contact');
+    expect(footer.queryByText(/hello@equiconnected|9:00–18:00|all seven emirates/i)).toBeNull();
     const destinations: Array<[RegExp, string]> = [
       [/Create an account/, '/signup'],
       [/Sign in|Member sign in/, '/login'],
@@ -134,6 +138,7 @@ describe('PublicPage', () => {
     expect(screen.getByRole('link', { name: 'Explore Vets in the directory' }).getAttribute('href'))
       .toBe('/providers');
     const footer = within(screen.getByRole('contentinfo'));
+    expect(footer.getByRole('link', { name: 'Find a provider' }).getAttribute('href')).toBe('/providers');
     expect(footer.getByRole('link', { name: 'Your profile' }).getAttribute('href')).toBe('/profile');
     expect(footer.getByRole('link', { name: 'Provider directory' }).getAttribute('href')).toBe('/providers');
     expect(document.getElementById('care-near-you')).toBeNull();
