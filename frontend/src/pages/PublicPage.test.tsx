@@ -55,6 +55,19 @@ beforeEach(() => {
 });
 
 describe('PublicPage', () => {
+  it('keeps hero content, member note, action, and photo attribution independent', () => {
+    renderPage();
+    const hero = screen.getByRole('heading', { name: /Trusted equine care/i }).closest('section')!;
+    const inner = hero.querySelector('[class*="heroInner"]')!;
+    expect(Array.from(inner.children).map((element) => element.tagName)).toEqual(['P', 'H1', 'P', 'DIV', 'P']);
+    expect(inner.children[0].textContent).toContain('Equine healthcare, connected');
+    expect(inner.children[2].textContent).toContain('A clearer place to discover');
+    expect(within(inner.children[3] as HTMLElement).getByRole('link', { name: 'Join EquiConnected' }).getAttribute('href')).toBe('/signup');
+    expect(inner.children[4].textContent).toBe('Provider directory access is available to members.');
+    expect(hero.querySelector('[class*="heroLight"]')?.getAttribute('aria-hidden')).toBe('true');
+    expect(within(hero).getByRole('link', { name: /Hero photograph · Helena Lopes/ }).getAttribute('href')).toBe('https://unsplash.com/@helenalopesph');
+  });
+
   it('places a working contact form after the updates signup', async () => {
     const user = userEvent.setup();
     renderPage();
