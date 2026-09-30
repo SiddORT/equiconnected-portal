@@ -289,6 +289,25 @@ describe('PublicPage', () => {
     expect(scrollIntoView).toHaveBeenCalledOnce();
   });
 
+  it('keeps the provider section anchor keyboard-accessible', async () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    window.history.replaceState(null, '', '/#providers');
+    renderPage();
+
+    const heading = screen.getByRole('heading', { name: 'A profile worthy of the work you do.' });
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+    expect(scrollIntoView).toHaveBeenCalledOnce();
+  });
+
   it('opens the responsive navigation and closes it on Escape', async () => {
     const user = userEvent.setup();
     renderPage();
@@ -387,6 +406,29 @@ describe('PublicPage', () => {
     expect(owners.getByRole('link', { name: /Philippe Oursel/i }).getAttribute('href')).toBe('https://unsplash.com/@ourselp');
     expect(owners.getByRole('link', { name: /Glen Carrie/i }).getAttribute('href')).toBe('https://unsplash.com/@glencarrie');
     expect(owners.getByRole('link', { name: 'Create your account' }).getAttribute('href')).toBe('/signup');
+  });
+
+  it('presents provider profile options with an explicitly illustrative preview and the signup route', () => {
+    renderPage();
+    const section = within(document.getElementById('providers')!);
+    expect(section.getByText('For veterinary professionals')).toBeTruthy();
+    expect(section.getByRole('heading', { level: 2, name: 'A profile worthy of the work you do.' })).toBeTruthy();
+    expect(section.getByText(/add languages and services where relevant/i)).toBeTruthy();
+    const features = within(section.getByRole('list', { name: 'Profile details and services' }));
+    expect(features.getAllByRole('listitem').map(item => item.textContent)).toEqual([
+      'Specializations', 'Languages', 'Stable visits',
+      'Travel radius, if you offer stable visits', 'Emergency services',
+    ]);
+    expect(features.queryByRole('link')).toBeNull();
+    expect(features.queryByRole('button')).toBeNull();
+    expect(section.getByRole('link', { name: 'Register as a provider' }).getAttribute('href')).toBe('/provider/signup');
+    expect(section.getByRole('img', { name: /horse resting its head beside the person caring for it/i })).toBeTruthy();
+    expect(section.getByText(/Photo by Kirsten LaChance/)).toBeTruthy();
+    const preview = within(section.getByRole('group', { name: 'Illustrative profile preview, not an actual provider listing' }));
+    expect(preview.getByText('Provider profile')).toBeTruthy();
+    expect(preview.getByText('Practice name')).toBeTruthy();
+    expect(preview.getByText('Details are shared by each provider')).toBeTruthy();
+    expect(section.queryByText(/Omar Siddiqui|14 yrs|60 km|4\.8|every profile is reviewed/i)).toBeNull();
   });
 
   it('routes owner members to horses and other members to their profile', () => {

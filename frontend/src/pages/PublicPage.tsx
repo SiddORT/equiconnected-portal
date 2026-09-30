@@ -378,17 +378,31 @@ export function PublicPage() {
         </section>
 
         <section className={styles.providerSection} id="providers" aria-labelledby="provider-heading">
-          <div className={styles.providerVisual}>
-            <img src={vetPhoto} alt="Veterinary professional caring for a horse" loading="lazy" />
-            <span>For the people behind equine care · Photo by Kirsten LaChance</span>
-          </div>
           <div className={styles.providerCopy}>
             <p className={styles.sectionKicker}>For veterinary professionals</p>
             <h2 id="provider-heading">A profile worthy of the work <em>you do.</em></h2>
-            <p>Introduce your practice to horse owners, riders and stable teams. Share your qualifications, areas of care and contact information so people can learn more about your services.</p>
-            <div className={styles.providerTypes}><span>Veterinary professionals</span><span>Clinics</span><span>Hospitals</span></div>
+            <p>Introduce your practice to horse owners, riders and stable teams. Share your specializations, and add languages and services where relevant so people can learn more about your work.</p>
+            <ul className={styles.providerFeatures} aria-label="Profile details and services">
+              <li>Specializations</li>
+              <li>Languages</li>
+              <li>Stable visits</li>
+              <li>Travel radius, if you offer stable visits</li>
+              <li>Emergency services</li>
+            </ul>
             <Link to="/provider/signup" className={styles.darkButton}>Register as a provider <Arrow /></Link>
           </div>
+          <figure className={styles.providerVisual}>
+            <img src={vetPhoto} alt="A horse resting its head beside the person caring for it" loading="lazy" />
+            <figcaption>For the people behind equine care · Photo by Kirsten LaChance</figcaption>
+            <div className={styles.providerPreview} role="group" aria-label="Illustrative profile preview, not an actual provider listing">
+              <span className={styles.providerPreviewEyebrow}>Illustrative profile preview</span>
+              <span className={styles.providerPreviewMark} aria-hidden="true">EC</span>
+              <strong>Provider profile</strong>
+              <span>Practice name</span>
+              <span>Specializations · Languages</span>
+              <span className={styles.previewNote}>Details are shared by each provider</span>
+            </div>
+          </figure>
         </section>
 
         <section className={styles.visiting} id="visiting" aria-labelledby="visiting-heading">
