@@ -114,6 +114,8 @@ describe('PublicPage', () => {
     expect(footer.getByRole('link', { name: 'Provider directory' }).getAttribute('href')).toBe('/providers');
     expect(document.getElementById('care-near-you')).toBeNull();
     expect(within(document.getElementById('find')!).getByRole('link', { name: 'Check all providers' }).getAttribute('href')).toBe('/providers');
+    const reviews = within(screen.getByRole('region', { name: 'In their words.' }));
+    expect(reviews.getByRole('link', { name: 'Browse provider profiles' }).getAttribute('href')).toBe('/providers');
 
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(logout).toHaveBeenCalledOnce();
@@ -135,6 +137,24 @@ describe('PublicPage', () => {
       .toBe('/signup');
     expect(screen.getByRole('link', { name: 'Explore Vets in the directory' }).getAttribute('href'))
       .toBe('/signup');
+  });
+
+  it('presents reviews as conditional profile information, not an example testimonial or carousel', () => {
+    renderPage();
+    const section = screen.getByRole('region', { name: 'In their words.' });
+    const reviews = within(section);
+
+    expect(reviews.getByRole('heading', { level: 2, name: 'In their words.' })).toBeTruthy();
+    expect(reviews.getByText('Ratings & reviews')).toBeTruthy();
+    expect(reviews.getByText(/reviews and ratings appear on provider profiles only when real member feedback is available/i)).toBeTruthy();
+    expect(reviews.getByText(/open a profile to find it alongside the information the provider shares/i)).toBeTruthy();
+    expect(reviews.getByRole('link', { name: 'Browse provider profiles' }).getAttribute('href')).toBe('/signup');
+    expect(reviews.queryByRole('button')).toBeNull();
+    expect(reviews.queryByRole('img')).toBeNull();
+    expect(section.querySelector('[aria-label*="slide"], [aria-label*="rating"], [aria-label*="star"]')).toBeNull();
+    expect(section.textContent).not.toMatch(/(?:\d(?:\.\d)?\s*(?:from \d+ reviews|\/5)|mariam|lameness specialist)/i);
+    expect(section.nextElementSibling?.id).toBe('emergency');
+    expect(section.previousElementSibling?.id).toBe('visiting');
   });
 
   it('shows the requested category description below the heading without changing the cards', () => {

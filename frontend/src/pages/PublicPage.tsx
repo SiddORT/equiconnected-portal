@@ -420,12 +420,19 @@ export function PublicPage() {
           <div className={styles.editorialIntro}>
             <p className={styles.sectionKicker}>Ratings &amp; reviews</p>
             <h2 id="editorial-heading">In their words.</h2>
-            <p>Provider profile reviews are shared by members. They appear when available, alongside the rest of a provider’s profile details.</p>
           </div>
-          <div className={styles.editorialQuote}>
-            <p className={styles.editorialStatement}>Real experiences can help you start a more informed conversation.</p>
-            <p>Reviews and ratings appear only where real member feedback is available.</p>
-            <Link to={careHref} className={styles.textLink}>Browse provider profiles <Arrow /></Link>
+          <div className={styles.editorialBody}>
+            <div className={styles.editorialThought}>
+              <span className={styles.editorialRule} aria-hidden="true" />
+              <p className={styles.editorialStatement}>A little more context. A conversation that starts in the right place.</p>
+              <p className={styles.editorialSupport}>When someone has shared a real experience, it can help you know what to ask next.</p>
+            </div>
+            <aside className={styles.editorialCard} aria-label="How reviews appear">
+              <p className={styles.editorialCardLabel}>A note on feedback</p>
+              <h3>Only what’s really there.</h3>
+              <p>Reviews and ratings appear on provider profiles only when real member feedback is available. Open a profile to find it alongside the information the provider shares.</p>
+              <Link to={careHref} className={styles.textLink}>Browse provider profiles <Arrow /></Link>
+            </aside>
           </div>
         </section>
 
