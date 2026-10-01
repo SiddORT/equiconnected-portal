@@ -1,9 +1,10 @@
 import type { AnalyticsBreakdowns } from '@/types/analytics';
+import { useId, useState } from 'react';
 import styles from './AnalyticsBreakdownTables.module.css';
 
 interface AggregateRow {
   category: string;
-  value: number;
+  value: number | null;
 }
 
 const NON_COUNT_NUMBERS = new Set([
@@ -14,6 +15,7 @@ const COUNT_FIELDS = [
   'value', 'count', 'total', 'views', 'page_views', 'review_submissions', 'rating_count',
   'profile_views', 'saved_count', 'submissions', 'records', 'response_count',
 ];
+const COUNT_FIELD_SET = new Set(COUNT_FIELDS);
 const LABEL_FIELDS = ['label', 'name', 'provider_name', 'status', 'category', 'type', 'role', 'bucket', 'rating'];
 
 function flattenAggregates(value: unknown, path = ''): AggregateRow[] {
@@ -21,10 +23,15 @@ function flattenAggregates(value: unknown, path = ''): AggregateRow[] {
   if (Array.isArray(value)) return value.flatMap((row, index) => {
     if (!row || typeof row !== 'object') return [];
     const item = row as Record<string, unknown>;
-    const valueField = COUNT_FIELDS.find((field) => typeof item[field] === 'number');
-    if (valueField) {
+    const valueFields = COUNT_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(item, field)
+      && ((typeof item[field] === 'number' && Number.isFinite(item[field])) || item[field] === null));
+    if (valueFields.length > 0) {
       const label = LABEL_FIELDS.map((field) => item[field]).find((field) => field !== undefined && field !== null);
-      return [{ category: [path, label === undefined ? `Item ${index + 1}` : String(label)].filter(Boolean).join(' · '), value: item[valueField] as number }];
+      const rowLabel = label === undefined ? `Item ${index + 1}` : String(label);
+      return valueFields.map((field) => ({
+        category: [path, rowLabel, ...(valueFields.length > 1 ? [field.replace(/_/g, ' ')] : [])].filter(Boolean).join(' · '),
+        value: item[field] as number | null,
+      }));
     }
     return flattenAggregates(item, path);
   });
@@ -32,6 +39,7 @@ function flattenAggregates(value: unknown, path = ''): AggregateRow[] {
     if (NON_COUNT_NUMBERS.has(key.toLowerCase()) || key === 'definition' || key === 'unit' || key === 'available') return [];
     const nextPath = [path, key].filter(Boolean).join(' · ');
     if (typeof nested === 'number' && Number.isFinite(nested)) return [{ category: nextPath, value: nested }];
+    if (nested === null && COUNT_FIELD_SET.has(key.toLowerCase())) return [{ category: nextPath, value: null }];
     return flattenAggregates(nested, nextPath);
   });
   return [];
@@ -63,30 +71,47 @@ function definitionFor(domain: string, name: string, supplied?: string): string 
   return `Aggregate count for ${name.replace(/_/g, ' ')}.`;
 }
 
-export function AnalyticsBreakdownTables({ reports }: { reports: AnalyticsBreakdowns[] }) {
+export function AnalyticsBreakdownTables({ reports, excludedGroupNames = [], excludedGroups = [], title = 'Breakdown tables', variant = 'counts' }: {
+  reports: AnalyticsBreakdowns[];
+  excludedGroupNames?: readonly string[];
+  excludedGroups?: readonly string[];
+  title?: string;
+  variant?: 'counts' | 'metrics';
+}) {
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const headingId = useId();
+  const excluded = new Set([...excludedGroupNames, ...excludedGroups].map((name) => name.toLowerCase()));
   const groups = reports.flatMap((report) => Object.entries(report.groups ?? {}).map(([name, value]) => ({
     key: `${report.domain}-${name}`,
     domain: report.domain,
     name,
     rows: flattenAggregates(value),
     definition: definitionFor(report.domain, name, report.definitions?.[name]),
-  }))).filter((group) => group.rows.length > 0);
+  }))).filter((group) => group.rows.length > 0 && !excluded.has(group.name.toLowerCase()));
 
   if (groups.length === 0) return null;
   return (
-    <section className={styles.section} aria-labelledby="aggregate-tables-heading">
-      <header><div><span className={styles.kicker}>Source-aligned detail</span><h2 id="aggregate-tables-heading">Breakdown tables</h2></div><p>Count-only aggregates. Period activity and present-day snapshots remain distinct.</p></header>
+    <section className={styles.section} aria-labelledby={headingId}>
+      <header><div><span className={styles.kicker}>Source-aligned detail</span><h2 id={headingId}>{title}</h2></div><p>Period activity and present-day snapshots remain distinct.</p></header>
       <div className={styles.groups}>
         {groups.map((group) => (
-          <details key={group.key} open>
-            <summary><span>{group.domain.replace(/_/g, ' ')} · {group.name.replace(/_/g, ' ')}</span><small>{basisFor(group.domain, group.name)}</small></summary>
-            <p className={styles.definition}>{group.definition}</p>
+          <details key={group.key} open={!!openGroups[group.key]}>
+            <summary
+              onClick={(event) => { event.preventDefault(); setOpenGroups((current) => ({ ...current, [group.key]: !current[group.key] })); }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+                  event.preventDefault();
+                  setOpenGroups((current) => ({ ...current, [group.key]: !current[group.key] }));
+                }
+              }}
+            ><span>{group.domain.replace(/_/g, ' ')} · {group.name.replace(/_/g, ' ')}</span><small>{basisFor(group.domain, group.name)}</small></summary>
+            {openGroups[group.key] && <><p className={styles.definition}>{group.definition}</p>
             <div className={styles.tableWrap}>
               <table><caption className="sr-only">{group.domain} {group.name} aggregate values</caption>
-                <thead><tr><th scope="col">Category / status</th><th scope="col">Count</th><th scope="col">Basis</th></tr></thead>
-                <tbody>{group.rows.map((row, index) => <tr key={`${row.category}-${index}`}><th scope="row">{row.category}</th><td>{row.value.toLocaleString()}</td><td>{basisFor(group.domain, group.name)}</td></tr>)}</tbody>
+                <thead><tr><th scope="col">Category / status</th><th scope="col">{variant === 'metrics' ? 'Value' : 'Count'}</th><th scope="col">Basis</th></tr></thead>
+                <tbody>{group.rows.map((row, index) => <tr key={`${row.category}-${index}`}><th scope="row">{row.category}</th><td>{row.value === null ? 'Unavailable' : row.value.toLocaleString()}</td><td>{basisFor(group.domain, group.name)}</td></tr>)}</tbody>
               </table>
-            </div>
+            </div></>}
           </details>
         ))}
       </div>

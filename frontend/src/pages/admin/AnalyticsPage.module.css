@@ -1,4 +1,4 @@
-.shell { display: flex; flex-direction: column; flex: 1; min-height: 0; background: var(--bg-page); }
+.shell { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; background: var(--bg-page); }
 .body { display: flex; flex-direction: column; gap: 1.4rem; padding: 1.4rem clamp(1rem, 2.4vw, 2.4rem) 3rem; max-width: 1680px; width: 100%; margin: 0 auto; }
 .controlDeck { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: visible; }
 .controlsTop { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem .75rem; }
@@ -42,10 +42,11 @@
 .groupHeading h2 { color: var(--color-primary-900); font-size: 1rem; font-weight: 700; letter-spacing: -.025em; }
 .groupHeading span { color: var(--text-muted); font-size: .7rem; }
 .metricGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: .7rem; }
+.overviewMetrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .metricCard { min-width: 0; border-top: 3px solid var(--color-accent-500); display: flex; flex-direction: column; gap: .45rem; }
 .metricTop { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
-.metricLabel { color: var(--text-secondary); font-size: .75rem; line-height: 1.35; font-weight: 600; }
-.periodTag, .snapshotTag { padding: .18rem .42rem; border-radius: 99px; color: var(--color-primary-800); background: var(--color-primary-50); font-size: .59rem; white-space: nowrap; }
+.metricLabel { color: var(--text-secondary); font-size: .85rem; line-height: 1.45; font-weight: 600; }
+.periodTag, .snapshotTag { color: var(--text-muted); font-size: .7rem; white-space: nowrap; }
 .snapshotTag { color: #705523; background: #f6efd9; }
 .metricValue { display: flex; align-items: baseline; flex-wrap: wrap; gap: .25rem; color: var(--color-primary-900); font-family: var(--font-display); font-size: clamp(1.35rem, 2vw, 1.8rem); letter-spacing: -.04em; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .metricValue small { color: var(--text-secondary); font-family: var(--font-body); font-size: .68rem; letter-spacing: 0; font-weight: 500; }
@@ -75,11 +76,30 @@
 .coverageEmpty { color: var(--text-secondary); }
 .coverageEmpty h3 { color: var(--color-primary-900); font-size: .9rem; }
 .coverageEmpty p { margin-top: .3rem; font-size: .75rem; line-height: 1.5; }
+.body > :global([role="tabpanel"]) { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
+.disclosure { border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-surface); min-width: 0; }
+.disclosure > summary { cursor: pointer; padding: .85rem 1rem; min-height: 44px; color: var(--color-primary-800); font-weight: 600; font-size: .85rem; }
+.disclosure > :not(summary) { margin: .5rem 1rem 1rem; }
+.controlDeck > .disclosure { border: 0; border-top: 1px solid var(--border-default); border-radius: 0; }
+.activeFilters { display: flex; gap: .55rem; flex-wrap: wrap; padding: 0 1.25rem 1rem; }
+.activeFilters button { max-width: 100%; overflow-wrap: anywhere; min-height: 44px; padding: .5rem .7rem; background: var(--color-primary-50); border: 1px solid var(--border-default); border-radius: var(--radius-md); color: var(--text-primary); cursor: pointer; font: inherit; font-size: .8rem; }
+.activeFilters p { flex-basis: 100%; color: var(--text-secondary); font-size: .8rem; }
+.sectionLinks { display: flex; gap: .65rem 1.25rem; flex-wrap: wrap; }
+.sectionLinks a { padding: .6rem 0; color: var(--color-primary-700); font-size: .85rem; }
+.trendPanel { min-width: 0; }
+.trendSelector { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; color: var(--text-secondary); font-size: .85rem; }
+.trendSelector select { max-width: 100%; min-height: 44px; border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: .5rem; background: var(--bg-surface); color: var(--text-primary); font: inherit; }
+.coverageObservation { color: var(--text-secondary); font-size: .8rem; overflow-wrap: anywhere; }
+.secondaryButton, .resetButton, .exportMenu summary, .filterField input, .filterField select, .tabs button { min-height: 44px; font-size: .85rem; }
+.filterField { font-size: .78rem; }
+.snapshotTag { background: transparent; }
+.body :is(button, summary, select, input, a):focus-visible { outline: 2px solid var(--color-primary-600); outline-offset: 3px; }
 @keyframes shimmer { 0%, 100% { opacity: .55; } 50% { opacity: .95; } }
 @media(max-width: 760px) {
   .body { padding: .85rem .7rem 2rem; gap: 1rem; }
   .controlsTop { align-items: flex-start; }
   .chartsGrid { grid-template-columns: 1fr; }
+  .overviewMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .filterRow { padding: .8rem; }
   .filterField { flex: 1 1 135px; }
   .filterField select, .filterField input { max-width: none; width: 100%; }
@@ -89,7 +109,7 @@
   .controlsTop { flex-direction: column; }
   .actions { width: 100%; justify-content: flex-end; }
   .groupHeading { align-items: flex-start; flex-direction: column; gap: .2rem; }
-  .metricGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .metricGrid { grid-template-columns: 1fr; }
   .metricCard { padding: .8rem !important; }
   .metricValue { font-size: 1.35rem; }
   .skeletonGrid { grid-template-columns: repeat(2, 1fr); }

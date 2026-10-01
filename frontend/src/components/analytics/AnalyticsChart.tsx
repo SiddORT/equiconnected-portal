@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { AnalyticsGroup, AnalyticsPoint } from '@/types/analytics';
 import { Card } from '@/components/ui/Card';
 import styles from './AnalyticsChart.module.css';
@@ -44,7 +44,9 @@ function bucketTimestamp(bucket: string): number | null {
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
-export function AnalyticsChart({ title, description, kind = 'bars', points, group, unit = 'records', definition, tableOpen = true }: Props) {
+export function AnalyticsChart({ title, description, kind = 'bars', points, group, unit = 'records', definition, tableOpen = false }: Props) {
+  const [isTableOpen, setIsTableOpen] = useState(tableOpen);
+  const [isDefinitionOpen, setIsDefinitionOpen] = useState(false);
   const data = useMemo(() => points
     ? points.map((point) => ({ label: point.bucket, value: point.value }))
     : entriesOf(group), [points, group]);
@@ -70,17 +72,17 @@ export function AnalyticsChart({ title, description, kind = 'bars', points, grou
   return (
     <Card padding="md" shadow="sm" className={styles.card}>
       <header className={styles.heading}>
-        <div><h3>{title}</h3>{description && <p>{description}</p>}{definition && <p className={styles.definition}>{definition}</p>}</div>
+        <div><h3>{title}</h3>{description && <p>{description}</p>}{definition && <details className={styles.definitionDetails} open={isDefinitionOpen}><summary onClick={(event) => { event.preventDefault(); setIsDefinitionOpen((open) => !open); }}>How this is counted</summary>{isDefinitionOpen && <p className={styles.definition}>{definition}</p>}</details>}</div>
         {data.length > 0 && <span className={styles.unit}>{unit}</span>}
       </header>
       {data.length === 0 ? (
         <div className={styles.empty} role="status">No covered data for this selection.</div>
       ) : (
         <>
-          <div className={`${styles.chart} ${kind === 'trend' ? styles.trend : ''}`} role="img" aria-label={chartLabel}>
+          {!isTableOpen && <div className={`${styles.chart} ${kind === 'trend' ? styles.trend : ''}`} role="img" aria-label={chartLabel}>
             {kind === 'trend' ? (
               <svg viewBox="0 0 700 220" preserveAspectRatio="none" aria-hidden="true">
-                {yTicks.map((tick, i) => {
+                {yTicks.map((tick) => {
                   const y = 180 - (tick / tickMax) * 150;
                   return <g key={tick}><line x1="56" y1={y} x2="692" y2={y} className={styles.gridLine} /><text x="48" y={y + 3} textAnchor="end" className={styles.tick}>{tick.toLocaleString()}</text></g>;
                 })}
@@ -94,7 +96,7 @@ export function AnalyticsChart({ title, description, kind = 'bars', points, grou
                   if (!segments.length) segments.push([]);
                   segments[segments.length - 1].push(`${x},${y}`);
                   return segments;
-                }, []).filter((segment) => segment.length > 1).map((segment, i) => <polyline key={i} className={styles.line} points={segment.join(' ')} />)}
+                }, []).filter((segment) => segment.length > 1).map((segment) => <polyline key={segment.join(' ')} className={styles.line} points={segment.join(' ')} />)}
                 {data.map((item, i) => {
                   if (item.value === null) return null;
                   const x = xForIndex(i);
@@ -123,17 +125,17 @@ export function AnalyticsChart({ title, description, kind = 'bars', points, grou
                 ))}
               </div>
             )}
-          </div>
-          {kind === 'trend' && data.length > 1 && (
+          </div>}
+          {!isTableOpen && kind === 'trend' && data.length > 1 && (
             <div className={styles.endpoints}><span>{data[0].label}</span><span>{data[data.length - 1].label}</span></div>
           )}
-          <details className={styles.tableDetails} open={tableOpen}>
-            <summary>View data table</summary>
-            <div className={styles.tableWrap}>
+          <details className={styles.tableDetails} open={isTableOpen}>
+            <summary onClick={(event) => { event.preventDefault(); setIsTableOpen((open) => !open); }}>View data table</summary>
+            {isTableOpen && <div className={styles.tableWrap}>
               <table><caption className="sr-only">{title} data</caption><thead><tr><th scope="col">Period / category</th><th scope="col">{unit}</th></tr></thead>
                 <tbody>{data.map((item) => <tr key={item.label}><th scope="row">{item.label}</th><td>{item.value === null ? 'Unavailable' : item.value.toLocaleString()}</td></tr>)}</tbody>
               </table>
-            </div>
+            </div>}
           </details>
         </>
       )}

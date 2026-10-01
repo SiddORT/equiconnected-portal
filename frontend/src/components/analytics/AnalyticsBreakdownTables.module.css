@@ -6,9 +6,11 @@
 .groups { display: grid; gap: .55rem; }
 .groups details { overflow: hidden; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-surface); }
 .groups summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; cursor: pointer; padding: .7rem .85rem; color: var(--text-primary); font-size: .77rem; font-weight: 650; text-transform: capitalize; }
+.groups summary:focus-visible, .groups summary:hover { color: var(--color-primary-700); }
+.groups summary:focus-visible { outline: 2px solid var(--color-primary-600); outline-offset: -3px; }
 .groups summary small { flex: 0 0 auto; color: var(--text-muted); font-weight: 500; text-transform: none; }
 .definition { margin: 0 .85rem .55rem; color: var(--text-secondary); font-size: .7rem; line-height: 1.45; }
-.tableWrap { overflow-x: auto; }
+.tableWrap { max-width: 100%; overflow-x: auto; }
 .tableWrap table { width: 100%; border-collapse: collapse; font-size: .73rem; text-align: left; }
 .tableWrap th, .tableWrap td { border-top: 1px solid var(--border-default); padding: .5rem .85rem; }
 .tableWrap thead th { background: var(--color-primary-50); color: var(--color-primary-900); }

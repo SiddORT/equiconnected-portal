@@ -9,7 +9,9 @@
 .axis { stroke: var(--border-default); stroke-width: 1; }
 .gridLine { stroke: var(--border-default); stroke-width: 1; stroke-dasharray: 2 4; }
 .tick { fill: var(--text-muted); font-size: 10px; font-family: var(--font-mono, monospace); }
-.definition { color: var(--text-muted); font-size: .68rem; line-height: 1.4; max-width: 48rem; margin-top: .25rem; }
+.definitionDetails { margin-top: .45rem; }
+.definitionDetails summary { color: var(--color-primary-700); font-size: .68rem; font-weight: 600; cursor: pointer; }
+.definition { color: var(--text-muted); font-size: .68rem; line-height: 1.4; max-width: 48rem; margin-top: .35rem; }
 .line { fill: none; stroke: var(--color-primary-600); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .dot { fill: var(--color-accent-500); stroke: var(--bg-surface); stroke-width: 2; }
 .endpoints { display: flex; justify-content: space-between; color: var(--text-muted); font-size: .7rem; }
@@ -27,9 +29,9 @@
 .columnLabel { max-width: 100%; color: var(--text-secondary); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .tableDetails { margin-top: 1rem; border-top: 1px solid var(--border-default); padding-top: .65rem; }
 .tableDetails summary { cursor: pointer; color: var(--color-primary-700); font-size: .76rem; font-weight: 600; }
-.tableWrap { overflow: auto; max-height: 210px; margin-top: .5rem; }
+.tableWrap { overflow-x: auto; max-height: 210px; margin-top: .5rem; }
 .tableWrap table { width: 100%; border-collapse: collapse; font-size: .76rem; text-align: left; }
 .tableWrap th, .tableWrap td { padding: .45rem .55rem; border-bottom: 1px solid var(--border-default); }
 .tableWrap td { text-align: right; font-variant-numeric: tabular-nums; }
 .empty { display: grid; place-items: center; min-height: 170px; color: var(--text-secondary); font-size: .82rem; text-align: center; }
-@media (max-width: 560px) { .chart { margin-top: 1rem; } .barItem { grid-template-columns: minmax(60px, .8fr) minmax(48px, 1.2fr) 34px; gap: .4rem; } .columnLabel { font-size: .62rem; } }
+@media (max-width: 560px) { .chart { margin-top: 1rem; } .barItem { grid-template-columns: minmax(0, .8fr) minmax(42px, 1.2fr) 34px; gap: .4rem; } .barLabel { min-width: 0; } .columnLabel { font-size: .62rem; } }

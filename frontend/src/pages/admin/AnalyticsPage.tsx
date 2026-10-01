@@ -9,16 +9,16 @@ import { Card } from '@/components/ui/Card';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PageHeader } from '@/components/layout/PageHeader';
-import type { AnalyticsBreakdowns, AnalyticsDomain, AnalyticsFilters, AnalyticsGroup, AnalyticsGrouping, AnalyticsPreset, AnalyticsSeries, AnalyticsSort, AnalyticsSummary, ProviderRankingResponse } from '@/types/analytics';
+import type { AnalyticsBreakdowns, AnalyticsDomain, AnalyticsFilters, AnalyticsGroup, AnalyticsGrouping, AnalyticsMetric, AnalyticsPreset, AnalyticsSeries, AnalyticsSort, AnalyticsSummary, ProviderRankingResponse } from '@/types/analytics';
 import styles from './AnalyticsPage.module.css';
 
 const TABS = [
   { id: 'overview', label: 'Overview', domains: [] as AnalyticsDomain[] },
-  { id: 'traffic', label: 'Traffic & Discovery', domains: ['traffic'] as AnalyticsDomain[] },
-  { id: 'registrations', label: 'Registrations', domains: ['registrations'] as AnalyticsDomain[] },
-  { id: 'providers', label: 'Providers & Applications', domains: ['providers', 'applications', 'invitations'] as AnalyticsDomain[] },
-  { id: 'reviews', label: 'Reviews & Feedback', domains: ['reviews', 'feedback'] as AnalyticsDomain[] },
-  { id: 'engagement', label: 'Enquiries & Subscribers', domains: ['enquiries', 'subscribers'] as AnalyticsDomain[] },
+  { id: 'traffic', label: 'Website traffic', domains: ['traffic'] as AnalyticsDomain[] },
+  { id: 'registrations', label: 'Members', domains: ['registrations'] as AnalyticsDomain[] },
+  { id: 'providers', label: 'Providers', domains: ['providers', 'applications', 'invitations'] as AnalyticsDomain[] },
+  { id: 'reviews', label: 'Reviews & feedback', domains: ['reviews', 'feedback'] as AnalyticsDomain[] },
+  { id: 'engagement', label: 'Enquiries & subscribers', domains: ['enquiries', 'subscribers'] as AnalyticsDomain[] },
 ] as const;
 type TabId = typeof TABS[number]['id'];
 type PageStatus = 'loading' | 'success' | 'error';
@@ -33,7 +33,7 @@ const METRIC_LABELS: Record<string, string> = {
   website_page_views: 'Website page views', estimated_visitor_days: 'Estimated visitor-days',
   latest_daily_visitor_estimate: 'Latest daily visitor estimate', directory_views: 'Directory views',
   provider_profile_views: 'Provider profile views', legacy_homepage_visits: 'Legacy homepage visits',
-  public_member_registrations: 'New member registrations', verified_registrations: 'Verified registrations',
+  public_member_registrations: 'New member registrations', verified_registrations: 'Verified in selected cohort',
   provider_applications: 'New provider applications', provider_application_decisions: 'Recorded application decisions', application_approvals: 'Recorded approvals',
   application_rejections: 'Recorded rejections', provider_invitations_created: 'Invitations created',
   provider_invitations_sent: 'Invitations sent', contact_enquiries: 'Accepted enquiries',
@@ -45,6 +45,8 @@ const METRIC_LABELS: Record<string, string> = {
   rated_response_count: 'Rated feedback responses',
   feedback_rating_average: 'Average platform feedback rating',
   feedback_rated_response_count: 'Rated feedback responses',
+  eligible_review_rating_average: 'Current eligible average rating',
+  eligible_review_rating_count: 'Current eligible rating count',
 };
 const SERIES_BY_TAB: Partial<Record<TabId, string[]>> = {
   overview: ['website_page_views'], traffic: ['website_page_views', 'estimated_visitor_days', 'directory_views', 'provider_profile_views', 'legacy_homepage_visits'],
@@ -139,17 +141,18 @@ function displayLabel(key: string) {
   return METRIC_LABELS[key] ?? key.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function MetricCard({ metric }: { metric: AnalyticsSummary['sections'][string]['metrics'] extends (infer T)[] | undefined ? T : never }) {
+function MetricCard({ metric, eligibleCount }: { metric: AnalyticsMetric; eligibleCount?: AnalyticsMetric }) {
   const value = metric.value === null || metric.available === false ? 'Unavailable' : metric.value.toLocaleString();
   const comparison = metric.comparison;
   return (
     <Card padding="md" shadow="sm" className={styles.metricCard}>
       <div className={styles.metricTop}>
-        <span className={styles.metricLabel}>{metric.label ?? displayLabel(metric.key)}</span>
-        <span className={metric.basis === 'current' ? styles.snapshotTag : styles.periodTag}>{metric.basis === 'current' ? 'Snapshot' : 'Selected period'}</span>
+        <span className={styles.metricLabel}>{METRIC_LABELS[metric.key] ?? metric.label ?? displayLabel(metric.key)}</span>
+        <span className={metric.basis === 'current' ? styles.snapshotTag : styles.periodTag}>{metric.basis === 'current' ? 'Current' : 'Period'}</span>
       </div>
       <strong className={styles.metricValue}>{value}<small>{metric.value !== null && metric.available !== false ? ` ${metric.unit}` : ''}</small></strong>
-      {comparison && metric.basis === 'period' && (
+      {eligibleCount && <span className={styles.metricLabel}>{eligibleCount.value === null || eligibleCount.available === false ? 'Eligible count unavailable' : `${eligibleCount.value.toLocaleString()} rated responses`}</span>}
+      {metric.available !== false && metric.value !== null && comparison?.available && comparison.change_percent !== null && metric.basis === 'period' && (
         <span className={comparison.available && comparison.change_percent !== null ? styles.comparison : styles.comparisonMuted}>
           {comparison.available && comparison.change_percent !== null
             ? `${comparison.change_percent > 0 ? '+' : ''}${comparison.change_percent.toFixed(1)}% vs ${comparison.previous_value?.toLocaleString() ?? '—'} previous period`
@@ -162,92 +165,29 @@ function MetricCard({ metric }: { metric: AnalyticsSummary['sections'][string]['
   );
 }
 
-function countCards(value: unknown, prefix: string, basis: 'period' | 'current' = 'current'): Array<{
-  key: string; label: string; value: number; unit: string; basis: 'period' | 'current'; definition: string;
-}> {
-  if (typeof value === 'number') return [{ key: prefix, label: displayLabel(prefix), value, unit: 'records', basis, definition: `${displayLabel(prefix)} aggregate count.` }];
-  if (Array.isArray(value)) return value.flatMap((row, index) => {
-    if (!row || typeof row !== 'object') return [];
-    const item = row as Record<string, unknown>;
-    const label = String(item.label ?? item.name ?? item.status ?? item.category ?? item.type ?? item.rating ?? `Item ${index + 1}`);
-    const count = item.value ?? item.count ?? item.total;
-    if (typeof count === 'number') return [{ key: `${prefix}_${label}`, label: `${displayLabel(prefix)} · ${label}`, value: count, unit: 'records', basis, definition: `${displayLabel(prefix)} breakdown count for ${label}.` }];
-    return [];
+const HEADLINES: Record<TabId, string[]> = {
+  overview: ['website_page_views', 'provider_profile_views', 'public_member_registrations', 'provider_applications', 'contact_enquiries', 'new_subscribers'],
+  traffic: ['website_page_views', 'directory_views', 'provider_profile_views'],
+  registrations: ['public_member_registrations', 'verified_registrations'],
+  providers: ['provider_applications', 'provider_invitations_created', 'provider_invitations_sent'],
+  reviews: ['provider_review_submissions', 'platform_feedback_submissions', 'eligible_review_rating_average', 'feedback_rating_average'],
+  engagement: ['contact_enquiries', 'new_subscribers'],
+};
+
+function headlineMetrics(summary: AnalyticsSummary, tab: TabId): AnalyticsMetric[] {
+  const supplied = Object.values(summary.sections).flatMap((section) => section.metrics ?? []);
+  const metrics = HEADLINES[tab].flatMap((key) => {
+    const metric = supplied.find((item) => item.key === key);
+    return metric ? [metric] : [];
   });
-  if (value && typeof value === 'object') {
-    const object = value as Record<string, unknown>;
-    const namedCount = object.value ?? object.count ?? object.total;
-    if (typeof namedCount === 'number') {
-      const label = String(object.label ?? object.name ?? object.status ?? object.category ?? prefix);
-      return [{ key: `${prefix}_${label}`, label: displayLabel(label), value: namedCount, unit: 'records', basis, definition: `${displayLabel(prefix)} aggregate count.` }];
-    }
-    return Object.entries(object).flatMap(([key, child]) => countCards(child, `${prefix}_${key}`, basis));
+  if (tab === 'providers') {
+    const total = summary.sections.providers?.inventory?.total;
+    if (typeof total === 'number') metrics.push({
+      key: 'listed_provider_total', label: 'Current listed providers', value: total,
+      unit: 'providers', basis: 'current', definition: 'All current provider records, including unpublished and inactive listings; not selected-period additions.',
+    });
   }
-  return [];
-}
-
-const OVERVIEW_PRIORITY_METRICS = new Set([
-  'website_page_views', 'estimated_visitor_days', 'latest_daily_visitor_estimate',
-  'directory_views', 'provider_profile_views', 'public_member_registrations',
-  'provider_applications', 'contact_enquiries', 'new_subscribers',
-  'provider_review_submissions', 'platform_feedback_submissions',
-]);
-
-function SectionCards({ summary, sectionKeys, compact = false }: { summary: AnalyticsSummary; sectionKeys: string[]; compact?: boolean }) {
-  return <div className={styles.groups}>
-    {sectionKeys.map((key) => {
-      const section = summary.sections[key];
-      if (!section) return null;
-      const metrics = (section.metrics ?? []).filter((metric) => !compact || OVERVIEW_PRIORITY_METRICS.has(metric.key));
-      const flatInventory = section.inventory && typeof section.inventory === 'object'
-        ? Object.entries(section.inventory).flatMap(([name, value]) => {
-          if (compact && !['total', 'active', 'active_published'].includes(name)) return [];
-          if (typeof value === 'number') return [{ key: name, label: displayLabel(name), value, unit: 'providers', basis: 'current' as const, definition: `Current provider inventory snapshot: ${displayLabel(name).toLowerCase()}.` }];
-          if (value && typeof value === 'object' && !Array.isArray(value)) {
-            return Object.entries(value as Record<string, unknown>).filter(([, count]) => typeof count === 'number').map(([child, count]) => ({
-              key: `${name}_${child}`,
-              label: `${displayLabel(name)} · ${displayLabel(child)}`,
-              value: count as number,
-              unit: 'providers',
-              basis: 'current' as const,
-              definition: `Current provider inventory snapshot: ${displayLabel(child).toLowerCase()} ${displayLabel(name).toLowerCase()}.`,
-            }));
-          }
-          return [];
-        })
-        : [];
-      const cohortState = compact ? undefined : section.cohort_current_state;
-      const cohortCards = cohortState ? [
-        ...(typeof cohortState.total === 'number' ? countCards(cohortState.total, 'registration cohort total') : []),
-        ...countCards(cohortState.roles, 'exclusive member role', 'current'),
-        ...countCards(cohortState.verified, 'registration cohort verification state', 'current'),
-        ...countCards(cohortState.active, 'registration cohort account state', 'current'),
-        ...countCards(cohortState.role_assignments, 'role assignments · may overlap', 'current'),
-      ] : [];
-      const statusCards = compact ? [] : [
-        ...countCards(section.current_status, 'current status'),
-        ...countCards(section.submitted_cohort_status, 'selected-period application cohort status', 'period'),
-        ...countCards(section.invitation_status, 'current invitation status'),
-        ...countCards(section.invitation_cohort_status, 'selected-period invitation cohort status', 'period'),
-        ...countCards(section.legacy_compatible_invitation_totals, 'legacy-compatible invitation summary'),
-        ...countCards(section.enquiry_types, 'period enquiry type', 'period'),
-        ...countCards(section.subscriber_types, 'period subscriber type', 'period'),
-        ...countCards(section.categories, 'period feedback category', 'period'),
-        ...countCards(section.star_distribution, 'eligible ratings by star'),
-        ...countCards(section.retained_deleted_history, 'retained deleted review history'),
-      ];
-      const allMetrics = [...metrics, ...flatInventory, ...cohortCards, ...statusCards];
-      if (!allMetrics.length) return null;
-      return <section key={key} className={styles.metricGroup} aria-labelledby={`group-${key}`}>
-        <div className={styles.groupHeading}><h2 id={`group-${key}`}>{sectionTitle(key)}</h2><span>{metrics.some((m) => m.basis === 'current') || flatInventory.length ? 'Current state and period activity' : 'Selected date range'}</span></div>
-        <div className={styles.metricGrid}>{allMetrics.map((metric) => <MetricCard key={metric.key} metric={metric} />)}</div>
-      </section>;
-    })}
-  </div>;
-}
-
-function sectionTitle(key: string) {
-  return ({ traffic: 'Traffic & discovery', registrations: 'Member registrations', providers: 'Provider inventory', applications: 'Applications & invitations', reviews: 'Provider reviews', feedback: 'Private platform feedback', engagement: 'Enquiries & subscribers' } as Record<string, string>)[key] ?? key.replace(/_/g, ' ');
+  return metrics;
 }
 
 function valueAtPath(source: unknown, path: string): unknown {
@@ -293,6 +233,8 @@ function chartRows(
 
 interface ChartSpec {
   title: string;
+  domain: AnalyticsDomain;
+  path: string;
   group: AnalyticsGroup;
   unit: string;
   definition: string;
@@ -305,11 +247,30 @@ function makeChart(report: AnalyticsBreakdowns, title: string, paths: string[], 
   const group = namedGroup(report.groups, [path]);
   if (!group) return null;
   return {
-    title, group: chartRows(group, fields) ?? group, unit, kind,
+    title, domain: report.domain, path, group: chartRows(group, fields) ?? group, unit, kind,
     definition: report.definitions?.[path]
       ?? path.split('.').reverse().map((part) => report.definitions?.[part]).find(Boolean)
       ?? `${title}: ${unit} grouped by category.`,
   };
+}
+
+// Remove only the exact charted branch, not its siblings (for example,
+// registration account state and overlapping roles still need optional detail).
+function unchartedReport(report: AnalyticsBreakdowns, charts: ChartSpec[]): AnalyticsBreakdowns {
+  const groups = structuredClone(report.groups);
+  for (const chart of charts.filter((item) => item.domain === report.domain)) {
+    const segments = chart.path.split('.');
+    let parent: Record<string, unknown> = groups as Record<string, unknown>;
+    for (const segment of segments.slice(0, -1)) {
+      const child = parent[segment];
+      if (!child || typeof child !== 'object' || Array.isArray(child)) break;
+      parent = child as Record<string, unknown>;
+    }
+    delete parent[segments[segments.length - 1]];
+  }
+  // Popularity's primary presentation is the sortable/paginated record table.
+  if (report.domain === 'traffic') delete (groups as Record<string, unknown>).top_providers;
+  return { ...report, groups };
 }
 
 function domainTitle(domain: AnalyticsDomain) {
@@ -340,7 +301,14 @@ export function AnalyticsPage() {
   const [providerSearch, setProviderSearch] = useState(filters.provider_search ?? '');
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [trendChoice, setTrendChoice] = useState('');
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [inventoryRequested, setInventoryRequested] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const requestSequence = useRef(0);
+  const selectedTrend = domainSeries(tab).includes(trendChoice) ? trendChoice : domainSeries(tab)[0];
+  const incompleteRange = filters.preset === 'custom' && (!filters.date_from || !filters.date_to);
+  const reversedRange = filters.preset === 'custom' && !!filters.date_from && !!filters.date_to && filters.date_from > filters.date_to;
 
   useEffect(() => setProviderSearch(filters.provider_search ?? ''), [filters.provider_search]);
 
@@ -354,11 +322,12 @@ export function AnalyticsPage() {
 
   const load = useCallback(async (isRefresh = false) => {
     const requestId = ++requestSequence.current;
-    isRefresh ? setRefreshing(true) : setStatus('loading');
+    if (isRefresh) setRefreshing(true);
+    else setStatus('loading');
     setError(null);
     setPartialError(null);
     setRanking(null);
-    if (filters.preset === 'custom' && (!filters.date_from || !filters.date_to)) {
+    if (incompleteRange || reversedRange) {
       setSummary(null);
       setSeries({});
       setBreakdowns({});
@@ -369,8 +338,9 @@ export function AnalyticsPage() {
     }
     const currentTab = tab;
     const scoped = requestFilters;
-    const domains = TABS.find((item) => item.id === currentTab)?.domains ?? [];
-    const metricKeys = domainSeries(currentTab);
+    const domains = (TABS.find((item) => item.id === currentTab)?.domains ?? [])
+      .filter((domain) => domain !== 'providers' || inventoryRequested);
+    const metricKeys = selectedTrend ? [selectedTrend] : [];
     try {
       const summaryPromise = getAnalyticsSummary(scoped);
       const breakdownPromises = domains.map(async (domain) => [domain, await getAnalyticsBreakdowns(domain, queryForDomain(scoped, domain))] as const);
@@ -387,14 +357,14 @@ export function AnalyticsPage() {
       const nextBreakdowns: Record<string, AnalyticsBreakdowns> = {};
       const nextSeries: Record<string, AnalyticsSeries> = {};
       let cursor = 1;
-      breakdownPromises.forEach((_promise, index) => {
+      breakdownPromises.forEach(() => {
         const result = results[cursor++];
         if (result.status === 'fulfilled') {
           const [domain, report] = result.value as readonly [AnalyticsDomain, AnalyticsBreakdowns];
           nextBreakdowns[domain] = report;
         }
       });
-      seriesPromises.forEach((_promise, index) => {
+      seriesPromises.forEach(() => {
         const result = results[cursor++];
         if (result.status === 'fulfilled') {
           const [metric, report] = result.value as readonly [string, AnalyticsSeries];
@@ -425,20 +395,13 @@ export function AnalyticsPage() {
     } finally {
       if (requestId === requestSequence.current) setRefreshing(false);
     }
-  }, [filters, page, pageSize, requestFilters, searchParams, sortBy, sortDirection, tab]);
+  }, [page, pageSize, requestFilters, searchParams, setSearchParams, sortBy, sortDirection, tab, selectedTrend, incompleteRange, reversedRange, inventoryRequested]);
 
   useEffect(() => {
     void load();
     return () => { requestSequence.current += 1; };
   }, [load]);
 
-  const allSections = tab === 'overview'
-    ? ['traffic', 'registrations', 'providers', 'applications', 'reviews', 'feedback', 'engagement']
-    : tab === 'traffic' ? ['traffic']
-      : tab === 'registrations' ? ['registrations']
-        : tab === 'providers' ? ['providers', 'applications']
-          : tab === 'reviews' ? ['reviews', 'feedback']
-            : ['engagement'];
   const selectedDomains = TABS.find((item) => item.id === tab)?.domains ?? [];
   const availableCharts = useMemo<ChartSpec[]>(() => Object.entries(breakdowns).flatMap(([domain, report]) => {
     const specs: Array<ChartSpec | null> = [];
@@ -480,12 +443,42 @@ export function AnalyticsPage() {
     }
     if (domain === 'traffic') {
       add('Page views by public page category', ['page_categories', 'traffic.page_categories', 'page_category_totals', 'page_views_by_category', 'traffic_categories'], 'page views');
-      add('Top providers by profile views', ['top_providers', 'traffic.top_providers'], 'profile views', 'bars', ['profile_views', 'views', 'count', 'value']);
     }
     if (domain === 'enquiries') add('Accepted enquiries by type', ['enquiry_type', 'enquiries.enquiry_type', 'enquiry_types', 'types'], 'accepted records');
     if (domain === 'subscribers') add('Unique stored subscribers by type', ['subscriber_type', 'subscribers.subscriber_type', 'subscriber_types', 'types'], 'subscriptions');
     return specs.filter((spec): spec is ChartSpec => spec !== null);
   }), [breakdowns]);
+
+  const curatedTitles: Record<TabId, string[]> = {
+    overview: [],
+    traffic: ['Page views by public page category'],
+    registrations: ['Member cohort by exclusive role', 'Registration cohort by current verification'],
+    providers: ['Applications submitted in this period · current status', 'Invitations created in this period · current status'],
+    reviews: ['Eligible ratings by star', 'Private feedback submissions by category'],
+    engagement: ['Accepted enquiries by type', 'Unique stored subscribers by type'],
+  };
+  const curatedCharts = availableCharts.filter((chart) => curatedTitles[tab].includes(chart.title)).slice(0, 2);
+  const metrics = summary ? headlineMetrics(summary, tab) : [];
+  const eligibleCountFor = (metric: AnalyticsMetric) => {
+    const key = metric.key === 'eligible_review_rating_average' ? 'eligible_review_rating_count'
+      : metric.key === 'feedback_rating_average' ? 'feedback_rated_response_count' : null;
+    return key ? Object.values(summary?.sections ?? {}).flatMap((section) => section.metrics ?? []).find((item) => item.key === key) : undefined;
+  };
+  const activeFilters = FILTER_KEYS.filter((key) => Boolean(filters[key]));
+  const filterLabel = (key: FilterKey) => key === 'provider_id' ? 'Provider record' : key === 'specialization_id' ? 'Specialization' : displayLabel(key);
+  const summaryDetails: AnalyticsBreakdowns[] = summary && tab !== 'overview' ? Object.entries(summary.sections)
+    .filter(([key]) => (tab === 'providers' ? ['providers', 'applications', 'invitations'] : tab === 'reviews' ? ['reviews', 'feedback'] : tab === 'engagement' ? ['engagement'] : [tab]).includes(key))
+    .map(([key, section]) => ({
+      domain: (key === 'engagement' ? 'enquiries' : key) as AnalyticsDomain,
+      timezone: summary.timezone, period: summary.period, coverage: section.coverage ?? { available: true },
+      groups: {
+        ...(section.legacy_compatible_invitation_totals ? { legacy_compatible_invitation_totals: section.legacy_compatible_invitation_totals } : {}),
+        secondary_metrics: (section.metrics ?? []).filter((metric) => !HEADLINES[tab].includes(metric.key) && key !== 'providers').map((metric) => ({
+          label: `${displayLabel(metric.key)} (${metric.unit}) · ${metric.basis === 'current' ? 'current snapshot' : 'selected period'}`,
+          value: metric.available === false ? null : metric.value,
+        })),
+      },
+    })) : [];
 
   const filterField = (key: FilterKey, label: string, options: Array<[string, string]>, supported: boolean) => supported && (
     <label className={styles.filterField} key={key}>{label}
@@ -499,8 +492,7 @@ export function AnalyticsPage() {
   const supportsApplications = tab === 'providers';
   const supportsFeedback = tab === 'reviews';
   const supportsEngagement = tab === 'engagement';
-  const hasSegmentFilters = FILTER_KEYS.some((key) => Boolean(filters[key]));
-  const currentTrendMetric = domainSeries(tab)[0];
+  const currentTrendMetric = selectedTrend;
   const currentDomain = selectedDomains[0];
   const showProviderRanking = tab === 'providers' || tab === 'traffic';
 
@@ -509,7 +501,9 @@ export function AnalyticsPage() {
     setExporting(true);
     setExportMessage(null);
     try {
-      await exportAnalytics({ ...requestFilters, dataset, ...(dataset === 'series' && metric ? { metric, ...queryForMetric(requestFilters, metric) } : {}), ...(dataset === 'breakdowns' && requestedDomain ? { domain: requestedDomain, ...queryForDomain(requestFilters, requestedDomain) } : {}), ...(dataset === 'provider-ranking' ? { ...queryForDomain(requestFilters, 'providers'), sort: sortBy, sort_direction: sortDirection } : {}) });
+      const scoped = dataset === 'series' ? queryForMetric(requestFilters, metric)
+        : queryForDomain(requestFilters, dataset === 'provider-ranking' ? 'providers' : requestedDomain!);
+      await exportAnalytics({ ...scoped, dataset, ...(dataset === 'series' ? { metric } : {}), ...(dataset === 'breakdowns' ? { domain: requestedDomain } : {}), ...(dataset === 'provider-ranking' ? { sort: sortBy, sort_direction: sortDirection } : {}) });
       setExportMessage('CSV downloaded.');
     } catch (exportError) {
       setExportMessage(extractErrorMessage(exportError, 'CSV export failed. Try again.'));
@@ -553,13 +547,22 @@ export function AnalyticsPage() {
               <label className={styles.filterField}>Through<input type="date" value={filters.date_to ?? ''} onChange={(event) => updateQuery({ date_to: event.target.value || undefined })} /></label>
             </>}
             <label className={styles.filterField}>Group by<select value={filters.group_by} onChange={(event) => updateQuery({ group_by: event.target.value })}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
+          </div>
+          {activeFilters.length > 0 && <div className={styles.activeFilters} aria-label="Active filters">
+            {activeFilters.map((key) => <button type="button" key={key} onClick={() => updateQuery({ [key]: undefined })} aria-label={`Remove ${filterLabel(key)} filter`}>
+              {filterLabel(key)}: {filters[key]?.replace(/_/g, ' ')}{!requestFilters[key] ? ' (not used in this section)' : ''} <span aria-hidden="true">×</span>
+            </button>)}
+            <button type="button" onClick={() => updateQuery(Object.fromEntries(FILTER_KEYS.map((key) => [key, undefined])))}>Clear all filters</button>
+            <p>Filters apply only to matching datasets, not unrelated metrics or sitewide traffic.</p>
+          </div>}
+          <details className={styles.disclosure} open={filtersOpen} onToggle={(event) => setFiltersOpen(event.currentTarget.open)}>
+            <summary>More filters</summary>
+            {filtersOpen && <div className={styles.filterRow}>
             {filterField('provider_type', 'Provider type', [['DOCTOR', 'Doctor'], ['CLINIC', 'Clinic'], ['HOSPITAL', 'Hospital']], supportsProviders)}
             {filterField('provider_status', 'Provider status', [['DRAFT', 'Draft'], ['UNDER_REVIEW', 'Under review'], ['ACTIVE', 'Active'], ['INACTIVE', 'Inactive']], ['providers', 'reviews'].includes(tab))}
             {filterField('publication_status', 'Publication', [['PUBLISHED', 'Published'], ['UNPUBLISHED', 'Unpublished']], ['providers', 'reviews'].includes(tab))}
-            {supportsProviders && <label className={styles.filterField}>Provider name<input maxLength={100} value={filters.provider_search ?? ''} placeholder="Search providers" onChange={(event) => updateQuery({ provider_search: event.target.value || undefined })} /></label>}
+            {tab === 'reviews' && <label className={styles.filterField}>Provider name<input maxLength={100} value={filters.provider_search ?? ''} placeholder="Search providers" onChange={(event) => updateQuery({ provider_search: event.target.value || undefined })} /></label>}
             {supportsProviders && <>
-              <label className={styles.filterField}>Provider ID<input value={filters.provider_id ?? ''} placeholder="Select by ID" onChange={(event) => updateQuery({ provider_id: event.target.value || undefined })} /></label>
-              <label className={styles.filterField}>Specialization ID<input value={filters.specialization_id ?? ''} placeholder="Specialization ID" onChange={(event) => updateQuery({ specialization_id: event.target.value || undefined })} /></label>
               {tab === 'providers' && <>
                 <label className={styles.filterField}>Listing country<input value={filters.country ?? ''} placeholder="Recorded country" onChange={(event) => updateQuery({ country: event.target.value || undefined })} /></label>
                 <label className={styles.filterField}>Listing city<input value={filters.city ?? ''} placeholder="Recorded city" onChange={(event) => updateQuery({ city: event.target.value || undefined })} /></label>
@@ -576,11 +579,12 @@ export function AnalyticsPage() {
             {filterField('feedback_status', 'Feedback state', [['Pending', 'Pending'], ['In review', 'In review'], ['Resolved', 'Resolved'], ['Rejected', 'Rejected'], ['withdrawn', 'Withdrawn']], supportsFeedback)}
             {filterField('enquiry_type', 'Enquiry type', [['general', 'General'], ['listing', 'Listing'], ['partnership', 'Partnership'], ['other', 'Other']], supportsEngagement)}
             {filterField('subscriber_type', 'Subscriber type', [['VET', 'Vet'], ['HORSE_OWNER', 'Horse owner'], ['HOSPITAL', 'Hospital'], ['CLINIC', 'Clinic'], ['STABLE_MANAGER', 'Stable manager'], ['OTHER', 'Other']], supportsEngagement)}
-            {tab === 'overview' && hasSegmentFilters && <p className={styles.filterScope}>Section filters remain applied to matching reports only. Reset them here or return to their section to edit.</p>}
+            {tab === 'overview' && <p className={styles.filterScope}>Choose a detailed section to add filters. Existing section filters affect matching reports only.</p>}
             <p className={styles.filterScope}>Provider filters affect provider-linked reports only. Member filters affect registration cohorts; they do not narrow sitewide traffic.</p>
             <button type="button" className={styles.resetButton} onClick={() => setSearchParams(new URLSearchParams(tab === 'overview' ? '' : `section=${tab}`), { replace: true })}>Reset filters</button>
-          </div>
-          {summary && <div className={styles.metaLine}><span>Timezone <strong>{summary.timezone}</strong></span><span>Traffic tracking <strong>{summary.tracking_started_date ? `Since ${summary.tracking_started_date}` : 'Coverage varies by source'}</strong></span><span>Sources available <strong>{Object.values(summary.coverage ?? {}).filter((source) => source.available).length} / {Object.keys(summary.coverage ?? {}).length || '—'}</strong></span><details className={styles.coverageDetails}><summary>Coverage by source</summary><p className={styles.coverageNote}>Availability does not imply complete historical coverage; date ranges and partial flags are source-specific.</p><div>{Object.entries(summary.coverage ?? {}).map(([source, coverage]) => <p key={source}><span>{displayLabel(source)}</span><strong>{coverage.available ? `${coverage.from || coverage.through ? `${coverage.from ?? 'Start unknown'}${coverage.through ? ` – ${coverage.through}` : ''}` : 'Available · interval unknown'}${coverage.partial ? ' · partial' : ''}` : 'Unavailable'}</strong></p>)}</div></details><span>Last refreshed <strong>{new Date(summary.refreshed_at).toLocaleString(undefined, { timeZone: summary.timezone, timeZoneName: 'short' })}</strong></span></div>}
+            </div>}
+          </details>
+          {summary && <div className={styles.metaLine}><span>{summary.period.date_from} – {summary.period.date_to} · <strong>{summary.timezone}</strong></span><span>Last refreshed <strong>{new Date(summary.refreshed_at).toLocaleString(undefined, { timeZone: summary.timezone, timeZoneName: 'short' })}</strong></span></div>}
         </section>
 
         <div role="tabpanel" id="analytics-panel" aria-labelledby={`analytics-tab-${tab}`} tabIndex={0} aria-busy={status === 'loading'}>
@@ -588,31 +592,54 @@ export function AnalyticsPage() {
         {status === 'error' && !summary && <ErrorState title="Analytics unavailable" message={error ?? undefined} onRetry={() => void load()} />}
         {partialError && <div className={styles.partialNotice} role="status"><span>{partialError}</span><button type="button" onClick={() => void load(true)}>Retry reports</button></div>}
         {status === 'loading' && summary && <div className={styles.updateNotice} role="status">Updating reports for the applied filters…</div>}
-        {filters.preset === 'custom' && (!filters.date_from || !filters.date_to) && <div className={styles.partialNotice} role="status">Choose both start and end dates in {summary?.timezone ?? 'the configured system timezone'} to run this custom range.</div>}
+        {incompleteRange && <div className={styles.partialNotice} role="status">Choose both start and end dates in {summary?.timezone ?? 'the configured system timezone'} to run this custom range.</div>}
+        {reversedRange && <div className={styles.partialNotice} role="status">The start date must be on or before the end date. Correct the dates to run this report.</div>}
         {summary && <>
-          {status === 'error' && <div className={styles.partialNotice} role="alert">{error}<button type="button" onClick={() => void load(true)}>Retry summary</button></div>}
-          <SectionCards summary={summary} sectionKeys={allSections} compact={tab === 'overview'} />
+          {status === 'error' && <div className={styles.partialNotice} role="alert">{error} Showing the previous successful report, not updated results for the selected filters.<button type="button" onClick={() => void load(true)}>Retry summary</button></div>}
+          <section className={styles.metricGroup} aria-label="Headline metrics"><div className={`${styles.metricGrid} ${tab === 'overview' ? styles.overviewMetrics : ''}`}>{metrics.map((metric) => <MetricCard key={metric.key} metric={metric} eligibleCount={eligibleCountFor(metric)} />)}</div></section>
+          {tab === 'overview' && <nav className={styles.sectionLinks} aria-label="Detailed analytics">
+            {TABS.filter((item) => item.id !== 'overview').map((item) => <Link key={item.id} to={`?${new URLSearchParams({ ...Object.fromEntries(searchParams), section: item.id, page: '1' })}`}>{item.label} →</Link>)}
+          </nav>}
+          {(tab === 'overview' || tab === 'traffic') && (summary.sections.traffic?.coverage?.partial || summary.sections.traffic?.coverage?.available === false || summary.sections.traffic?.metrics?.some((metric) => metric.available === false || metric.partial_coverage)) && <p className={styles.partialNotice} role="status">Traffic is partial or unavailable for this period. Uncovered dates are not zero activity.</p>}
+          <details className={styles.disclosure}><summary>Definitions & source coverage</summary>
+          <p className={styles.privacyNote}>Available does not guarantee complete history. First and last retained business-event dates below are observations, not guaranteed collection coverage. Traffic tracking {summary.tracking_started_date ? `started ${summary.tracking_started_date}` : 'boundary is unknown'}.</p>
+          {Object.entries(summary.coverage ?? {}).map(([source, coverage]) => <p className={styles.coverageObservation} key={source}>{displayLabel(source)}: {coverage.available ? `${coverage.from ?? 'Start unknown'} – ${coverage.through ?? 'End unknown'}${coverage.partial ? ' · partial' : ''}` : 'Unavailable'}</p>)}
           {tab === 'traffic' && <p className={styles.privacyNote}>Estimated visitors are browser-deduplicated daily estimates, not verified people. Devices and storage resets may overcount; unavailable storage may undercount. Multi-day totals are visitor-days. Directory and profile views count successful member-page views only. Legacy homepage visits remain separate.</p>}
           {tab === 'providers' && <div className={styles.snapshotNotice}><strong>Inventory, publication, ratings and saved counts are current snapshots.</strong> Active and publicly discoverable (active + published) providers are distinct; historical provider states are not reconstructed. Invitation compatibility totals group accepted with completed; cancelled and expired invitations are not recipient rejections.</div>}
           {tab === 'registrations' && <div className={styles.snapshotNotice}>Registration totals count public member accounts once. The “Both” role is exclusive; role assignment totals may overlap. Provider applicants are reported separately.</div>}
           {tab === 'reviews' && <div className={styles.snapshotNotice}>Eligible public ratings include published and hidden approved reviews. Pending and rejected reviews do not affect ratings. Feedback is private and separate from provider reviews; messages and notes are never shown here.</div>}
           {tab === 'engagement' && <div className={styles.snapshotNotice}>Enquiries count durably accepted records, independent of email delivery. Subscribers count unique stored records, not repeated form attempts.</div>}
+          <section className={styles.definitionFooter}><h2>Reading this report</h2><p>Period metrics count events in the selected inclusive calendar range. Current metrics are live snapshots, not historical populations. Comparison uses an equally long preceding period and is omitted when source coverage is incomplete or its baseline is zero. Analytics contain aggregate reporting only—no contact details, personal browsing records or private message content.</p></section>
+          </details>
+          {tab !== 'overview' && <label className={styles.trendSelector}>Trend metric<select value={selectedTrend} onChange={(event) => setTrendChoice(event.target.value)}>{domainSeries(tab).map((metric) => <option value={metric} key={metric}>{displayLabel(metric)}</option>)}</select></label>}
+          <div className={styles.trendPanel}>
+            {Object.entries(series).map(([metric, report]) => <div key={metric}>
+              {report.available === false && <p role="status" className={styles.partialNotice}>{displayLabel(metric)} trend is unavailable for this period. Uncovered dates are not zero activity.</p>}
+              <AnalyticsChart title={`${displayLabel(metric)} over time`} description={report.partial_coverage ? `Partial coverage · ${report.timezone} · uncovered dates are not zero activity.` : `${report.timezone} · ${filters.group_by} buckets`} points={report.data} kind="trend" unit={report.unit} />
+            </div>)}
+          </div>
           <div className={styles.chartsGrid}>
-            {Object.entries(series).map(([metric, report]) => <AnalyticsChart key={metric} title={`${displayLabel(metric)} over time`} description={report.partial_coverage ? `Available from ${report.coverage.from ?? summary.tracking_started_date ?? 'instrumentation start'}; earlier dates are unavailable.` : `${report.timezone} · ${filters.group_by} buckets`} points={report.data} kind="trend" unit={report.unit} />)}
-            {sortBy === 'profile_views' && ranking?.meta.page === 1 && ranking.data.some((row) => row.profile_views_available !== false && row.profile_views !== null) ? <AnalyticsChart title="Top providers by profile views" description={`Selected period · ${ranking.timezone}`} group={ranking.data.filter((row) => row.profile_views_available !== false && row.profile_views !== null).map((row) => ({ label: row.name, value: row.profile_views }))} kind="bars" unit="profile views" /> : null}
-            {availableCharts.map((chart) => <AnalyticsChart key={chart.title} title={chart.title} description={chart.unit} definition={chart.definition} group={chart.group} kind={chart.kind} unit={chart.unit} />)}
+            {curatedCharts.map((chart) => <AnalyticsChart key={chart.title} title={chart.title} definition={chart.definition} group={chart.group} kind={chart.kind} unit={chart.unit} />)}
             {Object.keys(series).length === 0 && availableCharts.length === 0 && status === 'success' && <Card padding="md" shadow="sm" className={styles.coverageEmpty}><h3>No chartable reports in this selection</h3><p>Source coverage or filters may limit available breakdowns. Use the metric definitions above to interpret covered counts.</p></Card>}
           </div>
-          <AnalyticsBreakdownTables reports={Object.values(breakdowns)} />
+          {tab !== 'overview' && <details className={styles.disclosure} open={detailsOpen} onToggle={(event) => {
+            setDetailsOpen(event.currentTarget.open);
+            if (event.currentTarget.open && tab === 'providers') setInventoryRequested(true);
+          }}>
+            <summary>View detailed reports</summary>
+            {detailsOpen && <>
+              <AnalyticsBreakdownTables reports={Object.values(breakdowns).map((report) => unchartedReport(report, curatedCharts))} />
+              <AnalyticsBreakdownTables reports={summaryDetails} title="Additional summary detail" variant="metrics" />
+            </>}
+          </details>}
           {showProviderRanking && <>
             {partialError && !ranking && <ErrorState title="Provider ranking unavailable" message={partialError} onRetry={() => void load(true)} />}
-            <ProviderRankingTable report={ranking} loading={status === 'loading'} search={providerSearch} onSearch={(value) => { setProviderSearch(value); updateQuery({ provider_search: value || undefined }); setPage(1); }} sortBy={sortBy} sortDirection={sortDirection} onSort={(key) => { setSortDirection(sortBy === key && sortDirection === 'desc' ? 'asc' : 'desc'); setSortBy(key); setPage(1); updateQuery({ page: undefined }, false); }} page={ranking?.meta.page ?? page} pageSize={ranking?.meta.page_size ?? pageSize} onPage={(value) => { setPage(value); updateQuery({ page: String(value) }, false); }} onPageSize={(value) => { setPageSize(value); setPage(1); updateQuery({ page: '1' }, false); }} />
+            {(ranking || status === 'loading') && <ProviderRankingTable report={ranking} loading={status === 'loading'} search={providerSearch} onSearch={(value) => { setProviderSearch(value); updateQuery({ provider_search: value || undefined }); setPage(1); }} sortBy={sortBy} sortDirection={sortDirection} onSort={(key) => { setSortDirection(sortBy === key && sortDirection === 'desc' ? 'asc' : 'desc'); setSortBy(key); setPage(1); updateQuery({ page: undefined }, false); }} page={ranking?.meta.page ?? page} pageSize={ranking?.meta.page_size ?? pageSize} onPage={(value) => { setPage(value); updateQuery({ page: String(value) }, false); }} onPageSize={(value) => { setPageSize(value); setPage(1); updateQuery({ page: '1' }, false); }} />}
           </>}
           {tab === 'registrations' && <p className={styles.drillLink}>Need the underlying account records? <Link to="/admin/users">Open registered users →</Link></p>}
           {tab === 'providers' && <p className={styles.drillLink}>Manage provider records <Link to="/admin/providers">Open provider directory →</Link> · <Link to="/admin/provider-applications">Review applications →</Link> · <Link to="/admin/invitations">Manage invitations →</Link></p>}
           {tab === 'reviews' && <p className={styles.drillLink}><Link to="/admin/reviews">Open review moderation →</Link> · <Link to="/admin/feedback">Open private feedback management →</Link></p>}
           {tab === 'engagement' && <p className={styles.drillLink}><Link to="/admin/contact-enquiries">Open enquiries →</Link> · <Link to="/admin/subscribers">Open subscribers →</Link></p>}
-          <section className={styles.definitionFooter}><h2>Reading this report</h2><p>Period metrics count events in the selected inclusive calendar range. Current metrics are live snapshots, not historical populations. Comparison uses an equally long preceding period and is omitted when source coverage is incomplete or its baseline is zero. Analytics contain aggregate reporting only—no contact details, personal browsing records or private message content.</p></section>
         </>}
         </div>
       </main>

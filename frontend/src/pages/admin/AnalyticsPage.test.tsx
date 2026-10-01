@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnalyticsPage } from './AnalyticsPage';
@@ -22,12 +22,17 @@ const sampleSummary = {
   sections: {
     traffic: { metrics: [
       { key: 'website_page_views', label: 'Website page views', value: 1837, unit: 'views', basis: 'period', available: true, partial_coverage: false, definition: 'Eligible routes only.', comparison: { available: true, previous_value: 1600, change_percent: 14.8 } },
+      { key: 'provider_profile_views', label: 'Provider profile views', value: 239, unit: 'views', basis: 'period', available: true, definition: 'Successful provider profile views.' },
       { key: 'estimated_visitor_days', value: 406, unit: 'visitor-days', basis: 'period', available: true, definition: 'Browser-deduplicated daily estimates.' },
     ] },
     registrations: { metrics: [{ key: 'public_member_registrations', value: 42, unit: 'accounts', basis: 'period', available: true, definition: 'Public member accounts.' }] },
     providers: { inventory: { total: 87, active: 61, active_published: 55, status: { DRAFT: 5, UNDER_REVIEW: 8, INACTIVE: 13 }, publication: { PUBLISHED: 55, UNPUBLISHED: 32 } } },
     applications: { metrics: [{ key: 'provider_applications', value: 8, unit: 'applications', basis: 'period', available: true, definition: 'New provider applications.' }] },
-    reviews: { metrics: [{ key: 'provider_review_submissions', value: 12, unit: 'reviews', basis: 'period', available: true, definition: 'Initial submissions only.' }] },
+    reviews: { metrics: [
+      { key: 'provider_review_submissions', value: 12, unit: 'reviews', basis: 'period', available: true, definition: 'Initial submissions only.' },
+      { key: 'eligible_review_rating_average', label: 'Current eligible average rating', value: 4.6, unit: 'stars', basis: 'current', available: true },
+      { key: 'eligible_review_rating_count', label: 'Current eligible rating count', value: 11, unit: 'ratings', basis: 'current', available: true },
+    ] },
     feedback: { metrics: [
       { key: 'platform_feedback_submissions', value: 5, unit: 'feedback', basis: 'period', available: true, definition: 'Private feedback submissions.' },
       { key: 'feedback_rating_average', label: 'Average platform feedback rating', value: 4.3, unit: 'stars', basis: 'current', available: true, definition: 'Mean of optional ratings received.' },
@@ -63,31 +68,162 @@ describe('AnalyticsPage', () => {
     });
   });
 
-  it('renders metric groups, accessible trends, timezone and aggregate-only definitions', async () => {
+  it('renders only the six curated overview metrics and omits other supplied metrics', async () => {
     renderPage();
-    expect(await screen.findByRole('heading', { name: 'Traffic & discovery' })).toBeTruthy();
-    expect(screen.getByText('1,837')).toBeTruthy();
+    expect(await screen.findByText('1,837')).toBeTruthy();
+    const headlines = within(screen.getByRole('region', { name: 'Headline metrics' }));
+    for (const label of [
+      'Website page views',
+      'Provider profile views',
+      'New member registrations',
+      'New provider applications',
+      'Accepted enquiries',
+      'New unique subscribers',
+    ]) {
+      expect(headlines.getByText(label)).toBeTruthy();
+    }
+    expect(headlines.queryByText('Estimated visitor-days')).toBeNull();
+    expect(headlines.queryByText('Provider inventory')).toBeNull();
+    expect(headlines.queryByText('Review submissions')).toBeNull();
+    expect(headlines.queryByText('Private feedback submissions')).toBeNull();
+    expect(headlines.queryByText('Average platform feedback rating')).toBeNull();
+    expect(headlines.queryByText('Rated feedback responses')).toBeNull();
     expect(screen.getByText('America/Toronto')).toBeTruthy();
-    expect(screen.getByRole('img', { name: /Website page views over time/ })).toBeTruthy();
     expect(screen.getByText(/Traffic tracking/)).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Overview' }).getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('omits overview metrics whose source key is missing', async () => {
+    const summaryWithoutApplications = {
+      ...sampleSummary,
+      sections: {
+        ...sampleSummary.sections,
+        applications: { metrics: [] },
+      },
+    };
+    api.getAnalyticsSummary.mockResolvedValue(summaryWithoutApplications);
+    renderPage();
+    expect(await screen.findByText('1,837')).toBeTruthy();
+    const headlines = within(screen.getByRole('region', { name: 'Headline metrics' }));
+    expect(headlines.queryByText('New provider applications')).toBeNull();
+    expect(headlines.getByText('New member registrations')).toBeTruthy();
+  });
+
+  it('distinguishes supplied zero metrics from unavailable metrics without dropping any core key', async () => {
+    const replaceMetric = (metrics: typeof sampleSummary.sections.traffic.metrics, key: string, value: number | null, available: boolean) =>
+      metrics.map((metric) => metric.key === key ? { ...metric, value, available } : metric);
+    const summaryWithZeroesAndUnavailable = {
+      ...sampleSummary,
+      sections: {
+        ...sampleSummary.sections,
+        traffic: { metrics: replaceMetric(sampleSummary.sections.traffic.metrics, 'website_page_views', 0, true)
+          .map((metric) => metric.key === 'provider_profile_views' ? { ...metric, value: null, available: false } : metric) },
+        registrations: { metrics: replaceMetric(sampleSummary.sections.registrations.metrics, 'public_member_registrations', 0, true) },
+        applications: { metrics: replaceMetric(sampleSummary.sections.applications.metrics, 'provider_applications', null, false) },
+        engagement: { metrics: sampleSummary.sections.engagement.metrics.map((metric) =>
+          metric.key === 'contact_enquiries' ? { ...metric, value: 0, available: true }
+            : { ...metric, value: null, available: false }) },
+      },
+    };
+    api.getAnalyticsSummary.mockResolvedValue(summaryWithZeroesAndUnavailable);
+    const view = renderPage();
+    expect(await screen.findByRole('region', { name: 'Headline metrics' })).toBeTruthy();
+    const headlines = within(screen.getByRole('region', { name: 'Headline metrics' }));
+    expect(view.container.querySelectorAll('[class*="metricCard"]')).toHaveLength(6);
+    const cardValue = (label: string) => {
+      const card = headlines.getByText(label).parentElement?.parentElement;
+      return card?.querySelector('strong')?.textContent?.trim();
+    };
+    expect(cardValue('Website page views')).toBe('0 views');
+    expect(cardValue('New member registrations')).toBe('0 accounts');
+    expect(cardValue('Accepted enquiries')).toBe('0 enquiries');
+    expect(cardValue('Provider profile views')).toBe('Unavailable');
+    expect(cardValue('New provider applications')).toBe('Unavailable');
+    expect(cardValue('New unique subscribers')).toBe('Unavailable');
+  });
+
+  it('surfaces a partial-coverage warning for a supplied core traffic metric', async () => {
+    api.getAnalyticsSummary.mockResolvedValue({
+      ...sampleSummary,
+      sections: {
+        ...sampleSummary.sections,
+        traffic: { metrics: sampleSummary.sections.traffic.metrics.map((metric) =>
+          metric.key === 'website_page_views' ? { ...metric, partial_coverage: true } : metric) },
+      },
+    });
+    renderPage('/admin/analytics?section=traffic');
+    expect(await screen.findByText('Traffic is partial or unavailable for this period. Uncovered dates are not zero activity.')).toBeTruthy();
+  });
+
+  it('uses eligible review rating contract metrics and shows the eligible count on the average card', async () => {
+    renderPage('/admin/analytics?section=reviews');
+    const headlines = within(await screen.findByRole('region', { name: 'Headline metrics' }));
+    const average = headlines.getByText('Current eligible average rating');
+    expect(average).toBeTruthy();
+    expect(average.parentElement?.parentElement?.textContent).toContain('11 rated responses');
+    expect(headlines.getByText('Review submissions')).toBeTruthy();
+  });
+
+  it('uses stable tab IDs and supports arrow, Home and End keyboard navigation', async () => {
+    renderPage();
+    const expectedTabs: Array<[string, string]> = [
+      ['Overview', 'overview'],
+      ['Website traffic', 'traffic'],
+      ['Members', 'registrations'],
+      ['Providers', 'providers'],
+      ['Reviews & feedback', 'reviews'],
+      ['Enquiries & subscribers', 'engagement'],
+    ];
+    for (const [name, id] of expectedTabs) {
+      expect(screen.getByRole('tab', { name }).id).toBe(`analytics-tab-${id}`);
+    }
+
+    const tablist = screen.getByRole('tablist', { name: 'Analytics sections' });
+    fireEvent.keyDown(tablist, { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: 'Website traffic' }).getAttribute('aria-selected')).toBe('true');
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toContain('section=traffic'));
+
+    fireEvent.keyDown(tablist, { key: 'Home' });
+    expect(screen.getByRole('tab', { name: 'Overview' }).getAttribute('aria-selected')).toBe('true');
+    await waitFor(() => expect(screen.getByTestId('location').textContent).not.toContain('section='));
+
+    fireEvent.keyDown(tablist, { key: 'End' });
+    expect(screen.getByRole('tab', { name: 'Enquiries & subscribers' }).getAttribute('aria-selected')).toBe('true');
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toContain('section=engagement'));
   });
 
   it('persists selected section and date preset in the URL and loads scoped reports', async () => {
     renderPage('/admin/analytics?preset=last_7_days');
     await screen.findByText('1,837');
-    fireEvent.click(screen.getByRole('tab', { name: /^Registrations$/ }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Members' }));
     await waitFor(() => expect(screen.getByTestId('location').textContent).toContain('section=registrations'));
     expect(screen.getByTestId('location').textContent).toContain('preset=last_7_days');
-    expect(await screen.findByText('New member registrations')).toBeTruthy();
+    expect(await within(await screen.findByRole('region', { name: 'Headline metrics' })).findByText('New member registrations')).toBeTruthy();
     expect(api.getAnalyticsBreakdowns).toHaveBeenCalledWith('registrations', expect.objectContaining({ preset: 'last_7_days' }));
   });
 
-  it('offers server-paginated provider ranking and accessible sortable headings', async () => {
+  it('keeps detail headline metrics scoped to the selected tab', async () => {
+    const trafficView = renderPage('/admin/analytics?section=traffic');
+    const trafficHeadlines = within(await screen.findByRole('region', { name: 'Headline metrics' }));
+    expect(await trafficHeadlines.findByText('Website page views')).toBeTruthy();
+    expect(trafficHeadlines.getByText('Provider profile views')).toBeTruthy();
+    expect(trafficHeadlines.queryByText('New member registrations')).toBeNull();
+    expect(trafficHeadlines.queryByText('Average platform feedback rating')).toBeNull();
+    trafficView.unmount();
+
+    renderPage('/admin/analytics?section=registrations');
+    const memberHeadlines = within(await screen.findByRole('region', { name: 'Headline metrics' }));
+    expect(await memberHeadlines.findByText('New member registrations')).toBeTruthy();
+    expect(memberHeadlines.queryByText('Website page views')).toBeNull();
+    expect(memberHeadlines.queryByText('Provider inventory')).toBeNull();
+  });
+
+  it('offers one provider search input, server-paginated ranking and sortable headings', async () => {
     renderPage('/admin/analytics?section=providers');
     expect(await screen.findByRole('link', { name: 'Northfield Equine' })).toBeTruthy();
     expect(screen.getByRole('columnheader', { name: /Period profile views/ })).toBeTruthy();
     expect(screen.getAllByText('144').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('textbox', { name: 'Search providers' })).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Sort by Provider' }));
     await waitFor(() => expect(api.getProviderRanking).toHaveBeenLastCalledWith(expect.objectContaining({ sort: 'name', sort_direction: 'desc' })));
     expect(screen.getByRole('combobox', { name: 'Rows per page' })).toBeTruthy();
@@ -110,11 +246,67 @@ describe('AnalyticsPage', () => {
     expect(exportParams).not.toHaveProperty('sort_by');
   });
 
+  it('omits provider filters from a sitewide traffic CSV export', async () => {
+    renderPage('/admin/analytics?section=traffic&provider_type=CLINIC&provider_id=provider-uuid-123');
+    expect(await screen.findByText('1,837')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Export CSV'));
+    fireEvent.click(screen.getByRole('button', { name: 'Time series · Website page views' }));
+    await waitFor(() => expect(api.exportAnalytics).toHaveBeenCalledWith(expect.objectContaining({
+      dataset: 'series',
+      metric: 'website_page_views',
+    })));
+    const exportParams = api.exportAnalytics.mock.calls[api.exportAnalytics.mock.calls.length - 1]?.[0];
+    expect(exportParams).not.toHaveProperty('provider_type');
+    expect(exportParams).not.toHaveProperty('provider_id');
+    expect(exportParams).not.toHaveProperty('specialization_id');
+  });
+
+  it('updates provider ranking pagination and resets to page one when its search is cleared', async () => {
+    api.getProviderRanking.mockImplementation(async (params: { page?: number; page_size?: number }) => ({
+      data: [{ provider_id: 'abc', name: 'Northfield Equine', provider_type: 'CLINIC', provider_status: 'ACTIVE', publication_status: 'PUBLISHED', profile_views: 144, review_submissions: 3, average_rating: 4.7, rating_count: 15, saved_count: 26 }],
+      meta: { page: params.page ?? 1, page_size: params.page_size ?? 10, total: 30, total_pages: 3 },
+      period: sampleSummary.period, timezone: 'America/Toronto', coverage: { available: true },
+    }));
+    renderPage('/admin/analytics?section=providers&page=2&provider_search=North');
+    expect(await screen.findByRole('link', { name: 'Northfield Equine' })).toBeTruthy();
+    await waitFor(() => expect(api.getProviderRanking).toHaveBeenLastCalledWith(expect.objectContaining({
+      page: 2,
+      provider_search: 'North',
+    })));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next →' }));
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toContain('page=3'));
+    await waitFor(() => expect(api.getProviderRanking).toHaveBeenLastCalledWith(expect.objectContaining({ page: 3 })));
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search providers' }), { target: { value: '' } });
+    await waitFor(() => {
+      const location = screen.getByTestId('location').textContent ?? '';
+      expect(location).not.toContain('page=');
+      expect(location).not.toContain('provider_search=');
+    });
+    await waitFor(() => expect(api.getProviderRanking).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1 })));
+    const lastParams = api.getProviderRanking.mock.calls[api.getProviderRanking.mock.calls.length - 1]?.[0];
+    expect(lastParams).not.toHaveProperty('provider_search');
+  });
+
   it('scopes provider type to application and invitation breakdowns without leaking provider geography', async () => {
     renderPage('/admin/analytics?section=providers&provider_type=CLINIC&provider_status=ACTIVE&country=Canada&city=Calgary&application_status=APPROVED&invitation_status=PENDING');
-    await waitFor(() => expect(api.getAnalyticsBreakdowns).toHaveBeenCalledTimes(3));
+    await waitFor(() => {
+      const requestedDomains = api.getAnalyticsBreakdowns.mock.calls.map(([domain]) => domain);
+      expect(requestedDomains).toContain('applications');
+      expect(requestedDomains).toContain('invitations');
+      expect(requestedDomains).not.toContain('providers');
+    });
+    expect(screen.getByText('Current listed providers')).toBeTruthy();
+    const initialSummaryCalls = api.getAnalyticsSummary.mock.calls.length;
+    fireEvent.click(screen.getByText('View detailed reports'));
+    await waitFor(() => expect(api.getAnalyticsBreakdowns.mock.calls.map(([domain]) => domain)).toContain('providers'));
+    await waitFor(() => expect(api.getAnalyticsSummary).toHaveBeenCalledTimes(initialSummaryCalls + 1));
 
-    const paramsFor = (domain: string) => api.getAnalyticsBreakdowns.mock.calls.find(([calledDomain]) => calledDomain === domain)?.[1];
+    const paramsFor = (domain: string) => api.getAnalyticsBreakdowns.mock.calls
+      .filter(([calledDomain]) => calledDomain === domain)
+      .slice(-1)[0]?.[1];
     const providerParams = paramsFor('providers');
     const applicationParams = paramsFor('applications');
     const invitationParams = paramsFor('invitations');
@@ -131,6 +323,163 @@ describe('AnalyticsPage', () => {
     }
   });
 
+  it('does not issue requests for a reversed custom date range', async () => {
+    renderPage('/admin/analytics?section=traffic&preset=custom&date_from=2026-04-10&date_to=2026-04-02');
+    expect(await screen.findByText('The start date must be on or before the end date. Correct the dates to run this report.')).toBeTruthy();
+    expect(api.getAnalyticsSummary).not.toHaveBeenCalled();
+    expect(api.getAnalyticsSeries).not.toHaveBeenCalled();
+    expect(api.getAnalyticsBreakdowns).not.toHaveBeenCalled();
+  });
+
+  it('keeps trend selection singular and limits visible curated breakdown charts', async () => {
+    api.getAnalyticsBreakdowns.mockImplementation(async (domain: string) => ({
+      domain, timezone: 'America/Toronto', period: sampleSummary.period, coverage: { available: true },
+      groups: domain === 'traffic' ? {
+        page_categories: { directory: 22, provider_profile: 13 },
+        top_providers: [{ name: 'Northfield Equine', profile_views: 18 }],
+        visitor_days: 31,
+      } : {},
+    }));
+    renderPage('/admin/analytics?section=traffic');
+
+    expect(await screen.findByRole('img', { name: /Website page views over time/ })).toBeTruthy();
+    const trendMetric = screen.getByRole('combobox', { name: 'Trend metric' });
+    fireEvent.change(trendMetric, { target: { value: 'provider_profile_views' } });
+    expect(await screen.findByRole('img', { name: /Provider profile views over time/ })).toBeTruthy();
+    await waitFor(() => expect(api.getAnalyticsSeries).toHaveBeenCalledWith('provider_profile_views', expect.anything()));
+    expect(screen.getAllByRole('img', { name: /over time/i })).toHaveLength(1);
+
+    const breakdownCharts = screen.getAllByRole('img').filter((chart) => !/over time/i.test(chart.getAttribute('aria-label') ?? ''));
+    expect(breakdownCharts.length).toBeLessThanOrEqual(2);
+    expect(screen.queryByRole('img', { name: /top providers/i })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Provider popularity' })).toBeTruthy();
+
+    const detailedReports = screen.getByText('View detailed reports').closest('details');
+    expect(detailedReports).toBeTruthy();
+    expect((detailedReports as HTMLDetailsElement).open).toBe(false);
+    fireEvent.click(screen.getByText('View detailed reports'));
+    expect((detailedReports as HTMLDetailsElement).open).toBe(true);
+    await waitFor(() => expect(screen.getAllByRole('heading', { name: 'Breakdown tables' }).length).toBeGreaterThan(0));
+    const individualReports = Array.from((detailedReports as HTMLDetailsElement).querySelectorAll('details'))
+      .filter((report) => report !== detailedReports);
+    expect(individualReports.length).toBeGreaterThan(0);
+    expect(individualReports.every((report) => !report.open)).toBe(true);
+  });
+
+  it('hides advanced filters and exposes removable labels for deep-linked record filters', async () => {
+    const providerId = 'provider-uuid-123';
+    const specializationId = 'specialization-uuid-456';
+    renderPage(`/admin/analytics?section=traffic&provider_id=${providerId}&specialization_id=${specializationId}`);
+    expect(await screen.findByText('1,837')).toBeTruthy();
+
+    const moreFilters = screen.getByText('More filters').closest('details');
+    expect(moreFilters).toBeTruthy();
+    expect((moreFilters as HTMLDetailsElement).open).toBe(false);
+    expect(screen.queryByLabelText('Provider type')).toBeNull();
+    const providerFilterChip = screen.getByRole('button', { name: 'Remove Provider record filter' });
+    const specializationFilterChip = screen.getByRole('button', { name: 'Remove Specialization filter' });
+    expect(providerFilterChip.textContent).toContain(`Provider record: ${providerId}`);
+    expect(specializationFilterChip.textContent).toContain(`Specialization: ${specializationId}`);
+    expect(screen.queryByRole('textbox', { name: /Provider ID|Specialization ID/i })).toBeNull();
+
+    fireEvent.click(providerFilterChip);
+    await waitFor(() => expect(screen.getByTestId('location').textContent).not.toContain('provider_id='));
+    expect(screen.getByRole('button', { name: 'Remove Specialization filter' })).toBeTruthy();
+    expect(api.getAnalyticsBreakdowns).toHaveBeenCalledWith('traffic', expect.objectContaining({ specialization_id: specializationId }));
+  });
+
+  it('exports the selected trend and selected breakdown with section-scoped filters', async () => {
+    renderPage('/admin/analytics?section=traffic&provider_type=CLINIC');
+    expect(await screen.findByText('1,837')).toBeTruthy();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Trend metric' }), { target: { value: 'provider_profile_views' } });
+    await waitFor(() => expect(api.getAnalyticsSeries).toHaveBeenCalledWith('provider_profile_views', expect.anything()));
+
+    const exportMenu = screen.getByText('Export CSV').closest('details') as HTMLDetailsElement;
+    fireEvent.click(screen.getByText('Export CSV'));
+    fireEvent.click(screen.getByRole('button', { name: 'Time series · Provider profile views' }));
+    await waitFor(() => expect(api.exportAnalytics).toHaveBeenCalledWith(expect.objectContaining({
+      dataset: 'series',
+      metric: 'provider_profile_views',
+      provider_type: 'CLINIC',
+    })));
+
+    if (!exportMenu.open) fireEvent.click(screen.getByText('Export CSV'));
+    fireEvent.click(screen.getByRole('button', { name: 'Breakdown · Traffic' }));
+    await waitFor(() => expect(api.exportAnalytics).toHaveBeenLastCalledWith(expect.objectContaining({
+      dataset: 'breakdowns',
+      domain: 'traffic',
+      provider_type: 'CLINIC',
+    })));
+  });
+
+  it('runs custom ranges only after both dates are supplied', async () => {
+    renderPage('/admin/analytics?section=traffic&preset=custom');
+    expect(await screen.findByText(/Choose both start and end dates/)).toBeTruthy();
+    expect(api.getAnalyticsSummary).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-04-02' } });
+    expect(api.getAnalyticsSummary).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Through'), { target: { value: '2026-04-10' } });
+    await waitFor(() => expect(api.getAnalyticsSummary).toHaveBeenLastCalledWith(expect.objectContaining({
+      preset: 'custom',
+      date_from: '2026-04-02',
+      date_to: '2026-04-10',
+    })));
+  });
+
+  it('ignores stale responses after switching sections while a prior request is pending', async () => {
+    let resolveFirst!: (summary: typeof sampleSummary) => void;
+    let resolveSecond!: (summary: typeof sampleSummary) => void;
+    const withPageViews = (value: number) => ({
+      ...sampleSummary,
+      sections: {
+        ...sampleSummary.sections,
+        traffic: { metrics: sampleSummary.sections.traffic.metrics.map((metric) =>
+          metric.key === 'website_page_views' ? { ...metric, value } : metric) },
+      },
+    });
+    api.getAnalyticsSummary
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve; }));
+    renderPage();
+    await waitFor(() => expect(api.getAnalyticsSummary).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('tab', { name: 'Website traffic' }));
+    await waitFor(() => expect(api.getAnalyticsSummary).toHaveBeenCalledTimes(2));
+
+    await act(async () => { resolveSecond(withPageViews(2222)); });
+    expect(await screen.findByText('2,222')).toBeTruthy();
+    await act(async () => { resolveFirst(withPageViews(9999)); });
+    await waitFor(() => expect(screen.queryByText('9,999')).toBeNull());
+    expect(screen.getByText('2,222')).toBeTruthy();
+  });
+
+  it('reports summary errors with a retry action', async () => {
+    api.getAnalyticsSummary.mockRejectedValueOnce(new Error('Summary service unavailable'));
+    renderPage();
+    expect((await screen.findByRole('alert')).textContent).toContain('Analytics could not be loaded.');
+    api.getAnalyticsSummary.mockResolvedValue(sampleSummary);
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('1,837')).toBeTruthy();
+  });
+
+  it('recovers from a failed CSV export when the same export is retried', async () => {
+    api.exportAnalytics.mockRejectedValueOnce(new Error('Export service unavailable'));
+    renderPage('/admin/analytics?section=traffic');
+    expect(await screen.findByText('1,837')).toBeTruthy();
+
+    const exportMenu = screen.getByText('Export CSV').closest('details') as HTMLDetailsElement;
+    fireEvent.click(screen.getByText('Export CSV'));
+    fireEvent.click(screen.getByRole('button', { name: 'Time series · Website page views' }));
+    expect(await screen.findByText('CSV export failed. Try again.')).toBeTruthy();
+    expect(api.exportAnalytics).toHaveBeenCalledTimes(1);
+
+    api.exportAnalytics.mockResolvedValue(undefined);
+    if (!exportMenu.open) fireEvent.click(screen.getByText('Export CSV'));
+    fireEvent.click(screen.getByRole('button', { name: 'Time series · Website page views' }));
+    expect(await screen.findByText('CSV downloaded.')).toBeTruthy();
+    expect(api.exportAnalytics).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps the summary visible and reports partial chart failure with a retry', async () => {
     api.getAnalyticsSeries.mockRejectedValueOnce(new Error('Series service unavailable'));
     renderPage('/admin/analytics?section=traffic');
@@ -139,98 +488,15 @@ describe('AnalyticsPage', () => {
     expect(screen.getByRole('button', { name: 'Retry reports' })).toBeTruthy();
   });
 
-  it('maps nested provider inventory and registration-cohort groups to separate count charts', async () => {
-    api.getAnalyticsBreakdowns.mockImplementation(async (domain: string) => ({
-      domain, timezone: 'America/Toronto', period: sampleSummary.period, coverage: { available: true },
-      groups: domain === 'providers' ? {
-        current_inventory: { total: 6, status: { ACTIVE: 4, DRAFT: 2 }, type: { DOCTOR: 3, CLINIC: 2 }, publication: { PUBLISHED: 4, UNPUBLISHED: 2 }, active: 4, active_published: 4 },
-      } : domain === 'registrations' ? {
-        selected_cohort: { total: 9, roles: { horse_owner: 4, stable_manager: 3, both: 2 }, verified: { true: 6, false: 3 }, active: { true: 8, false: 1 }, role_assignments: { horse_owner: 5, stable_manager: 4 } },
-      } : {},
-    }));
-    const providerView = renderPage('/admin/analytics?section=providers');
-    expect(await screen.findByRole('img', { name: /Current provider inventory by status/ })).toBeTruthy();
-    expect(screen.getByRole('img', { name: /Current provider inventory by type/ })).toBeTruthy();
-    expect(screen.getAllByText('ACTIVE').length).toBeGreaterThan(0);
-    providerView.unmount();
-
-    renderPage('/admin/analytics?section=registrations');
-    expect(await screen.findByRole('img', { name: /Member cohort by exclusive role/ })).toBeTruthy();
-    expect(screen.getByRole('img', { name: /Registration cohort by current verification/ })).toBeTruthy();
-    expect(screen.getByRole('img', { name: /Registration cohort by current account state/ })).toBeTruthy();
-  });
-
-  it('renders review moderation/actions and provider leaders plus private feedback rating metrics', async () => {
-    api.getAnalyticsBreakdowns.mockImplementation(async (domain: string) => ({
-      domain, timezone: 'America/Toronto', period: sampleSummary.period, coverage: { available: true },
-      definitions: { star_distribution: 'Eligible current ratings only.' },
-      groups: domain === 'reviews' ? {
-        star_distribution: [{ rating: 5, rating_count: 8 }, { rating: 4, rating_count: 3 }],
-        active_moderation_status: { PENDING: 2, PUBLISHED: 8, HIDDEN: 1, REJECTED: 1 },
-        submitted_cohort_current_status: { PENDING: 1, PUBLISHED: 2 },
-        period_actions: { edited: 4, moderated: 3, deleted: 1 },
-        top_reviewed_providers: [{ name: 'Pine Ridge', rating_count: 18 }],
-        period_submission_leaders: [{ name: 'Oak Grove', review_submissions: 3 }],
-      } : {
-        categories: { 'Website / App': 3, Suggestion: 2 },
-        submitted_cohort_current_status: { Pending: 1, Resolved: 2 },
-        current_status: { Pending: 2, Resolved: 5 },
-        ratings: { average: 4.2, count: 7, distribution: { 5: 4, 3: 3 } },
-        withdrawn: { count: 1 },
-      },
-    }));
-    renderPage('/admin/analytics?section=reviews');
-    expect(await screen.findByRole('img', { name: /Active reviews by moderation status/ })).toBeTruthy();
-    expect(screen.getByRole('img', { name: /Selected-period review cohort · current moderation status/ })).toBeTruthy();
-    expect(screen.getByRole('img', { name: /Recorded review actions/ })).toBeTruthy();
-    expect(screen.getByRole('img', { name: /Pine Ridge: 18 eligible ratings/ })).toBeTruthy();
-    expect(screen.getByRole('img', { name: /Oak Grove: 3 submissions/ })).toBeTruthy();
-    expect(screen.getByText('Average platform feedback rating')).toBeTruthy();
-    expect(screen.getByText('Rated feedback responses')).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Breakdown tables' })).toBeTruthy();
-    expect(screen.getByText(/Edits and moderation actions recorded in the selected period/)).toBeTruthy();
-  });
-
-  it('maps contract-named application and invitation status reports', async () => {
-    api.getAnalyticsBreakdowns.mockImplementation(async (domain: string) => ({
-      domain, timezone: 'America/Toronto', period: sampleSummary.period, coverage: { available: true },
-      groups: domain === 'applications' ? {
-        submitted_cohort_current_status: { APPROVED: 3, REJECTED: 1 },
-        all_current_status: { PENDING_REVIEW: 4, APPROVED: 12 },
-      } : domain === 'invitations' ? {
-        created_cohort_current_status: { PENDING: 5, COMPLETED: 2 },
-        all_current_status: { PENDING: 7, ACCEPTED: 9 },
-      } : {},
-    }));
-    renderPage('/admin/analytics?section=providers');
-    expect(await screen.findByRole('img', { name: /Applications submitted in this period · current status/ })).toBeTruthy();
-    expect(screen.getByRole('img', { name: /All applications · current status/ })).toBeTruthy();
-    expect(screen.getByRole('img', { name: /Invitations created in this period · current status/ })).toBeTruthy();
-    expect(screen.getByRole('img', { name: /All invitations · current status/ })).toBeTruthy();
-  });
-
-  it('uses exact traffic and feedback breakdown groups while keeping rating average out of count charts', async () => {
-    api.getAnalyticsBreakdowns.mockImplementation(async (domain: string) => ({
-      domain, timezone: 'America/Toronto', period: sampleSummary.period, coverage: { available: true },
-      definitions: domain === 'feedback' ? { ratings: 'Average and optional rating counts for non-withdrawn feedback.' } : { page_categories: 'Allowlisted public routes.' },
-      groups: domain === 'traffic' ? {
-        page_categories: { directory: 22, provider_profile: 13 },
-        top_providers: [{ name: 'Willow Farm', profile_views: 18 }],
-        visitor_days: 31,
-      } : domain === 'feedback' ? {
-        categories: { Suggestion: 2 },
-        ratings: { average: 4.2, count: 4, distribution: { 5: 3, 2: 1 } },
-      } : {},
-    }));
-    const trafficView = renderPage('/admin/analytics?section=traffic');
-    expect(await screen.findByRole('img', { name: /Page views by public page category/ })).toBeTruthy();
-    expect(screen.getByRole('img', { name: /Willow Farm: 18 profile views/ })).toBeTruthy();
-    trafficView.unmount();
-
-    renderPage('/admin/analytics?section=reviews');
-    expect(await screen.findByRole('img', { name: /Optional feedback ratings · response counts/ })).toBeTruthy();
-    expect(screen.getByText('Average platform feedback rating')).toBeTruthy();
-    expect(screen.getByText('Rated feedback responses')).toBeTruthy();
-    expect(screen.queryByRole('img', { name: /4.2 stars/ })).toBeNull();
+  it('refreshes the summary and report data on demand', async () => {
+    api.getAnalyticsSummary
+      .mockResolvedValueOnce(sampleSummary)
+      .mockResolvedValueOnce({ ...sampleSummary, refreshed_at: '2026-04-30T16:00:00Z' });
+    renderPage('/admin/analytics?section=traffic');
+    expect(await screen.findByText('1,837')).toBeTruthy();
+    const initialCalls = api.getAnalyticsSummary.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: /Refresh/ }));
+    await waitFor(() => expect(api.getAnalyticsSummary).toHaveBeenCalledTimes(initialCalls + 1));
+    await waitFor(() => expect(api.getAnalyticsBreakdowns).toHaveBeenCalledTimes(2));
   });
 });

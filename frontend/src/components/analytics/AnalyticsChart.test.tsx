@@ -1,6 +1,8 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
 import { AnalyticsChart } from './AnalyticsChart';
+
+afterEach(cleanup);
 
 describe('AnalyticsChart', () => {
   it('reads provider-specific count fields instead of plotting unavailable zeroes', () => {
@@ -10,8 +12,8 @@ describe('AnalyticsChart', () => {
     ]} unit="eligible ratings" />);
 
     expect(screen.getByRole('img', { name: /Pine Ridge: 18 eligible ratings/ })).toBeTruthy();
-    expect(screen.getAllByText('Pine Ridge').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('18').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('table', { name: 'Most-reviewed providers data' })).toBeNull();
+    expect(document.querySelector('details')?.hasAttribute('open')).toBe(false);
     expect(screen.queryByText('Unavailable')).toBeNull();
   });
 
@@ -26,6 +28,21 @@ describe('AnalyticsChart', () => {
     const earlyJanuary = Number(marks[1].getAttribute('cx'));
     expect(earlyJanuary).toBeLessThan(180);
     expect(screen.getByText('30', { selector: 'text' })).toBeTruthy();
-    expect(screen.getByRole('table', { name: 'Monthly registrations data' })).toBeTruthy();
+    expect(screen.queryByRole('table', { name: 'Monthly registrations data' })).toBeNull();
+  });
+
+  it('uses the data table as the accessible chart alternative when opened', async () => {
+    const rendered = render(<AnalyticsChart title="Visits" points={[{ bucket: 'Monday', value: 12 }]} />);
+    expect(screen.getByRole('img', { name: /Visits/ })).toBeTruthy();
+    fireEvent.click(rendered.container.querySelector('details summary')!);
+    await waitFor(() => expect(screen.getByRole('table', { name: 'Visits data' })).toBeTruthy());
+    expect(screen.queryByRole('img', { name: /Visits/ })).toBeNull();
+  });
+
+  it('keeps metric definitions collapsed until requested', async () => {
+    const rendered = render(<AnalyticsChart title="Visits" definition="Tracked profile page views." points={[]} />);
+    expect(rendered.container.querySelector('details')?.hasAttribute('open')).toBe(false);
+    fireEvent.click(screen.getByText('How this is counted'));
+    await waitFor(() => expect(screen.getByText('Tracked profile page views.')).toBeTruthy());
   });
 });
