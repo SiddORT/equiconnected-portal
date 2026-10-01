@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StrictMode } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import * as providersApi from '@/api/providers';
+import * as messagesApi from '@/api/messages';
 import { recordMemberTrafficView } from '@/analytics/trafficTracking';
 import { MemberProviderDetailPage } from './MemberProviderDetailPage';
 
@@ -23,6 +24,7 @@ vi.mock('@/api/providers', () => ({
   saveMemberProvider: vi.fn(),
   removeSavedMemberProvider: vi.fn(),
 }));
+vi.mock('@/api/messages', () => ({ getMessageAvailability: vi.fn() }));
 vi.mock('@/app/TimeSettingsContext', () => ({
   useTimeSettings: () => ({
     formatTimestamp: (value: string) => value,
@@ -53,7 +55,45 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
+beforeEach(() => {
+  vi.mocked(messagesApi.getMessageAvailability).mockResolvedValue({
+    available: false,
+    reason: 'provider_account_unavailable',
+    provider_name: 'Austin Equine Clinic',
+  });
+});
+
 describe('MemberProviderDetailPage', () => {
+  it('offers private messaging only when the server says it is available', async () => {
+    vi.mocked(providersApi.getMemberProvider).mockResolvedValue(detail);
+    vi.mocked(messagesApi.getMessageAvailability).mockResolvedValue({
+      available: true,
+      reason: null,
+      provider_name: detail.name,
+    });
+
+    renderProfile();
+
+    const messageLink = await screen.findByRole('link', { name: 'Message provider' });
+    expect(messageLink.getAttribute('href')).toBe('/member/messages?provider_id=provider-1');
+    expect(screen.getByRole('link', { name: /Contact provider/ })).toBeTruthy();
+  });
+
+  it('explains unavailable messaging while keeping direct contact actions in place', async () => {
+    vi.mocked(providersApi.getMemberProvider).mockResolvedValue(detail);
+    vi.mocked(messagesApi.getMessageAvailability).mockResolvedValue({
+      available: false,
+      reason: 'provider_account_unavailable',
+      provider_name: detail.name,
+    });
+
+    renderProfile();
+
+    expect(await screen.findByText('This provider does not currently have an active messaging account.')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Contact provider/ })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Message provider' })).toBeNull();
+  });
+
   it('records one profile view when Strict Mode replays and races successful loads', async () => {
     const pending: Array<
       (value: Awaited<ReturnType<typeof providersApi.getMemberProvider>>) => void

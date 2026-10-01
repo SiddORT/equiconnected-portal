@@ -153,6 +153,7 @@
 .heroRating > span:last-child { color: var(--muted); }
 .goldStars { color: var(--gold); letter-spacing: .13em; font-size: .88rem; white-space: nowrap; }
 .heroActions { display: flex; flex-wrap: wrap; align-items: center; gap: 11px; margin-top: 24px; }
+.messageAvailability { max-width: 340px; color: var(--muted); font-size: .76rem; line-height: 1.45; }
 .primaryAction, .writeReview {
   display: inline-flex;
   align-items: center;

@@ -49,3 +49,4 @@
 - [Submitted application history](submitted-application-history.md) — distinguish missing legacy answers from explicit false/zero, and retain inactive selected catalog names.
 - [Tile referrer diagnosis](tile-referrer-diagnosis.md) — missing Referer is a policy mismatch, not conclusive proof of an external block; verify real browser traffic.
 - [Browser failure injection](browser-failure-injection.md) — keep intentional failures active until explicit retry so Strict Mode replay cannot hide the error state.
+- [Private message delivery policy](private-message-delivery-policy.md) — retry safe pre-SMTP failures, not uncertain handoffs; message acceptance is independent of email.

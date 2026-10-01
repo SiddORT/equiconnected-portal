@@ -129,6 +129,20 @@ describe('EmailLogsPage', () => {
     expect(screen.getByRole('button', { name: 'Clear filter' }).hasAttribute('disabled')).toBe(true);
   });
 
+  it.each([
+    ['messaging_member_acknowledgement', 'Private message acknowledgement'],
+    ['messaging_provider_new_message', 'New private provider message'],
+    ['messaging_member_reply', 'Private message reply notification'],
+  ] as const)('labels %s delivery attempts', async (purpose, label) => {
+    vi.mocked(adminApi.getEmailDeliveryLogs).mockResolvedValue({
+      data: [{ ...emailLog, purpose }],
+      meta: { page: 1, page_size: 25, total: 1, total_pages: 1 },
+    });
+    render(<MemoryRouter><EmailLogsPage /></MemoryRouter>);
+
+    expect(await screen.findByText(label)).toBeTruthy();
+  });
+
   it('paginates filtered logs and resets the page when changing page size', async () => {
     const user = userEvent.setup();
     vi.mocked(adminApi.getEmailDeliveryLogs).mockImplementation(async (params) => ({

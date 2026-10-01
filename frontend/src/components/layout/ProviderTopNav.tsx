@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
+import { useMessageUnreadCount } from '@/components/messaging/useMessageUnreadCount';
 import styles from './ProviderTopNav.module.css';
 
 function formatProviderDisplayName(fullName?: string | null, email?: string | null) {
@@ -11,6 +12,7 @@ function formatProviderDisplayName(fullName?: string | null, email?: string | nu
 
 export function ProviderTopNav() {
   const { user, logout } = useAuth();
+  const unreadMessages = useMessageUnreadCount(user?.id);
   const navigate = useNavigate();
   const [loggingOut, setLoggingOut] = useState(false);
   const displayName = formatProviderDisplayName(user?.full_name, user?.email);
@@ -38,6 +40,13 @@ export function ProviderTopNav() {
             <small>Provider portal</small>
           </span>
         </Link>
+
+        <nav className={styles.links} aria-label="Provider navigation">
+          <NavLink to="/provider/account" className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}>Account</NavLink>
+          <NavLink to="/provider/messages" className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}>
+            Messages{unreadMessages > 0 && <span className={styles.unreadBadge} aria-label={`${unreadMessages} unread messages`}>{unreadMessages > 99 ? '99+' : unreadMessages}</span>}
+          </NavLink>
+        </nav>
 
         <div className={styles.account}>
           <span className={styles.welcome}>

@@ -203,3 +203,76 @@ def test_contact_confirmation_uses_branded_multipart_and_configured_sender(monke
     # This API intentionally accepts only the recipient, so no name, phone,
     # enquiry category or private message can enter either confirmation body.
     assert "sender@example.test" not in plain_body + html_body
+
+
+@pytest.mark.parametrize(
+    ("method", "recipient", "kwargs", "expected_link", "expected_identity"),
+    [
+        (
+            "send_member_message_acknowledgement",
+            "member@example.test",
+            {
+                "provider_name": "Dr. Example <Care>",
+                "thread_url": "https://app.example.test/member/messages/thread-id",
+            },
+            "https://app.example.test/member/messages/thread-id",
+            "Dr. Example",
+        ),
+        (
+            "send_provider_message_notification",
+            "provider@example.test",
+            {
+                "thread_url": "https://app.example.test/provider/messages/thread-id",
+            },
+            "https://app.example.test/provider/messages/thread-id",
+            "A member",
+        ),
+        (
+            "send_member_reply_notification",
+            "member@example.test",
+            {
+                "provider_name": "Dr. Example",
+                "thread_url": "https://app.example.test/member/messages/thread-id",
+            },
+            "https://app.example.test/member/messages/thread-id",
+            "Dr. Example",
+        ),
+    ],
+)
+def test_messaging_emails_are_branded_minimal_content_notifications(
+    monkeypatch, method, recipient, kwargs, expected_link, expected_identity
+):
+    from app.services.email_service import EmailService
+
+    sent = []
+    monkeypatch.setattr(
+        EmailService,
+        "_deliver",
+        staticmethod(lambda message, _recipient: sent.append(message.as_string())),
+    )
+    getattr(EmailService(), method)(recipient, **kwargs)
+
+    message = message_from_string(sent[0])
+    assert message["To"] == recipient
+    parts = list(message.walk())
+    plain = next(part for part in parts if part.get_content_type() == "text/plain")
+    html = next(part for part in parts if part.get_content_type() == "text/html")
+    plain_body = plain.get_payload(decode=True).decode("utf-8")
+    html_body = html.get_payload(decode=True).decode("utf-8")
+
+    assert expected_link in plain_body
+    assert expected_link in html_body
+    assert expected_identity in plain_body
+    assert "cid:equiconnected-logo" in html_body
+    if method != "send_member_message_acknowledgement":
+        assert "private message" in (plain_body + html_body).lower()
+    assert all(
+        secret not in plain_body + html_body
+        for secret in (
+            "private body text",
+            "member-phone",
+            "member-contact@example.test",
+        )
+    )
+    if method == "send_member_message_acknowledgement":
+        assert "Dr. Example &lt;Care&gt;" in html_body

@@ -16,7 +16,9 @@ class EmailDeliveryLog(Base):
             "purpose IN ('provider_invitation', 'account_verification', "
             "'provider_portal_access', 'provider_portal_recovery', "
             "'provider_approval', 'subscriber_confirmation', "
-            "'contact_notification', 'contact_confirmation', 'smtp_test')",
+            "'contact_notification', 'contact_confirmation', 'smtp_test', "
+            "'messaging_member_acknowledgement', 'messaging_provider_new_message', "
+            "'messaging_member_reply')",
             name="ck_email_delivery_logs_purpose",
         ),
         CheckConstraint(

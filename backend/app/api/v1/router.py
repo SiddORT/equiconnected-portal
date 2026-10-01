@@ -26,6 +26,7 @@ from app.api.v1.system_settings import (
 )
 from app.api.v1.languages import router as languages_router
 from app.api.v1.member_feedback import admin_router as member_feedback_admin_router, member_router as member_feedback_router
+from app.api.v1.messages import router as messages_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
@@ -46,6 +47,7 @@ api_v1_router.include_router(member_reviews_router)
 api_v1_router.include_router(reviews_router)
 api_v1_router.include_router(member_feedback_router)
 api_v1_router.include_router(member_feedback_admin_router)
+api_v1_router.include_router(messages_router)
 api_v1_router.include_router(provider_portal_router)
 api_v1_router.include_router(system_settings_public_router)
 api_v1_router.include_router(system_settings_admin_router)

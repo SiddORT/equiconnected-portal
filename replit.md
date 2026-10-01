@@ -174,6 +174,22 @@ development database target before running either command; do not run on product
 - Specialization names are case-insensitively unique at the DB level (unique constraint)
 - Deactivating a specialization sets `is_active=false` — records are never deleted
 
+## Private member/provider messaging
+
+Private messaging uses participant-only `/api/v1/messages` endpoints and a
+dedicated AES-256-GCM keyring. Provision `MESSAGING_ENCRYPTION_KEYRING` as a
+secret and select its key with `MESSAGING_ENCRYPTION_ACTIVE_KEY_ID` before
+enabling messaging. Missing or invalid keys disable only messaging, with no
+plaintext fallback. See `docs/messaging-operations.md` for key backup, rotation,
+HTTPS requirements, and notification recovery, and
+`docs/messaging-api-contract.md` for the endpoint contract.
+
+Message content and conversation-specific consented contacts have encrypted
+storage; existing account/profile contacts are unchanged. This is not
+end-to-end encryption. Administrators have no conversation reader. Email
+notices contain no message body or shared contact snapshot, and a saved message
+remains saved even when notification delivery fails.
+
 ## Detailed analytics
 
 `/admin/analytics` is separate from the operational dashboard; the dashboard's

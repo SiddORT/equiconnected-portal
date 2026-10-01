@@ -1,6 +1,7 @@
 """
 EquiConnected Portal — FastAPI application entry point.
 """
+import asyncio
 from contextlib import asynccontextmanager
 
 import os
@@ -16,6 +17,26 @@ from fastapi.staticfiles import StaticFiles
 from app.api.v1.router import api_v1_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
+
+
+async def _recover_message_notifications() -> None:
+    """Retry only unclaimed pending intents on a bounded interval."""
+    logger = get_logger(__name__)
+    while True:
+        try:
+            # Import lazily so email or database accounting issues cannot make
+            # unrelated application startup depend on messaging delivery.
+            from app.services.messaging_notifications import dispatch_pending
+
+            await asyncio.to_thread(dispatch_pending, batch_size=20)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error(
+                "messaging_notification_recovery_failed",
+                error_type=type(exc).__name__,
+            )
+        await asyncio.sleep(30)
 
 
 def _safe_log_path(request: Request) -> str:
@@ -41,8 +62,16 @@ async def lifespan(app: FastAPI):
         version=settings.APP_VERSION,
         environment=settings.ENVIRONMENT,
     )
-    yield
-    logger.info("shutdown")
+    recovery_task = asyncio.create_task(_recover_message_notifications())
+    try:
+        yield
+    finally:
+        recovery_task.cancel()
+        try:
+            await recovery_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("shutdown")
 
 
 def create_app() -> FastAPI:
@@ -98,7 +127,9 @@ def create_app() -> FastAPI:
             "unhandled_exception",
             path=_safe_log_path(request),
             method=request.method,
-            exc=str(exc),
+            # Private-message failures may contain decrypted values from a
+            # dependency. Retain the error type, never its arbitrary payload.
+            exc=type(exc).__name__ if request.url.path.startswith("/api/v1/messages") else str(exc),
         )
         return JSONResponse(
             status_code=500,

@@ -46,6 +46,7 @@ import { MemberReviewsPage } from '@/pages/MemberReviewsPage';
 import { MemberHistoryPage } from '@/pages/MemberHistoryPage';
 import { PlatformFeedbackPage, PlatformFeedbackDetailPage } from '@/pages/admin/PlatformFeedbackPage';
 import { AnalyticsPage } from '@/pages/admin/AnalyticsPage';
+import { MemberMessagesPage, ProviderMessagesPage } from '@/pages/PrivateMessagesPage';
 
 const AnimationPage = lazy(() =>
   import('@/pages/AnimationPage').then((module) => ({ default: module.AnimationPage }))
@@ -125,6 +126,7 @@ export function AppRouter() {
         {/* ── Approved provider account ────────────────────────────── */}
         <Route element={<ProviderAuthGuard />}>
           <Route path="/provider/account" element={<ProviderAccountPage />} />
+          <Route path="/provider/messages/:conversationId?" element={<ProviderMessagesPage />} />
         </Route>
 
         {/* ── Verified member profile ─────────────────────────────── */}
@@ -133,6 +135,7 @@ export function AppRouter() {
             <Route path="/providers" element={<ProviderDirectoryPage />} />
             <Route path="/providers/visiting-calendar" element={<MemberVisitingProviderCalendarPage />} />
             <Route path="/providers/:id" element={<MemberProviderDetailPage />} />
+            <Route path="/member/messages/:conversationId?" element={<MemberMessagesPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/my-reviews" element={<MemberReviewsPage />} />
             <Route path="/history" element={<MemberHistoryPage />} />

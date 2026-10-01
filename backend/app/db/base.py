@@ -43,6 +43,12 @@ from app.models.subscriber import Subscriber  # noqa: F401, E402
 from app.models.contact_enquiry import ContactEnquiry  # noqa: F401, E402
 from app.models.system_settings import SystemSettings  # noqa: F401, E402
 from app.models.language import Language, ProviderLanguage, ProviderRegistrationLanguage  # noqa: F401, E402
+from app.models.messaging import (  # noqa: F401, E402
+    MessagingNotificationOutbox,
+    MessagingSendLimit,
+    ProviderConversation,
+    ProviderMessage,
+)
 from app.models.analytics_traffic import (  # noqa: F401, E402
     TrafficPageCategoryDaily,
     TrafficProviderProfileDaily,

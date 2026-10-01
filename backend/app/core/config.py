@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     EMAIL_VERIFICATION_EXPIRE_HOURS: int = 24
     PROVIDER_PORTAL_SETUP_EXPIRE_HOURS: int = 24
     PROVIDER_PORTAL_RECOVERY_EXPIRE_HOURS: int = 2
+    # Messaging uses an independent AES-GCM keyring; never derive this from SECRET_KEY.
+    MESSAGING_ENCRYPTION_KEYRING: str = ""
+    MESSAGING_ENCRYPTION_ACTIVE_KEY_ID: str = ""
     # Uses an external provider; deployments can override this URL template.
     # Nominatim accepts the country name supplied by the shared location picker.
     POSTAL_LOOKUP_URL: str = (

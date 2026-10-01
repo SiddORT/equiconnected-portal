@@ -5,6 +5,7 @@ import { getProfile } from '@/api/profile';
 import { getRecentMemberHistory } from '@/api/memberFeedback';
 import type { MemberHistoryEntry } from '@/api/memberFeedback';
 import { FeedbackModal } from '@/components/member/FeedbackModal';
+import { useMessageUnreadCount } from '@/components/messaging/useMessageUnreadCount';
 import styles from './MemberTopNav.module.css';
 
 const restorableSearchFilters = new Set([
@@ -30,6 +31,7 @@ function roleName(roles: string[] = []) {
 
 export function MemberTopNav() {
   const { user, logout } = useAuth();
+  const unreadMessages = useMessageUnreadCount(user?.id);
   const navigate = useNavigate();
   const location = useLocation();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -181,6 +183,9 @@ export function MemberTopNav() {
           </button>
           <nav id={navigationId} className={`${styles.links} ${menuOpen ? styles.linksOpen : ''}`} aria-label="Member navigation">
             <NavLink to="/providers" className={({ isActive }) => `${styles.link} ${isActive && new URLSearchParams(location.search).get('saved') !== 'true' ? styles.active : ''}`} onClick={() => setMenuOpen(false)}>Providers</NavLink>
+            <NavLink to="/member/messages" className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`} onClick={() => setMenuOpen(false)}>
+              Messages{unreadMessages > 0 && <span className={styles.unreadBadge} aria-label={`${unreadMessages} unread messages`}>{unreadMessages > 99 ? '99+' : unreadMessages}</span>}
+            </NavLink>
             <NavLink to="/profile" className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`} onClick={() => setMenuOpen(false)}>Profile</NavLink>
             <NavLink to="/providers?saved=true" className={({ isActive }) => `${styles.link} ${isActive && new URLSearchParams(location.search).get('saved') === 'true' ? styles.active : ''}`} onClick={() => setMenuOpen(false)}>Saved providers</NavLink>
           </nav>

@@ -387,10 +387,15 @@ export interface EmailDeliveryLog {
     | 'provider_invitation'
     | 'account_verification'
     | 'provider_portal_access'
+    | 'provider_portal_recovery'
+    | 'provider_approval'
     | 'subscriber_confirmation'
     | 'contact_notification'
     | 'contact_confirmation'
-    | 'smtp_test';
+    | 'smtp_test'
+    | 'messaging_member_acknowledgement'
+    | 'messaging_provider_new_message'
+    | 'messaging_member_reply';
   status: EmailDeliveryStatus;
   failure_message: string | null;
   created_at: string;

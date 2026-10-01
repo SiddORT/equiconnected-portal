@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import * as providersApi from '@/api/providers';
+import * as messagesApi from '@/api/messages';
 import { recordMemberHistory } from '@/api/memberHistoryRecording';
 import {
   hasSensitiveTrafficUrlParameter,
@@ -117,6 +118,9 @@ export function MemberProviderDetailPage() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
+  const [messageAvailability, setMessageAvailability] = useState<messagesApi.MessageAvailability | null>(null);
+  const [messageAvailabilityLoading, setMessageAvailabilityLoading] = useState(false);
+  const [messageAvailabilityError, setMessageAvailabilityError] = useState(false);
   const reviewRef = useRef<HTMLTextAreaElement>(null);
   const recordedProfile = useRef<string | null>(null);
   const trafficLocation = useRef<TrafficRouteLocation | null>(null);
@@ -171,6 +175,25 @@ export function MemberProviderDetailPage() {
   useEffect(() => {
     void load().catch(() => undefined);
   }, [load]);
+
+  useEffect(() => {
+    if (!provider?.id) return;
+    let active = true;
+    setMessageAvailability(null);
+    setMessageAvailabilityLoading(true);
+    setMessageAvailabilityError(false);
+    messagesApi.getMessageAvailability(provider.id)
+      .then((availability) => {
+        if (active) setMessageAvailability(availability);
+      })
+      .catch(() => {
+        if (active) setMessageAvailabilityError(true);
+      })
+      .finally(() => {
+        if (active) setMessageAvailabilityLoading(false);
+      });
+    return () => { active = false; };
+  }, [provider?.id]);
 
   useEffect(() => {
     if (provider && location.hash === '#contact') {
@@ -276,6 +299,23 @@ export function MemberProviderDetailPage() {
           </div>
           <div className={styles.heroActions}>
             <a href="#contact" className={styles.primaryAction}>Contact provider <span aria-hidden="true">↗</span></a>
+            {messageAvailability?.available
+              ? <Link className={styles.primaryAction} to={`/member/messages?provider_id=${encodeURIComponent(provider.id)}`}>Message provider</Link>
+              : <span className={styles.messageAvailability} role="status">
+                {messageAvailabilityLoading
+                  ? 'Checking private messaging…'
+                  : messageAvailabilityError
+                    ? 'Private messaging availability could not be checked. Direct contact options remain available.'
+                    : messageAvailability
+                      ? messageAvailability.reason === 'provider_unavailable'
+                        ? 'Private messaging is unavailable for this listing.'
+                        : messageAvailability.reason === 'provider_account_ambiguous'
+                          ? 'Private messaging is not available while the provider account link is reviewed.'
+                          : messageAvailability.reason === 'messaging_encryption_unavailable'
+                            ? 'Private messaging is temporarily unavailable. Direct contact options remain available.'
+                            : 'This provider does not currently have an active messaging account.'
+                      : 'Checking private messaging…'}
+              </span>}
             <SaveProviderButton id={provider.id} name={provider.name} saved={provider.is_saved}
               onChange={saved => setProvider(current => current ? { ...current, is_saved: saved } : current)} />
           </div>

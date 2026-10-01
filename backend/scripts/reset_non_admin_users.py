@@ -15,7 +15,7 @@ from dataclasses import dataclass
 # Allow running from the backend/ directory.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -23,6 +23,12 @@ import app.db.base  # noqa: F401, E402 — register all mapped models before que
 from app.db.session import SessionLocal  # noqa: E402
 from app.models.audit_log import AuditLog  # noqa: E402
 from app.models.invitation import ProviderInvitation  # noqa: E402
+from app.models.messaging import (  # noqa: E402
+    MessagingNotificationOutbox,
+    MessagingSendLimit,
+    ProviderConversation,
+    ProviderMessage,
+)
 from app.models.profile import Horse, StableProfile  # noqa: E402
 from app.models.provider import ProviderReview  # noqa: E402
 from app.models.provider_review_action import ProviderReviewAction  # noqa: E402
@@ -203,6 +209,31 @@ def build_reset_plan(db: Session, *, lock_users: bool = False) -> ResetPlan:
         "horses": _count_for_users(db, Horse, Horse.user_id, target_ids),
         "provider_reviews": _count_for_users(
             db, ProviderReview, ProviderReview.member_id, target_ids
+        ),
+        "provider_conversations": int(
+            db.scalar(
+                select(func.count())
+                .select_from(ProviderConversation)
+                .where(
+                    or_(
+                        ProviderConversation.member_user_id.in_(target_ids),
+                        ProviderConversation.provider_user_id.in_(target_ids),
+                    )
+                )
+            )
+            or 0
+        ),
+        "provider_messages": _count_for_users(
+            db, ProviderMessage, ProviderMessage.sender_user_id, target_ids
+        ),
+        "messaging_notifications": _count_for_users(
+            db,
+            MessagingNotificationOutbox,
+            MessagingNotificationOutbox.recipient_user_id,
+            target_ids,
+        ),
+        "messaging_send_limits": _count_for_users(
+            db, MessagingSendLimit, MessagingSendLimit.user_id, target_ids
         ),
     }
 

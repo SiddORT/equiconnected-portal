@@ -103,6 +103,9 @@ class EmailPurpose(str, enum.Enum):
     CONTACT_NOTIFICATION = "contact_notification"
     CONTACT_CONFIRMATION = "contact_confirmation"
     SMTP_TEST = "smtp_test"
+    MESSAGING_MEMBER_ACKNOWLEDGEMENT = "messaging_member_acknowledgement"
+    MESSAGING_PROVIDER_NEW_MESSAGE = "messaging_provider_new_message"
+    MESSAGING_MEMBER_REPLY = "messaging_member_reply"
 
 
 class ContactEnquiryType(str, enum.Enum):

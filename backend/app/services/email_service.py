@@ -408,6 +408,111 @@ class EmailService:
         )
         self._deliver(message, recipient)
 
+    def send_member_message_acknowledgement(
+        self, recipient: str, *, provider_name: str, thread_url: str
+    ) -> None:
+        """Acknowledge a saved member message without repeating its private content."""
+        plain = (
+            f"We've received your request to connect with {provider_name}.\n\n"
+            "Your message is available in their portal. Our team will help connect "
+            "you with the provider.\n\n"
+            f"View your private conversation:\n{thread_url}\n\n"
+            "This email does not guarantee a response or appointment. "
+            "If you did not send this message, you can safely ignore this email.\n"
+        )
+        html = self._branded_html(
+            headline="Your message is on its way.",
+            body_html=(
+                f"We've received your request to connect with "
+                f"<strong style=\"color:#f5efe4;\">{escape(provider_name)}</strong>. "
+                "Your message is available in their portal. Our team will help "
+                "connect you with the provider."
+            ),
+            action_label="View your conversation",
+            action_url=thread_url,
+            security_html=(
+                "This does not guarantee a response or appointment.<br>"
+                "If you did not send this message, you can safely ignore this email."
+            ),
+        )
+        message = self._build_message(
+            recipient=recipient,
+            subject="Your EquiConnected message was received",
+            plain=plain,
+            html=html,
+        )
+        self._deliver(message, recipient)
+
+    def send_provider_message_notification(
+        self, recipient: str, *, thread_url: str
+    ) -> None:
+        """Notify a provider about a new thread without disclosing message or contact data."""
+        self._send_message_notification(
+            recipient,
+            subject="A member sent you a message on EquiConnected",
+            headline="You have a new<br>member message.",
+            body_html=(
+                "A member sent you a private message. Sign in to your provider portal "
+                "to view and reply."
+            ),
+            plain=(
+                "A member sent you a private message on EquiConnected.\n\n"
+                f"Sign in to your provider portal to view and reply:\n{thread_url}\n"
+            ),
+            thread_url=thread_url,
+            action_label="View your messages",
+        )
+
+    def send_member_reply_notification(
+        self, recipient: str, *, provider_name: str, thread_url: str
+    ) -> None:
+        """Notify a member about a provider reply without including reply content."""
+        self._send_message_notification(
+            recipient,
+            subject="You have a reply from your EquiConnected provider",
+            headline="You have a reply<br>to your message.",
+            body_html=(
+                f"<strong style=\"color:#f5efe4;\">{escape(provider_name)}</strong> "
+                "replied to your private message. Sign in to your member account to "
+                "view the conversation."
+            ),
+            plain=(
+                f"{provider_name} replied to your private message on EquiConnected.\n\n"
+                f"Sign in to your member account to view the conversation:\n{thread_url}\n"
+            ),
+            thread_url=thread_url,
+            action_label="View your messages",
+        )
+
+    def _send_message_notification(
+        self,
+        recipient: str,
+        *,
+        subject: str,
+        headline: str,
+        body_html: str,
+        plain: str,
+        thread_url: str,
+        action_label: str,
+    ) -> None:
+        """Deliver minimal-content messaging notification to its account recipient."""
+        message = self._build_message(
+            recipient=recipient,
+            subject=subject,
+            plain=plain,
+            html=self._branded_html(
+                headline=headline,
+                body_html=body_html,
+                action_label=action_label,
+                action_url=thread_url,
+                security_html=(
+                    "This private message notification does not contain the conversation. "
+                    "Sign in to view it securely."
+                ),
+            ),
+        )
+        self._deliver(message, recipient)
+
     def send_smtp_test_email(self, recipient: str) -> None:
         """Use the normal SMTP transport, without links, tokens or user-provided content."""
         message = MIMEText(

@@ -30,9 +30,14 @@ function purposeLabel(purpose: EmailDeliveryLog['purpose']): string {
   if (purpose === 'smtp_test') return 'SMTP test';
   if (purpose === 'provider_invitation') return 'Provider profile invitation';
   if (purpose === 'provider_portal_access') return 'Provider portal access';
+  if (purpose === 'provider_portal_recovery') return 'Provider portal password recovery';
+  if (purpose === 'provider_approval') return 'Provider account approval';
   if (purpose === 'subscriber_confirmation') return 'Subscriber confirmation';
   if (purpose === 'contact_notification') return 'Contact notification';
   if (purpose === 'contact_confirmation') return 'Contact confirmation';
+  if (purpose === 'messaging_member_acknowledgement') return 'Private message acknowledgement';
+  if (purpose === 'messaging_provider_new_message') return 'New private provider message';
+  if (purpose === 'messaging_member_reply') return 'Private message reply notification';
   return 'Account verification';
 }
 
