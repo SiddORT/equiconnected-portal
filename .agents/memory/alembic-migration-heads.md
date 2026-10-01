@@ -16,3 +16,9 @@ Each sibling upgrade must also preserve the other branch's accepted values befor
 **Why:** A populated parent branch can already have rows carrying its new values. PostgreSQL validates replacement constraints immediately, so an intermediate constraint excluding those rows aborts before the merge runs.
 
 **How to apply:** After task merges that add migrations, run `alembic heads`. If more than one head exists, create a merge revision, then verify both `alembic upgrade head` and `alembic upgrade head --sql`. For overlapping constraints, test both branch application orders with populated histories, verify every row is preserved, and verify the merged union. If reconciliation changes revision ancestry after development has already been stamped, verify the required tables exist too; add a non-destructive repair migration when the version table is ahead of the actual schema.
+
+A revision reported by an external database is not necessarily a known branch head in the repository. Recover the original migration and its ancestry before using it as a merge parent.
+
+**Why:** A merge referencing an absent revision makes Alembic's graph invalid. Inventing a placeholder parent or stamping the database conceals unknown schema operations instead of repairing their history.
+
+**How to apply:** Check local heads, the remote branch, and available Git history. If the revision remains absent, request its original migration file from the operator; do not guess its parent, replace existing migrations, or claim a two-head merge is verified.
