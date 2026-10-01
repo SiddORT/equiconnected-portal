@@ -35,6 +35,10 @@ args = "Frontend"
 task = "workflow.run"
 args = "Backend API"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "messages-layout"
+
 [[workflows.workflow]]
 name = "Frontend"
 author = "agent"
@@ -58,6 +62,17 @@ waitForPort = 8000
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow]]
+name = "messages-layout"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd frontend && npm run test:messages-browser:harness && npm run test:messages-browser"
+
+[workflows.workflow.metadata]
+isValidation = true
 
 [[ports]]
 localPort = 5000

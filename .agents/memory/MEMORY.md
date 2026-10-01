@@ -55,3 +55,4 @@
 - [Manual screenshot safety](manual-screenshot-safety.md) — use genuine shipped interfaces with labelled synthetic fixtures and fail-closed API isolation, never live decisions or private records.
 - [Protected provisioning evidence](protected-provisioning-evidence.md) — saved-secret confirmation is not encryption validation; verify semantics before reporting recovery.
 - [Contact cutover boundary](contact-cutover-boundary.md) — strict encrypted-only reads require a coordinated offline cutover; never hide incomplete conversion with plaintext fallback.
+- [Browser interception classification](browser-fetch-classification.md) — Vite modules also use CDP Fetch; classify API endpoints before allowing known local static resources.

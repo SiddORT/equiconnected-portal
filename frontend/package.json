@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "vitest run --environment jsdom",
+    "test:messages-browser": "python3 ../scripts/check-messages-theme-browser.py",
+    "test:messages-browser:harness": "python3 ../scripts/test-messages-browser-harness.py",
     "preview": "vite preview"
   },
   "dependencies": {
