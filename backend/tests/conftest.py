@@ -43,6 +43,7 @@ TEST_SCHEMA = "test_equiconnected"
 # ── Tables that need truncation in FK-safe reverse order ─────────────────────
 # Leaf tables first so FK constraints are satisfied.
 _CLEANUP_TABLES = [
+    "postal_lookup_rate_limits",
     "analytics_traffic_tracking_receipts",
     "analytics_traffic_provider_profile_daily",
     "analytics_traffic_page_category_daily",

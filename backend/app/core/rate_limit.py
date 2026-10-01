@@ -1,9 +1,8 @@
 """
-Simple in-memory brute-force rate limiter for the login endpoint.
+Rate-limit dependencies for public endpoints.
 
-Limits each remote IP to MAX_ATTEMPTS login attempts within WINDOW_SECONDS.
-The counter resets on server restart. For multi-process/production deployments
-replace this with a Redis-backed strategy (e.g. slowapi + Redis).
+Postal lookups use shared PostgreSQL state. The other limits remain in-memory
+and reset on server restart; they are not shared between processes.
 
 Usage:
     from app.core.rate_limit import check_login_rate_limit
@@ -15,7 +14,12 @@ import threading
 import time
 from collections import defaultdict, deque
 
-from fastapi import HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
+
+from app.core.postal_rate_limit import consume_postal_lookup_attempt
+from app.db.session import get_db
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -32,7 +36,6 @@ _public_visit_attempts: dict[str, deque[float]] = defaultdict(deque)
 _public_provider_attempts: dict[str, deque[float]] = defaultdict(deque)
 _subscriber_attempts: dict[str, deque[float]] = defaultdict(deque)
 _contact_attempts: dict[str, deque[float]] = defaultdict(deque)
-_postal_lookup_attempts: dict[str, deque[float]] = defaultdict(deque)
 _registration_attempts: dict[str, deque[float]] = defaultdict(deque)
 _email_verification_attempts: dict[str, deque[float]] = defaultdict(deque)
 _verification_resend_attempts: dict[str, deque[float]] = defaultdict(deque)
@@ -186,9 +189,31 @@ def check_registration_rate_limit(request: Request) -> None:
         message="Too many registration attempts. Please try again later.",
     )
 
-def check_postal_lookup_rate_limit(request: Request) -> None:
-    _check_rate_limit(request, _postal_lookup_attempts, window_seconds=60, max_attempts=20,
-                      message="Too many postal lookup requests. Please try again later.")
+def check_postal_lookup_rate_limit(
+    request: Request, db: Session = Depends(get_db),
+) -> None:
+    """Share the postal budget across workers; never bypass a failed store."""
+    ip = (request.client.host if request.client else None) or "unknown"
+    try:
+        allowed = consume_postal_lookup_attempt(db, ip)
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "rate_limit_unavailable",
+                "message": "Postal lookup is temporarily unavailable. Please try again later.",
+            },
+            headers={"Retry-After": "60"},
+        ) from exc
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "rate_limited",
+                "message": "Too many postal lookup requests. Please try again later.",
+            },
+            headers={"Retry-After": "60"},
+        )
 
 
 def check_email_verification_rate_limit(request: Request) -> None:

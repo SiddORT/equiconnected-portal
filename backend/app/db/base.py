@@ -4,6 +4,7 @@ Do NOT import this file from application code. Models and sessions
 should import from app.db.base_class and app.db.session respectively.
 """
 from app.db.base_class import Base  # noqa: F401
+from app.models.postal_lookup_rate_limit import PostalLookupRateLimit  # noqa: F401, E402
 
 # Register all models for Alembic autogenerate
 from app.models.role import Role  # noqa: F401, E402
