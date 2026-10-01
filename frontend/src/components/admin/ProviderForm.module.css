@@ -44,6 +44,10 @@
   position: relative;
   z-index: 5;
 }
+.form .invitationLanguageCard {
+  /* The language menu overlaps the invitation service card's dropdown context. */
+  z-index: 6;
+}
 .form .emergencyDropdownCard {
   overflow: visible;
   position: relative;

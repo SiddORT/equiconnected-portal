@@ -1,13 +1,15 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { StrictMode, useState } from 'react';
+import { readFileSync } from 'node:fs';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { lookupProviderPostalCode } from '@/api/auth';
+import { listProviderSignupLanguages, lookupProviderPostalCode } from '@/api/auth';
 import { saveInvitationDraft, submitInvitation } from '@/api/invitations';
 import type { InvitationTokenData } from '@/types';
 import { InvitationAddresses, emptyInvitationAddress, type InvitationAddress } from './InvitationProfileFields';
 import { InvitationDoctorForm } from './InvitationDoctorForm';
+import doctorStyles from '@/components/admin/DoctorForm.module.css';
 
 vi.mock('@/api/auth', () => ({
   listProviderSignupLanguages: vi.fn().mockResolvedValue([]),
@@ -68,6 +70,43 @@ const postalMatch = {
     display_name: 'Toronto, Ontario, Canada',
   }],
 };
+
+it('lets doctor invitees search, change, save and restore languages in an unclipped card', async () => {
+  vi.mocked(listProviderSignupLanguages).mockResolvedValueOnce([
+    { id: 'en', name: 'English', code: 'en' },
+    { id: 'fr', name: 'French', code: 'fr' },
+  ]).mockResolvedValueOnce([
+    { id: 'en', name: 'English', code: 'en' },
+    { id: 'fr', name: 'French', code: 'fr' },
+  ]);
+  const user = userEvent.setup();
+  const { unmount } = render(<MemoryRouter><InvitationDoctorForm token="token"
+    data={{ ...data, provider: { ...data.provider, language_ids: ['en'] } }} /></MemoryRouter>);
+  await screen.findByRole('button', { name: 'Remove English' });
+  const trigger = screen.getByRole('button', { name: 'Languages' });
+  const card = trigger.closest(`.${doctorStyles.dropdownCard}`);
+  expect(card).not.toBeNull();
+  expect(screen.getByRole('heading', { name: 'Basic information' }).closest(`.${doctorStyles.dropdownCard}`)).toBeNull();
+  const css = readFileSync('src/components/admin/DoctorForm.module.css', 'utf8');
+  expect(css).toMatch(/\.form\s+\.dropdownCard\s*\{[^}]*overflow:\s*visible;[^}]*position:\s*relative;[^}]*z-index:\s*5;/);
+  expect(readFileSync('src/components/ui/Card.module.css', 'utf8')).toMatch(/\.card\s*\{[^}]*overflow:\s*hidden;/);
+  await user.click(trigger);
+  await user.type(screen.getByRole('searchbox', { name: 'Search languages' }), 'fr');
+  expect(screen.queryByRole('option', { name: 'English (en)' })).toBeNull();
+  await user.click(screen.getByRole('option', { name: 'French (fr)' }));
+  await user.click(screen.getByRole('button', { name: 'Remove English' }));
+  await user.click(screen.getByRole('heading', { name: 'Languages' }));
+  expect(screen.queryByRole('listbox', { name: 'Languages' })).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Save draft' }));
+  await waitFor(() => expect(saveInvitationDraft).toHaveBeenCalledWith('token', expect.objectContaining({ language_ids: ['fr'] })));
+  const calls = vi.mocked(saveInvitationDraft).mock.calls;
+  const payload = calls[calls.length - 1][1];
+  unmount();
+  render(<MemoryRouter><InvitationDoctorForm token="token"
+    data={{ ...data, provider: { ...data.provider, ...payload } }} /></MemoryRouter>);
+  expect(await screen.findByRole('button', { name: 'Remove French' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Remove English' })).toBeNull();
+});
 
 it('restores structured names and submits them without organization associations', async () => {
   const user = userEvent.setup();

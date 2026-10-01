@@ -1018,7 +1018,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       )}
 
       {/* ── Basic information ─────────────────────────────────────────────── */}
-      {(!wizard || wizardStep === 0) && <Card padding="lg" shadow="sm" className={wizard ? `${styles.cardFull} ${styles.dropdownCard}` : undefined}>
+      {(!wizard || wizardStep === 0) && <Card padding="lg" shadow="sm" className={wizard ? `${styles.cardFull} ${styles.dropdownCard}` : `${styles.dropdownCard} ${styles.invitationLanguageCard}`}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>Basic information</h3>
           <div className={styles.grid}>

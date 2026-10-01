@@ -714,7 +714,7 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
       </Card>
 
       {inv && (
-        <Card padding="lg" shadow="sm" className={styles.cardFull}>
+        <Card padding="lg" shadow="sm" className={`${styles.cardFull} ${styles.dropdownCard}`}>
           <section className={styles.section}>
             <h3 className={styles.sectionTitle}>Languages</h3>
             <SignupMultiSelect

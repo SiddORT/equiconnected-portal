@@ -468,6 +468,34 @@ describe('ProviderForm primary address layout', () => {
 });
 
 describe('ProviderForm visit stability', () => {
+  it.each(['CLINIC', 'HOSPITAL'] as const)('keeps %s invitation language search, draft and restored selections usable in a dropdown card', async (providerType) => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    const config = { ...invitationConfig({ language_ids: ['lang-en'] }, save), providerType };
+    const { unmount } = render(<ProviderForm invitation={config} />);
+    await screen.findByRole('button', { name: 'Remove English' });
+    const trigger = screen.getByRole('button', { name: 'Languages' });
+    expect(trigger.closest(`.${styles.dropdownCard}`)).not.toBeNull();
+    expect(trigger.closest(`.${styles.invitationLanguageCard}`)).not.toBeNull();
+    expect(screen.getByRole('heading', { name: /Contact/ }).closest(`.${styles.dropdownCard}`)).toBeNull();
+    const css = readFileSync('src/components/admin/ProviderForm.module.css', 'utf8');
+    expect(css).toMatch(/\.form\s+\.dropdownCard\s*\{[^}]*overflow:\s*visible;[^}]*position:\s*relative;[^}]*z-index:\s*5;/);
+    expect(css).toMatch(/\.form\s+\.invitationLanguageCard\s*\{[^}]*z-index:\s*6;/);
+    await user.click(trigger);
+    await user.type(screen.getByRole('searchbox', { name: 'Search languages' }), 'fr');
+    expect(screen.queryByRole('option', { name: 'English (en)' })).toBeNull();
+    await user.click(screen.getByRole('option', { name: 'French (fr)' }));
+    await user.click(screen.getByRole('button', { name: 'Remove English' }));
+    await user.click(screen.getByRole('heading', { name: 'Basic information' }));
+    expect(screen.queryByRole('listbox', { name: 'Languages' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ language_ids: ['lang-fr'] })));
+    unmount();
+    render(<ProviderForm invitation={{ ...config, initial: { ...config.initial, ...save.mock.calls[0][0] } }} />);
+    expect(await screen.findByRole('button', { name: 'Remove French' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Remove English' })).toBeNull();
+  });
+
   it.each(['CLINIC', 'HOSPITAL'] as const)(
     'prefills and saves zero years of experience in a %s invitation draft',
     async (providerType) => {
