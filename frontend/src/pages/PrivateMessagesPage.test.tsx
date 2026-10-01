@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import * as messagesApi from '@/api/messages';
@@ -159,6 +159,45 @@ afterEach(() => {
 });
 
 describe('private member and provider messaging', () => {
+  it.each([
+    '/member/messages',
+    '/member/messages/conversation-1',
+    '/member/messages?provider_id=provider-1',
+  ])('keeps actual messaging copy compact despite global paragraph defaults at %s', async (path) => {
+    renderMemberMessages(path);
+    if (path.includes('?')) await screen.findByRole('heading', { name: 'Ranch Equine Care' });
+    else if (path.includes('conversation-1')) await screen.findByText('We will be in touch.');
+    else await screen.findByText(/Your inbox is empty/);
+
+    // Vitest stubs CSS imports: read the shipped sheet and map module names to
+    // the rendered DOM, so specificity and later rules are tested together.
+    const sheet = document.createElement('style');
+    const css = readFileSync('src/pages/PrivateMessagesPage.module.css', 'utf8');
+    sheet.textContent = `p { font-size: 24px; }\n${css.replace(
+      /\.([a-zA-Z][\w-]*)/g, (match, name: string) => styles[name] ? `.${styles[name]}` : match,
+    )}`;
+    document.head.append(sheet);
+    try {
+      for (const paragraph of document.querySelectorAll(`.${styles.page} p`)) {
+        const size = parseFloat(getComputedStyle(paragraph).fontSize);
+        expect(size, paragraph.textContent ?? 'paragraph').toBeGreaterThanOrEqual(10);
+        expect(size, paragraph.textContent ?? 'paragraph').toBeLessThanOrEqual(14);
+      }
+      const body = screen.queryByText('We will be in touch.');
+      if (body) expect(getComputedStyle(body).fontSize).toBe('14px');
+      const composer = screen.queryByRole('textbox');
+      if (composer) {
+        expect(getComputedStyle(composer).fontSize).toBe('14px');
+        expect(getComputedStyle(composer).fontWeight).toBe('400');
+      }
+      expect(css).toMatch(/clamp\(28px,\s*4\.5vw,\s*32px\)/);
+      expect(css).toMatch(/\.threadHeader h2,[\s\S]*?font:\s*500 20px/);
+      expect(css).toMatch(/\.message p\s*\{[^}]*overflow-wrap:\s*anywhere/);
+    } finally {
+      sheet.remove();
+    }
+  });
+
   it('gives a new conversation the full workspace width without an empty inbox column', async () => {
     renderMemberMessages('/member/messages?provider_id=provider-1');
 

@@ -8,3 +8,7 @@ For selector-isolation regressions, parse the actual stylesheet rather than trus
 **Why:** In this frontend's Vitest configuration, a CSS module imported with a raw query still resolved as a stub rather than a source string. DOM-only interaction tests also cannot reveal a search input collapsed by an ancestor's descendant selector.
 
 **How to apply:** Read stylesheet text from disk in the test, use CSSOM to inspect relevant selectors, and pair those checks with real-browser dimensions and focus inspection. Include both coarse-pointer and non-touch narrow viewports; JSDOM is not a layout engine.
+
+Use a filesystem path relative to the frontend test working directory when reading CSS in Vitest, rather than resolving it against `import.meta.url`.
+
+**Why:** Vite can transform `import.meta.url` into a browser URL in these tests, so Node's file reader rejects the resulting non-file URL.
