@@ -285,10 +285,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const [selectedSpecIds, setSelectedSpecIds] = useState<string[]>(
     inv?.initial.specialization_ids ?? initialData?.specializations.map((s) => s.id) ?? []
   );
-  const [doctorAvailability, setDoctorAvailability] = useState<DoctorAvailability | ''>(
-    initialData?.doctor_availability ?? ''
+  const [doctorAvailability, setDoctorAvailability] = useState<DoctorAvailability>(
+    initialData?.doctor_availability ?? 'ONGOING'
   );
-  const [doctorAvailabilityTouched, setDoctorAvailabilityTouched] = useState(false);
   const [initialVisitLocation, setInitialVisitLocation] = useState({
     name: '', address_line_1: '', city: '', state_province: '', country: '', postal_code: '',
   });
@@ -758,8 +757,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                 })),
               }
             : {}),
-          ...(providerType === 'DOCTOR' && doctorAvailabilityTouched
-            ? { doctor_availability: doctorAvailability || null }
+          ...(providerType === 'DOCTOR'
+            ? { doctor_availability: doctorAvailability }
             : {}),
         });
         // Status / publication use dedicated endpoints — only when changed.
@@ -929,7 +928,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               }
             : {}),
           ...(providerType === 'DOCTOR'
-            ? { doctor_availability: doctorAvailability || null, ...(completedInitialVisit ? { initial_visit: completedInitialVisit } : {}) }
+            ? { doctor_availability: doctorAvailability, ...(completedInitialVisit ? { initial_visit: completedInitialVisit } : {}) }
             : {}),
         };
         saved = await createProvider(body);
@@ -1401,11 +1400,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             <Select
               label="Availability"
               options={[{ value: 'ONGOING', label: 'Ongoing' }, { value: 'VISITING', label: 'Visiting' }]}
-              placeholder="Not scheduled"
               value={doctorAvailability}
               onChange={(e) => {
-                setDoctorAvailabilityTouched(true);
-                setDoctorAvailability(e.target.value as DoctorAvailability | '');
+                setDoctorAvailability(e.target.value as DoctorAvailability);
                 if (e.target.value !== 'VISITING') {
                   setInitialVisitStart('');
                   setInitialVisitEnd('');
@@ -1576,7 +1573,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               { label: 'Status', value: status },
               { label: 'Publication', value: publication },
               ...(providerType === 'DOCTOR' ? [
-                { label: 'Doctor availability', value: doctorAvailability === 'ONGOING' ? 'Ongoing' : doctorAvailability === 'VISITING' ? 'Visiting' : 'Unknown / legacy' },
+                { label: 'Doctor availability', value: doctorAvailability === 'ONGOING' ? 'Ongoing' : 'Visiting' },
                 ...(!isEdit
                   ? [{ label: 'Initial visit', value: initialVisitStart && initialVisitEnd && initialVisitLocation.city ? `${initialVisitStart} to ${initialVisitEnd} · ${initialVisitLocation.city}` : 'No visit scheduled' }]
                   : [{ label: 'Recorded visits', value: initialData?.doctor_visits?.length ? `${initialData.doctor_visits.length} visit period${initialData.doctor_visits.length === 1 ? '' : 's'}` : 'No visits recorded' }]),

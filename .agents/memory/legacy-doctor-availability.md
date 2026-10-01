@@ -7,4 +7,4 @@ Missing doctor availability classification means unknown, not ongoing or visitin
 
 **Why:** Older records had no calendar contract. Treating absence as ongoing would claim availability without an administrator confirming it.
 
-**How to apply:** Preserve unknown classification on legacy edits until an admin explicitly chooses one; distinguish an unscheduled visiting doctor from an ongoing doctor in admin displays.
+**How to apply:** Untouched historical records remain unknown in public and detail displays. The administrator Add/Edit wizard intentionally displays Ongoing when classification is missing, and confirming Save changes accepts and persists that displayed classification even without interacting with the control. Opening or cancelling the editor must never write a classification. Preserve saved Visiting selections and visit history; do not apply this admin default to invitation, signup, or provider-portal flows.

@@ -229,8 +229,6 @@ async function beginAdminWizard(type = 'CLINIC') {
 }
 
 async function finishClinicWizard(user: ReturnType<typeof userEvent.setup>) {
-  const availability = screen.queryByRole('combobox', { name: 'Availability' });
-  if (availability) await user.selectOptions(availability, 'ONGOING');
   await user.click(screen.getByRole('button', { name: 'Continue' }));
   await user.click(screen.getByRole('button', { name: /Add email/i }));
   await user.type(screen.getByRole('textbox', { name: 'Email address 1' }), 'clinic@example.com');
@@ -1646,7 +1644,7 @@ describe('ProviderForm edit wizard', () => {
   });
 });
 
-describe('Task 209 doctor availability and initial visit UI', () => {
+describe('Admin doctor availability and initial visit UI', () => {
   async function beginDoctor(user: ReturnType<typeof userEvent.setup>) {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Provider type' }), 'DOCTOR');
     await user.type(screen.getByLabelText('Provider / practice name'), 'Prairie Equine Care');
@@ -1656,10 +1654,10 @@ describe('Task 209 doctor availability and initial visit UI', () => {
     await user.click(screen.getByRole('button', { name: 'Continue' }));
   }
 
-  it('shows availability and initial visit fields only for a new Doctor, never a clinic', async () => {
+  it.each(['CLINIC', 'HOSPITAL'])('shows exactly two defaulted doctor options, never on a %s', async (type) => {
     const user = userEvent.setup();
     render(<ProviderForm />);
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Provider type' }), 'CLINIC');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Provider type' }), type);
     await user.type(screen.getByLabelText('Provider / practice name'), 'Meadow Clinic');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.queryByLabelText('Availability')).toBeNull();
@@ -1667,11 +1665,47 @@ describe('Task 209 doctor availability and initial visit UI', () => {
 
     render(<ProviderForm />);
     await beginDoctor(user);
-    expect(screen.getByLabelText('Availability')).toBeTruthy();
+    const availability = screen.getByLabelText('Availability') as HTMLSelectElement;
+    expect(Array.from(availability.options).map((option) => [option.value, option.text])).toEqual([
+      ['ONGOING', 'Ongoing'], ['VISITING', 'Visiting'],
+    ]);
+    expect(availability.value).toBe('ONGOING');
+    expect(screen.queryByLabelText('Start date')).toBeNull();
     await user.selectOptions(screen.getByLabelText('Availability'), 'VISITING');
     expect(screen.getByLabelText('Start date')).toBeTruthy();
     expect(screen.getByLabelText('End date')).toBeTruthy();
     expect(screen.getByLabelText('Address line 1')).toBeTruthy();
+  });
+
+  it('creates an ongoing doctor without touching availability and reviews the persisted default', async () => {
+    vi.mocked(createProvider).mockResolvedValue({ id: 'doctor-ongoing', photos: [] } as unknown as Provider);
+    const user = userEvent.setup();
+    render(<ProviderForm />);
+    await beginDoctor(user);
+    await finishClinicWizard(user);
+    expect(screen.getByText('Ongoing')).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Create provider' }));
+    await waitFor(() => expect(createProvider).toHaveBeenCalledWith(expect.objectContaining({
+      provider_type: 'DOCTOR', doctor_availability: 'ONGOING',
+    })));
+    expect(vi.mocked(createProvider).mock.calls[0][0]).not.toHaveProperty('initial_visit');
+  });
+
+  it('rejects incomplete and reversed initial visits while allowing a blank optional visit', async () => {
+    const user = userEvent.setup();
+    render(<ProviderForm />);
+    await beginDoctor(user);
+    await user.selectOptions(screen.getByLabelText('Availability'), 'VISITING');
+    await user.type(screen.getByLabelText('Start date'), '2026-06-03');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('Complete the initial visit location and both dates, or leave it unscheduled.')).toBeTruthy();
+    await user.type(screen.getByLabelText('Address line 1'), '1 Prairie Way');
+    await user.type(screen.getByLabelText('City'), 'Calgary');
+    await user.type(screen.getByLabelText('End date'), '2026-06-01');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('End date must be on or after the start date.')).toBeTruthy();
+    expect(createProvider).not.toHaveBeenCalled();
   });
 
   it('saves a visiting Doctor without a visit when the optional fields stay blank', async () => {
@@ -1743,11 +1777,15 @@ describe('Task 209 doctor availability and initial visit UI', () => {
     })));
   });
 
-  it('keeps a legacy null availability unset during Doctor edit until explicitly chosen', async () => {
+  it.each([null, undefined, 'ONGOING', 'VISITING'] as const)('reviews and saves %s doctor availability without interaction', async (availability) => {
     const provider = existingProvider({
       provider_type: 'DOCTOR',
       doctor_profile: { first_name: 'Maya', last_name: 'Singh', professional_title: null, biography: null, years_experience: null, experience_description: null },
-      doctor_availability: null,
+      doctor_availability: availability,
+      doctor_visits: availability === 'VISITING' ? [{
+        id: 'visit-1', location: { address_line_1: '1 Prairie Way', city: 'Calgary' },
+        start_date: '2026-06-01', end_date: '2026-06-03',
+      }] : [],
     });
     vi.mocked(updateProvider).mockResolvedValue(provider);
     vi.mocked(getProvider).mockResolvedValue(provider);
@@ -1755,12 +1793,33 @@ describe('Task 209 doctor availability and initial visit UI', () => {
     render(<ProviderForm initialData={provider} />);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
-    expect((screen.getByLabelText('Availability') as HTMLSelectElement).value).toBe('');
+    expect((screen.getByLabelText('Availability') as HTMLSelectElement).value).toBe(availability ?? 'ONGOING');
+    expect(screen.queryByLabelText('Start date')).toBeNull();
+    expect(updateProvider).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText(availability === 'VISITING' ? 'Visiting' : 'Ongoing')).toBeTruthy();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(updateProvider).toHaveBeenCalled());
-    expect(vi.mocked(updateProvider).mock.calls[0][1]).not.toHaveProperty('doctor_availability');
+    expect(vi.mocked(updateProvider).mock.calls[0][1]).toMatchObject({
+      doctor_availability: availability ?? 'ONGOING',
+    });
+    expect(vi.mocked(updateProvider).mock.calls[0][1]).not.toHaveProperty('doctor_visits');
+    expect(vi.mocked(updateProvider).mock.calls[0][1]).not.toHaveProperty('initial_visit');
+  });
+
+  it('does not write missing availability when the administrator opens and cancels the editor', async () => {
+    const provider = existingProvider({ provider_type: 'DOCTOR', doctor_availability: null });
+    const onCancel = vi.fn();
+    const user = userEvent.setup();
+    render(<ProviderForm initialData={provider} onCancel={onCancel} />);
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect((screen.getByLabelText('Availability') as HTMLSelectElement).value).toBe('ONGOING');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onCancel).toHaveBeenCalledOnce();
+    expect(updateProvider).not.toHaveBeenCalled();
+    expect(provider.doctor_availability).toBeNull();
   });
 });
