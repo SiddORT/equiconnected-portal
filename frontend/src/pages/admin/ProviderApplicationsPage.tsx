@@ -20,6 +20,7 @@ import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { FilterBar } from '@/components/ui/FilterBar';
 import { Pagination } from '@/components/ui/Pagination';
 import { SearchInput } from '@/components/ui/SearchInput';
+import applicationStyles from './ProviderApplicationsPage.module.css';
 import styles from './UsersPage.module.css';
 import type {
   LoadingState,
@@ -176,7 +177,7 @@ export function ProviderApplicationsPage() {
         {showListControls && loadState === 'success' && result && <Pagination page={page} pageSize={pageSize} total={result.meta.total} onPageChange={(next) => updateParams({ page: String(next) })} onPageSizeChange={(size) => updateParams({ page_size: String(size), page: '1' })} />}
         </>}
       </div>
-      {activeTab === 'applications' && detailTarget && <ApplicationDialog application={detailTarget} formatTimestamp={formatTimestamp} onClose={() => { setDetailTarget(null); setDecision(null); }} onDecision={setDecision} error={decisionError} />}
+      {activeTab === 'applications' && detailTarget && <ApplicationDialog application={detailTarget} formatTimestamp={formatTimestamp} onClose={() => { setDetailTarget(null); setDecision(null); }} onDecision={setDecision} error={decisionError} confirmationOpen={decision !== null} />}
       {activeTab === 'applications' && detailTarget && decision && <DecisionDialog action={decision} providerName={detailTarget.provider_name} busy={deciding} onCancel={() => setDecision(null)} onConfirm={() => void decide()} />}
     </div>
   );
@@ -260,33 +261,124 @@ function ProviderUpdatesTab({ formatTimestamp }: { formatTimestamp: (value: stri
     {detailTarget && decision && <ProfileUpdateDecisionDialog action={decision} providerName={detailTarget.provider_name} busy={deciding} onCancel={() => setDecision(null)} onConfirm={(reason) => void decide(reason)} />}
   </>;
 }
-function ApplicationDialog({ application, formatTimestamp, onClose, onDecision, error }: { application: ProviderApplication; formatTimestamp: (value: string) => string; onClose: () => void; onDecision: (value: 'approve' | 'reject') => void; error: string | null }) {
+function ApplicationDialog({ application, formatTimestamp, onClose, onDecision, error, confirmationOpen }: { application: ProviderApplication; formatTimestamp: (value: string) => string; onClose: () => void; onDecision: (value: 'approve' | 'reject') => void; error: string | null; confirmationOpen: boolean }) {
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => { closeRef.current?.focus(); const handler = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); }; window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler); }, [onClose]);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => { closeRef.current?.focus(); }, []);
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => { if (event.key === 'Escape' && !confirmationOpen) onCloseRef.current(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [confirmationOpen]);
   const isPending = application.review_status === 'PENDING_REVIEW';
-  return <div className={styles.detailBackdrop} role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <div className={styles.detailPanel}>
-      <header className={styles.detailHeader}><h2 id={titleId} className={styles.detailTitle}>Provider application</h2><button ref={closeRef} type="button" className={styles.detailClose} onClick={onClose} aria-label="Close dialog">✕</button></header>
-      <dl className={styles.details}>
-        <dt>Provider</dt><dd>{application.provider_name}</dd>
-        <dt>Type</dt><dd>{application.provider_type[0] + application.provider_type.slice(1).toLowerCase()}</dd>
-        <dt>Visit availability</dt><dd>{application.visit_stability === 'STABLE_VISIT' ? 'Stable visits' : 'Clinic-based'}</dd>
-        <dt>Applicant</dt><dd>{application.full_name}</dd>
-        <dt>Email</dt><dd>{application.email}</dd>
-        <dt>Mobile</dt><dd>{application.mobile_number ?? '—'}</dd>
-        <dt>Location</dt><dd>{[application.city, application.state_province, application.country].filter(Boolean).join(', ') || '—'}</dd>
-        <dt>Email verification</dt><dd>{application.email_verified_at ? <><Badge size="sm" variant="success">Verified</Badge><span className={styles.muted}>{formatTimestamp(application.email_verified_at)}</span></> : <Badge size="sm" variant="neutral">Unverified</Badge>}</dd>
-        <dt>Review status</dt><dd>{applicationStatusBadge(application.review_status)}</dd>
-        <dt>Submitted</dt><dd>{formatTimestamp(application.created_at)}</dd>
-        {application.reviewed_at && <><dt>Reviewed</dt><dd>{formatTimestamp(application.reviewed_at)}{application.reviewed_by_name ? ` by ${application.reviewed_by_name}` : ''}</dd></>}
-        {application.rejection_reason && <><dt>Reason</dt><dd>{application.rejection_reason}</dd></>}
-        {application.provider_id && <><dt>Staged listing</dt><dd>Draft, unpublished</dd></>}
-      </dl>
-      {error && <div style={{ padding: '0 var(--space-6)' }}><Alert variant="error">{error}</Alert></div>}
-      <footer className={styles.detailFooter}>
-        {isPending && <><Button variant="danger" onClick={() => onDecision('reject')}>Reject</Button><Button variant="primary" onClick={() => onDecision('approve')}>Approve &amp; stage listing</Button></>}
-        <Button variant="ghost" onClick={onClose}>Close</Button>
+  const value = (input: string | number | boolean | null | undefined) => {
+    if (input === null || input === undefined || input === '') return 'Not provided';
+    if (typeof input === 'boolean') return input ? 'Yes' : 'No';
+    return String(input);
+  };
+  const detail = (label: string, content: string | number | boolean | null | undefined, wide = false) =>
+    <div className={`${applicationStyles.detailItem} ${wide ? applicationStyles.detailItemWide : ''}`} key={label}>
+      <dt className={applicationStyles.detailLabel}>{label}</dt>
+      <dd className={`${applicationStyles.detailValue} ${content === null || content === undefined || content === '' ? applicationStyles.detailValueMuted : ''}`}>{value(content)}</dd>
+    </div>;
+  const selectionDetail = (label: string, items: Array<{ id: string; name: string }> | null | undefined, fallback?: string[] | null) => {
+    const names = items?.map((item) => item.name).filter(Boolean) ?? [];
+    const selected = names.length ? names : fallback ?? [];
+    return <div className={`${applicationStyles.detailItem} ${applicationStyles.detailItemWide}`} key={label}>
+      <dt className={applicationStyles.detailLabel}>{label}</dt>
+      <dd className={`${applicationStyles.detailValue} ${selected.length ? '' : applicationStyles.detailValueMuted}`}>
+        {selected.length
+          ? <span className={applicationStyles.selectionList}>{selected.map((name, index) => <span className={applicationStyles.selection} key={`${name}-${index}`}>{name}</span>)}</span>
+          : 'Not provided'}
+      </dd>
+    </div>;
+  };
+  const consent = (timestamp: string | null) => timestamp ? `Accepted · ${formatTimestamp(timestamp)}` : 'Not provided';
+  const focusableSelector = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  return <div className={applicationStyles.applicationBackdrop} role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(event) => { if (event.target === event.currentTarget && !confirmationOpen) onClose(); }}>
+    <div className={applicationStyles.applicationPanel} onKeyDown={(event) => {
+      if (event.key !== 'Tab') return;
+      const nodes = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(focusableSelector));
+      if (!nodes.length) return;
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }}>
+      <header className={applicationStyles.applicationHeader}>
+        <div className={applicationStyles.headerCopy}>
+          <span className={applicationStyles.eyebrow}>New provider registration</span>
+          <h2 id={titleId} className={applicationStyles.applicationTitle}>Provider application</h2>
+          <p className={applicationStyles.providerLine}>{application.provider_name} · {application.provider_type[0] + application.provider_type.slice(1).toLowerCase()}</p>
+        </div>
+        <button ref={closeRef} type="button" className={applicationStyles.closeButton} onClick={onClose} aria-label="Close application details">×</button>
+      </header>
+      <main className={applicationStyles.applicationContent}>
+        <section className={applicationStyles.section} aria-labelledby={`${titleId}-professional`}>
+          <h3 id={`${titleId}-professional`} className={applicationStyles.sectionHeading}><span className={applicationStyles.sectionIndex}>01</span> Provider &amp; professional details</h3>
+          <dl className={applicationStyles.detailGrid}>
+            {detail('Provider name', application.provider_name)}
+            {detail('Provider type', application.provider_type[0] + application.provider_type.slice(1).toLowerCase())}
+            {detail('Professional title', application.professional_title)}
+            {detail('Years of experience', application.years_experience)}
+            {selectionDetail('Specializations', application.specializations, application.specialization_ids)}
+            {selectionDetail('Languages', application.languages)}
+          </dl>
+        </section>
+        <section className={applicationStyles.section} aria-labelledby={`${titleId}-applicant`}>
+          <h3 id={`${titleId}-applicant`} className={applicationStyles.sectionHeading}><span className={applicationStyles.sectionIndex}>02</span> Applicant &amp; contact</h3>
+          <dl className={applicationStyles.detailGrid}>
+            {detail('First name', application.first_name)}
+            {detail('Last name', application.last_name)}
+            {detail('Full name on account', application.full_name)}
+            {detail('Email', application.email)}
+            {detail('Mobile number', application.mobile_number)}
+          </dl>
+        </section>
+        <section className={applicationStyles.section} aria-labelledby={`${titleId}-address`}>
+          <h3 id={`${titleId}-address`} className={applicationStyles.sectionHeading}><span className={applicationStyles.sectionIndex}>03</span> Address</h3>
+          <dl className={applicationStyles.detailGrid}>
+            {detail('Working address', application.working_address, true)}
+            {detail('City', application.city)}
+            {detail('State / province', application.state_province)}
+            {detail('Postal code', application.postal_code)}
+            {detail('Country', application.country)}
+          </dl>
+        </section>
+        <section className={applicationStyles.section} aria-labelledby={`${titleId}-services`}>
+          <h3 id={`${titleId}-services`} className={applicationStyles.sectionHeading}><span className={applicationStyles.sectionIndex}>04</span> Services</h3>
+          <dl className={applicationStyles.detailGrid}>
+            {detail('Stable visits available', application.stable_visit)}
+            {detail('Maximum working radius (km)', application.maximum_working_radius_km)}
+            {detail('Emergency services available', application.emergency_services_available)}
+            {detail('Emergency contact number', application.emergency_contact_number)}
+          </dl>
+        </section>
+        <section className={applicationStyles.section} aria-labelledby={`${titleId}-review`}>
+          <h3 id={`${titleId}-review`} className={applicationStyles.sectionHeading}><span className={applicationStyles.sectionIndex}>05</span> Consent &amp; review</h3>
+          <dl className={applicationStyles.detailGrid}>
+            {detail('Terms accepted', consent(application.terms_accepted_at), true)}
+            {detail('Privacy accepted', consent(application.privacy_accepted_at), true)}
+            {detail('Email verification', application.email_verified_at ? `Verified · ${formatTimestamp(application.email_verified_at)}` : 'Unverified', true)}
+            {detail('Review status', application.review_status.replace(/_/g, ' '))}
+            {detail('Submitted', formatTimestamp(application.created_at))}
+            {detail('Reviewed', application.reviewed_at ? formatTimestamp(application.reviewed_at) : null)}
+            {detail('Reviewed by', application.reviewed_by_name)}
+            {detail('Rejection reason', application.rejection_reason, true)}
+            {detail('Legacy visit classification', application.visit_stability === 'STABLE_VISIT' ? 'Stable visits' : 'Clinic-based', true)}
+            {detail('Staged listing', application.provider_id ? `Draft, unpublished · ${application.provider_id}` : 'Created as a draft listing when approved', true)}
+          </dl>
+        </section>
+      </main>
+      {error && <div className={applicationStyles.applicationError}><Alert variant="error">{error}</Alert></div>}
+      <footer className={applicationStyles.applicationFooter}>
+        <p className={applicationStyles.footerNote}>{isPending ? 'Decisions are recorded in the activity history.' : 'This application has already been reviewed.'}</p>
+        <div className={applicationStyles.footerActions}>
+          {isPending && <><Button variant="danger" onClick={() => onDecision('reject')}>Reject</Button><Button variant="primary" onClick={() => onDecision('approve')}>Approve &amp; stage listing</Button></>}
+          <Button variant="ghost" onClick={onClose}>Close</Button>
+        </div>
       </footer>
     </div>
   </div>;
@@ -341,16 +433,40 @@ function ProfileUpdateDialog({ update, formatTimestamp, onClose, onDecision, err
 function DecisionDialog({ action, providerName, busy, onCancel, onConfirm }: { action: 'approve' | 'reject'; providerName: string; busy: boolean; onCancel: () => void; onConfirm: () => void }) {
   const titleId = useId();
   const confirmationRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => { confirmationRef.current?.focus(); }, []);
+  const cancelRef = useRef(onCancel);
+  cancelRef.current = onCancel;
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    confirmationRef.current?.focus();
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !busyRef.current) {
+        event.stopPropagation();
+        cancelRef.current();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, []);
   const approving = action === 'approve';
-  return <div className={styles.detailBackdrop} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-    <div className={styles.detailPanel}>
-      <header className={styles.detailHeader}><h2 id={titleId} className={styles.detailTitle}>{approving ? 'Approve provider application?' : 'Reject provider application?'}</h2></header>
-      <div style={{ padding: 'var(--space-6)' }}>
+  return <div className={`${applicationStyles.applicationBackdrop} ${applicationStyles.decisionBackdrop}`} role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(event) => { if (event.target === event.currentTarget && !busy) onCancel(); }}>
+    <div className={`${applicationStyles.applicationPanel} ${applicationStyles.decisionPanel}`} onKeyDown={(event) => {
+      if (event.key !== 'Tab') return;
+      const nodes = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      if (!nodes.length) return;
+      if (event.shiftKey && document.activeElement === nodes[0]) { event.preventDefault(); nodes[nodes.length - 1].focus(); }
+      else if (!event.shiftKey && document.activeElement === nodes[nodes.length - 1]) { event.preventDefault(); nodes[0].focus(); }
+    }}>
+      <header className={applicationStyles.applicationHeader}><h2 id={titleId} className={applicationStyles.applicationTitle}>{approving ? 'Approve provider application?' : 'Reject provider application?'}</h2></header>
+      <div className={applicationStyles.decisionBody}>
         <p>{approving ? `Approving ${providerName} will enable its account and create one draft, unpublished directory listing.` : `Rejecting ${providerName} will prevent provider access and listing creation.`}</p>
-        <p className={styles.muted}>This decision is recorded in the activity history.</p>
+        <p>This decision is recorded in the activity history.</p>
       </div>
-      <footer className={styles.detailFooter}><Button variant="ghost" onClick={onCancel} disabled={busy}>Cancel</Button><Button ref={confirmationRef} variant={approving ? 'primary' : 'danger'} onClick={onConfirm} loading={busy}>{approving ? 'Approve application' : 'Reject application'}</Button></footer>
+      <footer className={applicationStyles.applicationFooter}><div className={applicationStyles.footerActions}><Button variant="ghost" onClick={onCancel} disabled={busy}>Cancel</Button><Button ref={confirmationRef} variant={approving ? 'primary' : 'danger'} onClick={onConfirm} loading={busy}>{approving ? 'Approve application' : 'Reject application'}</Button></div></footer>
     </div>
   </div>;
 }

@@ -198,7 +198,11 @@ class TestProviderRegistration:
         )
         token = parse_qs(urlparse(sent_urls[0]).query)["token"][0]
         assert client.post(f"{AUTH}/verify-email", json={"token": token}).status_code == 200
-        assert client.post(f"{APPLICATIONS}/{application.id}/approve", headers=headers).status_code == 200
+        approved = client.post(
+            f"{APPLICATIONS}/{application.id}/approve", headers=headers
+        )
+        assert approved.status_code == 200
+        assert approved.json()["languages"] == [{"id": language_id, "name": "Hindi language"}]
         provider_id = db.query(ProviderRegistrationApplication).one().provider_id
         assert db.query(ProviderLanguage).filter_by(provider_id=provider_id).count() == 1
         assert db.query(Language).filter_by(id=language_id).one().is_active is False
@@ -235,6 +239,23 @@ class TestProviderRegistration:
         body = approved.json()
         assert body["review_status"] == "APPROVED"
         assert body["provider_id"]
+        assert body["professional_title"] == "Equine veterinarian"
+        assert body["specialization_ids"] == [_payload()["specialization_ids"][0]]
+        assert body["specializations"] == [{
+            "id": _payload()["specialization_ids"][0],
+            "name": "Equine medicine",
+        }]
+        assert body["years_experience"] == 8
+        assert body["postal_code"] == "00000"
+        assert body["working_address"] == "12 Stable Lane"
+        assert body["stable_visit"] is True
+        assert body["maximum_working_radius_km"] == 40
+        assert body["emergency_services_available"] is True
+        assert body["emergency_contact_number"] == "+971 50 555 1212"
+        assert body["terms_accepted_at"] is not None
+        assert body["privacy_accepted_at"] is not None
+        assert "password_hash" not in body
+        assert "password" not in body
 
         db.expire_all()
         application = db.query(ProviderRegistrationApplication).one()
@@ -269,6 +290,131 @@ class TestProviderRegistration:
         )
         assert approved_login.status_code == 200
         assert approved_login.json()["user"]["roles"] == ["provider"]
+        forbidden = client.get(
+            APPLICATIONS, headers=_admin_headers(provider_user)
+        )
+        assert forbidden.status_code == 403
+
+    def test_admin_application_details_include_saved_fields_and_inactive_selections(
+        self, client: TestClient, db, seeded_admin, monkeypatch
+    ):
+        _seed_provider_role(db)
+        specialization_ids = [
+            "dc06ab91-4687-44cf-acef-47fa29ef80ad",
+            "c2032431-395a-4711-9c82-83be849718fd",
+        ]
+        language_ids = [
+            "b6052449-3086-40b9-9268-180093a38f39",
+            "287b9ed0-7822-4b8e-b290-fab74d5cfd2c",
+        ]
+        db.add_all([
+            Specialization(
+                id=UUID(specialization_ids[0]), name="Equine medicine", is_active=True
+            ),
+            Specialization(
+                id=UUID(specialization_ids[1]), name="Dentistry", is_active=True
+            ),
+            Language(id=UUID(language_ids[0]), name="Arabic", code="ar", is_active=True),
+            Language(id=UUID(language_ids[1]), name="Hindi", code="hi", is_active=True),
+        ])
+        db.commit()
+        sent_urls = _capture_verification_email(monkeypatch)
+        created = client.post(
+            f"{AUTH}/provider-register",
+            json=_payload(
+                specialization_ids=specialization_ids,
+                language_ids=language_ids,
+                years_experience=0,
+                visit_stability="NOT_STABLE_VISIT",
+                stable_visit=False,
+                maximum_working_radius_km=None,
+                emergency_services_available=False,
+                emergency_contact_number=None,
+            ),
+        )
+        assert created.status_code == 201
+        application = db.query(ProviderRegistrationApplication).one()
+        token = parse_qs(urlparse(sent_urls[0]).query)["token"][0]
+        assert client.post(f"{AUTH}/verify-email", json={"token": token}).status_code == 200
+
+        db.query(Specialization).filter(
+            Specialization.id == specialization_ids[1]
+        ).update({"is_active": False})
+        db.query(Language).filter(Language.id == language_ids[1]).update(
+            {"is_active": False}
+        )
+        db.commit()
+        admin, _password = seeded_admin
+        headers = _admin_headers(admin)
+
+        listed = client.get(APPLICATIONS, headers=headers)
+        assert listed.status_code == 200
+        detail = client.get(f"{APPLICATIONS}/{application.id}", headers=headers)
+        assert detail.status_code == 200
+        for body in (listed.json()["data"][0], detail.json()):
+            assert body["id"] == str(application.id)
+            assert body["professional_title"] == "Equine veterinarian"
+            assert body["specialization_ids"] == specialization_ids
+            assert body["specializations"] == [
+                {"id": specialization_ids[0], "name": "Equine medicine"},
+                {"id": specialization_ids[1], "name": "Dentistry"},
+            ]
+            assert body["languages"] == [
+                {"id": language_ids[0], "name": "Arabic"},
+                {"id": language_ids[1], "name": "Hindi"},
+            ]
+            assert body["years_experience"] == 0
+            assert body["postal_code"] == "00000"
+            assert body["working_address"] == "12 Stable Lane"
+            assert body["stable_visit"] is False
+            assert body["maximum_working_radius_km"] is None
+            assert body["emergency_services_available"] is False
+            assert body["emergency_contact_number"] is None
+            assert body["terms_accepted_at"] is not None
+            assert body["privacy_accepted_at"] is not None
+            assert "password_hash" not in body
+            assert "password" not in body
+        assert "HorseCare2026" not in detail.text
+
+    def test_legacy_application_details_keep_missing_values_nullable(
+        self, client: TestClient, db, seeded_admin, monkeypatch
+    ):
+        application = _verified_application(client, db, monkeypatch)
+        application.professional_title = None
+        application.specialization_ids = None
+        application.years_experience = None
+        application.working_address = None
+        application.stable_visit = None
+        application.maximum_working_radius_km = None
+        application.emergency_services_available = None
+        application.emergency_contact_number = None
+        application.user.terms_accepted_at = None
+        application.user.privacy_accepted_at = None
+        db.commit()
+
+        admin, _password = seeded_admin
+        response = client.get(
+            f"{APPLICATIONS}/{application.id}", headers=_admin_headers(admin)
+        )
+        assert response.status_code == 200
+        body = response.json()
+        for field in (
+            "professional_title",
+            "specialization_ids",
+            "specializations",
+            "years_experience",
+            "working_address",
+            "stable_visit",
+            "maximum_working_radius_km",
+            "emergency_services_available",
+            "emergency_contact_number",
+            "terms_accepted_at",
+            "privacy_accepted_at",
+        ):
+            assert body[field] is None
+        assert body["languages"] == []
+        assert body["postal_code"] == "00000"
+        assert client.get(f"{APPLICATIONS}/{application.id}").status_code == 401
 
     def test_signup_conditional_validation(self):
         for provider_type in ("DOCTOR", "CLINIC", "HOSPITAL"):
@@ -329,6 +475,14 @@ class TestProviderRegistration:
         assert rejected.status_code == 200
         assert rejected.json()["review_status"] == "REJECTED"
         assert rejected.json()["rejection_reason"] == "This account cannot be verified at this time."
+        assert rejected.json()["professional_title"] == "Equine veterinarian"
+        assert rejected.json()["specialization_ids"] == [_payload()["specialization_ids"][0]]
+        assert rejected.json()["specializations"] == [{
+            "id": _payload()["specialization_ids"][0],
+            "name": "Equine medicine",
+        }]
+        assert rejected.json()["terms_accepted_at"] is not None
+        assert rejected.json()["privacy_accepted_at"] is not None
         assert db.query(Provider).count() == 0
 
         denied = client.post(

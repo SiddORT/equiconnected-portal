@@ -28,8 +28,10 @@ from app.models.enums import (
     ContactEnquiryType,
 )
 from app.models.invitation import ProviderInvitation
+from app.models.language import Language, ProviderRegistrationLanguage
 from app.models.public_visit import PublicVisitDaily
 from app.models.provider import DoctorVisit, Provider, ProviderLocation, ProviderSpecialization
+from app.models.provider_registration import ProviderRegistrationApplication
 from app.models.specialization import Specialization
 from app.models.role import Role
 from app.models.user import PUBLIC_ACCOUNT_ROLE_NAMES, User, UserRole
@@ -622,32 +624,101 @@ def get_public_registrant(
     return _public_registrant_response(user)
 
 
-def _provider_application_response(application) -> ProviderApplicationResponse:
-    user = application.user
-    reviewer = application.reviewer
-    return ProviderApplicationResponse(
-        id=application.id,
-        user_id=application.user_id,
-        provider_id=application.provider_id,
-        provider_type=application.provider_type,
-        provider_name=application.provider_name,
-        visit_stability=application.visit_stability,
-        review_status=application.review_status,
-        first_name=user.first_name,
-        last_name=user.last_name,
-        full_name=user.full_name,
-        email=user.email,
-        mobile_number=user.mobile_number,
-        country=user.country,
-        state_province=user.state_province,
-        city=user.city,
-        email_verified_at=user.email_verified_at,
-        reviewed_by_user_id=application.reviewed_by_user_id,
-        reviewed_by_name=reviewer.full_name if reviewer else None,
-        reviewed_at=application.reviewed_at,
-        rejection_reason=application.rejection_reason,
-        created_at=application.created_at,
-    )
+def _provider_application_responses(
+    applications: list[ProviderRegistrationApplication], db: Session
+) -> list[ProviderApplicationResponse]:
+    """Serialize full application details with bounded master-data lookups."""
+    if not applications:
+        return []
+
+    application_ids = [application.id for application in applications]
+    specialization_ids = {
+        specialization_id
+        for application in applications
+        for specialization_id in (application.specialization_ids or [])
+    }
+    specializations_by_id = {}
+    if specialization_ids:
+        specializations_by_id = {
+            item.id: {"id": item.id, "name": item.name}
+            for item in db.scalars(
+                select(Specialization).where(Specialization.id.in_(specialization_ids))
+            ).all()
+        }
+
+    languages_by_application: dict[UUID, list[dict[str, object]]] = {
+        application_id: [] for application_id in application_ids
+    }
+    for application_id, language_id, language_name in db.execute(
+        select(
+            ProviderRegistrationLanguage.application_id,
+            Language.id,
+            Language.name,
+        )
+        .join(Language, Language.id == ProviderRegistrationLanguage.language_id)
+        .where(ProviderRegistrationLanguage.application_id.in_(application_ids))
+        .order_by(ProviderRegistrationLanguage.application_id, Language.name, Language.id)
+    ).all():
+        languages_by_application[application_id].append(
+            {"id": language_id, "name": language_name}
+        )
+
+    responses = []
+    for application in applications:
+        user = application.user
+        reviewer = application.reviewer
+        selected_specializations = application.specialization_ids
+        responses.append(
+            ProviderApplicationResponse(
+                id=application.id,
+                user_id=application.user_id,
+                provider_id=application.provider_id,
+                provider_type=application.provider_type,
+                provider_name=application.provider_name,
+                visit_stability=application.visit_stability,
+                review_status=application.review_status,
+                first_name=user.first_name,
+                last_name=user.last_name,
+                full_name=user.full_name,
+                email=user.email,
+                mobile_number=user.mobile_number,
+                country=user.country,
+                state_province=user.state_province,
+                city=user.city,
+                professional_title=application.professional_title,
+                specialization_ids=selected_specializations,
+                specializations=(
+                    [
+                        specializations_by_id[specialization_id]
+                        for specialization_id in selected_specializations
+                        if specialization_id in specializations_by_id
+                    ]
+                    if selected_specializations is not None
+                    else None
+                ),
+                languages=languages_by_application[application.id],
+                years_experience=application.years_experience,
+                postal_code=application.postal_code,
+                working_address=application.working_address,
+                stable_visit=application.stable_visit,
+                maximum_working_radius_km=application.maximum_working_radius_km,
+                emergency_services_available=application.emergency_services_available,
+                emergency_contact_number=application.emergency_contact_number,
+                terms_accepted_at=user.terms_accepted_at,
+                privacy_accepted_at=user.privacy_accepted_at,
+                email_verified_at=user.email_verified_at,
+                reviewed_by_user_id=application.reviewed_by_user_id,
+                reviewed_by_name=reviewer.full_name if reviewer else None,
+                reviewed_at=application.reviewed_at,
+                rejection_reason=application.rejection_reason,
+                created_at=application.created_at,
+            )
+        )
+    return responses
+
+
+def _provider_application_response(application, db: Session) -> ProviderApplicationResponse:
+    return _provider_application_responses([application], db)[0]
 
 
 def _provider_application_service(db: Session) -> ProviderRegistrationService:
@@ -822,7 +893,7 @@ def list_provider_applications(
         page_size=page_size,
     )
     return PaginatedResponse(
-        data=[_provider_application_response(application) for application in applications],
+        data=_provider_application_responses(applications, db),
         meta=PaginationMeta(
             page=page,
             page_size=page_size,
@@ -848,7 +919,7 @@ def get_provider_application(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "provider_application_not_found", "message": "Provider application not found."},
         )
-    return _provider_application_response(application)
+    return _provider_application_response(application, db)
 
 
 @router.post(
@@ -873,7 +944,7 @@ def approve_provider_application(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "provider_application_not_pending", "message": str(exc)},
         )
-    return _provider_application_response(application)
+    return _provider_application_response(application, db)
 
 
 @router.post(
@@ -903,7 +974,7 @@ def reject_provider_application(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "provider_application_not_pending", "message": str(exc)},
         )
-    return _provider_application_response(application)
+    return _provider_application_response(application, db)
 
 
 def _audit_response(event) -> AuditLogResponse:

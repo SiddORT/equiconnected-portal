@@ -16,6 +16,11 @@ class ProviderApplicationDecisionRequest(BaseModel):
         return value.strip() if value else None
 
 
+class ProviderApplicationSelection(BaseModel):
+    id: UUID
+    name: str
+
+
 class ProviderApplicationResponse(BaseModel):
     id: UUID
     user_id: UUID
@@ -32,6 +37,19 @@ class ProviderApplicationResponse(BaseModel):
     country: str | None
     state_province: str | None
     city: str | None
+    professional_title: str | None
+    specialization_ids: list[UUID] | None
+    specializations: list[ProviderApplicationSelection] | None
+    languages: list[ProviderApplicationSelection]
+    years_experience: int | None
+    postal_code: str | None
+    working_address: str | None
+    stable_visit: bool | None
+    maximum_working_radius_km: float | None
+    emergency_services_available: bool | None
+    emergency_contact_number: str | None
+    terms_accepted_at: datetime | None
+    privacy_accepted_at: datetime | None
     email_verified_at: datetime | None
     reviewed_by_user_id: UUID | None
     reviewed_by_name: str | None
