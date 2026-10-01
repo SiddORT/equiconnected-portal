@@ -12,6 +12,7 @@ import { extractErrorMessage } from '@/api/client';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
 import { SaveProviderButton } from '@/components/member/SaveProviderButton';
+import { VisitingProviderInvitation } from '@/components/member/VisitingProviderInvitation';
 import type { MemberProviderListItem, PaginatedResponse, ProviderType, VisitStability } from '@/types';
 import styles from './ProviderDirectoryPage.module.css';
 
@@ -234,6 +235,7 @@ export function ProviderDirectoryPage() {
         <button type="button" aria-pressed={savedOnly} onClick={() => updateParams({ saved: 'true', page: '1' })}>Saved providers</button>
       </div>
     </header>
+    <VisitingProviderInvitation query={query} directoryState={{ directoryCoordinates: coordinates, directoryLocationGranted: !!coordinates }} />
     {locationMessage && <Alert variant="info" onDismiss={() => setLocationMessage(null)}>{locationMessage}</Alert>}
     <form className={styles.toolbar} aria-label="Provider directory filters" onSubmit={apply}>
       <div className={`${styles.filterSegment} ${styles.nameSegment}`}>

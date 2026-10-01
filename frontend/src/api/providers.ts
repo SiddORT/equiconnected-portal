@@ -22,6 +22,7 @@ import type {
   ProviderUpdate,
   PublicationStatus,
   MemberProviderDetail,
+  MemberVisitMonth,
   MemberProviderListItem,
   MemberProviderListParams,
   MemberProviderReview,
@@ -76,6 +77,16 @@ export async function getProviderPortalSpecializations(): Promise<ProviderSpecia
 }
 
 // ── Member directory ────────────────────────────────────────────────────────
+
+export async function getMemberVisitCalendar(month?: string): Promise<MemberVisitMonth> {
+  const { data } = await apiClient.get<MemberVisitMonth>('/member/providers/visits/calendar', { params: { month } });
+  return data;
+}
+
+export async function getMemberVisitAvailability(): Promise<{ has_visits: boolean }> {
+  const { data } = await apiClient.get<{ has_visits: boolean }>('/member/providers/visits/availability');
+  return data;
+}
 
 export async function getMemberProviderFilters(): Promise<{ specializations: { id: string; name: string }[]; regions: string[] }> {
   const { data } = await apiClient.get('/member/providers/filters');

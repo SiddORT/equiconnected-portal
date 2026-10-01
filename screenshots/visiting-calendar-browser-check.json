@@ -1,0 +1,324 @@
+{
+  "fixture_data_only": true,
+  "database_or_live_api_writes": false,
+  "intercepted_application_analytics_posts_suppressed": [
+    {
+      "path": "/api/v1/member/history",
+      "method": "POST"
+    },
+    {
+      "path": "/api/v1/member/providers/traffic-view",
+      "method": "POST"
+    },
+    {
+      "path": "/api/v1/member/history",
+      "method": "POST"
+    },
+    {
+      "path": "/api/v1/member/providers/traffic-view",
+      "method": "POST"
+    }
+  ],
+  "admin_dashboard": {
+    "cards": 5,
+    "tops": [
+      271,
+      271,
+      271,
+      271,
+      271
+    ],
+    "lefts": [
+      32,
+      309,
+      586,
+      864,
+      1141
+    ],
+    "labels": [
+      "\u2713\n\n12\n\nActive providers\n\nActive",
+      "\ud83c\udfe5\n\n2\n\nHospitals",
+      "\ud83e\ude7a\n\n4\n\nClinics",
+      "\ud83d\udc68\u200d\u2695\ufe0f\n\n6\n\nDoctors",
+      "Visiting providers\n\nView full calendar \u2192"
+    ],
+    "inlineCalendar": false
+  },
+  "busy_day": "2026-10-03",
+  "admin_profile_destinations": [
+    "/admin/providers/browser-visiting-provider-1",
+    "/admin/providers/browser-visiting-provider-2",
+    "/admin/providers/browser-visiting-provider-3",
+    "/admin/providers/browser-visiting-provider-4",
+    "/admin/providers/browser-visiting-provider-5"
+  ],
+  "member_profile_destinations": [
+    "/providers/browser-visiting-provider-1?name=Maple&saved=true",
+    "/providers/browser-visiting-provider-2?name=Maple&saved=true",
+    "/providers/browser-visiting-provider-3?name=Maple&saved=true",
+    "/providers/browser-visiting-provider-4?name=Maple&saved=true",
+    "/providers/browser-visiting-provider-5?name=Maple&saved=true"
+  ],
+  "directory_invitation": {
+    "invitation": "See our esteemed visiting providers\n\nScheduled visiting periods across the entire directory, independent of your filters.\n\nView calendar\n\u2192",
+    "href": "/providers/visiting-calendar?name=Maple&saved=true",
+    "currentQuery": "?name=Maple&saved=true",
+    "name": "Maple",
+    "saved": true
+  },
+  "directory_return_href": "/providers?name=Maple&saved=true",
+  "member_mobile_390": {
+    "viewport": 390,
+    "documentWidth": 390,
+    "bodyWidth": 390,
+    "desktopCalendarDisplay": "none",
+    "mobileAgendaDisplay": "flex",
+    "agendaWidth": 328.8125,
+    "cards": 5,
+    "fonts": [
+      19.2,
+      19.2,
+      19.2,
+      19.2,
+      19.2
+    ],
+    "cardWidths": [
+      329,
+      329,
+      329,
+      329,
+      329
+    ],
+    "cardRights": [
+      359,
+      359,
+      359,
+      359,
+      359
+    ]
+  },
+  "fixture_api_requests": [
+    {
+      "path": "/api/v1/system-settings",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/auth/refresh",
+      "method": "POST",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/system-settings",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/auth/refresh",
+      "method": "POST",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/admin/dashboard/stats",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/admin/dashboard/stats",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/system-settings",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/auth/refresh",
+      "method": "POST",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/system-settings",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/auth/refresh",
+      "method": "POST",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/admin/dashboard/visits",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/admin/dashboard/visits",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/system-settings",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/auth/refresh",
+      "method": "POST",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/system-settings",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/auth/refresh",
+      "method": "POST",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/profile",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/history/recent",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/providers/visits/availability",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/providers/filters",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/providers",
+      "method": "GET",
+      "query": "saved_only=true&name=Maple&sort=relevance&page=1&page_size=10"
+    },
+    {
+      "path": "/api/v1/profile",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/history/recent",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/providers/visits/availability",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/providers/filters",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/providers",
+      "method": "GET",
+      "query": "saved_only=true&name=Maple&sort=relevance&page=1&page_size=10"
+    },
+    {
+      "path": "/api/v1/member/history",
+      "method": "POST",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/profile",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/history/recent",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/system-settings",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/providers/traffic-view",
+      "method": "POST",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/providers/visits/calendar",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/providers/visits/calendar",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/providers/visits/availability",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/providers/filters",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/providers",
+      "method": "GET",
+      "query": "saved_only=true&name=Maple&sort=relevance&page=1&page_size=10"
+    },
+    {
+      "path": "/api/v1/member/providers/visits/availability",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/providers/filters",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/providers",
+      "method": "GET",
+      "query": "saved_only=true&name=Maple&sort=relevance&page=1&page_size=10"
+    },
+    {
+      "path": "/api/v1/member/history",
+      "method": "POST",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/profile",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/history/recent",
+      "method": "GET",
+      "query": ""
+    },
+    {
+      "path": "/api/v1/member/providers/traffic-view",
+      "method": "POST",
+      "query": ""
+    }
+  ],
+  "browser_errors": [],
+  "screenshots": [
+    "screenshots/visiting-calendar-admin-dashboard.png",
+    "screenshots/visiting-calendar-admin-calendar-desktop.png",
+    "screenshots/visiting-calendar-member-desktop.png",
+    "screenshots/visiting-calendar-member-mobile-390.png"
+  ]
+}

@@ -29,6 +29,15 @@ afterEach(() => {
 });
 
 describe('AppRouter member entry', () => {
+  it.each([
+    ['/providers/visiting-calendar?name=Maple', '/login'],
+    ['/admin/visiting-providers', '/admin/login'],
+  ])('protects the full-page calendar at %s', async (path, destination) => {
+    window.history.replaceState({}, '', path);
+    render(<AppRouter />);
+    await waitFor(() => expect(window.location.pathname).toBe(destination));
+    expect(window.history.state.usr?.from?.pathname).toBe(path.split('?')[0]);
+  });
   it('sends legacy /member visitors to the landing page', async () => {
     window.history.replaceState({}, '', '/member');
 

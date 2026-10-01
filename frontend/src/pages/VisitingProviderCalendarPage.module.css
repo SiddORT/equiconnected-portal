@@ -1,0 +1,17 @@
+.page {
+  position: relative;
+  min-height: 100dvh;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 90% 0%, rgb(192 158 95 / 13%), transparent 31rem),
+    linear-gradient(135deg, #f2ecdd 0%, #f8f5ed 52%, #eee6d3 100%);
+}
+.paperTexture {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  opacity: .22;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.12'/%3E%3C/svg%3E");
+}
+.page > :global(section) { position: relative; z-index: 1; }

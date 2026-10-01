@@ -1,25 +1,119 @@
-.section { min-width: 0; display: flex; flex-direction: column; }
-.calendar { min-width: 0; flex: 1; }
-.header { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-4); }
-.title { font-size: var(--text-lg); font-weight: var(--font-semibold); color: var(--text-primary); margin-bottom: var(--space-4); }
-.month { color: var(--text-secondary); }
-.controls { display: flex; gap: var(--space-2); }
-.controls button, .message button { cursor: pointer; border: 1px solid #b5bec5; border-radius: 6px; padding: 0.35rem 0.65rem; background: white; color: #26333b; }
-.controls button:disabled { cursor: default; opacity: .45; }
-.controls button:focus-visible, .entry:focus-visible, .message button:focus-visible { outline: 3px solid #8b692a; outline-offset: 2px; }
-.message { margin: var(--space-4) 0; color: var(--text-secondary); }
-.grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
-.weekday { font-size: var(--text-xs); text-align: center; font-weight: 600; padding: .4rem 0; }
-.day { min-width: 0; min-height: 5rem; padding: .35rem; border: 1px solid #e3e6e8; margin: -1px 0 0 -1px; overflow-wrap: anywhere; }
-.dayNumber { display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; font-size: var(--text-xs); font-weight: 600; }
-.today .dayNumber { border-radius: 50%; background: #765825; color: white; }
-.entries { display: flex; flex-direction: column; gap: .3rem; margin-top: .25rem; }
-.entry { display: flex; flex-direction: column; gap: .1rem; padding: .3rem; background: #f6f1e6; border-radius: 4px; color: #31302a; font-size: .7rem; line-height: 1.3; text-decoration: none; overflow-wrap: anywhere; }
-.entry:hover { text-decoration: underline; }
-.entry strong { font-weight: 600; }
-@media (max-width: 700px) {
-  .calendar { padding: var(--space-3); }
-  .day { padding: .15rem; min-height: 3rem; }
-  .entry { padding: .2rem; font-size: .65rem; }
-  .weekday { font-size: .65rem; }
+.section {
+  --paper: #f7f3e9;
+  --paper-deep: #eee6d4;
+  --ink: #302d25;
+  --muted: #777263;
+  --line: #dfd7c5;
+  --gold: #a57931;
+  --gold-dark: #72501e;
+  color: var(--ink);
+  min-width: 0;
+  font-family: "DM Sans", "Avenir Next", Avenir, sans-serif;
+}
+.compact { display: flex; flex-direction: column; }
+.fullPage {
+  width: min(100%, 1360px);
+  margin: 0 auto;
+  padding: clamp(1.25rem, 4vw, 3.5rem);
+}
+.eyebrow { display: flex; align-items: center; gap: .8rem; margin-bottom: .8rem; color: var(--gold-dark); font-size: .67rem; font-weight: 800; letter-spacing: .18em; }
+.eyebrowRule { width: 3rem; height: 1px; background: var(--gold); }
+.intro { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 1.7rem; }
+.title { margin: 0; color: var(--ink); font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.45rem, 2vw, 2rem); font-weight: 500; letter-spacing: -.035em; }
+.fullPage .title { font-size: clamp(2.65rem, 6.2vw, 5.4rem); line-height: .99; letter-spacing: -.065em; }
+.subtitle { margin: .65rem 0 0; color: var(--muted); font-size: 1rem; }
+.returnLink { display: inline-flex; align-items: center; gap: .5rem; padding: .65rem .8rem; color: var(--gold-dark); font-size: .84rem; font-weight: 700; text-decoration: none; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.returnLink:hover { border-color: var(--gold); }
+.calendar { min-width: 0; padding: clamp(1rem, 2.2vw, 2rem); border: 1px solid #e7decb; border-radius: 4px; background: var(--paper); box-shadow: 0 14px 36px rgb(73 56 27 / 7%); }
+.scheduleNote { margin: 0 0 1.25rem; color: #625b4f; font-size: .82rem; line-height: 1.6; }
+.compact .calendar { flex: 1; padding: 1.35rem; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.2rem; padding-bottom: 1.1rem; border-bottom: 1px solid var(--line); }
+.monthBlock { min-width: 0; }
+.monthLabel, .agendaKicker { display: block; margin-bottom: .3rem; color: var(--gold-dark); font-size: .63rem; font-weight: 800; letter-spacing: .16em; }
+.month { margin: 0; color: var(--ink); font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.55rem, 3vw, 2.25rem); font-weight: 500; letter-spacing: -.04em; }
+.controls { display: flex; align-items: center; gap: .45rem; }
+.controls button, .error button { min-height: 2.55rem; cursor: pointer; border: 1px solid #cfc3ab; border-radius: 3px; background: #fbf8f1; color: var(--ink); font: inherit; font-size: .82rem; font-weight: 700; transition: transform .16s ease, background-color .16s ease, opacity .16s ease; }
+.controls button:hover:not(:disabled), .error button:hover { transform: translateY(-1px); background: #fffdf8; }
+.controls button:disabled { cursor: default; opacity: .4; }
+.todayButton { padding: 0 1rem; color: var(--gold-dark) !important; }
+.arrowButton { width: 2.55rem; color: var(--gold-dark) !important; font-size: 1.1rem !important; }
+.controls button:focus-visible, .returnLink:focus-visible, .day:focus-visible, .visitCard:focus-visible, .error button:focus-visible, .mobileDate:focus-visible, .mobileDay:focus-visible { outline: 3px solid #a57931; outline-offset: 3px; }
+.error { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.2rem; margin: 1rem 0; border-left: 3px solid #9d4d37; background: #f5e8df; color: #60382c; }
+.error p { margin: .3rem 0 0; font-size: .88rem; }
+.error button { flex-shrink: 0; padding: 0 .9rem; border-color: #a7765e; background: #fff9f3; color: #60382c; }
+.loading { display: flex; align-items: center; gap: .8rem; padding: 1.2rem 0; color: var(--muted); font-size: .85rem; }
+.skeletonLine { width: 3rem; height: .45rem; border-radius: 5px; background: #e5ddca; animation: breathe 1.2s ease-in-out infinite alternate; }
+@keyframes breathe { from { opacity: .42; } to { opacity: .95; } }
+.empty { display: flex; align-items: center; gap: 1rem; padding: 1rem 1.25rem; margin-bottom: 1.2rem; border: 1px dashed #d3c6ad; background: #f3ecdc; }
+.emptyMark { color: var(--gold); font-family: Georgia, serif; font-size: 2.6rem; line-height: 1; }
+.empty h3 { margin: 0; font-family: Georgia, serif; font-size: 1.2rem; font-weight: 500; }
+.empty p { margin: .25rem 0 0; color: var(--muted); font-size: .85rem; }
+.monthLayout { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(18rem, .85fr); align-items: start; gap: clamp(1.2rem, 3vw, 2.8rem); }
+.desktopCalendar { min-width: 0; }
+.weekHeader, .monthGrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.weekHeader { margin-bottom: .35rem; }
+.weekHeader span { padding: .35rem .15rem; color: var(--muted); text-align: center; font-size: .64rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.monthGrid { border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.blank { min-height: 5.5rem; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: rgb(238 230 212 / 28%); }
+.day { position: relative; display: flex; min-width: 0; min-height: 5.5rem; flex-direction: column; align-items: flex-start; padding: .6rem; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #faf7ef; color: var(--ink); text-align: left; font: inherit; cursor: pointer; transition: background-color .16s ease; }
+.day:hover { background: #f1e8d6; }
+.day.today .dayNumber { color: #fff8e9; background: var(--gold-dark); }
+.day.selected { z-index: 1; box-shadow: inset 0 0 0 2px var(--gold); background: #f1e8d6; }
+.dayNumber { display: grid; width: 1.75rem; height: 1.75rem; place-items: center; border-radius: 50%; color: #554c3c; font-size: .8rem; font-weight: 700; }
+.daySummary { display: flex; align-items: center; gap: .35rem; max-width: 100%; margin-top: .45rem; color: var(--gold-dark); font-size: .64rem; font-weight: 700; white-space: nowrap; }
+.visitDot { width: .36rem; height: .36rem; flex: 0 0 auto; border-radius: 50%; background: var(--gold); }
+.agenda { min-width: 0; border-left: 1px solid var(--line); padding-left: clamp(1rem, 2.1vw, 1.8rem); }
+.agendaHeading { display: flex; align-items: end; justify-content: space-between; gap: .75rem; padding-bottom: .85rem; border-bottom: 1px solid var(--line); }
+.agendaHeading h3 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.2rem, 2vw, 1.65rem); font-weight: 500; letter-spacing: -.03em; }
+.count { color: #a2957c; font-family: Georgia, serif; font-size: 1.8rem; line-height: .9; }
+.visitList { display: flex; flex-direction: column; }
+.visitCard { display: flex; flex-direction: column; padding: 1rem .15rem; border-bottom: 1px solid var(--line); color: inherit; text-decoration: none; transition: background-color .16s ease, transform .16s ease; }
+.visitCard:hover { transform: translateX(3px); background: rgb(238 230 212 / 45%); }
+.visitDate { margin-bottom: .35rem; color: var(--gold-dark); font-size: .64rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.providerName { font-family: Georgia, "Times New Roman", serif; font-size: 1.2rem; font-weight: 500; }
+.specialty { margin-top: .24rem; color: #72501e; font-size: .79rem; font-weight: 700; }
+.location { margin-top: .3rem; color: var(--muted); font-size: .8rem; line-height: 1.45; overflow-wrap: anywhere; }
+.profileAction { display: flex; align-items: center; justify-content: space-between; margin-top: .65rem; color: #92702f; font-size: .69rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.dayEmpty { padding: 1.1rem 0; color: var(--muted); font-size: .85rem; }
+.mobileDates, .mobileDayList { display: none; }
+
+@media (max-width: 900px) {
+  .monthLayout { grid-template-columns: minmax(0, 1fr); }
+  .agenda { border-left: 0; border-top: 1px solid var(--line); padding: 1.1rem 0 0; }
+  .agendaHeading { margin-bottom: .35rem; }
+  .mobileDates { display: flex; gap: .45rem; overflow-x: auto; padding: .75rem 0; }
+  .mobileDate { display: flex; min-width: 3.35rem; min-height: 4.2rem; flex-direction: column; align-items: center; justify-content: center; gap: .14rem; border: 1px solid var(--line); border-radius: 3px; background: #faf7ef; color: var(--ink); font: inherit; cursor: pointer; }
+  .mobileDate span { color: var(--muted); font-size: .62rem; }
+  .mobileDate strong { font-size: 1rem; }
+  .mobileDate small { color: var(--gold-dark); font-size: .62rem; }
+  .mobileDateActive { border-color: var(--gold); background: #eee4cf; }
+}
+@media (max-width: 620px) {
+  .fullPage { padding: 1.1rem .85rem 2rem; }
+  .intro { align-items: flex-start; flex-direction: column; margin-bottom: 1.2rem; }
+  .fullPage .title { font-size: clamp(2.5rem, 12vw, 4rem); }
+  .subtitle { margin-top: .4rem; }
+  .returnLink { padding: .3rem 0; border: 0; }
+  .calendar, .compact .calendar { padding: 1rem; }
+  .header { align-items: flex-start; flex-direction: column; gap: .75rem; }
+  .controls { align-self: stretch; }
+  .controls .todayButton { margin-right: auto; }
+  .monthLayout { gap: .8rem; }
+  .desktopCalendar { display: none; }
+  .agenda { padding-top: .9rem; }
+  .agendaHeading h3 { font-size: 1.4rem; }
+  .mobileDates { margin: 0 -.2rem; }
+  .mobileDayList { display: flex; flex-direction: column; margin-top: 1rem; border-top: 1px solid var(--line); }
+  .mobileDay { display: flex; align-items: center; gap: .9rem; min-height: 3.7rem; padding: .55rem .35rem; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
+  .mobileDayActive { background: #eee6d4; }
+  .mobileDayDate { display: flex; width: 3.2rem; flex: 0 0 auto; align-items: center; gap: .5rem; }
+  .mobileDayDate small { color: var(--muted); font-size: .65rem; }
+  .mobileDayDate strong { font-size: .95rem; }
+  .mobileDaySummary { flex: 1; color: var(--muted); font-size: .8rem; }
+  .todayTag { color: var(--gold-dark); font-size: .65rem; font-weight: 800; text-transform: uppercase; }
+  .empty { padding: .8rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeletonLine { animation: none; }
+  .controls button, .visitCard { transition: none; }
 }

@@ -35,43 +35,31 @@
 }
 
 /* ── Stats grid ──────────────────────────────────────────────────────────── */
-.overview {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-  gap: var(--space-4);
-  align-items: stretch;
-}
-.overview > * { min-width: 0; }
 .inventorySection {
-  min-height: 0;
+  min-width: 0;
 }
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--space-4);
 }
 
 .statCard {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  min-height: 155px;
+  box-sizing: border-box;
+  justify-content: center;
   gap: var(--space-2);
 }
 
-@media (min-width: 1101px) {
-  .inventorySection {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .statsGrid {
-    flex: 1;
-    grid-template-rows: repeat(2, minmax(max-content, 1fr));
-  }
-
-  .statCard {
-    justify-content: center;
-  }
-}
+.calendarCard { padding: var(--space-5); border: 1px solid #dfd2b5; border-radius: var(--radius-lg); background: #f8f3e8; color: #352c1d; text-decoration: none; box-shadow: var(--shadow-sm); }
+.calendarCard:hover { background: #efe5d1; }
+.calendarIcon { width: 30px; height: 30px; color: #886a2e; }
+.calendarLabel { font-weight: 600; font-size: var(--text-sm); }
+.calendarAction { font-size: var(--text-xs); color: #755823; }
+.calendarCard:focus-visible, .analyticsLink:focus-visible { outline: 3px solid #98772f; outline-offset: 3px; }
 
 .statIcon {
   font-size: 1.5rem;
@@ -125,8 +113,9 @@
 }
 
 @media (max-width: 1100px) {
-  .overview { grid-template-columns: minmax(0, 1fr); }
+  .statsGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+@media (max-width: 640px) { .statsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 440px) {
   .body { padding: var(--space-3); }
 }

@@ -10,6 +10,7 @@ import { PublicPage } from '@/pages/PublicPage';
 import { LoginPage } from '@/pages/admin/LoginPage';
 import { MemberLoginPage } from '@/pages/MemberLoginPage';
 import { DashboardPage } from '@/pages/admin/DashboardPage';
+import { AdminVisitingProviderCalendarPage, MemberVisitingProviderCalendarPage } from '@/pages/VisitingProviderCalendarPage';
 import { SpecializationsPage } from '@/pages/admin/SpecializationsPage';
 import { ProvidersPage } from '@/pages/admin/ProvidersPage';
 import { ProviderNewPage } from '@/pages/admin/ProviderNewPage';
@@ -86,6 +87,7 @@ export function AppRouter() {
           <Route element={<AdminLayout />}>
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/dashboard" element={<DashboardPage />} />
+            <Route path="/admin/visiting-providers" element={<AdminVisitingProviderCalendarPage />} />
             <Route path="/admin/analytics" element={<AnalyticsPage />} />
             <Route path="/admin/specializations" element={<SpecializationsPage />} />
             <Route path="/admin/languages" element={<LanguagesPage />} />
@@ -128,6 +130,7 @@ export function AppRouter() {
         <Route element={<MemberAuthGuard />}>
           <Route element={<MemberLayout />}>
             <Route path="/providers" element={<ProviderDirectoryPage />} />
+            <Route path="/providers/visiting-calendar" element={<MemberVisitingProviderCalendarPage />} />
             <Route path="/providers/:id" element={<MemberProviderDetailPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/my-reviews" element={<MemberReviewsPage />} />

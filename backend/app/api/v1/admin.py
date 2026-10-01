@@ -5,7 +5,6 @@ GET /api/v1/admin/dashboard/stats
 import csv
 import io
 from datetime import date, datetime, timedelta, timezone
-import re
 from math import ceil
 from typing import Annotated
 from uuid import UUID
@@ -72,6 +71,7 @@ from app.repositories.user_repository import UserRepository
 from app.repositories.system_settings_repository import SystemSettingsRepository
 from app.repositories.subscriber_repository import SubscriberRepository
 from app.core.time_standards import system_today
+from app.services.visiting_calendar import visiting_calendar_month_range
 from app.core.rate_limit import check_smtp_test_rate_limit
 from app.models.enums import EmailDeliveryStatus, EmailPurpose
 from app.repositories.email_delivery_repository import safe_failure_message
@@ -109,20 +109,7 @@ def dashboard_visits(
     """Recorded visiting-doctor trips overlapping one system-calendar month."""
     timezone_name = SystemSettingsRepository(db).get_or_create().timezone
     today = system_today(timezone_name)
-    if month is None:
-        first = today.replace(day=1)
-    else:
-        if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
-            raise HTTPException(status_code=422, detail="Month must be YYYY-MM.")
-        try:
-            first = date(int(month[:4]), int(month[5:]), 1)
-        except ValueError:
-            raise HTTPException(status_code=422, detail="Month must be YYYY-MM.") from None
-    if first.month == 12 and first.year == 9999:
-        last = date.max
-    else:
-        next_month = date(first.year + (first.month == 12), first.month % 12 + 1, 1)
-        last = next_month - timedelta(days=1)
+    month_key, first, last = visiting_calendar_month_range(month, today)
 
     rows = db.execute(
         select(DoctorVisit, Provider.name)
@@ -149,7 +136,7 @@ def dashboard_visits(
             specializations[provider_id].append(name)
 
     return DashboardVisitMonth(
-        month=first.strftime("%Y-%m"),
+        month=month_key,
         today=today,
         visits=[
             DashboardVisit(

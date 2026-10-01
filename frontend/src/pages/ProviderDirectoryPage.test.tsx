@@ -6,7 +6,7 @@ import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom
 import * as providersApi from '@/api/providers';
 import { ProviderDirectoryPage } from './ProviderDirectoryPage';
 
-vi.mock('@/api/providers', () => ({ listMemberProviders: vi.fn(), getMemberProviderFilters: vi.fn(), saveMemberProvider: vi.fn(), removeSavedMemberProvider: vi.fn() }));
+vi.mock('@/api/providers', () => ({ listMemberProviders: vi.fn(), getMemberProviderFilters: vi.fn(), getMemberVisitAvailability: vi.fn(), saveMemberProvider: vi.fn(), removeSavedMemberProvider: vi.fn() }));
 vi.mock('@/components/ui/LoadingSpinner', () => ({ LoadingSpinner: () => <span>loading</span> }));
 vi.mock('@/api/memberHistoryRecording', () => ({
   historyFilters: (params: URLSearchParams) => Object.fromEntries([...params].filter(([key]) => ['name', 'region'].includes(key))),
@@ -23,6 +23,7 @@ const item = {
 const response = { data: [item], meta: { page: 1, page_size: 12, total: 1, total_pages: 1 } };
 
 beforeEach(() => {
+  vi.mocked(providersApi.getMemberVisitAvailability).mockResolvedValue({ has_visits: false });
   vi.mocked(providersApi.listMemberProviders).mockResolvedValue(response);
   vi.mocked(providersApi.getMemberProviderFilters).mockResolvedValue({
     specializations: [{ id: 's-1', name: 'Sports Medicine' }], regions: ['Texas'],

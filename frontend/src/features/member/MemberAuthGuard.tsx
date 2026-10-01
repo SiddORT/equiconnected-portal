@@ -14,5 +14,8 @@ export function MemberAuthGuard() {
     const roles = user?.roles?.length ? user.roles : [user?.role ?? ''];
     return <Navigate to={roles.includes('admin') ? '/admin/dashboard' : roles.includes('provider') ? '/provider/account' : '/'} replace />;
   }
+  if (location.pathname === '/providers/visiting-calendar' && (!user?.email_verified_at || !user.is_active)) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
   return <Outlet />;
 }

@@ -16,7 +16,6 @@ import { DashboardMap } from '@/components/dashboard/DashboardMap';
 import { InvitationStatusChart } from '@/components/dashboard/InvitationStatusChart';
 import { RegistrationRequestsCard } from '@/components/dashboard/RegistrationRequestsCard';
 import { VisitorVisitsChart } from '@/components/dashboard/VisitorVisitsChart';
-import { VisitingProviderCalendar } from '@/components/dashboard/VisitingProviderCalendar';
 import type { DashboardStats, LoadingState } from '@/types';
 import styles from './DashboardPage.module.css';
 
@@ -71,7 +70,6 @@ export function DashboardPage() {
           {loadState === 'success' && stats && (
             <>
               {/* ── Provider inventory counters ───────────────────────── */}
-              <div className={styles.overview}>
                 <section className={styles.inventorySection} aria-labelledby="stats-heading">
                   <h2 id="stats-heading" className={styles.sectionTitle}>Provider Inventory</h2>
                   <div className={styles.statsGrid}>
@@ -96,10 +94,15 @@ export function DashboardPage() {
                     value={String(stats.provider_counts.doctors)}
                     icon="👨‍⚕️"
                   />
+                  <Link to="/admin/visiting-providers" className={`${styles.statCard} ${styles.calendarCard}`}>
+                    <svg className={styles.calendarIcon} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                      <rect x="3" y="5" width="18" height="16" rx="3" /><path d="M7 3v4m10-4v4M3 11h18m-13 4h3m2 0h3" />
+                    </svg>
+                    <p className={styles.calendarLabel}>Visiting providers</p>
+                    <span className={styles.calendarAction}>View full calendar <span aria-hidden="true">→</span></span>
+                  </Link>
                   </div>
                 </section>
-                <VisitingProviderCalendar />
-              </div>
 
               <section aria-labelledby="activity-heading">
                 <h2 id="activity-heading" className={styles.sectionTitle}>Activity overview</h2>

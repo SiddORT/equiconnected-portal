@@ -327,6 +327,13 @@ export interface DashboardVisitMonth {
   visits: DashboardVisit[];
 }
 
+/** Deliberately narrower than the administrator feed. */
+export interface MemberVisitMonth extends Omit<DashboardVisitMonth, 'visits'> {
+  visits: (Omit<DashboardVisit, 'location'> & {
+    location: { city?: string | null; state_province?: string | null; country?: string | null };
+  })[];
+}
+
 // ── Pagination ────────────────────────────────────────────────────────────────
 
 export interface PaginationMeta {

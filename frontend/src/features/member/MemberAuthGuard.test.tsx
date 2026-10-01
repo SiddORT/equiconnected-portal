@@ -19,6 +19,7 @@ function renderGuard(initialEntry: string) {
       <Routes>
         <Route element={<MemberAuthGuard />}>
           <Route path="/providers" element={<p>Provider directory</p>} />
+          <Route path="/providers/visiting-calendar" element={<p>Member calendar</p>} />
           <Route path="/profile" element={<p>Member profile</p>} />
         </Route>
         <Route path="/login" element={<p>Member login</p>} />
@@ -29,6 +30,16 @@ function renderGuard(initialEntry: string) {
 }
 
 describe('MemberAuthGuard', () => {
+  it.each([null, '2026-01-01T00:00:00Z'])('only opens the calendar for verified members (%s)', async verified => {
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true, isLoading: false, login: vi.fn(), logout: vi.fn(),
+      user: { id: 'member', email: 'member@example.test', first_name: null, last_name: null,
+        full_name: 'Member', role: 'horse_owner', roles: ['horse_owner'], email_verified_at: verified,
+        last_successful_login_at: null, is_active: true },
+    });
+    renderGuard('/providers/visiting-calendar');
+    expect(await screen.findByText(verified ? 'Member calendar' : 'Member login')).toBeTruthy();
+  });
   it('redirects missing sessions to member sign-in', async () => {
     vi.mocked(useAuth).mockReturnValue({
       isAuthenticated: false, isLoading: false, user: null, login: vi.fn(), logout: vi.fn(),

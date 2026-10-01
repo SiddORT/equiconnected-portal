@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 from math import ceil
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
@@ -16,8 +17,16 @@ from app.auth.dependencies import CurrentUser
 from app.db.session import get_db
 from app.core.rate_limit import check_analytics_traffic_rate_limit
 from app.core.time_standards import system_today
-from app.models.enums import ProviderType, VisitStability
+from app.models.enums import (
+    DoctorAvailability,
+    PublicationStatus,
+    ProviderStatus,
+    ProviderType,
+    VisitStability,
+)
+from app.models.provider import DoctorVisit, Provider, ProviderSpecialization
 from app.models.provider_favorite import ProviderFavorite
+from app.models.specialization import Specialization
 from app.models.user import PUBLIC_ACCOUNT_ROLE_NAMES, User
 from app.repositories.audit_repository import context_from_request
 from app.repositories.review_repository import ReviewRepository
@@ -42,6 +51,7 @@ from app.services.review_service import (
     ReviewStateError,
 )
 from app.services.analytics_traffic_service import record_successful_view
+from app.services.visiting_calendar import visiting_calendar_month_range
 
 router = APIRouter(prefix="/member/providers", tags=["Member Provider Directory"])
 member_reviews_router = APIRouter(prefix="/member/reviews", tags=["Member Reviews"])
@@ -69,6 +79,108 @@ def _svc(db: _DB) -> ReviewService:
 
 
 _Svc = Annotated[ReviewService, Depends(_svc)]
+
+
+class MemberVisitLocation(BaseModel):
+    city: str | None = None
+    state_province: str | None = None
+    country: str | None = None
+
+
+class MemberCalendarVisit(BaseModel):
+    id: UUID
+    provider_id: UUID
+    provider_name: str
+    start_date: date
+    end_date: date
+    specializations: list[str]
+    location: MemberVisitLocation
+
+
+class MemberVisitsCalendar(BaseModel):
+    month: str
+    today: date
+    visits: list[MemberCalendarVisit]
+
+
+class MemberVisitAvailability(BaseModel):
+    has_visits: bool
+
+
+def _eligible_visiting_provider():
+    return (
+        Provider.provider_type == ProviderType.DOCTOR,
+        Provider.status == ProviderStatus.ACTIVE,
+        Provider.publication_status == PublicationStatus.PUBLISHED,
+        Provider.doctor_availability == DoctorAvailability.VISITING,
+    )
+
+
+@router.get("/visits/calendar", response_model=MemberVisitsCalendar)
+def member_visits_calendar(
+    user: MemberUser,
+    db: _DB,
+    month: str | None = Query(None),
+) -> MemberVisitsCalendar:
+    timezone_name = SystemSettingsRepository(db).get_or_create().timezone
+    today = system_today(timezone_name)
+    month_key, first, last = visiting_calendar_month_range(month, today)
+
+    rows = db.execute(
+        select(DoctorVisit, Provider.name)
+        .join(Provider, DoctorVisit.provider_id == Provider.id)
+        .where(
+            *_eligible_visiting_provider(),
+            DoctorVisit.start_date <= last,
+            DoctorVisit.end_date >= first,
+            DoctorVisit.end_date >= today,
+        )
+        .order_by(DoctorVisit.start_date, Provider.name, DoctorVisit.id)
+    ).all()
+    provider_ids = {visit.provider_id for visit, _ in rows}
+    specializations: dict[UUID, list[str]] = {provider_id: [] for provider_id in provider_ids}
+    if provider_ids:
+        for provider_id, name in db.execute(
+            select(ProviderSpecialization.provider_id, Specialization.name)
+            .join(Specialization, ProviderSpecialization.specialization_id == Specialization.id)
+            .where(ProviderSpecialization.provider_id.in_(provider_ids))
+            .order_by(Specialization.name)
+        ):
+            specializations[provider_id].append(name)
+
+    return MemberVisitsCalendar(
+        month=month_key,
+        today=today,
+        visits=[
+            MemberCalendarVisit(
+                id=visit.id,
+                provider_id=visit.provider_id,
+                provider_name=name,
+                start_date=visit.start_date,
+                end_date=visit.end_date,
+                specializations=specializations[visit.provider_id],
+                location=MemberVisitLocation(
+                    city=visit.location.get("city"),
+                    state_province=visit.location.get("state_province"),
+                    country=visit.location.get("country"),
+                ),
+            )
+            for visit, name in rows
+        ],
+    )
+
+
+@router.get("/visits/availability", response_model=MemberVisitAvailability)
+def member_visits_availability(user: MemberUser, db: _DB) -> MemberVisitAvailability:
+    timezone_name = SystemSettingsRepository(db).get_or_create().timezone
+    today = system_today(timezone_name)
+    has_visits = db.scalar(
+        select(DoctorVisit.id)
+        .join(Provider, DoctorVisit.provider_id == Provider.id)
+        .where(*_eligible_visiting_provider(), DoctorVisit.end_date >= today)
+        .limit(1)
+    ) is not None
+    return MemberVisitAvailability(has_visits=has_visits)
 
 
 def _location(provider) -> DirectoryLocation | None:
