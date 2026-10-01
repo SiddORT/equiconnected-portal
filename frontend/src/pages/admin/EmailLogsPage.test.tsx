@@ -50,6 +50,17 @@ describe('EmailLogsPage', () => {
     ));
   });
 
+  it('labels contact notification attempts distinctly from invitations', async () => {
+    vi.mocked(adminApi.getEmailDeliveryLogs).mockResolvedValue({
+      data: [{ ...emailLog, purpose: 'contact_notification' }],
+      meta: { page: 1, page_size: 25, total: 1, total_pages: 1 },
+    });
+    render(<MemoryRouter><EmailLogsPage /></MemoryRouter>);
+
+    expect(await screen.findByText('Contact notification')).toBeTruthy();
+    expect(screen.queryByText('Provider profile invitation')).toBeNull();
+  });
+
   it('confirms the fixed recipient, shows progress and refreshes logs after SMTP acceptance', async () => {
     const user = userEvent.setup();
     vi.mocked(adminApi.getEmailDeliveryLogs).mockResolvedValue({

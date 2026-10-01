@@ -25,6 +25,7 @@ from app.models.enums import (
     ProviderStatus,
     ProviderType,
     SubscriberRegistrationType,
+    ContactEnquiryType,
 )
 from app.models.invitation import ProviderInvitation
 from app.models.public_visit import PublicVisitDaily
@@ -47,6 +48,8 @@ from app.schemas.provider_registration import (
 )
 from app.schemas.provider import ProviderProfileUpdateAdminResponse
 from app.schemas.subscriber import SubscriberListResponse, SubscriberResponse
+from app.schemas.contact import ContactEnquiryListResponse, ContactEnquiryResponse
+from app.repositories.contact_enquiry_repository import ContactEnquiryRepository
 from app.repositories.provider_registration_repository import ProviderRegistrationRepository
 from app.repositories.provider_profile_update_repository import ProviderProfileUpdateRepository
 from app.repositories.provider_repository import ProviderRepository
@@ -411,6 +414,72 @@ def list_public_registrants(
             total_pages=max(1, ceil(total / page_size)),
         ),
     )
+
+
+@router.get(
+    "/contact-enquiries",
+    response_model=ContactEnquiryListResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+def list_contact_enquiries(
+    db: Annotated[Session, Depends(get_db)],
+    search: str | None = Query(None, max_length=100),
+    enquiry_type: ContactEnquiryType | None = Query(None),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+) -> ContactEnquiryListResponse:
+    """Newest-first contact enquiries for administrators."""
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "invalid_date_range",
+                "message": "Start date must be on or before end date.",
+            },
+        )
+    timezone_name = SystemSettingsRepository(db).get_or_create().timezone
+    enquiries, total = ContactEnquiryRepository(db).list(
+        search=search,
+        enquiry_type=enquiry_type,
+        date_from=date_from,
+        date_to=date_to,
+        timezone_name=timezone_name,
+        page=page,
+        page_size=page_size,
+    )
+    return ContactEnquiryListResponse(
+        data=[ContactEnquiryResponse.model_validate(item) for item in enquiries],
+        meta=PaginationMeta(
+            page=page,
+            page_size=page_size,
+            total=total,
+            total_pages=max(1, ceil(total / page_size)),
+        ),
+    )
+
+
+@router.get(
+    "/contact-enquiries/{enquiry_id}",
+    response_model=ContactEnquiryResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+def get_contact_enquiry(
+    enquiry_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> ContactEnquiryResponse:
+    """Return every stored field for one public contact enquiry."""
+    enquiry = ContactEnquiryRepository(db).get(enquiry_id)
+    if enquiry is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "contact_enquiry_not_found",
+                "message": "Contact enquiry was not found.",
+            },
+        )
+    return ContactEnquiryResponse.model_validate(enquiry)
 
 
 @router.get(

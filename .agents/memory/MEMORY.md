@@ -42,3 +42,4 @@
 - [Hero motion visibility](hero-motion-visibility.md) — confirm homepage motion is noticeable within seconds, mobile-safe at peak zoom, and still for reduced-motion users.
 - [Final CTA bright strip](final-cta-bright-strip.md) — the lighter band beneath the dark horse-image overlay is intentional, not an overlay defect.
 - [CSS selector regression checks](css-selector-regression-checks.md) — Vitest can stub even raw CSS imports; use the actual stylesheet when testing nested-control isolation.
+- [Contact enquiry acceptance](contact-acceptance.md) — durable storage defines acceptance; optional notification failure must never prompt duplicate submissions.

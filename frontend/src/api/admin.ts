@@ -7,6 +7,8 @@ import type {
   ActivityLog,
   AdminUser,
   AdminUserListParams,
+  ContactEnquiry,
+  ContactEnquiryListParams,
   DashboardStats,
   DashboardVisitMonth,
   EmailLogFilterMode,
@@ -113,6 +115,21 @@ export async function exportSubscribers(params?: SubscriberListParams): Promise<
   const fallback = `equiconnected-subscribers-${new Date().toISOString().slice(0, 10)}.csv`;
   const filename = filenameFromDisposition(response.headers['content-disposition'], fallback);
   triggerCsvDownload(response.data as Blob, filename);
+}
+
+export async function listContactEnquiries(
+  params?: ContactEnquiryListParams
+): Promise<PaginatedResponse<ContactEnquiry>> {
+  const { data } = await apiClient.get<PaginatedResponse<ContactEnquiry>>(
+    '/admin/contact-enquiries',
+    { params }
+  );
+  return data;
+}
+
+export async function getContactEnquiry(id: string): Promise<ContactEnquiry> {
+  const { data } = await apiClient.get<ContactEnquiry>(`/admin/contact-enquiries/${id}`);
+  return data;
 }
 
 export async function getAdminUser(id: string): Promise<AdminUser> {

@@ -25,8 +25,9 @@ from app.schemas.subscriber import (
 )
 from app.schemas.review import PublicProviderDiscovery, PublicProviderLocation
 from app.schemas.contact import ContactMessageRequest
-from app.services.email_service import EmailDeliveryError, EmailService
 from app.services.subscriber_service import SubscriberService
+from app.repositories.contact_enquiry_repository import ContactEnquirySaveError
+from app.services.contact_enquiry_service import ContactEnquiryService
 
 router = APIRouter(prefix="/public", tags=["Public"])
 _DB = Annotated[Session, Depends(get_db)]
@@ -37,27 +38,24 @@ _DB = Annotated[Session, Depends(get_db)]
     status_code=status.HTTP_202_ACCEPTED,
     dependencies=[Depends(check_contact_rate_limit)],
 )
-def send_contact_message(body: ContactMessageRequest) -> dict[str, str]:
-    """Send an enquiry to the configured admin mailbox, without storing visitor details."""
+def send_contact_message(
+    body: ContactMessageRequest,
+    db: _DB,
+) -> dict[str, str]:
+    """Persist a public enquiry before attempting an optional email notification."""
     recipient = get_settings().ADMIN_EMAIL.strip()
-    if not recipient:
+    try:
+        ContactEnquiryService(db).submit(
+            body,
+            notification_recipient=recipient or None,
+        )
+    except ContactEnquirySaveError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"code": "contact_unavailable", "message": "Contact messages are unavailable right now. Please try again later."},
-        )
-    try:
-        EmailService().send_contact_message(
-            recipient,
-            name=body.name,
-            email=str(body.email),
-            enquiry_type=body.enquiry_type,
-            phone=body.phone,
-            text=body.message,
-        )
-    except EmailDeliveryError:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail={"code": "contact_delivery_failed", "message": "We could not send your message. Please try again later."},
+            detail={
+                "code": "contact_save_failed",
+                "message": "We could not save your message. Please try again later.",
+            },
         ) from None
     return {"message": "Your message was submitted."}
 

@@ -75,12 +75,56 @@ describe('AdminTopNav', () => {
     expect(registrationsLink.getAttribute('aria-current')).toBe('page');
   });
 
-  it('adds Subscribers to the top-level navigation', () => {
+  it('groups Subscribers and Contact Enquiries under an active Enquiries menu', async () => {
+    const user = userEvent.setup();
     render(<MemoryRouter initialEntries={['/admin/subscribers']}><AdminTopNav /></MemoryRouter>);
     const navigation = screen.getByRole('navigation', { name: 'Admin navigation' });
-    const subscribersLink = within(navigation).getByRole('link', { name: 'Subscribers' });
+    const enquiriesTrigger = within(navigation).getByRole('button', { name: 'Enquiries' });
+    expect(enquiriesTrigger.className).toContain('link--active');
+    expect(within(navigation).queryByRole('link', { name: 'Subscribers' })).toBeNull();
+
+    await user.click(enquiriesTrigger);
+    const menu = screen.getByRole('menu', { name: 'Enquiries' });
+    const subscribersLink = within(menu).getByRole('menuitem', { name: 'Subscribers' });
     expect(subscribersLink.getAttribute('href')).toBe('/admin/subscribers');
     expect(subscribersLink.getAttribute('aria-current')).toBe('page');
+    expect(within(menu).getByRole('menuitem', { name: 'Contact Enquiries' }).getAttribute('href'))
+      .toBe('/admin/contact-enquiries');
+  });
+
+  it('activates the Contact Enquiries child for detail routes and closes menus on navigation', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/admin/contact-enquiries/enquiry-1?search=horse']}>
+        <AdminTopNav />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    const navigation = screen.getByRole('navigation', { name: 'Admin navigation' });
+    const enquiriesTrigger = within(navigation).getByRole('button', { name: 'Enquiries' });
+    expect(enquiriesTrigger.className).toContain('link--active');
+    await user.click(enquiriesTrigger);
+    const contactLink = screen.getByRole('menuitem', { name: 'Contact Enquiries' });
+    expect(contactLink.getAttribute('aria-current')).toBe('page');
+    await user.click(contactLink);
+    expect(screen.queryByRole('menu', { name: 'Enquiries' })).toBeNull();
+    expect(screen.getByTestId('location').textContent).toBe('/admin/contact-enquiries');
+  });
+
+  it('keeps grouped menus mutually exclusive and dismisses Enquiries with outside click or Escape', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><AdminTopNav /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: 'Directory Management' }));
+    expect(screen.getByRole('menu', { name: 'Directory Management' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Enquiries' }));
+    expect(screen.queryByRole('menu', { name: 'Directory Management' })).toBeNull();
+    expect(screen.getByRole('menu', { name: 'Enquiries' })).toBeTruthy();
+
+    await user.click(document.body);
+    expect(screen.queryByRole('menu', { name: 'Enquiries' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Enquiries' }));
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu', { name: 'Enquiries' })).toBeNull();
   });
 
   it('groups provider destinations inside Directory Management and closes it with Escape', async () => {

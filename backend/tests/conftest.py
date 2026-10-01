@@ -57,6 +57,7 @@ _CLEANUP_TABLES = [
     "email_verification_tokens",
     "email_delivery_logs",
     "subscribers",
+    "contact_enquiries",
     "audit_logs",
     "provider_invitations",
     "organization_requests",

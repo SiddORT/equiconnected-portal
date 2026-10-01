@@ -86,6 +86,27 @@ export interface SubscriberListParams {
   page_size?: number;
 }
 
+export type ContactEnquiryType = 'general' | 'listing' | 'partnership' | 'other';
+
+export interface ContactEnquiry {
+  id: string;
+  name: string;
+  email: string;
+  enquiry_type: ContactEnquiryType;
+  phone: string | null;
+  message: string;
+  submitted_at: string;
+}
+
+export interface ContactEnquiryListParams {
+  search?: string;
+  enquiry_type?: ContactEnquiryType;
+  date_from?: string;
+  date_to?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export interface EmailVerificationResponse extends MessageResponse {
   email: string;
   redirect_to?: '/login' | '/provider/login';
@@ -356,6 +377,7 @@ export interface EmailDeliveryLog {
     | 'account_verification'
     | 'provider_portal_access'
     | 'subscriber_confirmation'
+    | 'contact_notification'
     | 'smtp_test';
   status: EmailDeliveryStatus;
   failure_message: string | null;

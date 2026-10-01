@@ -7,7 +7,11 @@ interface NavItem { label: string; to: string; icon: string; }
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: '⊞' },
   { label: 'Registrations', to: '/admin/users', icon: '👥' },
+];
+
+const ENQUIRY_ITEMS: NavItem[] = [
   { label: 'Subscribers', to: '/admin/subscribers', icon: '✉' },
+  { label: 'Contact Enquiries', to: '/admin/contact-enquiries', icon: '✉' },
 ];
 
 const DIRECTORY_ITEMS: NavItem[] = [
@@ -25,8 +29,16 @@ export function AdminTopNav() {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [directoryOpen, setDirectoryOpen] = useState(false);
+  const [enquiriesOpen, setEnquiriesOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const directoryRef = useRef<HTMLDivElement>(null);
+  const enquiriesRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMenuOpen(false);
+    setDirectoryOpen(false);
+    setEnquiriesOpen(false);
+  }, [location.pathname, location.search]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -37,10 +49,13 @@ export function AdminTopNav() {
       if (directoryRef.current && !directoryRef.current.contains(e.target as Node)) {
         setDirectoryOpen(false);
       }
+      if (enquiriesRef.current && !enquiriesRef.current.contains(e.target as Node)) {
+        setEnquiriesOpen(false);
+      }
     }
-    if (menuOpen || directoryOpen) document.addEventListener('mousedown', handleClick);
+    if (menuOpen || directoryOpen || enquiriesOpen) document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [menuOpen, directoryOpen]);
+  }, [menuOpen, directoryOpen, enquiriesOpen]);
 
   // Close dropdown on Escape
   useEffect(() => {
@@ -48,11 +63,12 @@ export function AdminTopNav() {
       if (e.key === 'Escape') {
         setMenuOpen(false);
         setDirectoryOpen(false);
+        setEnquiriesOpen(false);
       }
     }
-    if (menuOpen || directoryOpen) document.addEventListener('keydown', handleKey);
+    if (menuOpen || directoryOpen || enquiriesOpen) document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [menuOpen, directoryOpen]);
+  }, [menuOpen, directoryOpen, enquiriesOpen]);
 
   async function handleLogout() {
     setMenuOpen(false);
@@ -112,6 +128,7 @@ export function AdminTopNav() {
             onClick={() => {
               setDirectoryOpen((open) => !open);
               setMenuOpen(false);
+              setEnquiriesOpen(false);
             }}
           >
             <span className={styles.linkIcon} aria-hidden="true">📂</span>
@@ -143,6 +160,56 @@ export function AdminTopNav() {
             </div>
           )}
         </div>
+
+        <div className={styles.enquiriesMenu} ref={enquiriesRef}>
+          <button
+            type="button"
+            className={[
+              styles.link,
+              styles.enquiriesTrigger,
+              ENQUIRY_ITEMS.some((item) => location.pathname.startsWith(item.to))
+                ? styles['link--active']
+                : '',
+            ].filter(Boolean).join(' ')}
+            aria-haspopup="menu"
+            aria-expanded={enquiriesOpen}
+            aria-label="Enquiries"
+            title="Enquiries"
+            onClick={() => {
+              setEnquiriesOpen((open) => !open);
+              setMenuOpen(false);
+              setDirectoryOpen(false);
+            }}
+          >
+            <span className={styles.linkIcon} aria-hidden="true">✉</span>
+            <span className={styles.linkLabel}>Enquiries</span>
+            <span className={styles.enquiriesChevron} aria-hidden="true">
+              {enquiriesOpen ? '▲' : '▼'}
+            </span>
+          </button>
+
+          {enquiriesOpen && (
+            <div className={`${styles.dropdown} ${styles.enquiriesDropdown}`} role="menu" aria-label="Enquiries">
+              {ENQUIRY_ITEMS.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  role="menuitem"
+                  className={({ isActive }) =>
+                    [
+                      styles.dropdownNavItem,
+                      isActive ? styles['dropdownNavItem--active'] : '',
+                    ].filter(Boolean).join(' ')
+                  }
+                  onClick={() => setEnquiriesOpen(false)}
+                >
+                  <span aria-hidden="true">{item.icon}</span>
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+          )}
+        </div>
       </nav>
 
       {/* ── Profile menu ──────────────────────────────── */}
@@ -155,6 +222,7 @@ export function AdminTopNav() {
           onClick={() => {
             setMenuOpen((o) => !o);
             setDirectoryOpen(false);
+            setEnquiriesOpen(false);
           }}
         >
           <span className={styles.avatar} aria-hidden="true">{initials}</span>

@@ -155,7 +155,11 @@ export function SubscribersPage() {
       <PageHeader
         title="Subscribers"
         subtitle="People who asked EquiConnected to reach out before launch."
-        breadcrumbs={[{ label: 'Admin' }, { label: 'Subscribers' }]}
+        breadcrumbs={[
+          { label: 'Admin', href: '/admin/dashboard' },
+          { label: 'Enquiries', href: '/admin/contact-enquiries' },
+          { label: 'Subscribers' },
+        ]}
       />
       <div className={styles.body}>
         <div className={styles.toolbar}>

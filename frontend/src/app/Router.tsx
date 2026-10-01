@@ -39,6 +39,7 @@ import { ProviderAuthGuard } from '@/features/provider/ProviderAuthGuard';
 import { ProviderApplicationsPage } from '@/pages/admin/ProviderApplicationsPage';
 import { ProviderPasswordSetupPage } from '@/pages/ProviderPasswordSetupPage';
 import { SubscribersPage } from '@/pages/admin/SubscribersPage';
+import { ContactEnquiriesPage, ContactEnquiryDetailPage } from '@/pages/admin/ContactEnquiriesPage';
 import { LanguagesPage } from '@/pages/admin/LanguagesPage';
 
 const AnimationPage = lazy(() =>
@@ -101,6 +102,8 @@ export function AppRouter() {
             <Route path="/admin/invitations" element={<InvitationsPage />} />
             <Route path="/admin/users" element={<UsersPage />} />
             <Route path="/admin/subscribers" element={<SubscribersPage />} />
+            <Route path="/admin/contact-enquiries" element={<ContactEnquiriesPage />} />
+            <Route path="/admin/contact-enquiries/:id" element={<ContactEnquiryDetailPage />} />
             <Route path="/admin/provider-applications" element={<ProviderApplicationsPage />} />
             <Route path="/admin/reviews" element={<ReviewsPage />} />
             <Route path="/admin/activity-logs" element={<ActivityLogsPage />} />

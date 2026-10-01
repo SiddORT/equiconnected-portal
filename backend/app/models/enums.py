@@ -74,7 +74,15 @@ class EmailPurpose(str, enum.Enum):
     ACCOUNT_VERIFICATION = "account_verification"
     PROVIDER_PORTAL_ACCESS = "provider_portal_access"
     SUBSCRIBER_CONFIRMATION = "subscriber_confirmation"
+    CONTACT_NOTIFICATION = "contact_notification"
     SMTP_TEST = "smtp_test"
+
+
+class ContactEnquiryType(str, enum.Enum):
+    GENERAL = "general"
+    LISTING = "listing"
+    PARTNERSHIP = "partnership"
+    OTHER = "other"
 
 
 class EmailDeliveryStatus(str, enum.Enum):
