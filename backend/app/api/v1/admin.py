@@ -63,6 +63,7 @@ from app.services.provider_profile_update_service import (
     ProviderProfileUpdateConflictError,
     ProviderProfileUpdateNotFoundError,
     ProviderProfileUpdateService,
+    editable_profile_from_snapshot,
     editable_profile_from_provider,
 )
 from app.repositories.user_repository import UserRepository
@@ -674,7 +675,9 @@ def _provider_profile_update_response(
         provider_name=provider.name,
         provider_type=provider.provider_type,
         review_status=profile_update.review_status,
-        proposed_profile=profile_update.proposed_profile,
+        proposed_profile=editable_profile_from_snapshot(
+            provider, profile_update.proposed_profile
+        ),
         current_profile=editable_profile_from_provider(provider),
         submitted_at=profile_update.submitted_at,
         reviewed_by_user_id=profile_update.reviewed_by_user_id,

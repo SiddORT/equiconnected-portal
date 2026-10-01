@@ -25,9 +25,11 @@ from app.repositories.review_repository import ReviewRepository
 from app.services.invitation_service import InvalidProviderDataError
 from app.services.provider_profile_update_service import (
     apply_editable_profile,
+    editable_profile_from_snapshot,
     editable_profile_from_provider,
     merge_editable_profile,
     serialize_editable_profile,
+    sync_editable_profile_contacts,
     validate_editable_profile,
 )
 
@@ -123,7 +125,9 @@ class ProviderPortalService:
                 ProviderProfileUpdateStatus.PENDING_REVIEW,
                 ProviderProfileUpdateStatus.REJECTED,
             ):
-                editable = editable.model_validate(profile_update.proposed_profile)
+                editable = editable_profile_from_snapshot(
+                    provider, profile_update.proposed_profile
+                )
             state = ProviderProfileUpdateState(
                 id=profile_update.id,
                 review_status=profile_update.review_status,
@@ -265,6 +269,8 @@ class ProviderPortalService:
             "specialization_ids", "locations", "phones", "emails", "photos",
             "professional_title", "biography", "years_experience",
             "experience_description", "qualifications",
+            "maximum_working_radius_km", "emergency_services_available",
+            "emergency_contact_number",
         }
         safe_fields = {key: value for key, value in fields.items() if key in allowed}
         if not safe_fields:
@@ -283,8 +289,11 @@ class ProviderPortalService:
             ProviderProfileUpdateStatus.PENDING_REVIEW,
             ProviderProfileUpdateStatus.REJECTED,
         ):
-            base = base.model_validate(profile_update.proposed_profile)
+            base = editable_profile_from_snapshot(
+                provider, profile_update.proposed_profile
+            )
         editable = merge_editable_profile(base, safe_fields)
+        editable = sync_editable_profile_contacts(editable, set(safe_fields))
         self._validate_photo_references(provider, editable)
         validate_editable_profile(
             provider, editable, self._providers, supplied_fields=set(safe_fields)

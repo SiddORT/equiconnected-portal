@@ -652,6 +652,9 @@ export interface ProviderPortalProfile {
   phone: string | null;
   website: string | null;
   visit_stability: VisitStability;
+  maximum_working_radius_km?: number | null;
+  emergency_services_available?: boolean;
+  emergency_contact_number?: string | null;
   specializations: ProviderSpecializationBrief[];
   locations: ProviderLocation[];
   photos: ProviderPhoto[];
@@ -680,6 +683,9 @@ export interface ProviderPortalUpdate {
   phone?: string | null;
   website?: string | null;
   visit_stability?: VisitStability;
+  maximum_working_radius_km?: number | null;
+  emergency_services_available?: boolean;
+  emergency_contact_number?: string | null;
   specialization_ids?: string[];
   locations?: Array<Omit<ProviderLocationCreate, 'is_primary'> & { is_primary?: boolean }>;
   phones?: ProviderPhoneCreate[];

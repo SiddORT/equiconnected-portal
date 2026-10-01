@@ -304,6 +304,9 @@ function ProfileUpdateDialog({ update, formatTimestamp, onClose, onDecision, err
     ['Phone', update.current_profile.phone || '—', update.proposed_profile.phone || '—'],
     ['Website', update.current_profile.website || '—', update.proposed_profile.website || '—'],
     ['Visit availability', update.current_profile.visit_stability === 'STABLE_VISIT' ? 'Stable visits' : 'Clinic-based', update.proposed_profile.visit_stability === 'STABLE_VISIT' ? 'Stable visits' : 'Clinic-based'],
+    ['Maximum working radius (km)', update.current_profile.maximum_working_radius_km?.toString() ?? '—', update.proposed_profile.maximum_working_radius_km?.toString() ?? '—'],
+    ['Emergency services available', update.current_profile.emergency_services_available ? 'Yes' : 'No', update.proposed_profile.emergency_services_available ? 'Yes' : 'No'],
+    ['Emergency contact number', update.current_profile.emergency_contact_number || '—', update.proposed_profile.emergency_contact_number || '—'],
     ['Specializations', displayList(update.current_profile.specialization_ids), displayList(update.proposed_profile.specialization_ids)],
     ['Locations', displayList(update.current_profile.locations), displayList(update.proposed_profile.locations)],
     ['Phone contacts', displayList(update.current_profile.phones), displayList(update.proposed_profile.phones)],
@@ -312,7 +315,7 @@ function ProfileUpdateDialog({ update, formatTimestamp, onClose, onDecision, err
     ['Professional title', update.current_profile.professional_title || '—', update.proposed_profile.professional_title || '—'],
     ['Biography', update.current_profile.biography || '—', update.proposed_profile.biography || '—'],
     ['Years of experience', update.current_profile.years_experience?.toString() || '—', update.proposed_profile.years_experience?.toString() || '—'],
-    ['Experience description', update.current_profile.experience_description || '—', update.proposed_profile.experience_description || '—'],
+    ['Experience notes', update.current_profile.experience_description || '—', update.proposed_profile.experience_description || '—'],
     ['Qualifications', displayList(update.current_profile.qualifications), displayList(update.proposed_profile.qualifications)],
   ];
   const isPending = update.review_status === 'PENDING_REVIEW';

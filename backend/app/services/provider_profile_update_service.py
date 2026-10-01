@@ -3,16 +3,22 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import re
 from types import SimpleNamespace
 from uuid import UUID
 
+from app.core.phone_metadata import SUPPORTED_PHONE_DIAL_CODES
 from app.models.enums import ProviderProfileUpdateStatus, ProviderType
 from app.models.provider import Provider, ProviderProfileUpdate
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.provider_profile_update_repository import ProviderProfileUpdateRepository
 from app.repositories.provider_repository import ProviderRepository
 from app.schemas.provider import ProviderPortalEditableProfile
-from app.services.invitation_service import InvalidProviderDataError, InvitationService
+from app.services.invitation_service import (
+    InvalidProviderDataError,
+    InvitationService,
+    _is_complete_international_phone,
+)
 
 
 class ProviderProfileUpdateNotFoundError(Exception):
@@ -43,6 +49,34 @@ def _canonicalize_collection(items: list) -> list:
             item, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str
         ),
     )
+
+
+def _legacy_phone_contact(value: str) -> dict:
+    """Convert the legacy scalar phone into the portal's structured format."""
+    normalized = value.strip()
+    match = re.match(r"^(\+\d{1,4})[\s.-]+(.+)$", normalized)
+    if match:
+        country_code, number = match.groups()
+    else:
+        compact = re.fullmatch(r"\+(\d{7,19})", normalized)
+        if compact:
+            for dial_code in sorted(
+                SUPPORTED_PHONE_DIAL_CODES, key=len, reverse=True
+            ):
+                local_number = compact.group(1)[len(dial_code) - 1 :]
+                if (
+                    normalized.startswith(dial_code)
+                    and 6 <= len(local_number) <= 15
+                ):
+                    return {
+                        "country_code": dial_code,
+                        "number": local_number,
+                        "is_primary": True,
+                    }
+        # Pre-country-picker records may contain a local number only. The
+        # portal's phone input already uses +1 as its default country.
+        country_code, number = "+1", normalized
+    return {"country_code": country_code, "number": number, "is_primary": True}
 
 
 def editable_profile_from_provider(provider: Provider) -> ProviderPortalEditableProfile:
@@ -102,14 +136,23 @@ def editable_profile_from_provider(provider: Provider) -> ProviderPortalEditable
                 provider.phones,
                 key=lambda row: (not row.is_primary, row.country_code, row.number),
             )
-        ],
+        ] or ([_legacy_phone_contact(provider.phone)] if provider.phone else []),
         "emails": [
             {"email": row.email, "is_primary": row.is_primary}
             for row in sorted(
                 provider.emails,
                 key=lambda row: (not row.is_primary, row.email),
             )
-        ],
+        ] or (
+            [{"email": provider.email, "is_primary": True}]
+            if provider.email else []
+        ),
+        "maximum_working_radius_km": (
+            float(provider.maximum_working_radius_km)
+            if provider.maximum_working_radius_km is not None else None
+        ),
+        "emergency_services_available": provider.emergency_services_available,
+        "emergency_contact_number": provider.emergency_contact_number,
         "photos": [
             {
                 "storage_reference": row.storage_reference,
@@ -173,6 +216,46 @@ def merge_editable_profile(
     return ProviderPortalEditableProfile.model_validate(merged)
 
 
+def sync_editable_profile_contacts(
+    profile: ProviderPortalEditableProfile, supplied_fields: set[str]
+) -> ProviderPortalEditableProfile:
+    """Mirror explicitly supplied contact collections into legacy scalar fields."""
+    payload = profile.model_dump()
+    if "emails" in supplied_fields:
+        entries = payload["emails"]
+        primary = next(
+            (entry["email"] for entry in entries if entry["is_primary"]),
+            entries[0]["email"] if entries else None,
+        )
+        payload["email"] = primary
+    if "phones" in supplied_fields:
+        entries = payload["phones"]
+        primary = next(
+            (entry for entry in entries if entry["is_primary"]),
+            entries[0] if entries else None,
+        )
+        payload["phone"] = (
+            f"{primary['country_code']} {primary['number']}" if primary else None
+        )
+    return ProviderPortalEditableProfile.model_validate(payload)
+
+
+def editable_profile_from_snapshot(
+    provider: Provider, snapshot: dict
+) -> ProviderPortalEditableProfile:
+    """Load a persisted snapshot while supplying fields added after it was saved."""
+    profile = merge_editable_profile(editable_profile_from_provider(provider), snapshot)
+    payload = profile.model_dump()
+    # Older snapshots captured empty collections before contact editing was
+    # unified. Those empties meant "no structured contacts yet", not "clear the
+    # legacy scalar contact"; newly cleared snapshots also clear their scalar.
+    if not snapshot.get("emails") and snapshot.get("email"):
+        payload["emails"] = [{"email": snapshot["email"], "is_primary": True}]
+    if not snapshot.get("phones") and snapshot.get("phone"):
+        payload["phones"] = [_legacy_phone_contact(snapshot["phone"])]
+    return ProviderPortalEditableProfile.model_validate(payload)
+
+
 def serialize_editable_profile(
     provider: Provider, profile: ProviderPortalEditableProfile
 ) -> dict:
@@ -213,6 +296,38 @@ def validate_editable_profile(
         if sum(bool(getattr(record, flag)) for record in records) > 1:
             raise InvalidProviderDataError(f"Only one {label} may be marked as {flag}.")
 
+    previous_radius = (
+        float(provider.maximum_working_radius_km)
+        if provider.maximum_working_radius_km is not None else None
+    )
+    if (
+        profile.visit_stability.value == "STABLE_VISIT"
+        and (
+            profile.visit_stability != provider.visit_stability
+            or profile.maximum_working_radius_km != previous_radius
+        )
+        and (
+            profile.maximum_working_radius_km is None
+            or profile.maximum_working_radius_km <= 0
+        )
+    ):
+        raise InvalidProviderDataError(
+            "Stable visits require a positive maximum working radius."
+        )
+
+    emergency_changed = (
+        profile.emergency_services_available != provider.emergency_services_available
+        or profile.emergency_contact_number != provider.emergency_contact_number
+    )
+    if (
+        profile.emergency_services_available is True
+        and emergency_changed
+        and not _is_complete_international_phone(profile.emergency_contact_number)
+    ):
+        raise InvalidProviderDataError(
+            "Enter a complete international emergency contact number with a dial code and 6–15 local digits."
+        )
+
 
 def apply_editable_profile(
     provider: Provider,
@@ -222,6 +337,9 @@ def apply_editable_profile(
     """Apply a validated full snapshot using the established collection writer."""
     helper = InvitationService.__new__(InvitationService)
     helper._providers = provider_repo
+    # This path is reserved for provider-portal updates; invitation contact
+    # suggestion semantics intentionally remain owned by InvitationService.
+    profile = sync_editable_profile_contacts(profile, {"emails", "phones"})
     fields = profile.model_dump()
     if provider.provider_type != ProviderType.DOCTOR:
         for field in _DOCTOR_FIELDS:
@@ -275,13 +393,22 @@ class ProviderProfileUpdateService:
         loaded = self._providers.get_by_id(provider.id)
         assert loaded is not None
         current_profile = editable_profile_from_provider(loaded)
-        if serialize_editable_profile(loaded, current_profile) != update.base_profile:
+        current_snapshot = serialize_editable_profile(loaded, current_profile)
+        # Normalize legacy omissions using that snapshot's own scalar values:
+        # pre-collection bases used empty arrays plus scalar public contacts,
+        # and pre-service bases omitted the later service fields. This preserves
+        # compatibility without overlooking a real change to captured fields.
+        base_profile = editable_profile_from_snapshot(
+            loaded, update.base_profile
+        )
+        base_snapshot = serialize_editable_profile(loaded, base_profile)
+        if current_snapshot != base_snapshot:
             self._db.rollback()
             raise ProviderProfileUpdateConflictError(
                 "The approved profile changed after this update was submitted. "
                 "Review the latest listing before approving the draft."
             )
-        profile = ProviderPortalEditableProfile.model_validate(update.proposed_profile)
+        profile = editable_profile_from_snapshot(loaded, update.proposed_profile)
         validate_editable_profile(loaded, profile, self._providers)
         apply_editable_profile(loaded, profile, self._providers)
         now = datetime.now(timezone.utc)

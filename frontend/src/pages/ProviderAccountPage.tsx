@@ -11,6 +11,13 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ProviderTopNav } from '@/components/layout/ProviderTopNav';
 import { ReviewCardList } from '@/components/reviews/ReviewCard';
 import {
+  InvitationServiceFields,
+  invitationServicePayload,
+  invitationServiceValuesFromDraft,
+  validateInvitationServices,
+  type InvitationServiceValues,
+} from '@/components/invite/InvitationProfileFields';
+import {
   ProviderProfileCollections,
   type PortalLocation,
   type PortalPhoto,
@@ -18,10 +25,27 @@ import {
 } from '@/components/provider/ProviderProfileCollections';
 import type { EmailEntry } from '@/components/admin/MultiEmailField';
 import type { PhoneEntry } from '@/components/admin/MultiPhoneField';
-import type { ProviderPortalProfile, ProviderPortalUpdate, ProviderSpecializationBrief } from '@/types';
+import type {
+  InvitationDraftProvider,
+  ProviderPortalProfile,
+  ProviderPortalUpdate,
+  ProviderSpecializationBrief,
+  VisitStability,
+} from '@/types';
+import { DEFAULT_COUNTRY } from '@/utils/countryCodes';
+import { portalContactsFromProfile, portalScalarContactsFromCollections } from './providerPortalFormUtils';
 import styles from './ProviderAccountPage.module.css';
 
 type Notice = { variant: 'success' | 'error'; text: string } | null;
+type PortalTab = 'basic' | 'professional' | 'services' | 'contact' | 'photos';
+
+const PORTAL_TABS: Array<{ id: PortalTab; label: string }> = [
+  { id: 'basic', label: 'Basic details' },
+  { id: 'professional', label: 'Professional details' },
+  { id: 'services', label: 'Services' },
+  { id: 'contact', label: 'Contact & location' },
+  { id: 'photos', label: 'Photos' },
+];
 
 function normalizePrimary<T extends { is_primary?: boolean }>(entries: T[]) {
   const primaryIndex = entries.findIndex((entry) => entry.is_primary);
@@ -57,13 +81,28 @@ export function ProviderAccountPage() {
   const [emails, setEmails] = useState<EmailEntry[]>([]);
   const [photos, setPhotos] = useState<PortalPhoto[]>([]);
   const [qualifications, setQualifications] = useState<PortalQualification[]>([]);
+  const [services, setServices] = useState<InvitationServiceValues>({
+    visit_stability: 'NOT_STABLE_VISIT',
+    maximum_working_radius_km: '',
+    emergency_services_available: false,
+    emergency_country_code: DEFAULT_COUNTRY.dialCode,
+    emergency_iso_code: DEFAULT_COUNTRY.code,
+    emergency_local_number: '',
+  });
+  const [serviceErrors, setServiceErrors] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState<PortalTab>('basic');
   const [loading, setLoading] = useState(true);
+  const [loadingSpecializations, setLoadingSpecializations] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const feedbackTriggerRef = useRef<HTMLButtonElement>(null);
   const feedbackCloseRef = useRef<HTMLButtonElement>(null);
   const feedbackWasOpen = useRef(false);
+  const serviceBaselineRef = useRef<InvitationServiceValues | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const tabRefs = useRef<Partial<Record<PortalTab, HTMLButtonElement | null>>>({});
+  const pendingInvalidFieldRef = useRef<HTMLElement | null>(null);
 
   function populate(next: ProviderPortalProfile) {
     setProfile(next);
@@ -82,10 +121,39 @@ export function ProviderAccountPage() {
       experience_description: editable.experience_description ?? null,
     });
     setLocations(normalizePrimary(editable.locations));
-    setPhones(normalizePrimary(editable.phones));
-    setEmails(normalizePrimary(editable.emails));
+    const contacts = portalContactsFromProfile(editable);
+    setPhones(normalizePrimary(contacts.phones));
+    setEmails(normalizePrimary(contacts.emails));
     setPhotos(normalizePhotos(editable.photos));
     setQualifications(normalizeQualifications(editable.qualifications));
+    const serviceProfile = {
+      name: editable.name,
+      description: editable.description ?? null,
+      email: editable.email ?? null,
+      phone: editable.phone ?? null,
+      website: editable.website ?? null,
+      visit_stability: editable.visit_stability ?? next.visit_stability,
+      maximum_working_radius_km: editable.maximum_working_radius_km !== undefined
+        ? editable.maximum_working_radius_km
+        : next.maximum_working_radius_km ?? null,
+      emergency_services_available: editable.emergency_services_available !== undefined
+        ? editable.emergency_services_available
+        : next.emergency_services_available ?? false,
+      emergency_contact_number: editable.emergency_contact_number !== undefined
+        ? editable.emergency_contact_number
+        : next.emergency_contact_number ?? null,
+      status: 'ACTIVE',
+      specialization_ids: editable.specialization_ids,
+      locations: [],
+      phones: [],
+      emails: [],
+      photos: [],
+    } as InvitationDraftProvider;
+    const nextServices = invitationServiceValuesFromDraft(serviceProfile);
+    setServices(nextServices);
+    serviceBaselineRef.current = nextServices;
+    setServiceErrors({});
+    setActiveTab('basic');
   }
 
   useEffect(() => {
@@ -96,11 +164,14 @@ export function ProviderAccountPage() {
           providersApi.getProviderPortalSpecializations(),
         ]);
         populate(next);
-        setSpecializations(choices);
+        setSpecializations([...new Map(
+          choices.filter((choice) => choice.is_active).map((choice) => [choice.id, choice])
+        ).values()]);
       } catch (err) {
         setNotice({ variant: 'error', text: extractErrorMessage(err, 'Your provider portal could not be loaded.') });
       } finally {
         setLoading(false);
+        setLoadingSpecializations(false);
       }
     })();
   }, []);
@@ -109,11 +180,111 @@ export function ProviderAccountPage() {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
+  function updateServices(next: InvitationServiceValues) {
+    setServices(next);
+    setServiceErrors({});
+  }
+
+  function changeTab(tab: PortalTab, focus = false) {
+    setActiveTab(tab);
+    if (focus) tabRefs.current[tab]?.focus();
+  }
+
+  function handleTabKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    const currentIndex = PORTAL_TABS.findIndex((tab) => tab.id === activeTab);
+    let nextIndex: number | null = null;
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % PORTAL_TABS.length;
+    if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + PORTAL_TABS.length) % PORTAL_TABS.length;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = PORTAL_TABS.length - 1;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    changeTab(PORTAL_TABS[nextIndex].id, true);
+  }
+
+  function routeToInvalidField(field: HTMLElement) {
+    const panel = field.closest<HTMLElement>('[data-tab-panel]');
+    const tab = panel?.dataset.tabPanel as PortalTab | undefined;
+    if (tab && tab !== activeTab) {
+      pendingInvalidFieldRef.current = field;
+      setActiveTab(tab);
+      return;
+    }
+    field.focus();
+    if ('reportValidity' in field && typeof field.reportValidity === 'function') field.reportValidity();
+  }
+
+  useEffect(() => {
+    const field = pendingInvalidFieldRef.current;
+    if (!field || !formRef.current?.contains(field)) return;
+    pendingInvalidFieldRef.current = null;
+    field.focus();
+    if ('reportValidity' in field && typeof field.reportValidity === 'function') field.reportValidity();
+  }, [activeTab]);
+
   async function save(event: React.FormEvent) {
     event.preventDefault();
+    const baselineServices = serviceBaselineRef.current;
+    const nextServiceErrors = validateInvitationServices(services);
+    if (
+      baselineServices?.visit_stability === 'STABLE_VISIT'
+      && services.visit_stability === 'STABLE_VISIT'
+      && !baselineServices.maximum_working_radius_km.trim()
+      && !services.maximum_working_radius_km.trim()
+    ) {
+      delete nextServiceErrors.maximum_working_radius_km;
+    }
+    if (
+      baselineServices?.emergency_services_available
+      && services.emergency_services_available
+      && !baselineServices.emergency_local_number.trim()
+      && !services.emergency_local_number.trim()
+      && baselineServices.emergency_country_code === services.emergency_country_code
+      && baselineServices.emergency_iso_code === services.emergency_iso_code
+    ) {
+      delete nextServiceErrors.emergency_contact_number;
+    }
+    setServiceErrors({ ...nextServiceErrors });
+    if (Object.keys(nextServiceErrors).length > 0) {
+      const radiusLabel = nextServiceErrors.maximum_working_radius_km
+        ? Array.from(formRef.current?.querySelectorAll('label') ?? [])
+          .find((label) => label.textContent?.includes('Maximum working radius'))
+        : undefined;
+      const invalidServiceInput = radiusLabel?.control
+        ?? formRef.current?.querySelector<HTMLInputElement>('[aria-label="Emergency contact number"]');
+      if (invalidServiceInput instanceof HTMLElement) {
+        routeToInvalidField(invalidServiceInput);
+      } else {
+        setActiveTab('services');
+      }
+      return;
+    }
+    const invalidFields = Array.from(formRef.current?.querySelectorAll<HTMLElement>(':invalid') ?? []);
+    const grandfatheredMissingRadius = baselineServices?.visit_stability === 'STABLE_VISIT'
+      && services.visit_stability === 'STABLE_VISIT'
+      && !baselineServices.maximum_working_radius_km.trim()
+      && !services.maximum_working_radius_km.trim();
+    const invalidField = invalidFields.find((field) => {
+      if (!grandfatheredMissingRadius || !(field instanceof HTMLInputElement) || field.type !== 'number') return true;
+      const label = Array.from(formRef.current?.querySelectorAll<HTMLLabelElement>('label[for]') ?? [])
+        .find((candidate) => candidate.htmlFor === field.id);
+      return !label?.textContent?.includes('Maximum working radius');
+    });
+    if (invalidField) {
+      routeToInvalidField(invalidField);
+      return;
+    }
+
     try {
+      const scalarContacts = portalScalarContactsFromCollections(phones, emails);
+      const servicePayload = invitationServicePayload(services);
       const body: ProviderPortalUpdate = {
         ...form,
+        ...scalarContacts,
+        visit_stability: services.visit_stability as VisitStability,
+        maximum_working_radius_km: servicePayload.maximum_working_radius_km,
+        emergency_services_available: services.emergency_services_available,
+        emergency_contact_number: servicePayload.emergency_contact_number,
         locations,
         phones: phones.map(({ country_code, number, is_primary }) => ({
           country_code,
@@ -234,6 +405,13 @@ export function ProviderAccountPage() {
     );
   }
 
+  const selectedSpecializationIds = form.specialization_ids ?? [];
+  const selectedActiveSpecializationCount = specializations
+    .filter((item) => selectedSpecializationIds.includes(item.id)).length;
+  const allSpecializationsSelected = specializations.length > 0
+    && selectedActiveSpecializationCount === specializations.length;
+  const someSpecializationsSelected = selectedActiveSpecializationCount > 0 && !allSpecializationsSelected;
+
   return (
     <div className={styles.page}>
       <ProviderTopNav />
@@ -304,37 +482,125 @@ export function ProviderAccountPage() {
               />
             </aside>
           </div>
-          <form className={styles.card + ' ' + styles.form} onSubmit={save}>
+          <form ref={formRef} className={styles.card + ' ' + styles.form} onSubmit={save} noValidate>
             <h2>Your profile</h2>
             <p className={styles.hint}>Welcome, {user?.full_name ?? 'provider'}. Unpublished listings save immediately. Changes to published listings are held for administrator review; publication and operational controls are never available here.</p>
-            <Input label="Provider or practice name" id="portal-name" value={form.name ?? ''} onChange={(e) => update('name', e.target.value)} disabled={saving} required />
-            {!profile.doctor_fields_available && (
-              <label className={styles.field}>Description
-                <textarea className={styles.textarea} rows={5} value={form.description ?? ''} onChange={(e) => update('description', e.target.value || null)} disabled={saving} maxLength={5000} />
-              </label>
-            )}
-            <div className={styles.choice}>
-              <Input label="Public email" id="portal-email" type="email" value={form.email ?? ''} onChange={(e) => update('email', e.target.value || null)} disabled={saving} />
-              <Input label="Public phone" id="portal-phone" value={form.phone ?? ''} onChange={(e) => update('phone', e.target.value || null)} disabled={saving} />
+            <div
+              role="tablist"
+              aria-label="Provider profile sections"
+              className={styles.tabs}
+            >
+              {PORTAL_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  ref={(node) => { tabRefs.current[tab.id] = node; }}
+                  id={`provider-tab-${tab.id}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  aria-controls={`provider-panel-${tab.id}`}
+                  tabIndex={activeTab === tab.id ? 0 : -1}
+                  className={styles.tab}
+                  onClick={() => changeTab(tab.id)}
+                  onKeyDown={handleTabKeyDown}
+                  disabled={saving}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
-            <Input label="Website" id="portal-website" value={form.website ?? ''} onChange={(e) => update('website', e.target.value || null)} disabled={saving} />
-            <div className={styles.field}><span>Visit availability</span><div className={styles.choice}>
-              <label><input type="radio" checked={form.visit_stability === 'STABLE_VISIT'} onChange={() => update('visit_stability', 'STABLE_VISIT')} disabled={saving} /> Stable visits</label>
-              <label><input type="radio" checked={form.visit_stability === 'NOT_STABLE_VISIT'} onChange={() => update('visit_stability', 'NOT_STABLE_VISIT')} disabled={saving} /> Clinic-based</label>
-            </div></div>
-            <div className={styles.sectionDivider} />
-            <div className={styles.field}><span>Specializations</span><div className={styles.specializations}>
-              {specializations.map((item) => <label key={item.id}><input type="checkbox" checked={form.specialization_ids?.includes(item.id) ?? false} onChange={(e) => update('specialization_ids', e.target.checked ? [...(form.specialization_ids ?? []), item.id] : (form.specialization_ids ?? []).filter((id) => id !== item.id))} disabled={saving} /> {item.name}</label>)}
-            </div></div>
-            <div className={styles.sectionDivider} />
-            <h2>{profile.doctor_fields_available ? 'Professional details' : 'Experience'}</h2>
-            <Input label="Years of experience" id="portal-years" type="number" min="0" max="100" value={form.years_experience ?? ''} onChange={(e) => update('years_experience', e.target.value ? Number(e.target.value) : null)} disabled={saving} />
-            {profile.doctor_fields_available && <>
-              <Input label="Professional title" id="portal-title" value={form.professional_title ?? ''} onChange={(e) => update('professional_title', e.target.value || null)} disabled={saving} />
-              <label className={styles.field}>Biography<textarea className={styles.textarea} rows={4} value={form.biography ?? ''} onChange={(e) => update('biography', e.target.value || null)} disabled={saving} /></label>
-            </>}
-            <div className={styles.sectionDivider} />
+            <div
+              id="provider-panel-basic"
+              role="tabpanel"
+              aria-labelledby="provider-tab-basic"
+              tabIndex={0}
+              hidden={activeTab !== 'basic'}
+              data-tab-panel="basic"
+              className={styles.tabPanel}
+            >
+              <h3>Basic details</h3>
+              <Input label="Provider or practice name" id="portal-name" value={form.name ?? ''} onChange={(e) => update('name', e.target.value)} disabled={saving} required />
+              {!profile.doctor_fields_available && (
+                <label className={styles.field}>Description
+                  <textarea className={styles.textarea} rows={5} value={form.description ?? ''} onChange={(e) => update('description', e.target.value || null)} disabled={saving} maxLength={5000} />
+                </label>
+              )}
+              <Input label="Website" id="portal-website" value={form.website ?? ''} onChange={(e) => update('website', e.target.value || null)} disabled={saving} />
+            </div>
+            <div
+              id="provider-panel-services"
+              role="tabpanel"
+              aria-labelledby="provider-tab-services"
+              tabIndex={0}
+              hidden={activeTab !== 'services'}
+              data-tab-panel="services"
+              className={styles.tabPanel}
+            >
+              <section className={styles.specializationSection} aria-labelledby="portal-specializations-heading">
+                <div className={styles.specializationHeader}>
+                  <div>
+                    <h3 id="portal-specializations-heading">Specializations</h3>
+                    {loadingSpecializations
+                      ? <p role="status">Loading specializations…</p>
+                      : specializations.length === 0
+                        ? <p>No active specializations are available.</p>
+                        : <p>{selectedActiveSpecializationCount} of {specializations.length} selected</p>}
+                  </div>
+                  <div className={styles.specializationActions}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={saving || loadingSpecializations || specializations.length === 0 || allSpecializationsSelected}
+                      aria-pressed={allSpecializationsSelected ? 'true' : someSpecializationsSelected ? 'mixed' : 'false'}
+                      onClick={() => update('specialization_ids', [...new Set(specializations.map((item) => item.id))])}
+                    >
+                      Select all
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={saving || loadingSpecializations || selectedSpecializationIds.length === 0}
+                      aria-pressed="false"
+                      onClick={() => update('specialization_ids', [])}
+                    >
+                      Clear all
+                    </Button>
+                  </div>
+                </div>
+                <div className={styles.specializations}>
+                  {specializations.map((item) => (
+                    <label key={item.id}>
+                      <input
+                        type="checkbox"
+                        checked={selectedSpecializationIds.includes(item.id)}
+                        onChange={(event) => update('specialization_ids', event.target.checked
+                          ? [...new Set([...selectedSpecializationIds, item.id])]
+                          : selectedSpecializationIds.filter((id) => id !== item.id))}
+                        disabled={saving || loadingSpecializations}
+                      />
+                      {item.name}
+                    </label>
+                  ))}
+                </div>
+              </section>
+              <div className={styles.sectionDivider} />
+              <InvitationServiceFields value={services} onChange={updateServices} errors={serviceErrors} disabled={saving} />
+            </div>
             <ProviderProfileCollections
+              activeTab={activeTab}
+              professionalContent={<>
+                <h3>Professional details</h3>
+                <Input label="Years of experience" id="portal-years" type="number" min="0" max="100" step="1" value={form.years_experience ?? ''} onChange={(e) => update('years_experience', e.target.value ? Number(e.target.value) : null)} disabled={saving} />
+                {profile.doctor_fields_available && <>
+                  <Input label="Professional title" id="portal-title" value={form.professional_title ?? ''} onChange={(e) => update('professional_title', e.target.value || null)} disabled={saving} />
+                  <label className={styles.field}>Biography<textarea className={styles.textarea} rows={4} value={form.biography ?? ''} onChange={(e) => update('biography', e.target.value || null)} disabled={saving} /></label>
+                  <label className={styles.field}>Experience notes
+                    <textarea className={styles.textarea} rows={4} value={form.experience_description ?? ''} onChange={(e) => update('experience_description', e.target.value || null)} disabled={saving} maxLength={5000} />
+                  </label>
+                </>}
+              </>}
               locations={locations}
               onLocationsChange={setLocations}
               phones={phones}

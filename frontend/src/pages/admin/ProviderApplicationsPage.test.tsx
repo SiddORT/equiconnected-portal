@@ -52,6 +52,10 @@ const profileUpdate = {
   review_status: 'PENDING_REVIEW' as const,
   proposed_profile: {
     name: 'Austin Equine Specialists',
+    maximum_working_radius_km: 75,
+    emergency_services_available: true,
+    emergency_contact_number: '+971 501234567',
+    experience_description: 'Equine emergency experience',
     visit_stability: 'STABLE_VISIT' as const,
     specialization_ids: [],
     locations: [],
@@ -62,6 +66,10 @@ const profileUpdate = {
   },
   current_profile: {
     name: 'Austin Equine Clinic',
+    maximum_working_radius_km: 25,
+    emergency_services_available: false,
+    emergency_contact_number: null,
+    experience_description: null,
     visit_stability: 'STABLE_VISIT' as const,
     specialization_ids: [],
     locations: [],
@@ -179,6 +187,11 @@ describe('ProviderApplicationsPage', () => {
     await user.click(await screen.findByLabelText('Actions for Austin Equine Clinic update'));
     await user.click(await screen.findByText('Compare profiles'));
     const review = await screen.findByRole('dialog', { name: 'Review provider profile update' });
+    const radiusRow = within(review).getByRole('row', { name: 'Maximum working radius (km) 25 75' });
+    expect(within(radiusRow).getByRole('cell', { name: '75' })).toBeTruthy();
+    expect(within(review).getByRole('row', { name: 'Emergency services available No Yes' })).toBeTruthy();
+    expect(within(review).getByRole('row', { name: 'Emergency contact number — +971 501234567' })).toBeTruthy();
+    expect(within(review).getByRole('row', { name: 'Experience notes — Equine emergency experience' })).toBeTruthy();
     await user.click(within(review).getByRole('button', { name: 'Approve update' }));
     const confirmation = await screen.findByRole('dialog', { name: 'Approve profile update?' });
     await user.click(within(confirmation).getByRole('button', { name: 'Approve update' }));

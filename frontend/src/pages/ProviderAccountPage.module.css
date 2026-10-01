@@ -15,6 +15,18 @@
 .choice { display: flex; gap: 18px; flex-wrap: wrap; }
 .choice label, .specializations label { display: flex; gap: 7px; align-items: center; font-size: .92rem; }
 .specializations { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; border-bottom: 1px solid var(--border-default); }
+.tab { min-height: 48px; padding: 9px 12px; border: 1px solid var(--border-default); border-bottom: 0; border-radius: var(--radius-md) var(--radius-md) 0 0; background: var(--bg-subtle); color: var(--text-secondary); cursor: pointer; font: inherit; font-size: .9rem; font-weight: 650; line-height: 1.25; }
+.tab[aria-selected="true"] { border-color: var(--color-primary-700); background: var(--bg-surface); color: var(--color-primary-700); box-shadow: inset 0 3px 0 var(--color-primary-700); }
+.tab:focus-visible { outline: 3px solid var(--color-accent-400); outline-offset: 2px; }
+.tab:disabled { cursor: not-allowed; opacity: .6; }
+.tabPanel { display: grid; gap: 20px; }
+.tabPanel[hidden] { display: none; }
+.specializationSection { display: grid; gap: 14px; }
+.specializationHeader { display: flex; flex-wrap: wrap; flex-direction: column; align-items: flex-start; gap: 12px; }
+.specializationHeader h3, .tabPanel h3 { margin: 0; color: var(--text-primary); font-size: 1.12rem; }
+.specializationHeader p { margin: 5px 0 0; color: var(--text-secondary); font-size: .9rem; }
+.specializationActions { display: flex; flex-wrap: wrap; gap: 8px; }
 .sectionDivider { height: 1px; background: var(--border-default); margin: 8px 0; }
 .rating { margin: 0; color: var(--color-accent-700); font-weight: 700; }
 .empty { color: var(--text-secondary); line-height: 1.5; }
@@ -35,6 +47,7 @@
   .state { width: min(100% - (var(--space-6) * 2), 700px); padding: 36px 0; }
   .header { align-items: flex-start; flex-direction: column; }
   .specializations { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .feedbackDock { position: static; display: block; margin-bottom: 16px; transform: none; }
   .feedbackTrigger { width: 100%; justify-content: center; border-right: 1px solid var(--color-primary-700); border-radius: var(--radius-md); }
   .feedbackDrawer { width: 100%; max-height: none; margin-top: 10px; border-radius: var(--radius-lg); box-shadow: var(--shadow-md); }
@@ -44,6 +57,9 @@
   .state { width: calc(100% - (var(--space-4) * 2)); }
   .card { padding: 20px 16px; }
   .specializations { grid-template-columns: 1fr; }
+  .tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tab { padding: 9px 7px; font-size: .84rem; }
+  .specializationHeader { align-items: flex-start; flex-direction: column; }
   .drawerHeader { flex-direction: column; }
   .drawerClose { align-self: flex-start; }
 }

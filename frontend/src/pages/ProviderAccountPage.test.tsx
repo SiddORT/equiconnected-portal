@@ -83,6 +83,10 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}</output>;
 }
 
+async function enterTab(user: ReturnType<typeof userEvent.setup>, label: string) {
+  await user.click(await screen.findByRole('tab', { name: label }));
+}
+
 describe('ProviderAccountPage', () => {
   it('hides general description for doctors and leaves it out of profile saves', async () => {
     const profile = {
@@ -99,6 +103,7 @@ describe('ProviderAccountPage', () => {
     vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(profile);
     render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
 
+    await enterTab(userEvent.setup(), 'Professional details');
     await screen.findByLabelText('Biography');
     expect(screen.queryByLabelText('Description')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Save profile' }));
@@ -150,6 +155,7 @@ describe('ProviderAccountPage', () => {
 
       render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
 
+      await enterTab(userEvent.setup(), 'Professional details');
       expect((await screen.findByLabelText('Years of experience') as HTMLInputElement).value).toBe('0');
       await userEvent.click(screen.getByRole('button', { name: 'Save profile' }));
 
@@ -262,6 +268,7 @@ describe('ProviderAccountPage', () => {
 
     render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
 
+    await enterTab(user, 'Contact & location');
     await screen.findByRole('heading', { name: 'Your profile' });
     expect(screen.queryByText(/JSON list/i)).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Add location' }));
@@ -296,6 +303,7 @@ describe('ProviderAccountPage', () => {
 
     render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
 
+    await enterTab(user, 'Photos');
     await screen.findByRole('heading', { name: 'Your profile' });
     const image = new File(['image content'], 'clinic.png', { type: 'image/png' });
     const fileInput = document.querySelector('input[type="file"]');
@@ -303,6 +311,9 @@ describe('ProviderAccountPage', () => {
     await user.upload(fileInput as HTMLInputElement, image);
     await user.type(screen.getByLabelText('Alt text'), 'A horse clinic exterior');
     await user.type(screen.getByLabelText('Image title'), 'Clinic entrance');
+    await enterTab(user, 'Basic details');
+    await enterTab(user, 'Photos');
+    expect((screen.getByLabelText('Alt text') as HTMLInputElement).value).toBe('A horse clinic exterior');
     await user.click(screen.getByRole('button', { name: 'Upload photo' }));
 
     await waitFor(() => expect(providersApi.uploadProviderPortalPhoto).toHaveBeenCalledWith(
@@ -319,12 +330,324 @@ describe('ProviderAccountPage', () => {
 
     render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
 
+    await enterTab(user, 'Photos');
     await screen.findByRole('heading', { name: 'Your profile' });
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     const clickSpy = vi.spyOn(fileInput, 'click');
     await user.click(screen.getByRole('button', { name: 'Browse photos' }));
 
     expect(clickSpy).toHaveBeenCalledOnce();
+  });
+
+  it('provides keyboard-accessible tabs without submitting and retains basic edits while switching panels', async () => {
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(portalProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(portalProfile);
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    const basicTab = await screen.findByRole('tab', { name: 'Basic details' });
+    expect(screen.getAllByRole('tab')).toHaveLength(5);
+    expect(basicTab.getAttribute('aria-selected')).toBe('true');
+    await user.clear(screen.getByLabelText('Provider or practice name'));
+    await user.type(screen.getByLabelText('Provider or practice name'), 'Updated Austin Clinic');
+    await user.click(basicTab);
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: 'Professional details' }).getAttribute('aria-selected')).toBe('true');
+    expect(providersApi.updateProviderPortalProfile).not.toHaveBeenCalled();
+    await user.keyboard('{End}');
+    expect(screen.getByRole('tab', { name: 'Photos' }).getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Photos' }));
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Updated Austin Clinic' })
+    ));
+  });
+
+  it('prefills legacy scalar contacts while structured collection values take precedence', async () => {
+    const profile = {
+      ...portalProfile,
+      email: 'legacy@example.com',
+      phone: '+971 50 000 0000',
+      editable_profile: {
+        ...portalProfile.editable_profile,
+        email: 'legacy@example.com',
+        phone: '+971 50 000 0000',
+        emails: [{ email: 'directory@example.com', is_primary: true }],
+        phones: [{ country_code: '+44', number: '20 7946 0958', is_primary: true }],
+      },
+    };
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(profile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await enterTab(user, 'Contact & location');
+    expect((screen.getByLabelText('Email address 1') as HTMLInputElement).value).toBe('directory@example.com');
+    expect(screen.queryByLabelText('Email address 2')).toBeNull();
+    expect((screen.getByLabelText('Phone number 1') as HTMLInputElement).value).toBe('20 7946 0958');
+    expect(screen.getByRole('button', { name: 'Country code: United Kingdom +44' })).toBeTruthy();
+    expect(screen.queryByLabelText('Phone number 2')).toBeNull();
+  });
+
+  it('restores the country from a legacy scalar phone and keeps cleared collections empty after saving', async () => {
+    const profile = {
+      ...portalProfile,
+      email: 'legacy@example.com',
+      phone: '+971 50 123 4567',
+      editable_profile: {
+        ...portalProfile.editable_profile,
+        email: 'legacy@example.com',
+        phone: '+971 50 123 4567',
+        emails: [],
+        phones: [],
+      },
+    };
+    const clearedProfile = {
+      ...profile,
+      email: null,
+      phone: null,
+      editable_profile: {
+        ...profile.editable_profile,
+        email: null,
+        phone: null,
+        emails: [],
+        phones: [],
+      },
+    };
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(profile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(clearedProfile);
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await enterTab(user, 'Contact & location');
+    expect((screen.getByLabelText('Phone number 1') as HTMLInputElement).value).toBe('50 123 4567');
+    expect(screen.getByRole('button', { name: 'Country code: United Arab Emirates +971' })).toBeTruthy();
+    expect((screen.getByLabelText('Email address 1') as HTMLInputElement).value).toBe('legacy@example.com');
+    await user.click(screen.getByRole('button', { name: 'Remove phone 1' }));
+    await user.click(screen.getByRole('button', { name: 'Remove email 1' }));
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ phones: [], emails: [], phone: null, email: null })
+    ));
+    expect(screen.queryByLabelText('Phone number 1')).toBeNull();
+    expect(screen.queryByLabelText('Email address 1')).toBeNull();
+  });
+
+  it('loads and saves stable-visit and emergency services with the selected country code', async () => {
+    const profile = {
+      ...portalProfile,
+      visit_stability: 'STABLE_VISIT' as const,
+      maximum_working_radius_km: 25,
+      emergency_services_available: true,
+      emergency_contact_number: '+971 50 123 4567',
+      editable_profile: {
+        ...portalProfile.editable_profile,
+        visit_stability: 'STABLE_VISIT' as const,
+        maximum_working_radius_km: 25,
+        emergency_services_available: true,
+        emergency_contact_number: '+971 50 123 4567',
+      },
+    };
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(profile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(profile);
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })));
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await enterTab(user, 'Services');
+    expect((screen.getByLabelText('Maximum working radius (km)') as HTMLInputElement).value).toBe('25');
+    expect((screen.getByLabelText('Offers stable visits') as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText('Emergency services available') as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText('Emergency contact number') as HTMLInputElement).value).toBe('50 123 4567');
+    await user.click(screen.getByRole('button', { name: 'Country code: United Arab Emirates +971' }));
+    await user.type(screen.getByRole('textbox', { name: 'Search countries' }), 'United Kingdom');
+    await user.click(screen.getByRole('option', { name: /United Kingdom/ }));
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        visit_stability: 'STABLE_VISIT',
+        maximum_working_radius_km: 25,
+        emergency_services_available: true,
+        emergency_contact_number: '+44 50 123 4567',
+      })
+    ));
+  });
+
+  it('validates newly enabled stable visits on their tab but allows an unchanged legacy radius gap', async () => {
+    const user = userEvent.setup();
+    const nonStableProfile = {
+      ...portalProfile,
+      visit_stability: 'NOT_STABLE_VISIT' as const,
+      editable_profile: {
+        ...portalProfile.editable_profile,
+        visit_stability: 'NOT_STABLE_VISIT' as const,
+        maximum_working_radius_km: null,
+      },
+    };
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(nonStableProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await enterTab(user, 'Services');
+    await user.click(screen.getByLabelText('Offers stable visits'));
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+    expect(await screen.findByText('Enter a finite radius greater than 0 km.')).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Services' }).getAttribute('aria-selected')).toBe('true');
+    expect(providersApi.updateProviderPortalProfile).not.toHaveBeenCalled();
+
+    cleanup();
+    const legacyProfile = {
+      ...portalProfile,
+      emergency_services_available: true,
+      emergency_contact_number: null,
+      editable_profile: {
+        ...portalProfile.editable_profile,
+        visit_stability: 'STABLE_VISIT' as const,
+        maximum_working_radius_km: null,
+        emergency_services_available: true,
+        emergency_contact_number: null,
+      },
+    };
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(legacyProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(legacyProfile);
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+    await user.click(await screen.findByRole('button', { name: 'Save profile' }));
+
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        visit_stability: 'STABLE_VISIT',
+        maximum_working_radius_km: null,
+        emergency_services_available: true,
+        emergency_contact_number: null,
+      })
+    ));
+  });
+
+  it('validates changed services without blocking a separate unchanged historical service gap', async () => {
+    const legacyProfile = {
+      ...portalProfile,
+      emergency_services_available: true,
+      emergency_contact_number: null,
+      editable_profile: {
+        ...portalProfile.editable_profile,
+        visit_stability: 'STABLE_VISIT' as const,
+        maximum_working_radius_km: null,
+        emergency_services_available: true,
+        emergency_contact_number: null,
+      },
+    };
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(legacyProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(legacyProfile);
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await enterTab(user, 'Services');
+    await user.type(screen.getByLabelText('Maximum working radius (km)'), '10');
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        maximum_working_radius_km: 10,
+        emergency_services_available: true,
+        emergency_contact_number: null,
+      })
+    ));
+  });
+
+  it('selects and clears all available specializations without duplicate selections', async () => {
+    const profile = {
+      ...portalProfile,
+      editable_profile: { ...portalProfile.editable_profile, specialization_ids: ['spec-one'] },
+    };
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(profile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([
+      { id: 'spec-one', name: 'Dentistry', is_active: true },
+      { id: 'spec-two', name: 'Surgery', is_active: true },
+      { id: 'spec-two', name: 'Surgery', is_active: true },
+      { id: 'spec-inactive', name: 'Retired specialty', is_active: false },
+    ]);
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(profile);
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await enterTab(user, 'Services');
+    expect(screen.queryByLabelText('Retired specialty')).toBeNull();
+    expect(screen.getAllByLabelText('Surgery')).toHaveLength(1);
+    const selectAll = screen.getByRole('button', { name: 'Select all' });
+    expect(selectAll.getAttribute('aria-pressed')).toBe('mixed');
+    await user.click(selectAll);
+    expect((screen.getByLabelText('Dentistry') as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText('Surgery') as HTMLInputElement).checked).toBe(true);
+    expect(selectAll.getAttribute('aria-pressed')).toBe('true');
+    expect(selectAll.hasAttribute('disabled')).toBe(true);
+    expect(providersApi.updateProviderPortalProfile).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Clear all' }));
+    expect((screen.getByLabelText('Dentistry') as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByRole('button', { name: 'Select all' }).hasAttribute('disabled')).toBe(false);
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ specialization_ids: [] })
+    ));
+  });
+
+  it('lets doctors edit and clear experience notes with the admin-compatible length limit', async () => {
+    const profile = {
+      ...portalProfile,
+      doctor_fields_available: true,
+      editable_profile: {
+        ...portalProfile.editable_profile,
+        experience_description: 'Existing experience notes',
+      },
+    };
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(profile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(profile);
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await enterTab(user, 'Professional details');
+    const notes = screen.getByLabelText('Experience notes') as HTMLTextAreaElement;
+    expect(notes.value).toBe('Existing experience notes');
+    expect(notes.maxLength).toBe(5000);
+    await user.clear(notes);
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ experience_description: null })
+    ));
+  });
+
+  it('routes hidden native validation failures to the tab containing the invalid field', async () => {
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(portalProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await enterTab(user, 'Contact & location');
+    fireEvent.change(screen.getByLabelText('Email address 1'), { target: { value: 'not-an-email' } });
+    await enterTab(user, 'Basic details');
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Contact & location' }).getAttribute('aria-selected')).toBe('true'));
+    expect(document.activeElement).toBe(screen.getByLabelText('Email address 1'));
+    expect(providersApi.updateProviderPortalProfile).not.toHaveBeenCalled();
   });
 
   it('keeps profile submission working with the full-width workspace', async () => {

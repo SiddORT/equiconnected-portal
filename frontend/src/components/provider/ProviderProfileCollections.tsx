@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { MultiEmailField, type EmailEntry } from '@/components/admin/MultiEmailField';
@@ -18,6 +18,8 @@ export type PortalQualification = NonNullable<ProviderPortalUpdate['qualificatio
 };
 
 interface ProviderProfileCollectionsProps {
+  activeTab: 'basic' | 'professional' | 'services' | 'contact' | 'photos';
+  professionalContent: ReactNode;
   locations: PortalLocation[];
   onLocationsChange: (locations: PortalLocation[]) => void;
   phones: PhoneEntry[];
@@ -60,6 +62,8 @@ function removeAndPromote<T extends { is_primary: boolean }>(entries: T[], index
 }
 
 export function ProviderProfileCollections({
+  activeTab,
+  professionalContent,
   locations,
   onLocationsChange,
   phones,
@@ -189,6 +193,15 @@ export function ProviderProfileCollections({
 
   return (
     <>
+      <div
+        id="provider-panel-contact"
+        role="tabpanel"
+        aria-labelledby="provider-tab-contact"
+        tabIndex={0}
+        hidden={activeTab !== 'contact'}
+        data-tab-panel="contact"
+        className={styles.panel}
+      >
       <section className={styles.collection} aria-labelledby="portal-locations-heading">
         <div className={styles.collectionHeader}>
           <div>
@@ -273,7 +286,17 @@ export function ProviderProfileCollections({
           <MultiEmailField entries={emails} onChange={onEmailsChange} disabled={disabled} />
         </div>
       </section>
+      </div>
 
+      <div
+        id="provider-panel-photos"
+        role="tabpanel"
+        aria-labelledby="provider-tab-photos"
+        tabIndex={0}
+        hidden={activeTab !== 'photos'}
+        data-tab-panel="photos"
+        className={styles.panel}
+      >
       <section className={styles.collection} aria-labelledby="portal-photos-heading">
         <div className={styles.collectionHeader}>
           <div>
@@ -378,8 +401,19 @@ export function ProviderProfileCollections({
           ))}
         </div>
       </section>
+      </div>
 
-      {showQualifications && (
+      <div
+        id="provider-panel-professional"
+        role="tabpanel"
+        aria-labelledby="provider-tab-professional"
+        tabIndex={0}
+        hidden={activeTab !== 'professional'}
+        data-tab-panel="professional"
+        className={styles.panel}
+      >
+        {professionalContent}
+        {showQualifications && (
         <section className={styles.collection} aria-labelledby="portal-qualifications-heading">
           <div className={styles.collectionHeader}>
             <div>
@@ -417,7 +451,8 @@ export function ProviderProfileCollections({
             ))}
           </div>
         </section>
-      )}
+        )}
+      </div>
     </>
   );
 }

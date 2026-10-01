@@ -554,6 +554,9 @@ class ProviderPortalUpdate(BaseModel):
     phone: str | None = Field(None, max_length=50)
     website: str | None = Field(None, max_length=500)
     visit_stability: VisitStability | None = None
+    maximum_working_radius_km: float | None = Field(None, gt=0)
+    emergency_services_available: bool | None = None
+    emergency_contact_number: str | None = Field(None, max_length=50)
     specialization_ids: list[UUID] | None = None
     locations: list[LocationCreate] | None = None
     phones: list[PhoneCreate] | None = None
@@ -567,6 +570,13 @@ class ProviderPortalUpdate(BaseModel):
 
     _strip_name = field_validator("name", mode="before")(_strip)
     _strip_title = field_validator("professional_title", mode="before")(_strip)
+
+    @field_validator("maximum_working_radius_km")
+    @classmethod
+    def radius_must_be_finite(cls, value):
+        if value is not None and not isfinite(value):
+            raise ValueError("maximum working radius must be finite")
+        return value
 
 
 class ProviderPortalEditableProfile(ProviderPortalUpdate):
