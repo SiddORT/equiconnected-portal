@@ -6,7 +6,6 @@ import styles from './AdminTopNav.module.css';
 interface NavItem { label: string; to: string; icon: string; }
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: '⊞' },
-  { label: 'Analytics', to: '/admin/analytics', icon: '▥' },
   { label: 'Registrations', to: '/admin/users', icon: '👥' },
 ];
 
@@ -243,6 +242,19 @@ export function AdminTopNav() {
             </div>
 
             <div className={styles.dropdownDivider} />
+
+            <NavLink
+              to="/admin/analytics"
+              className={({ isActive }) => [
+                styles.dropdownItem,
+                isActive ? styles['dropdownItem--active'] : '',
+              ].filter(Boolean).join(' ')}
+              role="menuitem"
+              onClick={() => setMenuOpen(false)}
+            >
+              <span aria-hidden="true">▥</span>
+              Analytics
+            </NavLink>
 
             <NavLink
               to="/admin/activity-logs"

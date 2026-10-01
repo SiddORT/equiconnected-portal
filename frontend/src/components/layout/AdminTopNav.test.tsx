@@ -31,6 +31,74 @@ function LocationProbe() {
 }
 
 describe('AdminTopNav', () => {
+  it('shows Analytics only in the open profile menu, above Activity Logs', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><AdminTopNav /><LocationProbe /></MemoryRouter>);
+    const navigation = screen.getByRole('navigation', { name: 'Admin navigation' });
+    expect(within(navigation).queryByRole('link', { name: 'Analytics' })).toBeNull();
+    expect(screen.queryByText('Analytics')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Open profile menu' }));
+    const menu = screen.getByRole('menu', { name: 'Profile options' });
+    const analytics = within(menu).getByRole('menuitem', { name: 'Analytics' });
+    expect(analytics.getAttribute('href')).toBe('/admin/analytics');
+    expect(analytics.getAttribute('aria-current')).toBeNull();
+    expect(analytics.className).not.toContain('dropdownItem--active');
+    const labels = within(menu).getAllByRole('menuitem').map((item) =>
+      Array.from(item.childNodes)
+        .filter((node) => node.nodeType === Node.TEXT_NODE)
+        .map((node) => node.textContent)
+        .join('').trim(),
+    );
+    expect(labels.indexOf('Analytics') + 1).toBe(labels.indexOf('Activity Logs'));
+    if (labels.includes('User Manual')) {
+      expect(labels[0]).toBe('User Manual');
+      expect(labels[1]).toBe('Analytics');
+    }
+    for (const name of ['Activity Logs', 'Email Logs', 'Settings', 'Logout']) {
+      expect(within(menu).getByRole('menuitem', { name })).toBeTruthy();
+    }
+
+    await user.click(analytics);
+    expect(screen.getByTestId('location').textContent).toBe('/admin/analytics');
+    expect(screen.queryByRole('menu', { name: 'Profile options' })).toBeNull();
+    expect(within(navigation).queryByRole('link', { name: 'Analytics' })).toBeNull();
+  });
+
+  it('marks Analytics active and closes on selection even at its existing URL', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/admin/analytics']}><AdminTopNav /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: 'Open profile menu' }));
+    const analytics = screen.getByRole('menuitem', { name: 'Analytics' });
+    expect(analytics.getAttribute('aria-current')).toBe('page');
+    expect(analytics.className).toContain('dropdownItem--active');
+    await user.click(analytics);
+    expect(screen.queryByRole('menu', { name: 'Profile options' })).toBeNull();
+  });
+
+  it('supports keyboard activation of Analytics and profile-menu dismissal', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><AdminTopNav /><LocationProbe /></MemoryRouter>);
+    const trigger = screen.getByRole('button', { name: 'Open profile menu' });
+    trigger.focus();
+    await user.keyboard('{Enter}');
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    await user.tab();
+    if (document.activeElement?.textContent?.includes('User Manual')) await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Analytics' }));
+    await user.keyboard('{Enter}');
+    expect(screen.getByTestId('location').textContent).toBe('/admin/analytics');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+
+    await user.click(trigger);
+    await user.tab();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu', { name: 'Profile options' })).toBeNull();
+    await user.click(trigger);
+    await user.click(document.body);
+    expect(screen.queryByRole('menu', { name: 'Profile options' })).toBeNull();
+  });
+
   it('does not show a standalone logout control in the top bar', () => {
     render(<MemoryRouter><AdminTopNav /></MemoryRouter>);
     expect(screen.queryByRole('button', { name: 'Log out' })).toBeNull();
