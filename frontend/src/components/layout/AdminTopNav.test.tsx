@@ -31,6 +31,75 @@ function LocationProbe() {
 }
 
 describe('AdminTopNav', () => {
+  const menus = [
+    { trigger: 'Directory Management', menu: 'Directory Management', next: 'Enquiries', item: 'Providers', to: '/admin/providers' },
+    { trigger: 'Enquiries', menu: 'Enquiries', next: 'Open profile menu', item: 'Subscribers', to: '/admin/subscribers' },
+    { trigger: 'Open profile menu', menu: 'Profile options', next: 'Outside control', item: 'Analytics', to: '/admin/analytics' },
+  ];
+
+  it.each(menus)('returns focus to $trigger on Escape and resumes Tab navigation', async ({ trigger: name, menu: menuName, next }) => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><AdminTopNav /><button>Outside control</button></MemoryRouter>);
+    const trigger = screen.getByRole('button', { name });
+    trigger.focus();
+    await user.keyboard('{Enter}');
+    const items = within(screen.getByRole('menu', { name: menuName })).getAllByRole('menuitem');
+
+    // Escape works from every link, including the final profile Logout button.
+    for (let index = 0; index < items.length; index += 1) {
+      if (index > 0) await user.keyboard('{Enter}');
+      for (let step = 0; step <= index; step += 1) await user.tab();
+      const item = within(screen.getByRole('menu', { name: menuName })).getAllByRole('menuitem')[index];
+      expect(document.activeElement).toBe(item);
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('menu')).toBeNull();
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      expect(document.activeElement).toBe(trigger);
+    }
+
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: next }));
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it.each(menus)('does not restore $trigger focus after outside clicks or navigation', async ({ trigger: name, menu: menuName, item, to }) => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><AdminTopNav /><button>Outside control</button><LocationProbe /></MemoryRouter>);
+    const trigger = screen.getByRole('button', { name });
+    await user.click(trigger);
+    await user.tab();
+    const restoreFocus = vi.spyOn(trigger, 'focus');
+    const outside = screen.getByRole('button', { name: 'Outside control' });
+    await user.click(outside);
+    expect(screen.queryByRole('menu', { name: menuName })).toBeNull();
+    expect(document.activeElement).toBe(outside);
+    expect(restoreFocus).not.toHaveBeenCalled();
+
+    await user.click(trigger);
+    restoreFocus.mockClear();
+    const link = screen.getByRole('menuitem', { name: item });
+    link.focus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByTestId('location').textContent).toBe(to);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(restoreFocus).not.toHaveBeenCalled();
+    expect(document.activeElement).not.toBe(trigger);
+    restoreFocus.mockRestore();
+  });
+
+  it('keeps all three menus mutually exclusive without returning focus to a previous trigger', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><AdminTopNav /></MemoryRouter>);
+    for (const { trigger: name, menu: menuName } of [...menus, menus[0]]) {
+      const trigger = screen.getByRole('button', { name });
+      await user.click(trigger);
+      expect(screen.getAllByRole('menu')).toHaveLength(1);
+      expect(screen.getByRole('menu', { name: menuName })).toBeTruthy();
+      expect(document.activeElement).toBe(trigger);
+    }
+  });
+
   it('shows Analytics only in the open profile menu, above Activity Logs', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><AdminTopNav /><LocationProbe /></MemoryRouter>);

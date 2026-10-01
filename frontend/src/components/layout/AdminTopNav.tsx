@@ -34,6 +34,9 @@ export function AdminTopNav() {
   const menuRef = useRef<HTMLDivElement>(null);
   const directoryRef = useRef<HTMLDivElement>(null);
   const enquiriesRef = useRef<HTMLDivElement>(null);
+  const profileTriggerRef = useRef<HTMLButtonElement>(null);
+  const directoryTriggerRef = useRef<HTMLButtonElement>(null);
+  const enquiriesTriggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setMenuOpen(false);
@@ -58,13 +61,17 @@ export function AdminTopNav() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [menuOpen, directoryOpen, enquiriesOpen]);
 
-  // Close dropdown on Escape
+  // Only Escape dismissal returns focus; outside clicks and navigation keep their own focus.
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
+        const trigger = menuOpen ? profileTriggerRef.current
+          : directoryOpen ? directoryTriggerRef.current
+          : enquiriesOpen ? enquiriesTriggerRef.current : null;
         setMenuOpen(false);
         setDirectoryOpen(false);
         setEnquiriesOpen(false);
+        trigger?.focus();
       }
     }
     if (menuOpen || directoryOpen || enquiriesOpen) document.addEventListener('keydown', handleKey);
@@ -114,6 +121,7 @@ export function AdminTopNav() {
 
         <div className={styles.directoryMenu} ref={directoryRef}>
           <button
+            ref={directoryTriggerRef}
             type="button"
             className={[
               styles.link,
@@ -164,6 +172,7 @@ export function AdminTopNav() {
 
         <div className={styles.enquiriesMenu} ref={enquiriesRef}>
           <button
+            ref={enquiriesTriggerRef}
             type="button"
             className={[
               styles.link,
@@ -216,6 +225,7 @@ export function AdminTopNav() {
       {/* ── Profile menu ──────────────────────────────── */}
       <div className={styles.profileArea} ref={menuRef}>
         <button
+          ref={profileTriggerRef}
           className={styles.avatarBtn}
           aria-label="Open profile menu"
           aria-expanded={menuOpen}
