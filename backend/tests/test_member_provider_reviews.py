@@ -20,7 +20,9 @@ from app.models.enums import (
 from app.models.provider import (
     DoctorVisit,
     Provider,
+    ProviderEmail,
     ProviderLocation,
+    ProviderPhone,
     ProviderPhoto,
     ProviderReview,
     ProviderSpecialization,
@@ -98,6 +100,77 @@ def _provider(
 
 
 class TestMemberProviderDiscoveryAndReviews:
+    def test_directory_and_detail_select_persisted_contacts(self, client, db, seeded_admin):
+        member = _member(db, "contacts-member@example.com")
+        primary = _provider(db, "Contact Primary")
+        fallback = _provider(db, "Contact Fallback")
+        legacy = _provider(db, "Contact Legacy")
+        absent = _provider(db, "Contact Absent")
+        hidden = _provider(db, "Contact Draft", publication=PublicationStatus.UNPUBLISHED)
+        inactive = _provider(db, "Contact Inactive", status=ProviderStatus.INACTIVE)
+        for provider in (primary, fallback, legacy):
+            provider.phone = "legacy phone"
+            provider.email = "legacy@example.com"
+        # Flush each first contact separately so the primary is not the first
+        # stored record. These are real ORM children, not serializer mocks.
+        for provider in (primary, fallback, hidden, inactive):
+            db.add_all([
+                ProviderPhone(provider_id=provider.id, country_code="+1", number="5125550100"),
+                ProviderEmail(provider_id=provider.id, email="first@example.com"),
+            ])
+            db.flush()
+            db.add_all([
+                ProviderPhone(
+                    provider_id=provider.id, country_code="+971", number="501234567",
+                    is_primary=provider == primary,
+                ),
+                ProviderEmail(
+                    provider_id=provider.id, email="selected@example.com",
+                    is_primary=provider == primary,
+                ),
+            ])
+        db.commit()
+        db.expire_all()
+        headers = _headers(member)
+        expected = {
+            str(primary.id): ("+971 501234567", "selected@example.com"),
+            str(fallback.id): ("+1 5125550100", "first@example.com"),
+            str(legacy.id): ("legacy phone", "legacy@example.com"),
+            str(absent.id): (None, None),
+        }
+        directory = client.get(MEMBER_BASE, headers=headers)
+        assert directory.status_code == 200
+        assert directory.json()["meta"]["total"] == 4
+        assert {
+            row["id"]: (row["phone"], row["email"])
+            for row in directory.json()["data"]
+        } == expected
+        for provider_id, contacts in expected.items():
+            detail = client.get(f"{MEMBER_BASE}/{provider_id}", headers=headers)
+            assert detail.status_code == 200
+            assert (detail.json()["phone"], detail.json()["email"]) == contacts
+
+        filtered = client.get(MEMBER_BASE, headers=headers, params={"name": "Contact Primary"})
+        assert filtered.status_code == 200
+        assert [row["id"] for row in filtered.json()["data"]] == [str(primary.id)]
+        assert client.put(f"{MEMBER_BASE}/{primary.id}/favorite", headers=headers).status_code == 204
+        saved = client.get(MEMBER_BASE, headers=headers, params={"saved_only": True})
+        assert saved.status_code == 200
+        assert [(row["id"], row["phone"], row["email"], row["is_saved"])
+                for row in saved.json()["data"]] == [
+            (str(primary.id), "+971 501234567", "selected@example.com", True),
+        ]
+        for provider in (hidden, inactive):
+            assert client.get(f"{MEMBER_BASE}/{provider.id}", headers=headers).status_code == 404
+        admin, _ = seeded_admin
+        for url in (MEMBER_BASE, f"{MEMBER_BASE}/{primary.id}"):
+            assert client.get(url).status_code == 401
+            assert client.get(url, headers=_headers(admin)).status_code == 403
+        member.email_verified_at = None
+        db.commit()
+        for url in (MEMBER_BASE, f"{MEMBER_BASE}/{primary.id}"):
+            assert client.get(url, headers=headers).status_code == 403
+
     def test_member_detail_exposes_only_ordered_safe_profile_data(self, client, db):
         member = _member(db, "profile-details@example.com")
         doctor = _provider(

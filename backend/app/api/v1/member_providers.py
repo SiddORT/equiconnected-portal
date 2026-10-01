@@ -136,8 +136,12 @@ def _member_visits(provider):
 
 def _contact(provider, field: str) -> str | None:
     entries = getattr(provider, f"{field}s")
-    value = next((getattr(item, field) for item in entries if item.is_primary), None)
-    return value or (getattr(entries[0], field) if entries else getattr(provider, field))
+    if not entries:
+        return getattr(provider, field)
+    selected = next((item for item in entries if item.is_primary), entries[0])
+    if field == "phone":
+        return f"{selected.country_code} {selected.number}"
+    return selected.email
 
 
 def _thumbnail(provider):

@@ -40,6 +40,24 @@ function DetailBackLink() {
 }
 
 describe('member provider directory', () => {
+  it('retains saved and name filters through a genuine failure and retry', async () => {
+    vi.mocked(providersApi.listMemberProviders)
+      .mockRejectedValueOnce(new Error('Server unavailable'))
+      .mockResolvedValueOnce({ ...response, data: [{ ...item, is_saved: true, phone: '+971 501234567', email: 'selected@example.com' }] });
+    renderPage('/providers?saved=true&name=Austin');
+    expect(await screen.findByText('Results unavailable')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /view profile/i })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Try Again' }));
+    expect(await screen.findByRole('heading', { name: 'Austin Equine Clinic' })).toBeTruthy();
+    expect(providersApi.listMemberProviders).toHaveBeenCalledTimes(2);
+    for (const [params] of vi.mocked(providersApi.listMemberProviders).mock.calls) {
+      expect(params).toEqual(expect.objectContaining({ saved_only: true, name: 'Austin' }));
+    }
+    expect(screen.queryByText('Results unavailable')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Contact details' }).getAttribute('href'))
+      .toBe('/providers/p-1?saved=true&name=Austin#contact');
+  });
+
   it('submits a trimmed name with other filters, resets the page, and clears empty search results', async () => {
     const user = userEvent.setup();
     vi.mocked(providersApi.listMemberProviders).mockImplementation(async params => (
