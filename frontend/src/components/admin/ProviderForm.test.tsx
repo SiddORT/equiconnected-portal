@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
@@ -14,6 +15,7 @@ import {
 import { listProviderSignupLanguages, lookupProviderPostalCode } from '@/api/auth';
 import { listSpecializations } from '@/api/specializations';
 import { listLanguages } from '@/api/languages';
+import styles from './ProviderForm.module.css';
 
 vi.mock('@/api/providers', () => ({
   addProviderEmail: vi.fn(),
@@ -286,6 +288,93 @@ describe('Admin emergency country picker', () => {
     expect(screen.queryByRole('textbox', { name: 'Emergency contact number' })).toBeNull();
     const payload = await saveEdit(user);
     expect(payload).toMatchObject({ emergency_services_available: false, emergency_contact_number: null });
+  });
+});
+
+describe('ProviderForm primary address layout', () => {
+  it.each(['add', 'edit'] as const)('keeps %s location fields in displayed and keyboard order', async (mode) => {
+    const user = userEvent.setup();
+    render(<ProviderForm initialData={mode === 'edit' ? existingProvider() : undefined} />);
+    if (mode === 'add') await beginAdminWizard();
+    else await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+    // Populate geography so dependent triggers participate in the tab order.
+    if (mode === 'add') {
+      for (const [label, search, value] of [
+        ['Country', 'Search country', 'Canada'],
+        ['State / Province', 'Search state / province', 'Alberta'],
+        ['City', 'Search city', 'Calgary'],
+      ]) {
+        await user.click(screen.getByRole('button', { name: label }));
+        await user.type(screen.getByRole('combobox', { name: search }), value);
+        await user.click(screen.getByRole('option', { name: value }));
+        await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: label })));
+      }
+    }
+    const fields = [
+      screen.getByLabelText('Location name'),
+      screen.getByLabelText('Pincode / postal code'),
+      ...['Country', 'State / Province', 'City'].map((name) => screen.getByRole('button', { name })),
+      screen.getByLabelText('Address line 1'),
+      screen.getByLabelText('Address line 2'),
+      screen.getByLabelText('Latitude'),
+      screen.getByLabelText('Longitude'),
+    ];
+    fields[0].focus();
+    for (let index = 1; index < fields.length; index++) {
+      expect(fields[index - 1].compareDocumentPosition(fields[index]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      await user.tab();
+      expect(document.activeElement).toBe(fields[index]);
+    }
+    for (const field of fields.slice(5, 7)) {
+      expect(field.parentElement?.parentElement?.classList.contains(styles.addressRow)).toBe(true);
+    }
+    const css = readFileSync('src/components/admin/ProviderForm.module.css', 'utf8');
+    expect(css).toMatch(/\.addressRow\s*\{[^}]*grid-column:\s*1\s*\/\s*-1;/);
+  });
+
+  it('creates a provider with both address lines after navigating back from review', async () => {
+    vi.mocked(createProvider).mockResolvedValue({ id: 'new-provider', photos: [] } as unknown as Provider);
+    render(<ProviderForm />);
+    const user = await beginAdminWizard();
+    await finishClinicWizard(user);
+    await user.click(screen.getByRole('button', { name: 'Edit Contact & location' }));
+    expect((screen.getByLabelText('Address line 1') as HTMLInputElement).value).toBe('42 Stable Road');
+    await user.type(screen.getByLabelText('Address line 2'), 'Suite 200, North wing');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Create provider' }));
+    await waitFor(() => expect(createProvider).toHaveBeenCalledWith(expect.objectContaining({
+      primary_location: expect.objectContaining({
+        address_line_1: '42 Stable Road', address_line_2: 'Suite 200, North wing',
+        city: 'Calgary', state_province: 'Alberta', country: 'Canada', postal_code: 'T2P 1J9',
+      }),
+    })));
+  });
+
+  it('prefills and saves changes to both existing address lines', async () => {
+    const provider = existingProvider();
+    provider.locations[0].address_line_2 = 'Old suite';
+    vi.mocked(updateProvider).mockResolvedValue(provider);
+    vi.mocked(getProvider).mockResolvedValue(provider);
+    render(<ProviderForm initialData={provider} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect((screen.getByLabelText('Address line 1') as HTMLInputElement).value).toBe('12 Main St');
+    expect((screen.getByLabelText('Address line 2') as HTMLInputElement).value).toBe('Old suite');
+    await user.clear(screen.getByLabelText('Address line 1'));
+    await user.type(screen.getByLabelText('Address line 1'), '98 Updated Avenue');
+    await user.clear(screen.getByLabelText('Address line 2'));
+    await user.type(screen.getByLabelText('Address line 2'), 'New suite');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateProviderLocation).toHaveBeenCalledWith('provider-1', 'location-1', expect.objectContaining({
+      name: 'Main branch', address_line_1: '98 Updated Avenue', address_line_2: 'New suite',
+      city: 'Calgary', state_province: 'Alberta', country: 'Canada', postal_code: 'T2P 1J9',
+    })));
   });
 });
 

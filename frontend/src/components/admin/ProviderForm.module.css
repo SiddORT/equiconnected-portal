@@ -104,6 +104,15 @@
   grid-column: 1 / -1;
 }
 
+.primaryLocationGrid {
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+}
+
+.addressRow {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
 .textarea {
   width: 100%;
   padding: var(--space-2) var(--space-3);

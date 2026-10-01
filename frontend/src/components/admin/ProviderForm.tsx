@@ -1433,25 +1433,13 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           <h3 className={styles.sectionTitle}>
             Provider location {isEdit && <span className={styles.optionalTag}>— existing records may be incomplete</span>}
           </h3>
-          <div className={styles.grid}>
+          <div className={`${styles.grid} ${styles.primaryLocationGrid}`}>
             {!inv && <Input
               label="Location name"
               placeholder="e.g. Main Branch, Ward 3…"
               value={location.name}
               onChange={(e) => setLocation((l) => ({ ...l, name: e.target.value }))}
             />}
-            <Input
-              label={wizard ? 'Address line 1' : 'Address'}
-              value={location.address_line_1}
-              onChange={(e) => setLocation((l) => ({ ...l, address_line_1: e.target.value }))}
-              error={errs.address_line_1}
-              required={!isEdit}
-            />
-            <Input
-              label="Address line 2"
-              value={location.address_line_2}
-              onChange={(e) => setLocation((l) => ({ ...l, address_line_2: e.target.value }))}
-            />
             {wizard && (
               <div className={styles.postalLookup}>
                 <Input
@@ -1490,6 +1478,20 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               className={styles.locationPicker}
               required={!inv && !isEdit}
               optionalState
+            />
+            <Input
+              containerClassName={styles.addressRow}
+              label={wizard ? 'Address line 1' : 'Address'}
+              value={location.address_line_1}
+              onChange={(e) => setLocation((l) => ({ ...l, address_line_1: e.target.value }))}
+              error={errs.address_line_1}
+              required={!isEdit}
+            />
+            <Input
+              containerClassName={styles.addressRow}
+              label="Address line 2"
+              value={location.address_line_2}
+              onChange={(e) => setLocation((l) => ({ ...l, address_line_2: e.target.value }))}
             />
             {!wizard && <Input
               label="Postal code"
