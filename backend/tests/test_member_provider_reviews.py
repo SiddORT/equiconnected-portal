@@ -4,9 +4,16 @@ from decimal import Decimal
 from uuid import UUID
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
+from types import SimpleNamespace
 
+import pytest
+
+from app.api.v1.member_providers import _contact
 from app.core.security import create_access_token, hash_password
+from app.db.session import get_db
+from app.main import app
 from app.repositories.review_repository import ReviewRepository
+from app.schemas.provider import ProviderListItem, ProviderResponse
 from tests.conftest import TestingSessionLocal
 from app.models.audit_log import AuditLog
 from app.models.enums import (
@@ -100,6 +107,99 @@ def _provider(
 
 
 class TestMemberProviderDiscoveryAndReviews:
+    @pytest.mark.parametrize("same_created_at", [False, True])
+    def test_contact_fallback_survives_fresh_sessions_and_non_primary_edits(
+        self, client, db, monkeypatch, same_created_at
+    ):
+        member = _member(db, "ordered-contacts@example.com")
+        provider = _provider(db, "Ordered Contacts")
+        provider.phone = "legacy phone"
+        provider.email = "legacy@example.com"
+        provider_id = provider.id
+        headers = _headers(member)
+        oldest = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        newer = oldest if same_created_at else datetime(2021, 1, 1, tzinfo=timezone.utc)
+        # Insert the losing contact first. Equal timestamps must use the ID,
+        # not insertion order or the database's physical row order.
+        phone_ids = [UUID(int=2), UUID(int=1)]
+        email_ids = [UUID(int=4), UUID(int=3)]
+        for index, created_at in enumerate((newer, oldest)):
+            db.add_all([
+                ProviderPhone(
+                    id=phone_ids[index], provider_id=provider_id,
+                    country_code="+1", number=f"512555010{index}",
+                    created_at=created_at, is_primary=False,
+                ),
+                ProviderEmail(
+                    id=email_ids[index], provider_id=provider_id,
+                    email=f"contact{index}@example.com",
+                    created_at=created_at, is_primary=False,
+                ),
+            ])
+            db.flush()
+        db.commit()
+
+        def fresh_db():
+            with TestingSessionLocal() as session:
+                yield session
+
+        monkeypatch.setitem(app.dependency_overrides, get_db, fresh_db)
+        expected_phone = "+1 5125550101"
+        expected_email = "contact1@example.com"
+
+        def assert_contacts():
+            # Each request below has its own session, as does each explicit
+            # reload. Check eager API loads and lazy relationship loads.
+            for _ in range(2):
+                with TestingSessionLocal() as session:
+                    loaded = session.get(Provider, provider_id)
+                    assert [row.id for row in loaded.phones] == phone_ids[::-1]
+                    assert [row.id for row in loaded.emails] == email_ids[::-1]
+                    assert all(not row.is_primary for row in loaded.phones + loaded.emails)
+                    assert loaded.phone == "legacy phone"
+                    assert loaded.email == "legacy@example.com"
+                    assert loaded.phones[0].created_at == oldest
+                    assert loaded.emails[0].created_at == oldest
+                    item = ProviderListItem.from_provider_row(loaded)
+                    assert (item.phone, item.email) == (expected_phone, expected_email)
+                    detail = ProviderResponse.from_provider(loaded)
+                    assert [row.id for row in detail.phones] == phone_ids[::-1]
+                    assert [row.id for row in detail.emails] == email_ids[::-1]
+                    # Serializers must agree even before ORM ordering is applied.
+                    reversed_contacts = SimpleNamespace(
+                        phones=loaded.phones[::-1], emails=loaded.emails[::-1],
+                        phone=loaded.phone, email=loaded.email,
+                    )
+                    assert _contact(reversed_contacts, "phone") == expected_phone
+                    assert _contact(reversed_contacts, "email") == expected_email
+
+                directory = client.get(MEMBER_BASE, headers=headers)
+                assert directory.status_code == 200
+                item = directory.json()["data"][0]
+                assert (item["phone"], item["email"]) == (expected_phone, expected_email)
+                detail = client.get(f"{MEMBER_BASE}/{provider_id}", headers=headers)
+                assert detail.status_code == 200
+                assert (detail.json()["phone"], detail.json()["email"]) == (
+                    expected_phone, expected_email,
+                )
+
+        assert_contacts()
+        # Updating the newer non-primary contact must not change selection.
+        with TestingSessionLocal() as session:
+            session.get(ProviderPhone, phone_ids[0]).number = "5125559999"
+            session.get(ProviderEmail, email_ids[0]).email = "changed-newer@example.com"
+            session.commit()
+        assert_contacts()
+        # Updating the selected non-primary contact changes the displayed value,
+        # but not its fallback rank (updated_at is deliberately irrelevant).
+        with TestingSessionLocal() as session:
+            session.get(ProviderPhone, phone_ids[1]).number = "5125558888"
+            session.get(ProviderEmail, email_ids[1]).email = "changed-oldest@example.com"
+            session.commit()
+        expected_phone = "+1 5125558888"
+        expected_email = "changed-oldest@example.com"
+        assert_contacts()
+
     def test_directory_and_detail_select_persisted_contacts(self, client, db, seeded_admin):
         member = _member(db, "contacts-member@example.com")
         primary = _provider(db, "Contact Primary")

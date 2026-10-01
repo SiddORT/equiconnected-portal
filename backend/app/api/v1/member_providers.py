@@ -24,7 +24,7 @@ from app.repositories.review_repository import ReviewRepository
 from app.repositories.system_settings_repository import SystemSettingsRepository
 from app.schemas.analytics_traffic import MemberTrafficViewRequest
 from app.schemas.common import PaginatedResponse, PaginationMeta
-from app.schemas.provider import selected_provider_photo
+from app.schemas.provider import selected_provider_contact, selected_provider_photo
 from app.schemas.review import (
     DirectoryLocation,
     MemberProviderDetail,
@@ -138,7 +138,7 @@ def _contact(provider, field: str) -> str | None:
     entries = getattr(provider, f"{field}s")
     if not entries:
         return getattr(provider, field)
-    selected = next((item for item in entries if item.is_primary), entries[0])
+    selected = selected_provider_contact(entries)
     if field == "phone":
         return f"{selected.country_code} {selected.number}"
     return selected.email

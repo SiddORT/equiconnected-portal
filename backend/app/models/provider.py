@@ -94,10 +94,12 @@ class Provider(TimestampMixin, Base):
         back_populates="provider", cascade="all, delete-orphan"
     )
     phones: Mapped[list["ProviderPhone"]] = relationship(
-        back_populates="provider", cascade="all, delete-orphan"
+        back_populates="provider", cascade="all, delete-orphan",
+        order_by="ProviderPhone.created_at, ProviderPhone.id",
     )
     emails: Mapped[list["ProviderEmail"]] = relationship(
-        back_populates="provider", cascade="all, delete-orphan"
+        back_populates="provider", cascade="all, delete-orphan",
+        order_by="ProviderEmail.created_at, ProviderEmail.id",
     )
     provider_languages: Mapped[list["ProviderLanguage"]] = relationship(
         "ProviderLanguage", back_populates="provider", cascade="all, delete-orphan"

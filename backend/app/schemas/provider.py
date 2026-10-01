@@ -180,6 +180,16 @@ def selected_provider_photo(photos):
     return next((photo for photo in ordered if photo.is_thumbnail), ordered[0] if ordered else None)
 
 
+def provider_contact_order(entry):
+    """Primary first, then oldest created; immutable ID breaks timestamp ties."""
+    return (not entry.is_primary, entry.created_at, entry.id)
+
+
+def selected_provider_contact(entries):
+    """Select consistently even for collections not yet reloaded by the ORM."""
+    return min(entries, key=provider_contact_order, default=None)
+
+
 # ── Phone ─────────────────────────────────────────────────────────────────────
 
 class PhoneCreate(BaseModel):
@@ -441,13 +451,11 @@ class ProviderListItem(BaseModel):
     ) -> "ProviderListItem":
         """Build a list item, preferring the primary phone/email entries over
         the legacy single-value columns (which are null going forward)."""
-        primary_email = next(
-            (e.email for e in provider.emails if e.is_primary),
-            next((e.email for e in provider.emails), None),
-        )
-        primary_phone = next(
-            (f"{p.country_code} {p.number}" for p in provider.phones if p.is_primary),
-            next((f"{p.country_code} {p.number}" for p in provider.phones), None),
+        selected_email = selected_provider_contact(provider.emails)
+        selected_phone = selected_provider_contact(provider.phones)
+        primary_email = selected_email.email if selected_email else None
+        primary_phone = (
+            f"{selected_phone.country_code} {selected_phone.number}" if selected_phone else None
         )
         selected_photo = selected_provider_photo(provider.photos)
         return cls(
@@ -555,11 +563,11 @@ class ProviderResponse(ProviderListItem):
             ],
             phones=[
                 PhoneResponse.model_validate(ph)
-                for ph in sorted(provider.phones, key=lambda ph: (not ph.is_primary, ph.created_at))
+                for ph in sorted(provider.phones, key=provider_contact_order)
             ],
             emails=[
                 EmailResponse.model_validate(em)
-                for em in sorted(provider.emails, key=lambda em: (not em.is_primary, em.created_at))
+                for em in sorted(provider.emails, key=provider_contact_order)
             ],
         )
 
