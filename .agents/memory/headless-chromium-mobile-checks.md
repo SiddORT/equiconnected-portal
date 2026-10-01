@@ -13,4 +13,4 @@ Browser API interception must match the pathname's API prefix, not a broad URL s
 
 **Why:** A wildcard matching any `/api/` segment also catches Vite's source-module URLs under `/src/api/`, replacing JavaScript with fixture JSON and preventing the app from rendering.
 
-**How to apply:** Continue non-API requests unchanged and limit fixture fulfillment to pathnames beginning with the actual API prefix.
+**How to apply:** Continue non-API requests unchanged and limit fixture fulfillment to pathnames beginning with the actual API prefix. Enable console-error capture as well as uncaught-exception capture, since module-loading and React errors can appear only in the console.

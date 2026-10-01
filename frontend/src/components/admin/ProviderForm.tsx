@@ -35,6 +35,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
+import { PhoneInput } from '@/components/ui/PhoneInput';
 import { LocationPicker } from '@/components/ui/LocationPicker';
 import { Select } from '@/components/ui/Select';
 import { MultiEmailField, type EmailEntry } from './MultiEmailField';
@@ -60,6 +61,7 @@ import type {
 import styles from './ProviderForm.module.css';
 import wizardStyles from './ProviderWizard.module.css';
 import { invitationEmailEntries } from './invitationEmailEntries';
+import { completeEmergencyNumber, emergencyPhoneFromNumber } from './emergencyPhone';
 import {
   InvitationAddresses, InvitationServiceFields, invitationAddressesFromDraft,
   invitationLocationsPayload, invitationServicePayload, invitationServiceValuesFromDraft,
@@ -257,7 +259,14 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const [languageFilter, setLanguageFilter] = useState('');
   const [maximumRadius, setMaximumRadius] = useState(initialData?.maximum_working_radius_km != null ? String(initialData.maximum_working_radius_km) : '');
   const [emergencyServices, setEmergencyServices] = useState(initialData?.emergency_services_available ?? false);
-  const [emergencyNumber, setEmergencyNumber] = useState(initialData?.emergency_contact_number ?? '');
+  const [initialEmergencyPhone] = useState(() => emergencyPhoneFromNumber(initialData?.emergency_contact_number));
+  const [emergencyPhone, setEmergencyPhone] = useState(initialEmergencyPhone);
+  const emergencyNumber = emergencyPhone.number;
+  const emergencyPhoneChanged = emergencyPhone.countryCode !== initialEmergencyPhone.countryCode ||
+    emergencyPhone.number !== initialEmergencyPhone.number;
+  const fullEmergencyNumber = isEdit && !emergencyPhoneChanged
+    ? initialData?.emergency_contact_number ?? null
+    : completeEmergencyNumber(emergencyPhone);
   const [invitationServices, setInvitationServices] = useState(() =>
     invitationServiceValuesFromDraft(inv?.initial ?? {
       visit_stability: 'NOT_STABLE_VISIT', maximum_working_radius_km: null,
@@ -724,10 +733,10 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             selectedLanguageIds.some((id) => !initialData.languages.some((language) => language.id === id))
             ? { language_ids: selectedLanguageIds } : {}),
           ...(emergencyServices !== Boolean(initialData.emergency_services_available) ||
-            emergencyNumber !== (initialData.emergency_contact_number ?? '')
+            emergencyPhoneChanged
             ? {
                 emergency_services_available: emergencyServices,
-                emergency_contact_number: emergencyServices ? emergencyNumber.trim() || null : null,
+                emergency_contact_number: emergencyServices ? fullEmergencyNumber : null,
               } : {}),
           ...(providerType === 'DOCTOR'
             ? {
@@ -886,7 +895,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           language_ids: selectedLanguageIds,
           maximum_working_radius_km: visitStability === 'STABLE_VISIT' && maximumRadius.trim() ? Number(maximumRadius) : null,
           emergency_services_available: emergencyServices,
-          emergency_contact_number: emergencyServices ? emergencyNumber.trim() || null : null,
+          emergency_contact_number: emergencyServices ? fullEmergencyNumber : null,
           primary_location,
           phones: phoneEntries.map((p) => ({
             country_code: p.country_code,
@@ -1289,7 +1298,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       </Card>}
 
       {/* ── Classification ────────────────────────────────────────────────── */}
-      {wizard && wizardStep === 2 && <Card padding="lg" shadow="sm" className={styles.cardFull}>
+      {wizard && wizardStep === 2 && <Card padding="lg" shadow="sm" className={`${styles.cardFull} ${styles.emergencyDropdownCard}`}>
         <section className={styles.section}>
           <h3 className={styles.sectionTitle}>{inv ? 'Classification' : 'Services, status & publication'}</h3>
           <div className={wizard ? styles.serviceLayout : styles.grid}>
@@ -1317,9 +1326,16 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                     <input type="checkbox" checked={emergencyServices} onChange={(e) => setEmergencyServices(e.target.checked)} />
                     <span><strong>Emergency services available</strong><small>Add a number people can call for emergency care.</small></span>
                   </label>
-                  {emergencyServices && <Input label="Emergency contact number" type="tel" value={emergencyNumber}
-                    onChange={(e) => setEmergencyNumber(e.target.value)} error={errs.emergency_contact_number}
-                    required={!isEdit || !initialData?.emergency_services_available || Boolean(initialData.emergency_contact_number)} />}
+                  {emergencyServices && <FormField label="Emergency contact number"
+                    required={!isEdit || !initialData?.emergency_services_available || Boolean(initialData.emergency_contact_number)}>
+                    <PhoneInput countryCode={emergencyPhone.countryCode} isoCode={emergencyPhone.isoCode}
+                      number={emergencyNumber}
+                      onCountryChange={(countryCode, isoCode) => setEmergencyPhone((current) => ({ ...current, countryCode, isoCode }))}
+                      onNumberChange={(number) => setEmergencyPhone((current) => number.trim().startsWith('+')
+                        ? emergencyPhoneFromNumber(number) : { ...current, number })}
+                      error={errs.emergency_contact_number} disabled={submitting}
+                      ariaLabel="Emergency contact number" />
+                  </FormField>}
                 </div>
               </>
             ) : (
@@ -1336,7 +1352,13 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                 {!inv && <div className={styles.serviceFields}>
                   {visitStability === 'STABLE_VISIT' && <><Input label="Maximum working radius (km)" type="number" min={0.01} step="any" value={maximumRadius} onChange={(e) => setMaximumRadius(e.target.value)} error={errs.maximum_working_radius_km} required /><p className={styles.hint}>Maximum travel distance from the provider's registered location for a stable or home visit.</p></>}
                   <label><input type="checkbox" checked={emergencyServices} onChange={(e) => setEmergencyServices(e.target.checked)} /> Emergency services available</label>
-                  {emergencyServices && <Input label="Emergency contact number" value={emergencyNumber} onChange={(e) => setEmergencyNumber(e.target.value)} error={errs.emergency_contact_number} required />}
+                  {emergencyServices && <FormField label="Emergency contact number" required>
+                    <PhoneInput countryCode={emergencyPhone.countryCode} isoCode={emergencyPhone.isoCode}
+                      number={emergencyNumber}
+                      onCountryChange={(countryCode, isoCode) => setEmergencyPhone((current) => ({ ...current, countryCode, isoCode }))}
+                      onNumberChange={(number) => setEmergencyPhone((current) => ({ ...current, number }))}
+                      error={errs.emergency_contact_number} ariaLabel="Emergency contact number" />
+                  </FormField>}
                 </div>}
               </>
             )}
@@ -1537,7 +1559,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               { label: 'Stable visit', value: visitStability === 'STABLE_VISIT' ? 'Yes' : 'No' },
               { label: 'Working radius', value: visitStability === 'STABLE_VISIT' ? `${maximumRadius} km` : 'Not applicable' },
               { label: 'Emergency services', value: emergencyServices ? 'Yes' : 'No' },
-              ...(emergencyServices ? [{ label: 'Emergency contact number', value: emergencyNumber }] : []),
+              ...(emergencyServices ? [{ label: 'Emergency contact number', value: fullEmergencyNumber }] : []),
               { label: 'Status', value: status },
               { label: 'Publication', value: publication },
               ...(providerType === 'DOCTOR' ? [

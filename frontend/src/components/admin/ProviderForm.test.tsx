@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
@@ -154,6 +154,140 @@ async function finishClinicWizard(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('option', { name: 'Calgary' }));
   await user.click(screen.getByRole('button', { name: 'Continue' }));
 }
+
+describe('Admin emergency country picker', () => {
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    Element.prototype.scrollIntoView = vi.fn();
+    vi.mocked(createProvider).mockResolvedValue({ id: 'new-provider', photos: [] } as unknown as Provider);
+    vi.mocked(updateProvider).mockResolvedValue(existingProvider());
+    vi.mocked(getProvider).mockResolvedValue(existingProvider());
+  });
+
+  async function saveEdit(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateProvider).toHaveBeenCalled());
+    return vi.mocked(updateProvider).mock.calls[0][1];
+  }
+
+  it.each([
+    ['United States', '+1'],
+    ['India', '+91'],
+    ['Canada', '+1'],
+  ])('retains %s selection through navigation, review, and creation', async (country, prefix) => {
+    render(<ProviderForm />);
+    const user = await beginAdminWizard();
+    await user.click(screen.getByRole('checkbox', { name: /Emergency services available/ }));
+    if (country !== 'United States') {
+      await user.click(screen.getByRole('button', { name: /Country code:/ }));
+      await user.type(screen.getByRole('textbox', { name: 'Search countries' }), country);
+      await user.keyboard('{Enter}');
+    }
+    await user.type(screen.getByRole('textbox', { name: 'Emergency contact number' }), '9988776655');
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByRole('button', { name: `Country code: ${country} ${prefix}` })).toBeTruthy();
+    expect((screen.getByRole('textbox', { name: 'Emergency contact number' }) as HTMLInputElement).value).toBe('9988776655');
+    await finishClinicWizard(user);
+    expect(screen.getByText(`${prefix} 9988776655`)).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Create provider' }));
+    await waitFor(() => expect(createProvider).toHaveBeenCalledWith(expect.objectContaining({
+      emergency_services_available: true, emergency_contact_number: `${prefix} 9988776655`,
+    })));
+  });
+
+  it('keeps a country-only field invalid, associates its error, and dismisses search', async () => {
+    render(<ProviderForm />);
+    const user = await beginAdminWizard();
+    await user.click(screen.getByRole('checkbox', { name: /Emergency services available/ }));
+    await user.click(screen.getByRole('button', { name: /Country code:/ }));
+    await user.type(screen.getByRole('textbox', { name: 'Search countries' }), 'India');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Select country code' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: /Country code:/ }));
+    await user.type(screen.getByRole('textbox', { name: 'Search countries' }), 'India');
+    await user.keyboard('{Enter}');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    const error = screen.getByText('Emergency contact number is required.');
+    const input = screen.getByRole('textbox', { name: 'Emergency contact number' });
+    expect(input.getAttribute('aria-describedby')).toBe(error.id);
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(createProvider).not.toHaveBeenCalled();
+    await user.type(input, '   ');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('Emergency contact number is required.')).toBeTruthy();
+  });
+
+  it.each([
+    ['+1 403 555 9999', '+1', '403 555 9999'],
+    ['+919988776655', '+91', '9988776655'],
+    ['+971 50 123 4567', '+971', '50 123 4567'],
+    [' 403-555-9999 ', '+1', '403-555-9999'],
+    ['+999 123456', '+1', '+999 123456'],
+    [null, '+1', ''],
+  ])('hydrates %s and preserves it during unrelated edits', async (number, prefix, local) => {
+    render(<ProviderForm initialData={existingProvider({ emergency_contact_number: number })} />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Provider / practice name'), ' updated');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByRole('button', { name: new RegExp(`Country code:.*\\${prefix}$`) })).toBeTruthy();
+    expect((screen.getByRole('textbox', { name: 'Emergency contact number' }) as HTMLInputElement).value).toBe(local);
+    const payload = await saveEdit(user);
+    expect(payload).not.toHaveProperty('emergency_contact_number');
+    expect(payload).not.toHaveProperty('emergency_services_available');
+  });
+
+  it('saves an edited country and local number with one prefix', async () => {
+    render(<ProviderForm initialData={existingProvider({ emergency_contact_number: '+919988776655' })} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: /Country code:/ }));
+    await user.type(screen.getByRole('textbox', { name: 'Search countries' }), 'United Kingdom');
+    await user.keyboard('{Enter}');
+    const input = screen.getByRole('textbox', { name: 'Emergency contact number' });
+    await user.clear(input);
+    await user.type(input, '2079460000');
+    const payload = await saveEdit(user);
+    expect(payload).toMatchObject({ emergency_contact_number: '+44 2079460000' });
+    expect(screen.getByText('+44 2079460000')).toBeTruthy();
+  });
+
+  it('does not duplicate a pasted international prefix', async () => {
+    render(<ProviderForm initialData={existingProvider()} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Emergency contact number' }), {
+      target: { value: '+44 2079460000' },
+    });
+    expect(screen.getByRole('button', { name: 'Country code: United Kingdom +44' })).toBeTruthy();
+    const payload = await saveEdit(user);
+    expect(payload).toMatchObject({ emergency_contact_number: '+44 2079460000' });
+  });
+
+  it('blocks clearing an existing required number', async () => {
+    render(<ProviderForm initialData={existingProvider()} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.clear(screen.getByRole('textbox', { name: 'Emergency contact number' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('Emergency contact number is required.')).toBeTruthy();
+    expect(updateProvider).not.toHaveBeenCalled();
+  });
+
+  it('clears the submitted number when emergency services are disabled', async () => {
+    render(<ProviderForm initialData={existingProvider()} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('checkbox', { name: /Emergency services available/ }));
+    expect(screen.queryByRole('textbox', { name: 'Emergency contact number' })).toBeNull();
+    const payload = await saveEdit(user);
+    expect(payload).toMatchObject({ emergency_services_available: false, emergency_contact_number: null });
+  });
+});
 
 describe('ProviderForm visit stability', () => {
   it.each(['CLINIC', 'HOSPITAL'] as const)(
@@ -601,7 +735,8 @@ describe('ProviderForm visit stability', () => {
     await user.click(emergency);
     const number = screen.getByLabelText('Emergency contact number') as HTMLInputElement;
     expect(emergency.closest('div')?.contains(number)).toBe(true);
-    expect(number.required).toBe(true);
+    expect(number.type).toBe('tel');
+    expect(screen.getByRole('button', { name: 'Country code: United States +1' })).toBeTruthy();
     expect(screen.queryByLabelText('Emergency contact name')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByText('Emergency contact number is required.')).toBeTruthy();
@@ -1088,7 +1223,7 @@ describe('ProviderForm edit wizard', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('checkbox', { name: /Emergency services available/ }));
-    expect((screen.getByLabelText('Emergency contact number') as HTMLInputElement).required).toBe(true);
+    expect(screen.getByRole('button', { name: 'Country code: United States +1' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByText('Emergency contact number is required.')).toBeTruthy();
   });
@@ -1164,7 +1299,8 @@ describe('ProviderForm edit wizard', () => {
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.queryByRole('checkbox', { name: /Clinic \/ hospital visits/ })).toBeNull();
     expect(screen.queryByLabelText('Emergency contact name')).toBeNull();
-    expect((screen.getByLabelText('Emergency contact number') as HTMLInputElement).value).toBe('+1 403 555 9999');
+    expect((screen.getByLabelText('Emergency contact number') as HTMLInputElement).value).toBe('403 555 9999');
+    expect(screen.getByRole('button', { name: 'Country code: United States +1' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect((screen.getByLabelText('Location name') as HTMLInputElement).value).toBe('Main branch');
     expect((screen.getByLabelText('Pincode / postal code') as HTMLInputElement).value).toBe('T2P 1J9');

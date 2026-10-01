@@ -44,6 +44,12 @@
   position: relative;
   z-index: 5;
 }
+.form .emergencyDropdownCard {
+  overflow: visible;
+  position: relative;
+  /* Do not trap the touch picker's fixed panel below the admin navigation. */
+  z-index: auto;
+}
 
 @media (max-width: 900px) {
   .form {
