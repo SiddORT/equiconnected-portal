@@ -100,12 +100,13 @@ describe('PublicPage', () => {
     expect(footer.getByRole('link', { name: 'List your practice' }).getAttribute('href')).toBe('/provider/signup');
     expect(footer.getByRole('link', { name: 'Contact us' }).getAttribute('href')).toBe('/#contact');
     expect(footer.queryByText(/hello@equiconnected|9:00–18:00|all seven emirates/i)).toBeNull();
+    expect(footer.queryByRole('link', { name: /Admin login/i, hidden: true })).toBeNull();
+    expect(screen.getByRole('contentinfo').querySelector('a[href="/admin/login"]')).toBeNull();
     const destinations: Array<[RegExp, string]> = [
       [/Create an account/, '/signup'],
       [/Sign in|Member sign in/, '/login'],
       [/Join the network|Join as a provider|Create a provider account/, '/provider/signup'],
       [/Provider sign in/, '/provider/login'],
-      [/Admin login/, '/admin/login'],
       [/Privacy/, '/privacy-policy'],
       [/Terms of service/, '/terms-of-service'],
     ];

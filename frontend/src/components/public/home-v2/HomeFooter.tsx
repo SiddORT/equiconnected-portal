@@ -42,7 +42,6 @@ export function HomeFooter({ member, careHref }: { member: boolean; careHref: st
             <a href="/#contact">Contact</a>
             <Link to="/privacy-policy">Privacy</Link>
             <Link to="/terms-of-service">Terms of service</Link>
-            <Link to="/admin/login">Admin login</Link>
           </div>
           <div>
             <span>Get in touch</span>
