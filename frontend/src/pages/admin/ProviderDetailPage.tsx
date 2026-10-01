@@ -713,7 +713,6 @@ export function ProviderDetailPage() {
           <CardBody>
             <dl className={styles.infoStrip}>
               <div><dt>Languages</dt><dd>{p.languages?.map((l) => l.name).join(', ') || '—'}</dd></div>
-              <div><dt>Clinic / hospital visits</dt><dd>{p.clinic_hospital_visit ? 'Yes' : 'No'}</dd></div>
               <div><dt>Emergency services</dt><dd>{p.emergency_services_available ? 'Yes' : 'No'}</dd></div>
               {p.visit_stability === 'STABLE_VISIT' && <div><dt>Maximum radius</dt><dd>{p.maximum_working_radius_km != null ? `${p.maximum_working_radius_km} km` : '—'}</dd></div>}
               {p.emergency_services_available && <><div><dt>Emergency contact</dt><dd>{p.emergency_contact_name ?? '—'}</dd></div><div><dt>Emergency number</dt><dd>{p.emergency_contact_number ?? '—'}</dd></div></>}

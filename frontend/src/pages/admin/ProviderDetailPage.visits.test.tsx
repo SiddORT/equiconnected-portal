@@ -78,6 +78,25 @@ beforeEach(() => {
 });
 
 describe('ProviderDetailPage doctor visits', () => {
+  it.each([false, true])('omits clinic/hospital visits from the services summary when its value is %s', async (visits) => {
+    vi.mocked(getProvider).mockResolvedValue(doctor({
+      provider_type: 'HOSPITAL',
+      clinic_hospital_visit: visits,
+      languages: [{ id: 'language-1', name: 'Chinese', code: 'zh', is_active: true }],
+      visit_stability: 'STABLE_VISIT',
+      maximum_working_radius_km: 50,
+      emergency_services_available: true,
+      emergency_contact_number: '+91 9867360488',
+    }));
+    renderDetail();
+    expect(await screen.findByRole('heading', { name: 'Services & languages' })).toBeTruthy();
+    expect(screen.queryByText('Clinic / hospital visits')).toBeNull();
+    expect(screen.getByText('Chinese')).toBeTruthy();
+    expect(screen.getByText('Emergency services')).toBeTruthy();
+    expect(screen.getByText('50 km')).toBeTruthy();
+    expect(screen.getByText('+91 9867360488')).toBeTruthy();
+  });
+
   it('lets admins select a contact and send access for an older eligible listing', async () => {
     vi.mocked(getProvider).mockResolvedValue(doctor());
     vi.mocked(sendProviderPortalAccess).mockResolvedValue({
