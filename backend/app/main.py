@@ -39,6 +39,35 @@ async def _recover_message_notifications() -> None:
         await asyncio.sleep(30)
 
 
+async def _cleanup_provider_contact_click_receipts() -> None:
+    """Periodically purge one small batch of expired contact receipts."""
+    logger = get_logger(__name__)
+    while True:
+        try:
+            # Keep privacy cleanup independent of the email delivery worker;
+            # the service owns a fresh SessionLocal session for each batch.
+            from app.services.provider_insights_service import (
+                CONTACT_CLICK_RECEIPT_CLEANUP_BATCH_SIZE,
+                CONTACT_CLICK_RECEIPT_CLEANUP_INTERVAL_SECONDS,
+                cleanup_expired_contact_click_receipts_once,
+            )
+
+            await asyncio.to_thread(
+                cleanup_expired_contact_click_receipts_once,
+                batch_size=CONTACT_CLICK_RECEIPT_CLEANUP_BATCH_SIZE,
+            )
+            interval = CONTACT_CLICK_RECEIPT_CLEANUP_INTERVAL_SECONDS
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error(
+                "provider_contact_click_receipt_cleanup_failed",
+                error_type=type(exc).__name__,
+            )
+            interval = 60
+        await asyncio.sleep(interval)
+
+
 def _safe_log_path(request: Request) -> str:
     """Redact security tokens embedded in public invitation paths."""
     return re.sub(
@@ -63,14 +92,19 @@ async def lifespan(app: FastAPI):
         environment=settings.ENVIRONMENT,
     )
     recovery_task = asyncio.create_task(_recover_message_notifications())
+    contact_receipt_cleanup_task = asyncio.create_task(
+        _cleanup_provider_contact_click_receipts()
+    )
     try:
         yield
     finally:
         recovery_task.cancel()
-        try:
-            await recovery_task
-        except asyncio.CancelledError:
-            pass
+        contact_receipt_cleanup_task.cancel()
+        for task in (recovery_task, contact_receipt_cleanup_task):
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
         logger.info("shutdown")
 
 

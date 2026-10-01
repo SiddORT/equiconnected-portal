@@ -74,3 +74,34 @@ navigation is counted again. Only UUID keys are accepted and receipts expire
 after 48 hours; they are not a visit history. Ingestion is rate-limited using a
 transient in-memory request window; client/network identifiers are not stored
 with traffic aggregates or retry receipts.
+
+## Provider contact-click collection
+
+Provider contact-link activations use a separate prospective pipeline at
+`POST /api/v1/member/providers/{provider_id}/contact-click`. It requires a
+verified public member, the currently discoverable listing, an allowlisted
+`phone|email|website` action, and an RFC UUIDv7 `event_key`. UUIDv7's embedded
+millisecond timestamp supplies the event's system-timezone date and prevents an
+expired replay from being counted again after receipt cleanup: ingestion
+rejects timestamps at least 48 hours old and more than five minutes
+ahead of server time. Use one fresh UUIDv7 per real link activation, retaining
+it for retries only.
+
+`provider_contact_click_daily` retains only date, provider UUID, action, and an
+atomic aggregate. The provider UUID has no foreign key, preserving history
+without coupling it to provider/member records. Temporary
+`provider_contact_click_receipts` retain only the UUID key and created/expiry
+timestamps, expiring at the event's 48-hour retry deadline. There is no member,
+destination, URL, IP, message content, or linked event metadata.
+`provider_contact_click_tracking_metadata` independently marks the collection
+boundary; pre-boundary periods are unavailable, not zero. The rollout date is
+partial through that local calendar day. A transient rate limit bounds requests.
+An independent lifespan worker deletes up to 200 expired contact receipts per
+minute even when ingestion is idle; it uses a fresh session and is not coupled
+to messaging/email delivery. Request-time cleanup may also remove one bounded
+batch after accepted contact events.
+
+The contact link remains a native link; its client instrumentation is best
+effort and must never await or depend on a tracking response before performing
+the requested phone, email, or website action. The server treats these as
+activations only, not completed calls, emails, bookings, or confirmed leads.

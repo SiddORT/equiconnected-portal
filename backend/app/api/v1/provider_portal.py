@@ -1,4 +1,5 @@
 """Authenticated portal endpoints for approved provider account owners."""
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
@@ -13,7 +14,12 @@ from app.repositories.provider_profile_update_repository import ProviderProfileU
 from app.repositories.provider_repository import ProviderRepository
 from app.repositories.review_repository import ReviewRepository
 from app.schemas.provider import PhotoCreate, ProviderPortalResponse, ProviderPortalUpdate
+from app.schemas.provider_insights import ProviderInsightsReport
 from app.services.invitation_service import InvalidProviderDataError
+from app.services.provider_insights_service import (
+    InsightPreset,
+    ProviderInsightsPeriodError,
+)
 from app.services.provider_portal_service import (
     ProviderPortalService,
     ProviderPortalPhotoUploadError,
@@ -104,6 +110,48 @@ def get_profile(current_user: CurrentUser, svc: _Svc) -> ProviderPortalResponse:
             status_code=403,
             detail={"code": "provider_portal_unavailable", "message": "Provider portal access is unavailable."},
         )
+
+
+@router.get("/insights", response_model=ProviderInsightsReport)
+def get_insights(
+    request: Request,
+    current_user: CurrentUser,
+    svc: _Svc,
+    preset: InsightPreset = "last_30_days",
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> ProviderInsightsReport:
+    unexpected = set(request.query_params).difference(
+        {"preset", "date_from", "date_to"}
+    )
+    if unexpected:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "provider_insights_query_invalid",
+                "message": "Only preset, date_from, and date_to are supported.",
+            },
+        )
+    try:
+        return svc.get_insights(
+            current_user,
+            preset=preset,
+            date_from=date_from,
+            date_to=date_to,
+        )
+    except ProviderPortalUnavailableError:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "provider_portal_unavailable",
+                "message": "Provider portal access is unavailable.",
+            },
+        )
+    except ProviderInsightsPeriodError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "provider_insights_period_invalid", "message": str(exc)},
+        ) from None
 
 
 @router.get("/specializations")

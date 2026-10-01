@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import * as providersApi from '@/api/providers';
 import * as messagesApi from '@/api/messages';
 import { recordMemberHistory } from '@/api/memberHistoryRecording';
+import { recordMemberContactClick, type MemberContactAction } from '@/analytics/contactTracking';
 import {
   hasSensitiveTrafficUrlParameter,
   isNewTrafficNavigation,
@@ -128,6 +129,12 @@ export function MemberProviderDetailPage() {
   activeProfileId.current = id;
   const reviewSubmitting = useRef(false);
   const closeGallery = useCallback(() => setGalleryIndex(null), []);
+  const onContactClick = (action: MemberContactAction) => (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.button === 0) recordMemberContactClick(id ?? '', action);
+  };
+  const onContactAuxClick = (action: MemberContactAction) => (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.button === 1) recordMemberContactClick(id ?? '', action);
+  };
 
   const load = useCallback(async (showLoading = true) => {
     if (!id) return;
@@ -431,9 +438,9 @@ export function MemberProviderDetailPage() {
           <p className={styles.kicker}>Get in touch</p><h2 id="contact-title">Contact</h2>
           <p className={styles.contactIntro}>Use the provider’s recorded details to ask about care and availability.</p>
           <div className={styles.contactMethods}>
-            {provider.phone && <a aria-label={provider.phone} href={`tel:${provider.phone}`}><span>Phone</span><strong>{provider.phone}</strong><i aria-hidden="true">↗</i></a>}
-            {provider.email && <a aria-label={provider.email} href={`mailto:${provider.email}`}><span>Email</span><strong>{provider.email}</strong><i aria-hidden="true">↗</i></a>}
-            {website && <a aria-label="Visit website" href={website} target="_blank" rel="noopener noreferrer"><span>Website</span><strong>Visit website</strong><i aria-hidden="true">↗</i></a>}
+            {provider.phone && <a aria-label={provider.phone} href={`tel:${provider.phone}`} onClick={onContactClick('phone')} onAuxClick={onContactAuxClick('phone')}><span>Phone</span><strong>{provider.phone}</strong><i aria-hidden="true">↗</i></a>}
+            {provider.email && <a aria-label={provider.email} href={`mailto:${provider.email}`} onClick={onContactClick('email')} onAuxClick={onContactAuxClick('email')}><span>Email</span><strong>{provider.email}</strong><i aria-hidden="true">↗</i></a>}
+            {website && <a aria-label="Visit website" href={website} target="_blank" rel="noopener noreferrer" onClick={onContactClick('website')} onAuxClick={onContactAuxClick('website')}><span>Website</span><strong>Visit website</strong><i aria-hidden="true">↗</i></a>}
             {!provider.phone && !provider.email && !website && <p className={styles.muted}>No contact details have been published.</p>}
           </div>
           <div className={styles.contactBottom}><span className={styles.contactSeal} aria-hidden="true">EC</span><p>Information shown is what this provider has recorded in EquiConnected.</p></div>

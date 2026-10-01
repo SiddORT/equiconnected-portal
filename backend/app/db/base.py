@@ -56,3 +56,9 @@ from app.models.analytics_traffic import (  # noqa: F401, E402
     TrafficTrackingReceipt,
     TrafficVisitorDaily,
 )
+from app.models.provider_insights import (  # noqa: F401, E402
+    ProviderContactClickDaily,
+    ProviderContactClickReceipt,
+    ProviderContactClickTrackingMetadata,
+    ProviderInsightsConversationMetadata,
+)

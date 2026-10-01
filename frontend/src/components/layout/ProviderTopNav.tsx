@@ -43,6 +43,7 @@ export function ProviderTopNav() {
 
         <nav className={styles.links} aria-label="Provider navigation">
           <NavLink to="/provider/account" className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}>Account</NavLink>
+          <NavLink to="/provider/insights" className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}>Insights</NavLink>
           <NavLink to="/provider/messages" className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}>
             Messages{unreadMessages > 0 && <span className={styles.unreadBadge} aria-label={`${unreadMessages} unread messages`}>{unreadMessages > 99 ? '99+' : unreadMessages}</span>}
           </NavLink>

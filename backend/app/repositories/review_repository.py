@@ -360,15 +360,30 @@ class ReviewRepository:
             self._db.execute(
                 select(ProviderReview, User)
                 .join(User, User.id == ProviderReview.member_id)
-                .where(
-                    ProviderReview.provider_id == provider_id,
-                    ProviderReview.deleted_at.is_(None),
-                    ProviderReview.status == ProviderReviewStatus.PUBLISHED,
-                    ProviderReview.comment_visible.is_(True),
-                    ProviderReview.comment != "",
-                )
+                .where(*self._visible_review_conditions(provider_id))
                 .order_by(ProviderReview.created_at.desc(), ProviderReview.id)
             ).all()
+        )
+
+    @staticmethod
+    def _visible_review_conditions(provider_id: UUID):
+        """Single moderation predicate shared by public reviews and snapshots."""
+        return (
+            ProviderReview.provider_id == provider_id,
+            ProviderReview.deleted_at.is_(None),
+            ProviderReview.status == ProviderReviewStatus.PUBLISHED,
+            ProviderReview.comment_visible.is_(True),
+            ProviderReview.comment != "",
+        )
+
+    def visible_review_count(self, provider_id: UUID) -> int:
+        return int(
+            self._db.scalar(
+                select(func.count(ProviderReview.id)).where(
+                    *self._visible_review_conditions(provider_id)
+                )
+            )
+            or 0
         )
 
     def get_member_review(

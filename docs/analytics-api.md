@@ -1,5 +1,10 @@
 # Admin analytics API contract
 
+Provider-owned, privacy-minimal performance reporting is documented separately
+in [Provider performance insights API](provider-insights-api.md). Provider
+Insights is not an administrator analytics endpoint and does not accept an
+administrator's listing filters or sitewide metrics.
+
 This contract is shared by the analytics page and the backend report service.
 All dates are calendar dates in the configured system timezone. Date ranges are
 inclusive in requests and are converted to a UTC half-open interval internally.

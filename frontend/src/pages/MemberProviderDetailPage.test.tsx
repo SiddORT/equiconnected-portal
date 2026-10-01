@@ -9,13 +9,18 @@ import * as messagesApi from '@/api/messages';
 import { recordMemberTrafficView } from '@/analytics/trafficTracking';
 import { MemberProviderDetailPage } from './MemberProviderDetailPage';
 
-const { recordTrafficView } = vi.hoisted(() => ({
+const { recordTrafficView, recordContactClick } = vi.hoisted(() => ({
   recordTrafficView: vi.fn(),
+  recordContactClick: vi.fn(),
 }));
 
 vi.mock('@/analytics/trafficTracking', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/analytics/trafficTracking')>()),
   recordMemberTrafficView: recordTrafficView,
+}));
+
+vi.mock('@/analytics/contactTracking', () => ({
+  recordMemberContactClick: recordContactClick,
 }));
 
 vi.mock('@/api/providers', () => ({
@@ -380,6 +385,61 @@ describe('MemberProviderDetailPage', () => {
     view.unmount();
     renderProfile();
     expect(screen.queryByRole('link', { name: /Visit website/ })).toBeNull();
+  });
+
+  it('measures primary phone activation without delaying or changing the native link action', async () => {
+    vi.mocked(providersApi.getMemberProvider).mockResolvedValue({
+      ...detail,
+      phone: '+1 512 555 0100',
+    });
+    recordContactClick.mockImplementation(() => new Promise(() => undefined));
+    renderProfile();
+
+    const phone = await screen.findByRole('link', { name: '+1 512 555 0100' });
+    const activation = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+    phone.dispatchEvent(activation);
+
+    expect(activation.defaultPrevented).toBe(false);
+    expect(phone.getAttribute('href')).toBe('tel:+1 512 555 0100');
+    expect(recordContactClick).toHaveBeenCalledTimes(1);
+    expect(recordContactClick).toHaveBeenCalledWith('provider-1', 'phone');
+  });
+
+  it('counts keyboard activation once and distinct phone activations separately', async () => {
+    vi.mocked(providersApi.getMemberProvider).mockResolvedValue({
+      ...detail,
+      phone: '+1 512 555 0100',
+    });
+    const user = userEvent.setup();
+    renderProfile();
+
+    const phone = await screen.findByRole('link', { name: '+1 512 555 0100' });
+    phone.focus();
+    await user.keyboard('{Enter}');
+    expect(recordContactClick).toHaveBeenCalledTimes(1);
+    expect(recordContactClick).toHaveBeenLastCalledWith('provider-1', 'phone');
+
+    fireEvent.click(phone);
+    expect(recordContactClick).toHaveBeenCalledTimes(2);
+  });
+
+  it('tracks middle-button website activation without changing its new-tab behavior', async () => {
+    vi.mocked(providersApi.getMemberProvider).mockResolvedValue({
+      ...detail,
+      website: 'https://provider.example.org/care',
+    });
+    renderProfile();
+
+    const website = await screen.findByRole('link', { name: 'Visit website' });
+    const middleClick = new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 });
+    website.dispatchEvent(middleClick);
+
+    expect(middleClick.defaultPrevented).toBe(false);
+    expect(website.getAttribute('href')).toBe('https://provider.example.org/care');
+    expect(website.getAttribute('target')).toBe('_blank');
+    expect(website.getAttribute('rel')).toContain('noopener');
+    expect(recordContactClick).toHaveBeenCalledTimes(1);
+    expect(recordContactClick).toHaveBeenCalledWith('provider-1', 'website');
   });
 
   it('opens the real photo gallery with keyboard focus containment and restores focus on Escape', async () => {

@@ -15,7 +15,10 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser
 from app.db.session import get_db
-from app.core.rate_limit import check_analytics_traffic_rate_limit
+from app.core.rate_limit import (
+    check_analytics_traffic_rate_limit,
+    check_contact_click_rate_limit,
+)
 from app.core.time_standards import system_today
 from app.models.enums import (
     DoctorAvailability,
@@ -32,6 +35,7 @@ from app.repositories.audit_repository import context_from_request
 from app.repositories.review_repository import ReviewRepository
 from app.repositories.system_settings_repository import SystemSettingsRepository
 from app.schemas.analytics_traffic import MemberTrafficViewRequest
+from app.schemas.provider_insights import ProviderContactClickRequest
 from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.schemas.provider import selected_provider_contact, selected_provider_photo
 from app.schemas.review import (
@@ -51,6 +55,11 @@ from app.services.review_service import (
     ReviewStateError,
 )
 from app.services.analytics_traffic_service import record_successful_view
+from app.services.provider_insights_service import (
+    ContactClickTrackingUnavailableError,
+    InvalidContactClickEventError,
+    record_contact_click,
+)
 from app.services.visiting_calendar import visiting_calendar_month_range
 
 router = APIRouter(prefix="/member/providers", tags=["Member Provider Directory"])
@@ -360,6 +369,59 @@ def record_member_traffic_view(
             detail={
                 "code": "traffic_tracking_unavailable",
                 "message": "Traffic tracking is temporarily unavailable.",
+            },
+        ) from None
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/{provider_id}/contact-click",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(check_contact_click_rate_limit)],
+)
+def record_member_contact_click(
+    provider_id: UUID,
+    body: ProviderContactClickRequest,
+    user: MemberUser,
+    svc: _Svc,
+    db: _DB,
+) -> Response:
+    """Record one allowlisted contact-link activation without retaining identity."""
+    try:
+        svc.get_discoverable(provider_id)
+    except DiscoverableProviderNotFoundError:
+        raise _not_found()
+    try:
+        timezone_name = SystemSettingsRepository(db).get_or_create().timezone
+        record_contact_click(
+            db,
+            provider_id=provider_id,
+            action=body.action,
+            event_key=body.event_key,
+            timezone_name=timezone_name,
+        )
+    except InvalidContactClickEventError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "contact_click_event_key_invalid",
+                "message": str(exc),
+            },
+        ) from None
+    except ContactClickTrackingUnavailableError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "contact_click_tracking_unavailable",
+                "message": "Contact tracking is temporarily unavailable.",
+            },
+        ) from None
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "contact_click_tracking_unavailable",
+                "message": "Contact tracking is temporarily unavailable.",
             },
         ) from None
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -1,0 +1,26 @@
+{
+  "route": "/provider/insights",
+  "origin": "https://5f3f19d0-f60a-41e9-b2ff-9d685c044dc2-00-3c15f6nbpkpfs-prbpdwb0.sisko.replit.dev",
+  "screenshots": [
+    "screenshots/provider-insights-desktop.jpg",
+    "screenshots/provider-insights-mobile360.jpg",
+    "screenshots/provider-insights-mobile390.jpg"
+  ],
+  "assertions": [
+    "initial loading state rendered while the intercepted request was pending",
+    "provider metrics render as accessible cards, with coverage-aware unavailable values",
+    "trends expose labelled data tables with captions and column headers",
+    "partial coverage is labelled and suppresses percentage comparisons",
+    "backend comparison reason codes are replaced with plain-English explanations",
+    "provider navigation retains the Messages route",
+    "the existing provider Messages navigation still reaches its route",
+    "trend data tables expose accessible captions and column headers",
+    "custom dates are submitted and the current snapshot remains period-independent",
+    "pre-tracking nulls remain unavailable instead of being shown as invented zeros",
+    "retryable failures remain visible until the user explicitly retries",
+    "manual retry recovers successfully without an automatic retry loop",
+    "expired sessions produce explicit recovery guidance and a provider sign-in link"
+  ],
+  "api_requests_intercepted": 20,
+  "result": "passed"
+}

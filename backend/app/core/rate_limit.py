@@ -41,6 +41,7 @@ _email_verification_attempts: dict[str, deque[float]] = defaultdict(deque)
 _verification_resend_attempts: dict[str, deque[float]] = defaultdict(deque)
 _smtp_test_attempts: dict[str, deque[float]] = defaultdict(deque)
 _analytics_traffic_attempts: dict[str, deque[float]] = defaultdict(deque)
+_contact_click_attempts: dict[str, deque[float]] = defaultdict(deque)
 
 
 # ── Dependency ────────────────────────────────────────────────────────────────
@@ -260,4 +261,15 @@ def check_analytics_traffic_rate_limit(request: Request) -> None:
         window_seconds=60,
         max_attempts=60,
         message="Too many traffic events. Please try again shortly.",
+    )
+
+
+def check_contact_click_rate_limit(request: Request) -> None:
+    """Bound contact-click ingestion without persisting caller identifiers."""
+    _check_rate_limit(
+        request,
+        _contact_click_attempts,
+        window_seconds=60,
+        max_attempts=60,
+        message="Too many contact events. Please try again shortly.",
     )

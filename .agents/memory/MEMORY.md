@@ -50,3 +50,4 @@
 - [Tile referrer diagnosis](tile-referrer-diagnosis.md) — missing Referer is a policy mismatch, not conclusive proof of an external block; verify real browser traffic.
 - [Browser failure injection](browser-failure-injection.md) — keep intentional failures active until explicit retry so Strict Mode replay cannot hide the error state.
 - [Private message delivery policy](private-message-delivery-policy.md) — retry safe pre-SMTP failures, not uncertain handoffs; message acceptance is independent of email.
+- [Aggregate retry expiry](aggregate-retry-expiry.md) — expiring unlinkable receipts need independent event-age validation so delayed replays cannot become fresh counts.

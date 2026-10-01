@@ -162,6 +162,34 @@ class ProviderPortalService:
     def get_profile(self, user: User):
         return self._profile_response(self._provider_id_for_user(user))
 
+    def get_insights(
+        self,
+        user: User,
+        *,
+        preset: str,
+        date_from,
+        date_to,
+    ):
+        """Return aggregate reporting for the listing explicitly linked to this account."""
+        from app.core.time_standards import system_today
+        from app.repositories.system_settings_repository import SystemSettingsRepository
+        from app.services.provider_insights_service import ProviderInsightsService
+
+        provider_id = self._provider_id_for_user(user)
+        timezone_name = SystemSettingsRepository(self._db).get_or_create().timezone
+        report = ProviderInsightsService(self._db, self._reviews).report(
+            provider_id=provider_id,
+            provider_user_id=user.id,
+            timezone_name=timezone_name,
+            today=system_today(timezone_name),
+            preset=preset,
+            date_from=date_from,
+            date_to=date_to,
+        )
+        if report is None:
+            raise ProviderPortalUnavailableError()
+        return report
+
     async def upload_photo(
         self,
         user: User,

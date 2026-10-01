@@ -36,6 +36,7 @@ import { SettingsPage } from '@/pages/admin/SettingsPage';
 import { ProviderSignupPage } from '@/pages/ProviderSignupPage';
 import { ProviderLoginPage } from '@/pages/ProviderLoginPage';
 import { ProviderAccountPage } from '@/pages/ProviderAccountPage';
+import { ProviderInsightsPage } from '@/pages/ProviderInsightsPage';
 import { ProviderAuthGuard } from '@/features/provider/ProviderAuthGuard';
 import { ProviderApplicationsPage } from '@/pages/admin/ProviderApplicationsPage';
 import { ProviderPasswordSetupPage } from '@/pages/ProviderPasswordSetupPage';
@@ -126,6 +127,7 @@ export function AppRouter() {
         {/* ── Approved provider account ────────────────────────────── */}
         <Route element={<ProviderAuthGuard />}>
           <Route path="/provider/account" element={<ProviderAccountPage />} />
+          <Route path="/provider/insights" element={<ProviderInsightsPage />} />
           <Route path="/provider/messages/:conversationId?" element={<ProviderMessagesPage />} />
         </Route>
 
