@@ -17,6 +17,73 @@ usable key. Never store a real key in source control, database backups,
 application logs, or ordinary configuration files. Never derive or reuse the
 JWT `SECRET_KEY`.
 
+### Development preview and published environments
+
+Configure both values as **protected secrets**, not ordinary environment
+variables. On Replit, development secrets are entered through the workspace
+Secrets tool (or the Agent's secure secrets form); published app secrets are
+configured separately in Publishing. A preview failure does not establish the
+published app's configuration. Never copy secret values into chat, terminal
+output, screenshots, test artifacts, `.env` files, or setup documentation.
+Messaging keys must also remain independent of contact-encryption keys.
+
+Before initial provisioning, inspect only aggregate conversation/message counts
+and the version/key-ID prefixes of stored envelopes in the target environment.
+Do not retrieve message bodies, contact snapshots, or participant details.
+If any ciphertext exists, recover its original keys through the operator's
+protected backup process and retain every required key ID. A newly generated key,
+even under the same ID, cannot decrypt that history. Stop if recovery is not
+possible; do not reset records or overwrite the keyring to make availability pass.
+
+When both tables are empty, an operator may generate a new independent 32-byte
+key using a trusted cryptographically secure local tool or secret manager,
+Base64-encode those bytes, and enter the JSON keyring directly into the protected
+form. Choose an ID containing only letters, digits, underscores, or hyphens
+(1–32 characters), and enter the identical ID as the active-key secret. Preserve
+a protected recovery copy before accepting messages. The example above contains
+no usable key and must not be submitted literally.
+
+Restart the development backend after saving secrets: settings are cached per
+process. Validate using `ensure_encryption_available()` without printing settings
+or decoded keys, then check the authenticated availability endpoint for an
+eligible provider. Successful encryption configuration does not make an
+unpublished, inactive, unlinked, or ambiguously linked provider eligible.
+Do not change account approval states or link accounts by email to work around
+these separate eligibility checks. Direct contact must remain available when
+messaging fails closed.
+
+Verify the full conversation flow with labelled synthetic participants and
+isolated SMTP before reporting recovery, including reopening encrypted history
+after a backend restart. Record preview evidence separately from deployment
+evidence. Production provisioning, restart, or deployment requires separate
+operator approval; restoring the preview is not proof that production works.
+
+### Repeatable isolated recovery check
+
+With the normal development frontend running and valid protected messaging
+settings available, run from the repository root:
+
+```sh
+python3 scripts/check-private-messaging-isolated-browser.py
+```
+
+This check runs the shipped frontend against temporary application processes
+and a uniquely owned `pm_smoke_*` PostgreSQL schema. Browser API requests are
+routed only to those processes, and SMTP methods are stubbed before startup.
+The check never changes public-schema accounts, providers, or messages. It
+removes its own schema and disposable processes on exit. Do not run it against
+production. It requires free local ports 8008/8009 and Chromium.
+
+The check exercises profile entry, contact preview, client/server consent,
+both inboxes, provider replies, participant isolation, ciphertext-only storage,
+and reading the thread after a fresh backend process starts with the same
+protected settings. Additional isolated processes verify missing/invalid-key
+failures while direct contact remains available. Its output contains safe
+counts and stage/status diagnostics only. Screenshots under
+`screenshots/private-messaging-isolated-smoke/` contain labelled synthetic
+records, not real user activity. See `messaging-recovery-verification.md` for
+the development recovery evidence and deployment boundary.
+
 Back up the keyring through the secret manager's protected recovery process,
 separately from database backups. Verify key recovery before relying on a
 database restore. For rotation, provision a new key ID while retaining all old
