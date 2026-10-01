@@ -148,15 +148,20 @@ export async function getProviderPortalAccess(id: string): Promise<ProviderPorta
 
 export async function sendProviderPortalAccess(
   id: string,
-  email_id: string | null
+  email_id?: string | null
 ): Promise<ProviderPortalAccess> {
+  const body = email_id === undefined ? {} : { email_id };
   const { data } = await apiClient.post<ProviderPortalAccess>(
     `/admin/providers/${id}/portal-access`,
-    { email_id }
+    body
   );
   return data;
 }
 
+export interface ProviderApprovalResult {
+  message: string;
+  email_sent: boolean;
+}
 export async function revokeProviderPortalAccess(id: string): Promise<ProviderPortalAccess> {
   const { data } = await apiClient.post<ProviderPortalAccess>(
     `/admin/providers/${id}/portal-access/revoke`
@@ -344,4 +349,16 @@ export async function updateProviderQualification(id: string, qualId: string, bo
 }
 export async function deleteProviderQualification(id: string, qualId: string): Promise<void> {
   await apiClient.delete(`/admin/providers/${id}/qualifications/${qualId}`);
+}
+
+export async function approveProvider(id: string): Promise<ProviderApprovalResult> {
+  const { data } = await apiClient.post<ProviderApprovalResult>(`/admin/providers/${id}/approve`);
+  return data;
+}
+
+export async function resendProviderApprovalEmail(id: string): Promise<ProviderApprovalResult> {
+  const { data } = await apiClient.post<ProviderApprovalResult>(
+    `/admin/providers/${id}/approval-email`
+  );
+  return data;
 }

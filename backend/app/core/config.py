@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     INVITATION_EXPIRE_DAYS: int = 7
     EMAIL_VERIFICATION_EXPIRE_HOURS: int = 24
     PROVIDER_PORTAL_SETUP_EXPIRE_HOURS: int = 24
+    PROVIDER_PORTAL_RECOVERY_EXPIRE_HOURS: int = 2
     # Uses an external provider; deployments can override this URL template.
     # Nominatim accepts the country name supplied by the shared location picker.
     POSTAL_LOOKUP_URL: str = (

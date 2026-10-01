@@ -43,6 +43,7 @@ import { ProviderWizardHeader, ProviderWizardReview } from './ProviderWizard';
 import { SignupMultiSelect } from '@/pages/SignupMultiSelect';
 import type {
   InvitationDraftPayload,
+  InvitationSubmitPayload,
   InvitationDraftProvider,
   InvitationSpecialization,
   Provider,
@@ -57,6 +58,7 @@ import type {
   QualificationCreate,
   DoctorAvailability,
 } from '@/types';
+import { InvitationCredentials, validateInvitationCredentials } from '@/components/invite/InvitationCredentials';
 import styles from './ProviderForm.module.css';
 import wizardStyles from './ProviderWizard.module.css';
 import { invitationEmailEntries } from './invitationEmailEntries';
@@ -145,7 +147,7 @@ export interface InvitationFormConfig {
   emailsEdited: boolean;
   loadSpecializations: () => Promise<InvitationSpecialization[]>;
   onSaveDraft: (payload: InvitationDraftPayload) => Promise<void>;
-  onSubmit: (payload: InvitationDraftPayload) => Promise<void>;
+  onSubmit: (payload: InvitationSubmitPayload) => Promise<void>;
   externalErrors?: Record<string, string>;
 }
 
@@ -353,6 +355,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [apiError, setApiError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [invitationPassword, setInvitationPassword] = useState('');
+  const [invitationPasswordConfirmation, setInvitationPasswordConfirmation] = useState('');
+  const [credentialErrors, setCredentialErrors] = useState<Record<string, string>>({});
   const [savingDraft, setSavingDraft] = useState(false);
   const [sendPortalAccessOnCreate, setSendPortalAccessOnCreate] = useState(false);
   const [portalAccessEmail, setPortalAccessEmail] = useState('');
@@ -631,6 +636,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     setSavingDraft(true);
     try {
       await inv.onSaveDraft(buildInvitationPayload());
+      setInvitationPassword('');
+      setInvitationPasswordConfirmation('');
+      setCredentialErrors({});
     } catch (err) {
       setApiError(extractErrorMessage(err, 'Failed to save your draft. Please try again.'));
     } finally {
@@ -680,9 +688,19 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     }
 
     if (inv) {
+      const passwordErrors = validateInvitationCredentials(
+        invitationPassword,
+        invitationPasswordConfirmation
+      );
+      setCredentialErrors(passwordErrors);
+      if (Object.keys(passwordErrors).length > 0) return;
       setSubmitting(true);
       try {
-        await inv.onSubmit(buildInvitationPayload());
+        await inv.onSubmit({
+          ...buildInvitationPayload(),
+          password: invitationPassword,
+          password_confirmation: invitationPasswordConfirmation,
+        });
       } catch (err) {
         setApiError(extractErrorMessage(err, 'Failed to submit. Please check the form and try again.'));
       } finally {
@@ -1620,6 +1638,24 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           )}
         </>
       )}
+
+      {inv && <InvitationCredentials
+        recipientEmail={inv.recipientEmail}
+        password={invitationPassword}
+        confirmation={invitationPasswordConfirmation}
+        onPasswordChange={(value) => {
+          setInvitationPassword(value);
+          setCredentialErrors({});
+        }}
+        onConfirmationChange={(value) => {
+          setInvitationPasswordConfirmation(value);
+          setCredentialErrors({});
+        }}
+        errors={{ ...credentialErrors, ...Object.fromEntries(
+          Object.entries(inv.externalErrors ?? {}).filter(([key]) => key === 'password' || key === 'password_confirmation')
+        ) }}
+        disabled={submitting || savingDraft}
+      />}
 
       <footer className={`${styles.footer} ${styles.cardFull}`}>
         {wizard ? (

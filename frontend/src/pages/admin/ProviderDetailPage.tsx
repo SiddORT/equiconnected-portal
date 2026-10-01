@@ -8,6 +8,7 @@ import { extractErrorMessage } from '@/api/client';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
 import {
   addProviderSpecialization,
+  approveProvider,
   createProviderLocation,
   deleteProviderLocation,
   deleteProviderPhoto,
@@ -15,6 +16,7 @@ import {
   getProviderPortalAccess,
   removeProviderSpecialization,
   revokeProviderPortalAccess,
+  resendProviderApprovalEmail,
   setProviderThumbnail,
   sendProviderPortalAccess,
   updateProviderLocation,
@@ -29,6 +31,7 @@ import { DoctorProfessionalSections } from '@/components/admin/DoctorProfessiona
 import { ActionMenu } from '@/components/ui/ActionMenu';
 import { ActivateIcon, DeactivateIcon, PublishIcon, UnpublishIcon } from '@/components/ui/AdminIcons';
 import { Badge } from '@/components/ui/Badge';
+import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -126,6 +129,12 @@ export function ProviderDetailPage() {
   );
   const [portalAccessSending, setPortalAccessSending] = useState(false);
   const [portalAccessRevoking, setPortalAccessRevoking] = useState(false);
+  const [approvalDelivery, setApprovalDelivery] = useState<{
+    message: string;
+    email_sent: boolean;
+    retry_available?: boolean;
+  } | null>(null);
+  const [approvalEmailRetrying, setApprovalEmailRetrying] = useState(false);
   const [selectedPortalEmailKey, setSelectedPortalEmailKey] = useState('');
   const [creationPortalIssue, setCreationPortalIssue] = useState(initialPortalIssue ?? null);
 
@@ -244,11 +253,15 @@ export function ProviderDetailPage() {
   useEffect(() => { void loadPortalAccess(); }, [loadPortalAccess]);
 
   async function handleSendPortalAccess() {
-    if (!id || !portalAccess || !['eligible', 'pending'].includes(portalAccess.status)) return;
-    const selected = portalAccess.selectable_emails.find((email) =>
-      (email.email_id ?? '__legacy_provider_email__') === selectedPortalEmailKey
-    );
-    if (!selected) {
+    if (!id || !portalAccess || !canSendPortalAccess) return;
+    const requiresContactChoice = ['eligible', 'pending'].includes(portalAccess.status) &&
+      portalAccess.action !== 'reset';
+    const selected = requiresContactChoice
+      ? portalAccess.selectable_emails.find((email) =>
+          (email.email_id ?? '__legacy_provider_email__') === selectedPortalEmailKey
+        )
+      : undefined;
+    if (requiresContactChoice && !selected) {
       setPortalAccessActionError('Choose a valid contact email before sending portal access.');
       setPortalAccessSuccess(null);
       return;
@@ -257,14 +270,58 @@ export function ProviderDetailPage() {
     setPortalAccessActionError(null);
     setPortalAccessSuccess(null);
     try {
-      const updated = await sendProviderPortalAccess(id, selected.email_id);
+      const updated = selected
+        ? await sendProviderPortalAccess(id, selected.email_id)
+        : await sendProviderPortalAccess(id);
       setPortalAccess(updated);
-      setPortalAccessSuccess(updated.message || `Portal access email sent to ${updated.recipient_email ?? selected.email}.`);
+      setPortalAccessSuccess(
+        updated.message || `Password ${portalAccess.action ?? 'setup'} email sent to ${updated.recipient_email ?? selected?.email ?? portalAccess.recipient_email ?? 'the linked login email'}.`
+      );
       await loadPortalAccess();
     } catch (err) {
-      setPortalAccessActionError(`${extractErrorMessage(err, 'Unable to send portal access email.')} Recipient: ${selected.email}.`);
+      setPortalAccessActionError(
+        `${extractErrorMessage(err, 'Unable to send password email.')} Delivery is not confirmed.${selected ? ` Recipient: ${selected.email}.` : ''}`
+      );
     } finally {
       setPortalAccessSending(false);
+    }
+  }
+
+  async function handleApproveProvider() {
+    if (!id) return;
+    setBusy(true);
+    setActionError(null);
+    setApprovalDelivery(null);
+    try {
+      const result = await approveProvider(id);
+      const setupRequired = /password setup|no portal account is linked/i.test(result.message);
+      setApprovalDelivery({
+        ...result,
+        retry_available: !result.email_sent && !setupRequired,
+      });
+      await load();
+      await loadPortalAccess();
+    } catch (err) {
+      setActionError(extractErrorMessage(err, 'Unable to approve this provider.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRetryApprovalEmail() {
+    if (!id) return;
+    setApprovalEmailRetrying(true);
+    try {
+      const result = await resendProviderApprovalEmail(id);
+      setApprovalDelivery({ ...result, retry_available: !result.email_sent });
+    } catch (err) {
+      setApprovalDelivery({
+        message: `${extractErrorMessage(err, 'Unable to resend the approval email.')} The provider remains approved; retry when delivery is available.`,
+        email_sent: false,
+        retry_available: true,
+      });
+    } finally {
+      setApprovalEmailRetrying(false);
     }
   }
 
@@ -477,7 +534,16 @@ export function ProviderDetailPage() {
       ? (p.emails.find((e) => e.is_primary) ?? p.emails[0]).email
       : (p.email ?? null);
 
-  const canSendPortalAccess = portalAccess != null && ['eligible', 'pending'].includes(portalAccess.status);
+  const canSendPortalAccess = Boolean(portalAccess && (
+    portalAccess.available ??
+    (portalAccess.action != null || ['eligible', 'pending'].includes(portalAccess.status))
+  ));
+  const needsPortalEmailSelection = Boolean(
+    portalAccess && ['eligible', 'pending'].includes(portalAccess.status) &&
+    portalAccess.action !== 'reset'
+  );
+  const portalAccessAction = portalAccess?.action ??
+    (portalAccess && ['eligible', 'pending'].includes(portalAccess.status) ? 'setup' : null);
 
   const primaryPhone =
     p.phones.length > 0
@@ -502,10 +568,15 @@ export function ProviderDetailPage() {
             <Button variant="outline" onClick={() => navigate(`/admin/providers/${p.id}/edit`)} leftIcon="✏️">
               Edit
             </Button>
+            {p.status === 'UNDER_REVIEW' && (
+              <Button variant="primary" disabled={busy} onClick={() => void handleApproveProvider()}>
+                Approve provider
+              </Button>
+            )}
             <ActionMenu
               ariaLabel="Provider actions"
               items={[
-                {
+                ...(p.status !== 'UNDER_REVIEW' ? [{
                   label: p.status === 'ACTIVE' ? 'Deactivate' : 'Activate',
                    icon: p.status === 'ACTIVE' ? <DeactivateIcon /> : <ActivateIcon />,
                   danger: p.status === 'ACTIVE',
@@ -515,7 +586,7 @@ export function ProviderDetailPage() {
                       () => updateProviderStatus(p.id, p.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'),
                       'Failed to update status.'
                     ),
-                },
+                }] : []),
                 {
                   label: p.publication_status === 'PUBLISHED' ? 'Unpublish' : 'Publish',
                    icon: p.publication_status === 'PUBLISHED' ? <UnpublishIcon /> : <PublishIcon />,
@@ -537,6 +608,25 @@ export function ProviderDetailPage() {
       />
 
       <div className={styles.body}>
+        {approvalDelivery && (
+          <Alert
+            variant={approvalDelivery.email_sent ? 'success' : 'warning'}
+            onDismiss={() => setApprovalDelivery(null)}
+          >
+            {approvalDelivery.message}
+            {!approvalDelivery.email_sent && approvalDelivery.retry_available && (
+              <Button
+                variant="outline"
+                size="sm"
+                loading={approvalEmailRetrying}
+                disabled={approvalEmailRetrying}
+                onClick={() => void handleRetryApprovalEmail()}
+              >
+                Retry approval email
+              </Button>
+            )}
+          </Alert>
+        )}
         {creationPortalIssue && (
           <div className={`${styles.actionError} ${styles.colFull}`} role="alert">
             Provider created, but portal access could not be sent to {creationPortalIssue.recipient_email}: {creationPortalIssue.message}
@@ -556,8 +646,8 @@ export function ProviderDetailPage() {
               <h2 className={styles.sectionTitle}>Overview</h2>
               <div className={styles.badgeRow}>
                 <Badge variant="info">{TYPE_LABELS[p.provider_type] ?? p.provider_type}</Badge>
-                <Badge variant={p.status === 'ACTIVE' ? 'success' : 'neutral'}>
-                  {p.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                <Badge variant={p.status === 'ACTIVE' ? 'success' : p.status === 'UNDER_REVIEW' ? 'warning' : 'neutral'}>
+                  {p.status === 'UNDER_REVIEW' ? 'Under review' : p.status === 'ACTIVE' ? 'Active' : 'Inactive'}
                 </Badge>
                 <Badge variant={p.publication_status === 'PUBLISHED' ? 'info' : 'neutral'}>
                   {p.publication_status === 'PUBLISHED' ? 'Published' : 'Unpublished'}
@@ -619,11 +709,12 @@ export function ProviderDetailPage() {
                   {portalAccess.sent_at && <div><dt>Last setup link issued</dt><dd>{formatTimestamp(portalAccess.sent_at)}</dd></div>}
                 </dl>
                 {portalAccess.message && <p className={styles.portalAccessMessage}>{portalAccess.message}</p>}
+                {portalAccess.reason && <p className={styles.portalAccessMessage}>{portalAccess.reason}</p>}
                 {portalAccessSuccess && <p className={styles.portalSuccess} role="status">{portalAccessSuccess}</p>}
                 {portalAccessActionError && <p className={styles.actionError} role="alert">{portalAccessActionError}</p>}
                 {(canSendPortalAccess || portalAccess.can_revoke) && (
                   <div className={styles.portalAccessActions}>
-                    {canSendPortalAccess && <Select
+                    {canSendPortalAccess && needsPortalEmailSelection && <Select
                       containerClassName={styles.portalAccessEmail}
                       label="Contact email for portal access"
                       value={selectedPortalEmailKey}
@@ -638,11 +729,17 @@ export function ProviderDetailPage() {
                     <div className={styles.portalAccessButtons} role="group" aria-label="Portal access actions">
                       {canSendPortalAccess && <Button
                         variant="primary"
-                        disabled={portalAccessSending || portalAccessRevoking || !selectedPortalEmailKey || portalAccess.selectable_emails.length === 0}
+                        disabled={portalAccessSending || portalAccessRevoking || (
+                          needsPortalEmailSelection && (!selectedPortalEmailKey || portalAccess.selectable_emails.length === 0)
+                        )}
                         loading={portalAccessSending}
                         onClick={() => void handleSendPortalAccess()}
                       >
-                        {portalAccess.status === 'pending' ? 'Resend portal access email' : 'Send portal access email'}
+                        {portalAccessAction === 'reset'
+                          ? 'Send password reset email'
+                          : portalAccess.status === 'pending'
+                            ? 'Resend password setup email'
+                            : 'Send password setup email'}
                       </Button>}
                       {portalAccess.can_revoke && <Button
                         variant="danger"

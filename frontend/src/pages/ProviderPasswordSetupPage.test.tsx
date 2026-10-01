@@ -4,12 +4,14 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ProviderPasswordSetupPage } from './ProviderPasswordSetupPage';
 
-const { setupProviderPortalPassword } = vi.hoisted(() => ({
+const { setupProviderPortalPassword, resetProviderPortalPassword } = vi.hoisted(() => ({
   setupProviderPortalPassword: vi.fn(),
+  resetProviderPortalPassword: vi.fn(),
 }));
 
 vi.mock('@/api/auth', () => ({
   setupProviderPortalPassword,
+  resetProviderPortalPassword,
 }));
 
 afterEach(() => {
@@ -143,5 +145,69 @@ describe('ProviderPasswordSetupPage', () => {
       );
     });
     expect(await screen.findByRole('heading', { name: 'Password set' })).toBeTruthy();
+  });
+
+  it('uses reset-specific copy and redeems the reset token through the reset endpoint', async () => {
+    const user = userEvent.setup();
+    resetProviderPortalPassword.mockResolvedValue({ message: 'Password reset' });
+    renderSetup('/provider/reset-password?token=recovery-token');
+
+    expect(screen.getByRole('heading', { name: 'Reset your password' })).toBeTruthy();
+    expect(screen.getByText(/Choose a new secure password/)).toBeTruthy();
+    await user.type(screen.getByLabelText('Password'), 'SecureHorse7');
+    await user.type(screen.getByLabelText('Confirm password'), 'SecureHorse7');
+    await user.click(screen.getByRole('button', { name: 'Reset password' }));
+
+    await waitFor(() => expect(resetProviderPortalPassword).toHaveBeenCalledWith(
+      'recovery-token',
+      'SecureHorse7',
+      'SecureHorse7'
+    ));
+    expect(setupProviderPortalPassword).not.toHaveBeenCalled();
+    expect(await screen.findByRole('heading', { name: 'Password reset' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Go to provider sign in' }).getAttribute('href'))
+      .toBe('/provider/login');
+  });
+
+  it.each([
+    [
+      'invalid',
+      404,
+      'provider_portal_recovery_link_invalid',
+      'This password reset link is invalid.',
+    ],
+    [
+      'expired',
+      410,
+      'provider_portal_recovery_link_expired',
+      'This password reset link has expired.',
+    ],
+    [
+      'used',
+      409,
+      'provider_portal_recovery_link_used',
+      'This password reset link has already been used or replaced.',
+    ],
+  ])('gives specific replacement guidance for an %s reset link without generic retry advice', async (
+    _state,
+    status,
+    code,
+    guidance
+  ) => {
+    const user = userEvent.setup();
+    resetProviderPortalPassword.mockRejectedValue({
+      isAxiosError: true,
+      response: { status, data: { detail: { code, message: 'Untrusted server detail' } } },
+    });
+    renderSetup('/provider/reset-password?token=recovery-token');
+    await user.type(screen.getByLabelText('Password'), 'SecureHorse7');
+    await user.type(screen.getByLabelText('Confirm password'), 'SecureHorse7');
+    await user.click(screen.getByRole('button', { name: 'Reset password' }));
+
+    const message = (await screen.findByRole('alert')).textContent ?? '';
+    expect(message).toContain(guidance);
+    expect(message.toLowerCase()).toContain('ask an administrator to send a new password reset email');
+    expect(message).not.toContain('try again with this link');
+    expect(message).not.toContain('Untrusted server detail');
   });
 });

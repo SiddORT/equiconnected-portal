@@ -474,7 +474,7 @@ export interface ImportResult {
 
 export type ProviderType = 'HOSPITAL' | 'CLINIC' | 'DOCTOR';
 export type VisitStability = 'STABLE_VISIT' | 'NOT_STABLE_VISIT';
-export type ProviderStatus = 'ACTIVE' | 'INACTIVE';
+export type ProviderStatus = 'ACTIVE' | 'INACTIVE' | 'UNDER_REVIEW';
 export type PublicationStatus = 'UNPUBLISHED' | 'PUBLISHED';
 export type ProviderPortalAccessStatus =
   | 'eligible'
@@ -486,6 +486,9 @@ export type ProviderPortalAccessStatus =
 
 export interface ProviderPortalAccess {
   status: ProviderPortalAccessStatus;
+  action?: 'setup' | 'reset' | null;
+  available?: boolean;
+  reason?: string | null;
   recipient_email: string | null;
   email_id: string | null;
   invitation_id: string | null;
@@ -510,6 +513,11 @@ export interface ProviderListItem {
   thumbnail_url: string | null;
   average_rating: number | null;
   review_count: number;
+  approval_available?: boolean;
+  portal_access_action?: 'setup' | 'reset' | null;
+  portal_access_status?: ProviderPortalAccessStatus | null;
+  portal_access_reason?: string | null;
+  portal_login_email?: string | null;
 }
 
 export interface ProviderSpecializationBrief {
@@ -910,6 +918,7 @@ export type {
   InvitationDraftProvider,
   InvitationTokenData,
   InvitationDraftPayload,
+  InvitationSubmitPayload,
   InvitationSpecialization,
   OrgSearchResult,
   OrgSuggestion,

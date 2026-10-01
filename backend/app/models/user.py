@@ -60,6 +60,14 @@ class User(TimestampMixin, Base):
     provider_portal_setup_pending: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
+    # Newly credentialed invitation accounts remain disabled until a reviewer
+    # explicitly approves the provider listing.
+    provider_portal_approval_pending: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    provider_portal_approval_email_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     role_id: Mapped[int] = mapped_column(
         ForeignKey("roles.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -165,6 +173,7 @@ def invalidate_provider_setup_tokens_on_deactivation(session, _flush_context, _i
             # Import lazily to keep the bidirectional model relationship free
             # of module-import cycles.
             from app.models.invitation import ProviderPortalSetupToken
+            from app.models.invitation import ProviderPortalRecoveryToken
 
             session.execute(
                 update(ProviderPortalSetupToken)
@@ -172,6 +181,15 @@ def invalidate_provider_setup_tokens_on_deactivation(session, _flush_context, _i
                     ProviderPortalSetupToken.user_id == candidate.id,
                     ProviderPortalSetupToken.used_at.is_(None),
                     ProviderPortalSetupToken.invalidated_at.is_(None),
+                )
+                .values(invalidated_at=datetime.now(timezone.utc))
+            )
+            session.execute(
+                update(ProviderPortalRecoveryToken)
+                .where(
+                    ProviderPortalRecoveryToken.user_id == candidate.id,
+                    ProviderPortalRecoveryToken.used_at.is_(None),
+                    ProviderPortalRecoveryToken.invalidated_at.is_(None),
                 )
                 .values(invalidated_at=datetime.now(timezone.utc))
             )

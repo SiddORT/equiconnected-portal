@@ -219,12 +219,12 @@ def test_direct_access_rejects_email_owned_by_an_unrelated_account(
         json={"email_id": str(email.id)},
     )
     assert response.status_code == 409, response.text
-    assert response.json()["detail"]["code"] == "portal_access_account_conflict"
+    assert response.json()["detail"]["code"] == "portal_access_unavailable"
     assert db.query(DirectProviderPortalAccess).filter_by(provider_id=provider.id).count() == 0
 
 
 def test_invitation_and_registration_ownership_are_not_directly_reassigned(
-    client, db, seeded_admin
+    client, db, seeded_admin, monkeypatch
 ):
     admin, _password = seeded_admin
     invitation_provider = _provider(db, name="Invited Provider")
@@ -298,6 +298,19 @@ def test_invitation_and_registration_ownership_are_not_directly_reassigned(
     assert registered_status.json()["status"] == "registration"
     assert completed_status.status_code == 200, completed_status.text
     assert completed_status.json()["status"] == "invitation"
+    assert completed_status.json()["action"] == "setup"
+    sent_setups: list[str] = []
+    monkeypatch.setattr(
+        EmailService,
+        "send_provider_portal_access_email",
+        lambda _self, recipient, url, _expires: sent_setups.append(recipient),
+    )
+    sent_resets: list[str] = []
+    monkeypatch.setattr(
+        EmailService,
+        "send_provider_portal_recovery_email",
+        lambda _self, recipient, _url, _expires: sent_resets.append(recipient),
+    )
     assert client.post(
         f"{_ADMIN_PROVIDERS}/{invitation_provider.id}/portal-access",
         headers=headers,
@@ -307,7 +320,14 @@ def test_invitation_and_registration_ownership_are_not_directly_reassigned(
         f"{_ADMIN_PROVIDERS}/{registration_provider.id}/portal-access",
         headers=headers,
         json={"email_id": None},
-    ).status_code == 409
+    ).status_code == 200
+    assert sent_resets == [account.email]
+    assert client.post(
+        f"{_ADMIN_PROVIDERS}/{completed_provider.id}/portal-access",
+        headers=headers,
+        json={},
+    ).status_code == 200
+    assert sent_setups == [completed_email.email]
 
 
 def test_direct_access_requires_selectable_email_and_rejects_invalid_email_id(
@@ -348,9 +368,6 @@ def test_direct_access_requires_selectable_email_and_rejects_invalid_email_id(
 
 def test_admin_created_provider_can_receive_access_after_creation(client, db, seeded_admin, monkeypatch):
     admin, _password = seeded_admin
-    users = UserRepository(db)
-    users.create_role("provider", "Provider portal")
-    db.commit()
     headers = _headers(client, admin)
     created = client.post(
         _ADMIN_PROVIDERS, headers=headers,
@@ -529,7 +546,8 @@ def test_direct_portal_smtp_failure_leaves_retry_possible(client, db, seeded_adm
     assert db.query(DirectProviderPortalAccess).filter_by(provider_id=provider.id).count() == 1
     failed_status = client.get(path, headers=headers).json()
     assert failed_status["status"] == "pending"
-    assert "failed to send" in failed_status["message"]
+    assert failed_status["action"] == "setup"
+    assert failed_status["available"] is True
 
     delivered: list[str] = []
     monkeypatch.setattr(

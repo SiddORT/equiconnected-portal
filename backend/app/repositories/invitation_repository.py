@@ -26,6 +26,7 @@ class InvitationRepository:
             select(ProviderInvitation)
             .where(ProviderInvitation.id == invitation_id)
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
 
     def get_by_token_hash(self, token_hash: str) -> ProviderInvitation | None:
@@ -33,6 +34,16 @@ class InvitationRepository:
             select(ProviderInvitation)
             .where(ProviderInvitation.token_hash == token_hash)
             .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+
+    def lock_by_id(self, invitation_id: UUID) -> ProviderInvitation | None:
+        """Lock and refresh an invitation before final submission."""
+        return self._db.scalar(
+            select(ProviderInvitation)
+            .where(ProviderInvitation.id == invitation_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
 
     def expire_due(self) -> list[ProviderInvitation]:

@@ -11,6 +11,7 @@ import type {
   Invitation,
   InvitationCreate,
   InvitationDraftPayload,
+  InvitationSubmitPayload,
   InvitationListParams,
   InvitationSpecialization,
   InvitationTokenData,
@@ -94,7 +95,7 @@ export function extractSubmitFieldErrors(error: unknown): Record<string, string>
 
 export async function submitInvitation(
   token: string,
-  body: InvitationDraftPayload
+  body: InvitationSubmitPayload
 ): Promise<InvitationTokenData> {
   const { data } = await publicClient.post<InvitationTokenData>(
     `/provider/invitations/${encodeURIComponent(token)}/submit`,

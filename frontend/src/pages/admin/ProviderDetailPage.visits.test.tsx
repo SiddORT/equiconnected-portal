@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { TimeSettingsProvider } from '@/app/TimeSettingsContext';
 import { ProviderDetailPage } from './ProviderDetailPage';
 import {
-  createProviderVisit, deleteProviderPhoto, getProvider, getProviderPortalAccess, revokeProviderPortalAccess, sendProviderPortalAccess,
+  approveProvider, createProviderVisit, deleteProviderPhoto, getProvider, getProviderPortalAccess, resendProviderApprovalEmail, revokeProviderPortalAccess, sendProviderPortalAccess,
   setProviderThumbnail, updateProviderVisit, uploadProviderPhoto,
 } from '@/api/providers';
 import type { Provider, ProviderPortalAccess } from '@/types';
@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs';
 import styles from './ProviderDetailPage.module.css';
 
 vi.mock('@/api/providers', () => ({
+  approveProvider: vi.fn(),
   addProviderSpecialization: vi.fn(),
   createProviderLocation: vi.fn(),
   createProviderVisit: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock('@/api/providers', () => ({
   getProvider: vi.fn(),
   getProviderPortalAccess: vi.fn(),
   revokeProviderPortalAccess: vi.fn(),
+  resendProviderApprovalEmail: vi.fn(),
   removeProviderSpecialization: vi.fn(),
   setProviderThumbnail: vi.fn(),
   sendProviderPortalAccess: vi.fn(),
@@ -90,6 +92,52 @@ beforeEach(() => {
 });
 
 describe('ProviderDetailPage doctor visits', () => {
+  it('offers password reset to a linked login email without a contact-email selector', async () => {
+    const linkedAccess: ProviderPortalAccess = {
+      status: 'active',
+      action: 'reset',
+      available: true,
+      reason: 'A password reset link can be sent to the linked provider login email.',
+      recipient_email: 'login@example.com',
+      email_id: null,
+      invitation_id: null,
+      sent_at: null,
+      message: null,
+      selectable_emails: [],
+      can_revoke: false,
+    };
+    vi.mocked(getProvider).mockResolvedValue(doctor());
+    vi.mocked(getProviderPortalAccess).mockResolvedValue(linkedAccess);
+    vi.mocked(sendProviderPortalAccess).mockResolvedValue({
+      ...linkedAccess,
+      message: 'Password reset email sent to login@example.com.',
+    });
+    renderDetail();
+
+    const reset = await screen.findByRole('button', { name: 'Send password reset email' });
+    expect(screen.queryByRole('combobox', { name: 'Contact email for portal access' })).toBeNull();
+    expect(screen.getByText('login@example.com')).toBeTruthy();
+    await userEvent.setup().click(reset);
+    await waitFor(() => expect(sendProviderPortalAccess).toHaveBeenCalledWith('provider-1'));
+    expect(await screen.findByText('Password reset email sent to login@example.com.')).toBeTruthy();
+  });
+
+  it('approves under-review providers through the explicit action and explains when setup is needed', async () => {
+    vi.mocked(getProvider).mockResolvedValue(doctor({ status: 'UNDER_REVIEW' }));
+    vi.mocked(approveProvider).mockResolvedValue({
+      message: 'Provider listing approved. The linked account still needs password setup; send a setup email before the provider can sign in.',
+      email_sent: false,
+    });
+    renderDetail();
+
+    expect(await screen.findByRole('button', { name: 'Approve provider' })).toBeTruthy();
+    expect(screen.getByText('Under review')).toBeTruthy();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Approve provider' }));
+    await waitFor(() => expect(approveProvider).toHaveBeenCalledWith('provider-1'));
+    expect(await screen.findByText(/The linked account still needs password setup/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Retry approval email' })).toBeNull();
+  });
+
   it('uses defined compact supporting and Locations item typography for every trip period', async () => {
     const address = 'An exceptionally long equine hospital address with a continuous identifier ' + 'A'.repeat(150);
     vi.mocked(getProvider).mockResolvedValue(doctor({
@@ -164,7 +212,7 @@ describe('ProviderDetailPage doctor visits', () => {
     vi.mocked(getProviderPortalAccess).mockResolvedValue(pendingAccess());
     renderDetail();
     const cancel = await screen.findByRole('button', { name: 'Cancel pending access' });
-    const resend = screen.getByRole('button', { name: 'Resend portal access email' });
+    const resend = await screen.findByRole('button', { name: 'Resend password setup email' });
     const group = screen.getByRole('group', { name: 'Portal access actions' });
     expect(cancel.parentElement).toBe(group);
     expect(resend.parentElement).toBe(group);
@@ -199,7 +247,7 @@ describe('ProviderDetailPage doctor visits', () => {
     vi.mocked(getProviderPortalAccess).mockResolvedValue(pendingAccess({ status: 'invitation', invitation_id: 'inv-1' }));
     renderDetail();
     expect(await screen.findByRole('button', { name: 'Cancel pending access' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /portal access email/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /password setup email/i })).toBeNull();
     expect(screen.queryByRole('combobox', { name: 'Contact email for portal access' })).toBeNull();
   });
 
@@ -207,7 +255,7 @@ describe('ProviderDetailPage doctor visits', () => {
     vi.mocked(getProvider).mockResolvedValue(doctor());
     vi.mocked(getProviderPortalAccess).mockResolvedValue(pendingAccess({ can_revoke: false }));
     renderDetail();
-    await screen.findByRole('button', { name: 'Resend portal access email' });
+    await screen.findByRole('button', { name: 'Resend password setup email' });
     expect(screen.queryByRole('button', { name: 'Cancel pending access' })).toBeNull();
   });
 
@@ -218,7 +266,7 @@ describe('ProviderDetailPage doctor visits', () => {
     vi.mocked(sendProviderPortalAccess).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
     const user = userEvent.setup();
     renderDetail();
-    const resend = await screen.findByRole('button', { name: 'Resend portal access email' });
+    const resend = await screen.findByRole('button', { name: 'Resend password setup email' });
     await user.click(resend);
     expect(sendProviderPortalAccess).toHaveBeenCalledWith('provider-1', 'email-1');
     expect((resend as HTMLButtonElement).disabled).toBe(true);
@@ -246,7 +294,7 @@ describe('ProviderDetailPage doctor visits', () => {
     expect(revokeProviderPortalAccess).toHaveBeenCalledWith('provider-1');
     expect(cancel.getAttribute('aria-busy')).toBe('true');
     expect((cancel as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole('button', { name: 'Resend portal access email' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Resend password setup email' }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole('combobox', { name: 'Contact email for portal access' }) as HTMLSelectElement).disabled).toBe(true);
     fail(new Error('Network unavailable'));
     expect(await screen.findByRole('alert')).toBeTruthy();
@@ -288,9 +336,9 @@ describe('ProviderDetailPage doctor visits', () => {
     renderDetail();
     const emailSelect = await screen.findByRole('combobox', { name: 'Contact email for portal access' });
     await user.selectOptions(emailSelect, 'email-2');
-    await user.click(screen.getByRole('button', { name: 'Send portal access email' }));
+    await user.click(screen.getByRole('button', { name: 'Send password setup email' }));
     await waitFor(() => expect(sendProviderPortalAccess).toHaveBeenCalledWith('provider-1', 'email-2'));
-    expect(await screen.findByText('Portal access email sent to second@example.com.')).toBeTruthy();
+    expect(await screen.findByText('Password setup email sent to second@example.com.')).toBeTruthy();
   });
 
   it('cancels pending access before resending to the corrected contact email', async () => {
@@ -340,9 +388,9 @@ describe('ProviderDetailPage doctor visits', () => {
 
     const emailSelect = screen.getByRole('combobox', { name: 'Contact email for portal access' });
     await user.selectOptions(emailSelect, 'email-2');
-    await user.click(screen.getByRole('button', { name: 'Send portal access email' }));
+    await user.click(screen.getByRole('button', { name: 'Send password setup email' }));
     await waitFor(() => expect(sendProviderPortalAccess).toHaveBeenCalledWith('provider-1', 'email-2'));
-    expect(await screen.findByText('Portal access email sent to corrected@example.com.')).toBeTruthy();
+    expect(await screen.findByText('Password setup email sent to corrected@example.com.')).toBeTruthy();
     expect(getProviderPortalAccess).toHaveBeenCalledTimes(3);
   });
 
@@ -356,7 +404,7 @@ describe('ProviderDetailPage doctor visits', () => {
     } satisfies ProviderPortalAccess);
     renderDetail();
     expect(await screen.findByRole('link', { name: 'Open invitation workflow' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /portal access email/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /password setup email/i })).toBeNull();
   });
 
   it('uploads the first gallery photo and displays the saved profile-photo badge', async () => {

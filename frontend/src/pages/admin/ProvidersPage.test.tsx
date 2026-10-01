@@ -6,7 +6,10 @@ import * as providersApi from '@/api/providers';
 import { ProvidersPage } from './ProvidersPage';
 
 vi.mock('@/api/providers', () => ({
+  approveProvider: vi.fn(),
   listProviders: vi.fn(),
+  resendProviderApprovalEmail: vi.fn(),
+  sendProviderPortalAccess: vi.fn(),
   updateProviderPublication: vi.fn(),
   updateProviderStatus: vi.fn(),
 }));
@@ -29,6 +32,167 @@ afterEach(() => {
 });
 
 describe('ProvidersPage', () => {
+  it('exposes under-review approval and sends password reset to the linked login email', async () => {
+    const user = userEvent.setup();
+    vi.mocked(providersApi.listProviders).mockResolvedValue({
+      data: [{
+        id: 'provider-reset',
+        provider_type: 'CLINIC',
+        name: 'Approved Clinic',
+        email: 'contact@example.com',
+        phone: null,
+        visit_stability: 'STABLE_VISIT',
+        emergency_services_available: false,
+        status: 'ACTIVE',
+        publication_status: 'UNPUBLISHED',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        thumbnail_url: null,
+        average_rating: null,
+        review_count: 0,
+        portal_access_action: 'reset',
+        portal_access_status: 'active',
+        portal_login_email: 'linked-login@example.com',
+      }],
+      meta: { page: 1, page_size: 10, total: 1, total_pages: 1 },
+    });
+    vi.mocked(providersApi.sendProviderPortalAccess).mockResolvedValue({
+      status: 'active',
+      available: true,
+      action: 'reset',
+      reason: 'A password reset link can be sent.',
+      recipient_email: 'linked-login@example.com',
+      email_id: null,
+      invitation_id: null,
+      sent_at: null,
+      message: 'Password reset email sent.',
+      selectable_emails: [],
+      can_revoke: false,
+    });
+
+    render(<MemoryRouter><ProvidersPage /></MemoryRouter>);
+    await screen.findByText('Approved Clinic');
+    await user.click(screen.getByRole('button', { name: 'Actions for Approved Clinic' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Send password reset email' }));
+    expect(screen.getByRole('dialog', { name: 'Send password reset email?' })).toBeTruthy();
+    expect(screen.getByText(/linked-login@example\.com/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Send reset email' }));
+    await waitFor(() => expect(providersApi.sendProviderPortalAccess).toHaveBeenCalledWith('provider-reset'));
+    expect(await screen.findByText('Password reset email sent.')).toBeTruthy();
+  });
+
+  it('shows under-review status and approves without using the ordinary status toggle', async () => {
+    const user = userEvent.setup();
+    vi.mocked(providersApi.listProviders).mockResolvedValue({
+      data: [{
+        id: 'provider-review',
+        provider_type: 'DOCTOR',
+        name: 'Review Doctor',
+        email: null,
+        phone: null,
+        visit_stability: 'NOT_STABLE_VISIT',
+        emergency_services_available: false,
+        status: 'UNDER_REVIEW',
+        approval_available: true,
+        publication_status: 'UNPUBLISHED',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        thumbnail_url: null,
+        average_rating: null,
+        review_count: 0,
+      }],
+      meta: { page: 1, page_size: 10, total: 1, total_pages: 1 },
+    });
+    vi.mocked(providersApi.approveProvider).mockResolvedValue({
+      message: 'Provider approved. Approval email delivery could not be confirmed.',
+      email_sent: false,
+    });
+    vi.mocked(providersApi.resendProviderApprovalEmail).mockResolvedValue({
+      message: 'Approval email sent.',
+      email_sent: true,
+    });
+
+    render(<MemoryRouter><ProvidersPage /></MemoryRouter>);
+    await screen.findByText('Review Doctor');
+    expect(screen.getByText('Under review')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Actions for Review Doctor' }));
+    const menu = screen.getByRole('menu');
+    expect(within(menu).getByRole('menuitem', { name: 'Approve provider' })).toBeTruthy();
+    expect(within(menu).queryByRole('menuitem', { name: 'Activate' })).toBeNull();
+    await user.click(within(menu).getByRole('menuitem', { name: 'Approve provider' }));
+    await waitFor(() => expect(providersApi.approveProvider).toHaveBeenCalledWith('provider-review'));
+    expect(await screen.findByText('Provider approved. Approval email delivery could not be confirmed.')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Retry approval email' }));
+    await waitFor(() => expect(providersApi.resendProviderApprovalEmail).toHaveBeenCalledWith('provider-review'));
+    expect(providersApi.approveProvider).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('Approval email sent.')).toBeTruthy();
+  });
+
+  it('does not offer approval for an under-review provider unless the API marks it eligible', async () => {
+    const user = userEvent.setup();
+    vi.mocked(providersApi.listProviders).mockResolvedValue({
+      data: [{
+        id: 'provider-not-eligible',
+        provider_type: 'DOCTOR',
+        name: 'Unresolved Review Doctor',
+        email: null,
+        phone: null,
+        visit_stability: 'NOT_STABLE_VISIT',
+        emergency_services_available: false,
+        status: 'UNDER_REVIEW',
+        publication_status: 'UNPUBLISHED',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        thumbnail_url: null,
+        average_rating: null,
+        review_count: 0,
+        approval_available: false,
+      }],
+      meta: { page: 1, page_size: 10, total: 1, total_pages: 1 },
+    });
+
+    render(<MemoryRouter><ProvidersPage /></MemoryRouter>);
+    await screen.findByText('Unresolved Review Doctor');
+    expect(screen.getByText('Under review')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Actions for Unresolved Review Doctor' }));
+    const menu = screen.getByRole('menu');
+    expect(within(menu).queryByRole('menuitem', { name: 'Approve provider' })).toBeNull();
+    expect(within(menu).queryByRole('menuitem', { name: 'Activate' })).toBeNull();
+  });
+
+  it('routes direct listings to deliberate contact selection instead of sending to a guessed email', async () => {
+    const user = userEvent.setup();
+    vi.mocked(providersApi.listProviders).mockResolvedValue({
+      data: [{
+        id: 'provider-direct',
+        provider_type: 'CLINIC',
+        name: 'Direct Clinic',
+        email: 'only-contact@example.com',
+        phone: null,
+        visit_stability: 'STABLE_VISIT',
+        emergency_services_available: false,
+        status: 'ACTIVE',
+        publication_status: 'UNPUBLISHED',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        thumbnail_url: null,
+        average_rating: null,
+        review_count: 0,
+        portal_access_action: 'setup',
+        portal_access_status: 'eligible',
+        portal_access_reason: 'A contact email must be explicitly selected before setup.',
+        portal_login_email: 'only-contact@example.com',
+      }],
+      meta: { page: 1, page_size: 10, total: 1, total_pages: 1 },
+    });
+    render(<MemoryRouter><ProvidersPage /></MemoryRouter>);
+    await screen.findByText('Direct Clinic');
+    await user.click(screen.getByRole('button', { name: 'Actions for Direct Clinic' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Choose email for password setup' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(providersApi.sendProviderPortalAccess).not.toHaveBeenCalled();
+  });
+
   it('shows review summaries and links reviewed providers to scoped moderation', async () => {
     vi.mocked(providersApi.listProviders).mockResolvedValue({
       data: [

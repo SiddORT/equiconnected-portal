@@ -35,7 +35,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 from app.models.enums import (
     DoctorOrganizationStatus,
     InvitationStatus,
@@ -45,15 +45,18 @@ from app.models.enums import (
     VisitStability,
 )
 from app.models.invitation import ProviderInvitation
+from app.models.audit_log import AuditLog
 from app.models.doctor import DoctorProfile, DoctorQualification
 from app.models.language import Language, ProviderLanguage
 from app.models.provider import Provider, ProviderLocation, ProviderPhone
+from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.repositories.invitation_repository import InvitationRepository
 from app.repositories.provider_repository import ProviderRepository
 from app.services.email_service import EmailDeliveryError, EmailService
 from app.services.invitation_service import (
     DuplicateInvitationError,
+    InvitationCompletedError,
     InvitationService,
 )
 
@@ -111,6 +114,28 @@ def captured_email() -> Generator[dict, None, None]:
         yield captured
     finally:
         EmailService.send_invitation_email = original
+
+
+@pytest.fixture(autouse=True)
+def legacy_submit_payloads_include_portal_credentials(monkeypatch):
+    """Keep older profile-field cases valid under the newly-required credential contract."""
+    original_post = TestClient.post
+
+    def post_with_credentials(client, url, *args, **kwargs):
+        payload = kwargs.get("json")
+        if (
+            isinstance(url, str)
+            and url.startswith(f"{PUBLIC_BASE}/")
+            and url.endswith("/submit")
+            and isinstance(payload, dict)
+        ):
+            payload = dict(payload)
+            payload.setdefault("password", "Provider#2026")
+            payload.setdefault("password_confirmation", "Provider#2026")
+            kwargs["json"] = payload
+        return original_post(client, url, *args, **kwargs)
+
+    monkeypatch.setattr(TestClient, "post", post_with_credentials)
 
 
 @pytest.fixture()
@@ -1016,6 +1041,481 @@ class TestPublicSubmit:
             json={"name": "Cancelled Submit", "visit_stability": "STABLE_VISIT"},
         )
         assert resp.status_code == 409
+
+
+class TestInvitedProviderPortalApproval:
+    def test_concurrent_final_submissions_create_one_linked_account(
+        self, client, admin_token, captured_email, db
+    ):
+        from tests.conftest import TestingSessionLocal
+
+        invitation_data = _create_invitation(
+            client,
+            admin_token,
+            recipient_email="concurrent-submit@example.com",
+        )
+        token = captured_email["token"]
+        assert client.get(f"{PUBLIC_BASE}/{token}").status_code == 200
+        invitation_id = uuid.UUID(invitation_data["id"])
+        barrier = threading.Barrier(2)
+        outcomes = []
+
+        def submit() -> None:
+            session = TestingSessionLocal()
+            try:
+                barrier.wait(timeout=5)
+                service = InvitationService(
+                    InvitationRepository(session),
+                    ProviderRepository(session),
+                    EmailService(),
+                )
+                service.submit_invitation(
+                    token,
+                    {
+                        "name": "Concurrent Clinic",
+                        "visit_stability": VisitStability.STABLE_VISIT,
+                        "password": "Concurrent#2026",
+                        "password_confirmation": "Concurrent#2026",
+                    },
+                )
+                outcomes.append("submitted")
+            except InvitationCompletedError:
+                outcomes.append("completed")
+            except Exception as exc:
+                outcomes.append(f"unexpected:{type(exc).__name__}:{exc}")
+            finally:
+                session.close()
+
+        threads = [threading.Thread(target=submit) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=15)
+
+        assert all(not thread.is_alive() for thread in threads)
+        assert sorted(outcomes) == ["completed", "submitted"]
+        db.expire_all()
+        invitation = db.get(ProviderInvitation, invitation_id)
+        assert invitation.status == InvitationStatus.COMPLETED
+        account = db.get(User, invitation.portal_user_id)
+        assert account is not None
+        assert account.provider_portal_approval_pending
+        assert not account.is_active
+        assert db.query(User).filter(
+            User.email == "concurrent-submit@example.com"
+        ).count() == 1
+        assert db.query(AuditLog).filter(
+            AuditLog.action == "provider_invitation.submitted"
+        ).count() == 1
+
+    @pytest.mark.parametrize("provider_type", ["DOCTOR", "CLINIC", "HOSPITAL"])
+    def test_credentials_stay_pending_until_explicit_approval(
+        self,
+        client: TestClient,
+        admin_token: str,
+        captured_email: dict,
+        db,
+        monkeypatch,
+        provider_type: str,
+    ):
+        email = f"{provider_type.lower()}-portal@example.com"
+        invitation_data = _create_invitation(
+            client,
+            admin_token,
+            recipient_email=email,
+            provider_type=provider_type,
+        )
+        password = "Provider#2026"
+        submitted = client.post(
+            f"{PUBLIC_BASE}/{captured_email['token']}/submit",
+            json={
+                "name": "Invited Provider",
+                "visit_stability": "STABLE_VISIT",
+                "password": password,
+                "password_confirmation": password,
+            },
+        )
+        assert submitted.status_code == 200, submitted.text
+        assert password not in submitted.text
+        assert invitation_data["recipient_email"] == email
+
+        invitation = db.get(
+            ProviderInvitation, uuid.UUID(invitation_data["id"])
+        )
+        db.refresh(invitation)
+        account = db.get(User, invitation.portal_user_id)
+        provider = db.get(Provider, invitation.provider_id)
+        assert invitation.portal_user_id is not None
+        assert account.email == email
+        assert account.role.name == "provider"
+        assert not account.is_active
+        assert not account.provider_portal_setup_pending
+        assert account.email_verified_at is not None
+        assert account.provider_portal_approval_pending
+        assert account.password_hash != password
+        assert verify_password(password, account.password_hash)
+        assert provider.status == ProviderStatus.UNDER_REVIEW
+        assert provider.publication_status == PublicationStatus.UNPUBLISHED
+        blocked_login = client.post(
+            "/api/v1/auth/login",
+            json={"email": email, "password": password},
+        )
+        assert blocked_login.status_code == 403
+        assert blocked_login.json()["detail"]["code"] == "provider_application_pending_review"
+        ordinary_activation = client.patch(
+            f"/api/v1/admin/providers/{provider.id}/status",
+            headers=_auth(admin_token),
+            json={"status": "ACTIVE"},
+        )
+        assert ordinary_activation.status_code == 200
+        db.refresh(account)
+        assert not account.is_active
+        assert account.provider_portal_approval_pending
+        assert client.post(
+            f"/api/v1/admin/invitations/{invitation.id}/portal-access",
+            headers=_auth(admin_token),
+        ).status_code == 409
+        blocked_login = client.post(
+            "/api/v1/auth/login",
+            json={"email": email, "password": password},
+        )
+        assert blocked_login.status_code == 403
+        assert blocked_login.json()["detail"]["code"] == "provider_application_pending_review"
+        back_under_review = client.patch(
+            f"/api/v1/admin/providers/{provider.id}/status",
+            headers=_auth(admin_token),
+            json={"status": "UNDER_REVIEW"},
+        )
+        assert back_under_review.status_code == 200
+        uninvited_review = Provider(
+            provider_type=ProviderType.CLINIC,
+            name="Not an invited review",
+            visit_stability=VisitStability.STABLE_VISIT,
+            status=ProviderStatus.UNDER_REVIEW,
+            publication_status=PublicationStatus.UNPUBLISHED,
+        )
+        db.add(uninvited_review)
+        db.commit()
+        listing = client.get(
+            "/api/v1/admin/providers?status=UNDER_REVIEW",
+            headers=_auth(admin_token),
+        )
+        listed_rows = {
+            row["id"]: row for row in listing.json()["data"]
+        }
+        assert listed_rows[str(provider.id)]["approval_available"] is True
+        assert listed_rows[str(uninvited_review.id)]["approval_available"] is False
+        rejected_uninvited = client.post(
+            f"/api/v1/admin/providers/{uninvited_review.id}/approve",
+            headers=_auth(admin_token),
+        )
+        assert rejected_uninvited.status_code == 409
+
+        mail_calls = []
+
+        def send_approval_email(_self, recipient, login_url):
+            mail_calls.append((recipient, login_url))
+
+        monkeypatch.setattr(
+            EmailService, "send_provider_approval_email", send_approval_email
+        )
+        approved = client.post(
+            f"/api/v1/admin/providers/{provider.id}/approve",
+            headers=_auth(admin_token),
+        )
+        assert approved.status_code == 200, approved.text
+        assert approved.json()["email_sent"] is True
+        assert len(mail_calls) == 1
+        assert mail_calls[0][0] == email
+        assert mail_calls[0][1].endswith("/provider/login")
+        db.refresh(account)
+        db.refresh(provider)
+        assert account.is_active
+        assert not account.provider_portal_approval_pending
+        assert account.provider_portal_approval_email_sent_at is not None
+        assert provider.status == ProviderStatus.ACTIVE
+        assert provider.publication_status == PublicationStatus.UNPUBLISHED
+        provider_login = client.post(
+            "/api/v1/auth/login",
+            json={"email": email, "password": password},
+        )
+        assert provider_login.status_code == 200, provider_login.text
+        profile = client.get(
+            "/api/v1/provider/portal/profile",
+            headers=_auth(provider_login.json()["access_token"]),
+        )
+        assert profile.status_code == 200, profile.text
+        assert profile.json()["id"] == str(provider.id)
+
+        # Retry is safe after a successful notification, and ordinary status
+        # changes cannot create another approval message.
+        retry = client.post(
+            f"/api/v1/admin/providers/{provider.id}/approval-email",
+            headers=_auth(admin_token),
+        )
+        assert retry.status_code == 200
+        assert retry.json()["email_sent"] is True
+        assert len(mail_calls) == 1
+        repeated_approval = client.post(
+            f"/api/v1/admin/providers/{provider.id}/approve",
+            headers=_auth(admin_token),
+        )
+        assert repeated_approval.status_code == 409
+        db.refresh(provider)
+        assert provider.publication_status == PublicationStatus.UNPUBLISHED
+
+    def test_draft_password_values_are_ignored_and_mismatched_submit_is_redacted(
+        self, client, admin_token, captured_email, db
+    ):
+        email = "draft-credentials@example.com"
+        invitation = _create_invitation(
+            client, admin_token, recipient_email=email
+        )
+        secret = "SensitiveDraft#2026"
+        draft = client.post(
+            f"{PUBLIC_BASE}/{captured_email['token']}/save",
+            json={"name": "Draft Clinic", "password": secret,
+                  "password_confirmation": secret},
+        )
+        assert draft.status_code == 200, draft.text
+        assert secret not in draft.text
+        assert db.query(User).filter(User.email == email).first() is None
+
+        missing_credentials = client.request(
+            "POST",
+            f"{PUBLIC_BASE}/{captured_email['token']}/submit",
+            json={"name": "Draft Clinic", "visit_stability": "STABLE_VISIT"},
+        )
+        assert missing_credentials.status_code == 422
+
+        mismatch = client.request(
+            "POST",
+            f"{PUBLIC_BASE}/{captured_email['token']}/submit",
+            json={
+                "name": "Draft Clinic",
+                "visit_stability": "STABLE_VISIT",
+                "password": secret,
+                "password_confirmation": "Different#2026",
+            },
+        )
+        assert mismatch.status_code == 422
+        assert secret not in mismatch.text
+        persisted = db.get(ProviderInvitation, uuid.UUID(invitation["id"]))
+        db.refresh(persisted)
+        assert persisted.portal_user_id is None
+        assert persisted.status != InvitationStatus.COMPLETED
+        assert db.query(User).filter(User.email == email).first() is None
+
+    def test_existing_account_conflict_never_links_to_invitation(
+        self, client, admin_token, captured_email, db
+    ):
+        email = "already-owned@example.com"
+        invitation_data = _create_invitation(
+            client, admin_token, recipient_email=email
+        )
+        users = UserRepository(db)
+        role = users.get_role_by_name("visitor") or users.create_role("visitor")
+        existing = users.create_user(
+            email=email,
+            password_hash=hash_password("Existing#Account2026"),
+            role=role,
+        )
+        db.commit()
+
+        response = client.post(
+            f"{PUBLIC_BASE}/{captured_email['token']}/submit",
+            json={
+                "name": "Existing Account Clinic",
+                "visit_stability": "STABLE_VISIT",
+                "password": "NewProvider#2026",
+                "password_confirmation": "NewProvider#2026",
+            },
+        )
+        assert response.status_code == 422
+        assert "cannot be linked to an existing account" in response.json()["detail"]["message"]
+        db.expire_all()
+        invitation = db.get(
+            ProviderInvitation, uuid.UUID(invitation_data["id"])
+        )
+        assert invitation.portal_user_id is None
+        assert invitation.status != InvitationStatus.COMPLETED
+        assert db.get(User, existing.id).role.name == "visitor"
+
+    def test_email_unique_race_rolls_back_profile_changes(
+        self, client, admin_token, captured_email, db, monkeypatch
+    ):
+        from tests.conftest import TestingSessionLocal
+
+        email = "submit-email-race@example.com"
+        invitation_data = _create_invitation(
+            client, admin_token, recipient_email=email
+        )
+        invitation = db.get(
+            ProviderInvitation, uuid.UUID(invitation_data["id"])
+        )
+        provider = db.get(Provider, invitation.provider_id)
+        original_name = provider.name
+        original_create = UserRepository.create_user
+        created_racing_account = False
+
+        def create_user_with_race(repository, *args, **kwargs):
+            nonlocal created_racing_account
+            if kwargs.get("email", "").lower() == email and not created_racing_account:
+                created_racing_account = True
+                other_session = TestingSessionLocal()
+                try:
+                    other_users = UserRepository(other_session)
+                    visitor = other_users.get_role_by_name("visitor")
+                    if visitor is None:
+                        visitor = other_users.create_role("visitor", "Visitor")
+                    original_create(
+                        other_users,
+                        email=email,
+                        password_hash=hash_password("RaceWinner#2026"),
+                        role=visitor,
+                    )
+                    other_session.commit()
+                finally:
+                    other_session.close()
+            return original_create(repository, *args, **kwargs)
+
+        monkeypatch.setattr(
+            UserRepository, "create_user", create_user_with_race
+        )
+        response = client.post(
+            f"{PUBLIC_BASE}/{captured_email['token']}/submit",
+            json={
+                "name": "Must Roll Back",
+                "description": "This profile update must not persist.",
+                "visit_stability": "STABLE_VISIT",
+                "password": "Invitation#2026",
+                "password_confirmation": "Invitation#2026",
+            },
+        )
+        assert response.status_code == 422
+        assert "already belongs to an EquiConnected account" in response.json()["detail"]["message"]
+        db.expire_all()
+        invitation = db.get(
+            ProviderInvitation, uuid.UUID(invitation_data["id"])
+        )
+        provider = db.get(Provider, invitation.provider_id)
+        assert provider.name == original_name
+        assert provider.description is None
+        assert provider.status == ProviderStatus.DRAFT
+        assert invitation.portal_user_id is None
+        assert invitation.status != InvitationStatus.COMPLETED
+        assert db.query(User).filter(User.email == email).one().role.name == "visitor"
+
+    def test_legacy_approval_does_not_claim_login_ready_and_exposes_setup(
+        self, client, admin_token, captured_email, db
+    ):
+        invitation_data = _create_invitation(
+            client, admin_token, recipient_email="legacy-approval@example.com"
+        )
+        password = "Provider#2026"
+        submitted = client.post(
+            f"{PUBLIC_BASE}/{captured_email['token']}/submit",
+            json={
+                "name": "Legacy Clinic",
+                "visit_stability": "STABLE_VISIT",
+                "password": password,
+                "password_confirmation": password,
+            },
+        )
+        assert submitted.status_code == 200
+        invitation = db.get(
+            ProviderInvitation, uuid.UUID(invitation_data["id"])
+        )
+        legacy_user = db.get(User, invitation.portal_user_id)
+        invitation.portal_user_id = None
+        db.flush()
+        db.delete(legacy_user)
+        db.commit()
+
+        response = client.post(
+            f"/api/v1/admin/providers/{invitation.provider_id}/approve",
+            headers=_auth(admin_token),
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["email_sent"] is False
+        assert "password setup" in response.json()["message"].lower()
+        listing = client.get(
+            "/api/v1/admin/providers", headers=_auth(admin_token)
+        )
+        row = next(
+            item for item in listing.json()["data"]
+            if item["id"] == str(invitation.provider_id)
+        )
+        assert row["approval_available"] is False
+        assert row["portal_access_action"] == "setup"
+
+    def test_email_failure_does_not_undo_approval_and_can_be_retried(
+        self, client, admin_token, captured_email, db, monkeypatch
+    ):
+        invitation_data = _create_invitation(
+            client, admin_token, recipient_email="approval-retry@example.com"
+        )
+        password = "Provider#2026"
+        assert client.post(
+            f"{PUBLIC_BASE}/{captured_email['token']}/submit",
+            json={
+                "name": "Retry Clinic",
+                "visit_stability": "STABLE_VISIT",
+                "password": password,
+                "password_confirmation": password,
+            },
+        ).status_code == 200
+        invitation = db.get(
+            ProviderInvitation, uuid.UUID(invitation_data["id"])
+        )
+        provider = db.get(Provider, invitation.provider_id)
+        account = db.get(User, invitation.portal_user_id)
+
+        def fail_delivery(_self, _recipient, _url):
+            raise EmailDeliveryError("Unable to deliver email.")
+
+        monkeypatch.setattr(
+            EmailService, "send_provider_approval_email", fail_delivery
+        )
+        failed = client.post(
+            f"/api/v1/admin/providers/{provider.id}/approve",
+            headers=_auth(admin_token),
+        )
+        assert failed.status_code == 200
+        assert failed.json()["email_sent"] is False
+        db.refresh(provider)
+        db.refresh(account)
+        assert provider.status == ProviderStatus.ACTIVE
+        assert account.is_active
+        assert not account.provider_portal_approval_pending
+        assert account.provider_portal_approval_email_sent_at is None
+        provider_login = client.post(
+            "/api/v1/auth/login",
+            json={"email": account.email, "password": password},
+        )
+        assert provider_login.status_code == 200, provider_login.text
+        profile = client.get(
+            "/api/v1/provider/portal/profile",
+            headers=_auth(provider_login.json()["access_token"]),
+        )
+        assert profile.status_code == 200, profile.text
+        assert profile.json()["id"] == str(provider.id)
+
+        calls = []
+
+        def send_delivery(_self, recipient, login_url):
+            calls.append((recipient, login_url))
+
+        monkeypatch.setattr(
+            EmailService, "send_provider_approval_email", send_delivery
+        )
+        retried = client.post(
+            f"/api/v1/admin/providers/{provider.id}/approval-email",
+            headers=_auth(admin_token),
+        )
+        assert retried.status_code == 200
+        assert retried.json()["email_sent"] is True
+        assert calls and calls[0][0] == account.email
 
 
 # ── Cancel ────────────────────────────────────────────────────────────────────

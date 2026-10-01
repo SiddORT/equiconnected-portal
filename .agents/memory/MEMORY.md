@@ -16,6 +16,7 @@
 - [Destructive user maintenance locking](destructive-user-maintenance-locking.md) — user resets must lock the authorization and restrictive-reference boundary before calculating deletion scope.
 - [PostgreSQL locking with eager relationships](postgres-locking-eager-relationships.md) — lock only the root row when optional eager joins are present.
 - [Provider invitation account boundary](provider-invitation-account-boundary.md) — existing EquiConnected accounts are never auto-linked to provider invitations.
+- [Provider access compatibility](provider-access-compatibility.md) — new invited credentials require approval without retrospectively restricting legacy activated accounts.
 - [Invitation contact email suggestion](invitation-contact-email-suggestion.md) — invite delivery address starts as an editable contact suggestion; an intentionally empty saved list must stay empty.
 - [Invitation service compatibility](invitation-service-compatibility.md) — opt-in service and structured doctor-name rules preserve historical name-only API clients.
 - [Provider-wide experience](provider-wide-experience.md) — years of experience belongs to every provider type; keep legacy doctor-profile values compatible.

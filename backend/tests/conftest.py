@@ -60,6 +60,7 @@ _CLEANUP_TABLES = [
     "provider_reviews",
     "provider_favorites",
     "provider_profile_updates",
+    "provider_portal_recovery_tokens",
     "provider_portal_setup_tokens",
     "direct_provider_portal_access",
     "provider_registration_applications",
@@ -231,6 +232,9 @@ def seeded_admin(db):
     from app.repositories.user_repository import UserRepository
 
     repo = UserRepository(db)
+    provider_role = repo.get_role_by_name("provider")
+    if provider_role is None:
+        repo.create_role("provider", "Provider portal")
     role = repo.get_role_by_name("admin")
     if role is None:
         role = repo.create_role("admin", "Administrator")

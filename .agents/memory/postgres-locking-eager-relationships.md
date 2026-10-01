@@ -9,8 +9,8 @@ When locking a root record that has optional eagerly loaded relationships, scope
 
 **How to apply:** For decision flows that load an optional linked record, use a table-scoped `FOR UPDATE OF <root table>` and add a real multi-session regression test for competing decisions.
 
-A root-row lock does not refresh objects or relationship collections already in SQLAlchemy's identity map. Re-read scheduling and eligibility state after acquiring the lock, explicitly refreshing previously loaded rows.
+A root-row lock does not refresh objects or relationship collections already in SQLAlchemy's identity map. Re-read decision-bearing rows with `populate_existing=True` after acquiring the lock, and validate collections through fresh queries.
 
-**Why:** A request can read a listing before waiting for another writer's lock; once that writer commits, a cached collection can still omit its newly saved trip or retain outdated trip dates. Lock serialization alone therefore does not make overlap validation current.
+**Why:** A request can read a listing before waiting for another writer's lock; once that writer commits, a cached collection can still omit its newly saved trip or retain outdated trip dates. Concurrent password-link redemption can similarly serialize at the database while both sessions read a cached unused-token state, allowing two successful redemptions.
 
-**How to apply:** Validate against fresh schedule queries under the provider-root lock, not a relationship loaded before the lock. Exercise approval against an administrator schedule write using independent database sessions.
+**How to apply:** Validate schedules, single-use tokens, and account activation against fresh state under the appropriate root lock. Test with independently preloaded sessions, including approval competing with an administrator schedule write.

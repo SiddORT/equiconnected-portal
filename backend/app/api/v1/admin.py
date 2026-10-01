@@ -699,6 +699,7 @@ def _provider_application_responses(
                 reviewed_at=application.reviewed_at,
                 rejection_reason=application.rejection_reason,
                 created_at=application.created_at,
+                email_sent=getattr(application, "email_sent", None),
             )
         )
     return responses

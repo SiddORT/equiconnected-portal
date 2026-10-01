@@ -198,10 +198,20 @@ class TestProviderRegistration:
         )
         token = parse_qs(urlparse(sent_urls[0]).query)["token"][0]
         assert client.post(f"{AUTH}/verify-email", json={"token": token}).status_code == 200
+        approval_emails = []
+        monkeypatch.setattr(
+            EmailService,
+            "send_provider_approval_email",
+            lambda _self, recipient, login_url: approval_emails.append(
+                (recipient, login_url)
+            ),
+        )
         approved = client.post(
             f"{APPLICATIONS}/{application.id}/approve", headers=headers
         )
         assert approved.status_code == 200
+        assert approved.json()["email_sent"] is True
+        assert approval_emails[0][0] == application.user.email
         assert approved.json()["languages"] == [{"id": language_id, "name": "Hindi language"}]
         provider_id = db.query(ProviderRegistrationApplication).one().provider_id
         assert db.query(ProviderLanguage).filter_by(provider_id=provider_id).count() == 1
@@ -231,12 +241,23 @@ class TestProviderRegistration:
         assert listed.status_code == 200
         assert [row["id"] for row in listed.json()["data"]] == [str(application.id)]
 
+        approval_emails = []
+        monkeypatch.setattr(
+            EmailService,
+            "send_provider_approval_email",
+            lambda _self, recipient, login_url: approval_emails.append(
+                (recipient, login_url)
+            ),
+        )
         approved = client.post(
             f"{APPLICATIONS}/{application.id}/approve",
             headers=_admin_headers(admin),
         )
         assert approved.status_code == 200
         body = approved.json()
+        assert body["email_sent"] is True
+        assert approval_emails[0][0] == provider_user.email
+        assert approval_emails[0][1].endswith("/provider/login")
         assert body["review_status"] == "APPROVED"
         assert body["provider_id"]
         assert body["professional_title"] == "Equine veterinarian"
@@ -500,6 +521,11 @@ class TestProviderRegistration:
 
         application = _verified_application(client, db, monkeypatch)
         admin, _password = seeded_admin
+        monkeypatch.setattr(
+            EmailService,
+            "send_provider_approval_email",
+            lambda *_args: None,
+        )
         application_id = application.id
         admin_id = admin.id
         barrier = threading.Barrier(2)

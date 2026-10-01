@@ -7,6 +7,8 @@ import os
 import re
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -74,6 +76,21 @@ def create_app() -> FastAPI:
     app.include_router(api_v1_router)
 
     # ── Global exception handlers ─────────────────────────────────────────────
+    @app.exception_handler(RequestValidationError)
+    async def request_validation_exception_handler(
+        _request: Request, exc: RequestValidationError
+    ):
+        # Pydantic includes the rejected input by default. Omit it universally
+        # so password fields in invite/setup/recovery requests are never echoed.
+        errors = [
+            {key: value for key, value in error.items() if key != "input"}
+            for error in exc.errors()
+        ]
+        return JSONResponse(
+            status_code=422,
+            content=jsonable_encoder({"detail": errors}),
+        )
+
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
         logger = get_logger(__name__)

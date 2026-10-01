@@ -11,6 +11,6 @@ Provider photo uploads accept JPEG, PNG, GIF, and WebP files up to 10 MB per pho
 
 Treat upload, explicit profile save, and administrator decision as separate actions. Review state is not provider operational status, publication state, or provider-account activation; never “repair” those lifecycle values merely because an information update is pending or rejected.
 
-**Why:** A reported deactivation during photo editing was not reproduced in the complete upload/save/reject/discard/resubmit/approve journey. Changing lifecycle behavior on that assumption would risk activating or publishing providers without authorization.
+**Why:** Profile review and account/listing eligibility are independent authorization decisions. Inferring activation or publication from a photo-editing outcome risks granting access or exposing a listing without approval.
 
 **How to apply:** Investigate reported status changes before modifying lifecycle writes. Keep the approved-listing gallery separate from proposed-photo review, and prevent profile save or discard from racing an in-progress upload.

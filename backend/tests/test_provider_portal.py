@@ -1,6 +1,7 @@
 """Invitation-created provider portal access and ownership boundaries."""
 from __future__ import annotations
 
+import threading
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from urllib.parse import parse_qs, urlparse
@@ -21,7 +22,9 @@ from app.models.provider import Provider, ProviderReview
 from app.models.doctor import DoctorProfile
 from app.models.provider_registration import ProviderRegistrationApplication
 from app.repositories.user_repository import UserRepository
+from app.repositories.provider_repository import ProviderRepository
 from app.services.email_service import EmailService
+from app.services.provider_service import ProviderApprovalError, ProviderService
 from app.services.provider_portal_service import _UPLOADS_DIR
 
 
@@ -41,6 +44,9 @@ def _login(client, email: str, password: str) -> str:
 
 
 def _completed_invitation(db, admin, *, email: str = "invitee@portal.example.com"):
+    users = UserRepository(db)
+    if users.get_role_by_name("provider") is None:
+        users.create_role("provider", "Provider portal")
     provider = Provider(
         provider_type=ProviderType.HOSPITAL,
         name="Portal Clinic",
@@ -106,7 +112,21 @@ def _approved_registration_provider(
     db.commit()
     return provider, account
 
-
+def _linked_invitation_account(db, admin, *, email: str, approval_pending: bool):
+    invitation, provider = _completed_invitation(db, admin, email=email)
+    users = UserRepository(db)
+    role = users.get_role_by_name("provider")
+    account = users.create_user(
+        email=email,
+        password_hash=hash_password("PortalProvider9"),
+        role=role,
+        roles=[role],
+        is_active=not approval_pending,
+    )
+    account.provider_portal_approval_pending = approval_pending
+    invitation.portal_user_id = account.id
+    db.commit()
+    return invitation, provider, account
 def test_portal_setup_is_single_use_and_provider_profile_is_owned(client, db, seeded_admin, monkeypatch):
     admin, password = seeded_admin
     invitation, provider = _completed_invitation(db, admin)
@@ -153,6 +173,12 @@ def test_portal_setup_is_single_use_and_provider_profile_is_owned(client, db, se
         "/api/v1/auth/provider-portal/setup-password",
         json={"token": second_token, "password": "PortalPass9", "password_confirmation": "PortalPass9"},
     ).status_code == 409
+    legacy_access = client.get(
+        f"/api/v1/admin/providers/{provider.id}/portal-access",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert legacy_access.status_code == 200
+    assert legacy_access.json()["action"] == "reset"
 
     provider_token = _login(client, invitation.recipient_email, "PortalPass9")
     visitor = users.get_role_by_name("visitor") or users.create_role("visitor", "Visitor")
@@ -569,3 +595,99 @@ def test_doctor_portal_exposes_and_persists_clinical_profile_fields(client, db, 
     db.refresh(doctor)
     assert doctor.years_experience == 12
     assert doctor.doctor_profile.years_experience == 12
+
+def test_concurrent_invited_provider_approvals_are_idempotent(
+    client, db, seeded_admin, monkeypatch
+):
+    from tests.conftest import TestingSessionLocal
+
+    admin, _ = seeded_admin
+    invitation, provider, account = _linked_invitation_account(
+        db,
+        admin,
+        email="concurrent-approval@portal.example.com",
+        approval_pending=True,
+    )
+    provider_id = provider.id
+    email_calls = []
+    monkeypatch.setattr(
+        EmailService,
+        "send_provider_approval_email",
+        lambda _self, recipient, login_url: email_calls.append(
+            (recipient, login_url)
+        ),
+    )
+    barrier = threading.Barrier(2)
+    outcomes: list[str] = []
+
+    def approve() -> None:
+        session = TestingSessionLocal()
+        try:
+            barrier.wait(timeout=5)
+            ProviderService(ProviderRepository(session)).approve(provider_id)
+            outcomes.append("approved")
+        except ProviderApprovalError:
+            outcomes.append("conflict")
+        finally:
+            session.close()
+
+    threads = [threading.Thread(target=approve) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert sorted(outcomes) == ["approved", "conflict"]
+    assert len(email_calls) == 1
+    assert email_calls[0][0] == account.email
+    assert email_calls[0][1].endswith("/provider/login")
+    db.expire_all()
+    db.refresh(provider)
+    db.refresh(account)
+    db.refresh(invitation)
+    assert provider.status == ProviderStatus.ACTIVE
+    assert provider.publication_status == PublicationStatus.UNPUBLISHED
+    assert account.is_active is True
+    assert account.provider_portal_approval_pending is False
+    assert invitation.portal_user_id == account.id
+
+def test_approval_does_not_reactivate_a_freshly_disabled_legacy_account(
+    client, db, seeded_admin
+):
+    from tests.conftest import TestingSessionLocal
+
+    admin, password = seeded_admin
+    invitation, provider, account = _linked_invitation_account(
+        db,
+        admin,
+        email="disabled-legacy@portal.example.com",
+        approval_pending=False,
+    )
+    assert account.is_active is True
+
+    # Keep the API session's identity-map value stale, then disable the account
+    # in another transaction before approval acquires its lock.
+    concurrent = TestingSessionLocal()
+    try:
+        concurrent_account = concurrent.get(type(account), account.id)
+        concurrent_account.is_active = False
+        concurrent.commit()
+    finally:
+        concurrent.close()
+    assert account.is_active is True
+
+    admin_token = _login(client, admin.email, password)
+    response = client.post(
+        f"/api/v1/admin/providers/{provider.id}/approve",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    assert response.status_code == 409
+    assert "will not be reactivated" in response.json()["detail"]["message"]
+    db.refresh(account)
+    db.refresh(provider)
+    db.refresh(invitation)
+    assert account.is_active is False
+    assert provider.status == ProviderStatus.UNDER_REVIEW
+    assert invitation.portal_user_id == account.id

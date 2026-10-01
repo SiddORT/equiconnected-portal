@@ -136,8 +136,8 @@ export function InvitationsPage() {
       const updated = await sendPortalAccess(invitation.id);
       setNotice({
         message: updated.portal_access_sent_at
-          ? `Provider portal access was sent to ${invitation.recipient_email}.`
-          : 'Provider portal access was prepared.',
+          ? `A password setup email was sent to ${invitation.recipient_email}.`
+          : 'A password setup email was prepared.',
         variant: 'success',
       });
       void load();
@@ -182,12 +182,15 @@ export function InvitationsPage() {
             icon: <ViewIcon />,
             onSelect: () => navigate(`/admin/providers/${item.provider_id}`),
           });
-          actions.push({
+          // Accounts created by final submission receive setup/reset controls
+          // on the provider record instead; this legacy action is only for
+          // completed invitations that do not already own a portal user.
+          if (!item.portal_user_id) actions.push({
             label: actionId === item.id
-              ? 'Sending portal access…'
+              ? 'Sending password setup…'
               : item.portal_access_sent_at
-                ? 'Resend portal access'
-                : 'Send portal access',
+                ? 'Resend password setup email'
+                : 'Send password setup email',
             disabled: actionId === item.id,
             icon: item.portal_access_sent_at ? <ResendIcon /> : <SendIcon />,
             onSelect: () => void sendAccess(item),

@@ -99,6 +99,12 @@ export interface InvitationDraftPayload {
   organization_ids?: string[];
 }
 
+/** Credentials are sent only during final submission, never with a saved draft. */
+export interface InvitationSubmitPayload extends InvitationDraftPayload {
+  password: string;
+  password_confirmation: string;
+}
+
 // ── Organization search / association / requests ─────────────────────────────
 
 export interface OrgSearchResult {

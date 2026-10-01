@@ -48,6 +48,11 @@ const data: InvitationTokenData = {
   },
 };
 
+async function fillInvitationCredentials(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByLabelText('Password'), 'SecureHorse7');
+  await user.type(screen.getByLabelText('Confirm password'), 'SecureHorse7');
+}
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -99,6 +104,9 @@ it('lets doctor invitees search, change, save and restore languages in an unclip
   expect(screen.queryByRole('listbox', { name: 'Languages' })).toBeNull();
   await user.click(screen.getByRole('button', { name: 'Save draft' }));
   await waitFor(() => expect(saveInvitationDraft).toHaveBeenCalledWith('token', expect.objectContaining({ language_ids: ['fr'] })));
+  const draftPayload = vi.mocked(saveInvitationDraft).mock.calls[0][1];
+  expect(draftPayload).not.toHaveProperty('password');
+  expect(draftPayload).not.toHaveProperty('password_confirmation');
   const calls = vi.mocked(saveInvitationDraft).mock.calls;
   const payload = calls[calls.length - 1][1];
   unmount();
@@ -122,11 +130,17 @@ it('restores structured names and submits them without organization associations
   expect(screen.queryByText(/organization association/i)).toBeNull();
   expect((screen.getByLabelText('First name') as HTMLInputElement).value).toBe('Avery');
   expect((screen.getByLabelText('Last name') as HTMLInputElement).value).toBe('Quinn');
+  expect(screen.getByText('doctor@example.com', { selector: 'strong' })).toBeTruthy();
+  await fillInvitationCredentials(user);
   await user.click(screen.getByRole('button', { name: 'Submit for review' }));
   await waitFor(() => expect(submitInvitation).toHaveBeenCalled());
   expect(vi.mocked(submitInvitation).mock.calls[0][0]).toBe('public-invitation-token');
   const payload = vi.mocked(submitInvitation).mock.calls[0][1];
   expect(payload).not.toHaveProperty('organization_ids');
+  expect(payload).toMatchObject({
+    password: 'SecureHorse7',
+    password_confirmation: 'SecureHorse7',
+  });
   expect(payload).toMatchObject({ name: 'Avery Quinn', first_name: 'Avery', last_name: 'Quinn' });
   expect(await screen.findByText('Invitation complete')).toBeTruthy();
 });

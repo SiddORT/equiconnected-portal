@@ -107,3 +107,19 @@ export async function setupProviderPortalPassword(
   }
   return data;
 }
+
+export async function resetProviderPortalPassword(
+  token: string,
+  password: string,
+  password_confirmation: string
+): Promise<MessageResponse> {
+  const { data } = await apiClient.post<MessageResponse>('/auth/provider-portal/reset-password', {
+    token,
+    password,
+    password_confirmation,
+  });
+  if (!data || typeof data.message !== 'string' || !data.message.trim()) {
+    throw new Error('Unexpected provider password reset response');
+  }
+  return data;
+}

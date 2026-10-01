@@ -32,7 +32,7 @@ export function InvitationProviderForm({ token, data }: InvitationProviderFormPr
     window.setTimeout(() => setDraftSaved(false), 5000);
   }
 
-  async function handleSubmit(payload: InvitationDraftPayload) {
+  async function handleSubmit(payload: import('@/types').InvitationSubmitPayload) {
     setDraftSaved(false);
     setExternalErrors({});
     try {

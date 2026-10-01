@@ -398,7 +398,15 @@ class InvitationService:
                 raise PortalAccessAccountConflictError(
                     "This recipient email is already associated with another account."
                 )
-            if user.is_active or not user.provider_portal_setup_pending:
+            if user.provider_portal_approval_pending:
+                raise PortalAccessUnavailableError(
+                    "This provider account is awaiting administrator approval."
+                )
+            if (
+                user.is_active
+                or not user.provider_portal_setup_pending
+                or getattr(user, "provider_portal_approval_pending", False)
+            ):
                 raise PortalAccessUnavailableError(
                     "Portal access has already been set up for this recipient."
                 )
@@ -810,56 +818,138 @@ class InvitationService:
 
     def submit_invitation(self, token: str, fields: dict) -> ProviderInvitation:
         invitation = self.validate_token(token)
+        # validate_token may commit the initial ACCEPTED transition. Re-lock
+        # and refresh before applying profile fields so competing final submits
+        # serialize and the loser observes the winner's COMPLETED state.
+        invitation = self._repo.lock_by_id(invitation.id)
+        if invitation is None:
+            raise InvitationNotFoundError()
+        self._refresh_expiry(invitation)
+        if invitation.status == InvitationStatus.EXPIRED:
+            self._emit_event(
+                "provider_invitation.expired",
+                invitation,
+                context=AuditContext(actor_type="system"),
+            )
+            self._repo.commit()
+            raise InvitationExpiredError()
+        if invitation.status == InvitationStatus.COMPLETED:
+            raise InvitationCompletedError()
+        if invitation.status == InvitationStatus.CANCELLED:
+            raise InvitationCancelledError()
         fields = dict(fields)
-        organization_ids = fields.pop("organization_ids", None)
-        provider = self._apply_provider_fields(invitation, fields)
-        if provider.provider_type == ProviderType.DOCTOR and {"first_name", "last_name"}.intersection(fields):
-            profile = provider.doctor_profile
-            if not profile or not (profile.first_name or "").strip() or not (profile.last_name or "").strip():
-                raise InvalidProviderDataError("First name and last name are required for a doctor invitation.")
-        if not provider or not provider.name.strip() or not provider.visit_stability:
-            raise InvalidInvitationStateError("Provider name and visit stability are required.")
-        # Legacy API clients predate these optional service fields. Apply the
-        # conditional requirements only when a client participates in the new
-        # service-details contract; otherwise existing submit payloads remain
-        # valid.
-        service_fields = {
-            "maximum_working_radius_km",
-            "emergency_services_available",
-            "emergency_contact_number",
-        }
-        if service_fields.intersection(fields):
-            stability = provider.visit_stability
-            stability = stability.value if isinstance(stability, Enum) else stability
-            if (
-                stability == "STABLE_VISIT"
-                and (
-                    provider.maximum_working_radius_km is None
-                    or float(provider.maximum_working_radius_km) <= 0
-                )
-            ):
+        password = fields.pop("password", None)
+        password_confirmation = fields.pop("password_confirmation", None)
+        if (
+            not isinstance(password, str)
+            or not isinstance(password_confirmation, str)
+            or password != password_confirmation
+        ):
+            raise InvalidProviderDataError("Enter and confirm a password to submit this provider profile.")
+        if not (
+            re.search(r"[a-z]", password)
+            and re.search(r"[A-Z]", password)
+            and re.search(r"\d", password)
+        ):
+            raise InvalidProviderDataError(
+                "Password must include an uppercase letter, a lowercase letter, and a number."
+            )
+        if not 8 <= len(password) <= 128:
+            raise InvalidProviderDataError("Password must be between 8 and 128 characters.")
+
+        db = self._repo._db
+        if invitation.portal_user_id is not None:
+            raise InvalidInvitationStateError(
+                "A provider account is already linked to this invitation."
+            )
+        recipient = invitation.recipient_email.strip().lower()
+        if UserRepository(db).get_by_email(recipient) is not None:
+            raise InvalidProviderDataError(
+                "This email address already belongs to an EquiConnected account. "
+                "A provider invitation cannot be linked to an existing account."
+            )
+        provider_role = UserRepository(db).get_role_by_name("provider")
+        if provider_role is None:
+            raise InvalidProviderDataError(
+                "Provider portal access is temporarily unavailable."
+            )
+
+        try:
+            organization_ids = fields.pop("organization_ids", None)
+            provider = self._apply_provider_fields(invitation, fields)
+            if provider.provider_type == ProviderType.DOCTOR and {"first_name", "last_name"}.intersection(fields):
+                profile = provider.doctor_profile
+                if not profile or not (profile.first_name or "").strip() or not (profile.last_name or "").strip():
+                    raise InvalidProviderDataError("First name and last name are required for a doctor invitation.")
+            if not provider or not provider.name.strip() or not provider.visit_stability:
+                raise InvalidInvitationStateError("Provider name and visit stability are required.")
+            # Legacy API clients predate these optional service fields. Apply the
+            # conditional requirements only when a client participates in the new
+            # service-details contract; otherwise existing submit payloads remain
+            # valid.
+            service_fields = {
+                "maximum_working_radius_km",
+                "emergency_services_available",
+                "emergency_contact_number",
+            }
+            if service_fields.intersection(fields):
+                stability = provider.visit_stability
+                stability = stability.value if isinstance(stability, Enum) else stability
+                if (
+                    stability == "STABLE_VISIT"
+                    and (
+                        provider.maximum_working_radius_km is None
+                        or float(provider.maximum_working_radius_km) <= 0
+                    )
+                ):
+                    raise InvalidProviderDataError(
+                        "Stable visits require a positive maximum working radius."
+                    )
+                if (
+                    provider.emergency_services_available is True
+                    and not _is_complete_international_phone(
+                        provider.emergency_contact_number
+                    )
+                ):
+                    raise InvalidProviderDataError(
+                        "Enter a complete international emergency contact number with a dial code and 6–15 local digits."
+                    )
+            if organization_ids is not None:
+                self._reconcile_organizations(invitation, organization_ids)
+            provider.status, provider.publication_status = ProviderStatus.UNDER_REVIEW, PublicationStatus.UNPUBLISHED
+            portal_user = UserRepository(db).create_user(
+                email=recipient,
+                password_hash=hash_password(password),
+                role=provider_role,
+                roles=[provider_role],
+                is_active=False,
+                provider_portal_setup_pending=False,
+            )
+            # Final submission requires the recipient's emailed, single-use
+            # invitation token, which proves control of this inbox.
+            portal_user.email_verified_at = _now()
+            portal_user.provider_portal_approval_pending = True
+            invitation.portal_user_id = portal_user.id
+            invitation.status, invitation.completed_at = InvitationStatus.COMPLETED, _now()
+            self._emit_event(
+                "provider_invitation.submitted",
+                invitation,
+                metadata={"updated_fields": sorted(fields.keys())},
+            )
+            self._repo.commit()
+        except IntegrityError as exc:
+            self._repo.rollback()
+            # A simultaneous registration may win the unique-email race after
+            # the preflight check. Never retry by linking that unrelated user.
+            if UserRepository(db).get_by_email(recipient) is not None:
                 raise InvalidProviderDataError(
-                    "Stable visits require a positive maximum working radius."
-                )
-            if (
-                provider.emergency_services_available is True
-                and not _is_complete_international_phone(
-                    provider.emergency_contact_number
-                )
-            ):
-                raise InvalidProviderDataError(
-                    "Enter a complete international emergency contact number with a dial code and 6–15 local digits."
-                )
-        if organization_ids is not None:
-            self._reconcile_organizations(invitation, organization_ids)
-        provider.status, provider.publication_status = ProviderStatus.UNDER_REVIEW, PublicationStatus.UNPUBLISHED
-        invitation.status, invitation.completed_at = InvitationStatus.COMPLETED, _now()
-        self._emit_event(
-            "provider_invitation.submitted",
-            invitation,
-            metadata={"updated_fields": sorted(fields.keys())},
-        )
-        self._repo.commit()
+                    "This email address already belongs to an EquiConnected account. "
+                    "A provider invitation cannot be linked to an existing account."
+                ) from exc
+            raise
+        except Exception:
+            self._repo.rollback()
+            raise
         return invitation
 
     def record_view(self, invitation: ProviderInvitation) -> None:

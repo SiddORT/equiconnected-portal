@@ -7,7 +7,10 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { extractErrorMessage } from '@/api/client';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
 import {
+  approveProvider,
   listProviders,
+  resendProviderApprovalEmail,
+  sendProviderPortalAccess,
   updateProviderPublication,
   updateProviderStatus,
 } from '@/api/providers';
@@ -15,6 +18,8 @@ import { ActionMenu } from '@/components/ui/ActionMenu';
 import { ActivateIcon, DeactivateIcon, EditIcon, PublishIcon, UnpublishIcon, ViewIcon } from '@/components/ui/AdminIcons';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { Alert } from '@/components/ui/Alert';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable';
 import { FilterBar } from '@/components/ui/FilterBar';
 import { Pagination } from '@/components/ui/Pagination';
@@ -60,6 +65,12 @@ export function ProvidersPage() {
   const [pageSize, setPageSize] = useState(10);
 
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [portalAccessTarget, setPortalAccessTarget] = useState<ProviderListItem | null>(null);
+  const [actionNotice, setActionNotice] = useState<{
+    message: string;
+    variant: 'success' | 'warning' | 'error';
+    retryApprovalId?: string;
+  } | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const load = useCallback(async () => {
@@ -118,6 +129,73 @@ export function ProvidersPage() {
       void load();
     } catch (err) {
       alert(extractErrorMessage(err, 'Failed to update publication status.'));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleApprove(p: ProviderListItem) {
+    setBusyId(p.id);
+    setActionNotice(null);
+    try {
+      const result = await approveProvider(p.id);
+      const setupRequired = /password setup|no portal account is linked/i.test(result.message);
+      setActionNotice({
+        message: result.message,
+        variant: result.email_sent ? 'success' : 'warning',
+        retryApprovalId: result.email_sent || setupRequired ? undefined : p.id,
+      });
+      void load();
+    } catch (err) {
+      setActionNotice({
+        message: extractErrorMessage(err, 'Unable to approve this provider.'),
+        variant: 'error',
+      });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleRetryApprovalEmail() {
+    if (!actionNotice?.retryApprovalId) return;
+    const providerId = actionNotice.retryApprovalId;
+    setBusyId(providerId);
+    try {
+      const result = await resendProviderApprovalEmail(providerId);
+      setActionNotice({
+        message: result.message,
+        variant: result.email_sent ? 'success' : 'warning',
+        retryApprovalId: result.email_sent ? undefined : providerId,
+      });
+    } catch (err) {
+      setActionNotice({
+        message: `${extractErrorMessage(err, 'Unable to resend the approval email.')} The provider remains approved; retry when delivery is available.`,
+        variant: 'error',
+        retryApprovalId: providerId,
+      });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleSendPortalAccess() {
+    if (!portalAccessTarget?.portal_access_action || !portalAccessTarget.portal_login_email) return;
+    const provider = portalAccessTarget;
+    setBusyId(provider.id);
+    setPortalAccessTarget(null);
+    setActionNotice(null);
+    try {
+      const result = await sendProviderPortalAccess(provider.id);
+      setActionNotice({
+        message: result.message || `Password ${provider.portal_access_action} email sent to ${provider.portal_login_email}.`,
+        variant: 'success',
+      });
+      void load();
+    } catch (err) {
+      setActionNotice({
+        message: `${extractErrorMessage(err, 'Unable to send a password email.')} Email delivery is not confirmed. Check portal-access status before retrying.`,
+        variant: 'error',
+      });
     } finally {
       setBusyId(null);
     }
@@ -211,8 +289,11 @@ export function ProvidersPage() {
       label: 'Status',
       width: '100px',
       render: (p) => (
-        <Badge variant={p.status === 'ACTIVE' ? 'success' : 'neutral'} size="sm">
-          {p.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+        <Badge
+          variant={p.status === 'ACTIVE' ? 'success' : p.status === 'UNDER_REVIEW' ? 'warning' : 'neutral'}
+          size="sm"
+        >
+          {p.status === 'UNDER_REVIEW' ? 'Under review' : p.status === 'ACTIVE' ? 'Active' : 'Inactive'}
         </Badge>
       ),
     },
@@ -249,13 +330,38 @@ export function ProvidersPage() {
           items={[
             { label: 'View', icon: <ViewIcon />, onSelect: () => navigate(`/admin/providers/${p.id}`) },
             { label: 'Edit', icon: <EditIcon />, onSelect: () => navigate(`/admin/providers/${p.id}/edit`) },
-            {
+            ...(p.approval_available ? [{
+              label: 'Approve provider',
+              icon: <ActivateIcon />,
+              disabled: busyId === p.id,
+              onSelect: () => void handleApprove(p),
+            }] : []),
+            ...(p.portal_access_action ? [{
+              label: p.portal_access_action === 'setup' &&
+                p.portal_access_status !== 'invitation'
+                ? 'Choose email for password setup'
+                : p.portal_login_email
+                  ? `Send password ${p.portal_access_action} email`
+                  : `Choose email for password ${p.portal_access_action}`,
+              icon: <ActivateIcon />,
+              disabled: busyId === p.id,
+              onSelect: () => p.portal_login_email &&
+                (p.portal_access_action === 'reset' || p.portal_access_status === 'invitation')
+                ? setPortalAccessTarget(p)
+                : navigate(`/admin/providers/${p.id}`),
+            }] : []),
+            ...(!p.portal_access_action && p.portal_access_reason ? [{
+              label: `Portal access unavailable: ${p.portal_access_reason}`,
+              disabled: true,
+              onSelect: () => undefined,
+            }] : []),
+            ...(p.status !== 'UNDER_REVIEW' ? [{
               label: p.status === 'ACTIVE' ? 'Deactivate' : 'Activate',
               icon: p.status === 'ACTIVE' ? <DeactivateIcon /> : <ActivateIcon />,
               danger: p.status === 'ACTIVE',
               disabled: busyId === p.id,
               onSelect: () => handleToggleStatus(p),
-            },
+            }] : []),
             {
               label: p.publication_status === 'PUBLISHED' ? 'Unpublish' : 'Publish',
               icon: p.publication_status === 'PUBLISHED' ? <UnpublishIcon /> : <PublishIcon />,
@@ -296,7 +402,7 @@ export function ProvidersPage() {
     });
   }
   if (statusFilter !== 'all') {
-    const label = statusFilter === 'ACTIVE' ? 'Active' : 'Inactive';
+    const label = statusFilter === 'ACTIVE' ? 'Active' : statusFilter === 'UNDER_REVIEW' ? 'Under review' : 'Inactive';
     activeChips.push({ label: `Status: ${label}`, onClear: () => { setStatusFilter('all'); setPage(1); } });
   }
   if (publicationFilter !== 'all') {
@@ -340,6 +446,7 @@ export function ProvidersPage() {
       label: 'Status',
       options: [
         { value: 'all', label: 'All statuses' },
+        { value: 'UNDER_REVIEW', label: 'Under review' },
         { value: 'ACTIVE', label: 'Active' },
         { value: 'INACTIVE', label: 'Inactive' },
       ],
@@ -372,6 +479,22 @@ export function ProvidersPage() {
       />
 
       <div className={styles.body}>
+        {actionNotice && (
+          <Alert variant={actionNotice.variant} onDismiss={() => setActionNotice(null)}>
+            {actionNotice.message}
+            {actionNotice.retryApprovalId && (
+              <Button
+                variant="outline"
+                size="sm"
+                loading={busyId === actionNotice.retryApprovalId}
+                disabled={busyId === actionNotice.retryApprovalId}
+                onClick={() => void handleRetryApprovalEmail()}
+              >
+                Retry approval email
+              </Button>
+            )}
+          </Alert>
+        )}
         {/* ── Toolbar: search + filter toggle ─────────────────────────────── */}
         <div className={styles.toolbar}>
           <SearchInput
@@ -481,6 +604,22 @@ export function ProvidersPage() {
           />
         )}
       </div>
+      <ConfirmDialog
+        open={Boolean(portalAccessTarget)}
+        title={portalAccessTarget?.portal_access_action === 'reset'
+          ? 'Send password reset email?'
+          : 'Send password setup email?'}
+        message={portalAccessTarget?.portal_login_email
+          ? portalAccessTarget.portal_access_action === 'reset'
+            ? `A secure password reset link will be sent to ${portalAccessTarget.portal_login_email}. This will not change their current password unless they use the link.`
+            : `A secure first-password setup link will be sent to ${portalAccessTarget.portal_login_email}.`
+          : undefined}
+        confirmLabel={busyId === portalAccessTarget?.id
+          ? 'Sending…'
+          : portalAccessTarget?.portal_access_action === 'reset' ? 'Send reset email' : 'Send setup email'}
+        onCancel={() => setPortalAccessTarget(null)}
+        onConfirm={() => void handleSendPortalAccess()}
+      />
     </div>
   );
 }

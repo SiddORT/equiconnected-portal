@@ -56,5 +56,6 @@ class ProviderApplicationResponse(BaseModel):
     reviewed_at: datetime | None
     rejection_reason: str | None
     created_at: datetime
+    email_sent: bool | None = None
 
     model_config = ConfigDict(from_attributes=True)

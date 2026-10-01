@@ -28,6 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser, require_role
@@ -38,6 +39,8 @@ from app.models.enums import (
     PublicationStatus,
     VisitStability,
 )
+from app.models.enums import InvitationStatus
+from app.models.invitation import ProviderInvitation
 from app.repositories.provider_repository import ProviderRepository
 from app.repositories.audit_repository import AuditRepository, context_from_request
 from app.schemas.common import PaginatedResponse, PaginationMeta
@@ -69,6 +72,7 @@ from app.services.provider_service import (
     PhotoNotFoundError,
     ProviderNotFoundError,
     ProviderService,
+    ProviderApprovalError,
     SpecializationNotFoundError,
     VisitNotFoundError,
 )
@@ -131,19 +135,42 @@ def list_providers(
         page_size=page_size,
     )
     total_pages = max(1, ceil(total / page_size))
-    response = PaginatedResponse(
-        data=[
-            ProviderListItem.from_provider_row(
-                provider,
-                average_rating=average_rating,
-                review_count=review_count,
+    provider_ids = [provider.id for provider, _, _ in items]
+    invited_review_ids = set(
+        svc._repo._db.scalars(
+            select(ProviderInvitation.provider_id).where(
+                ProviderInvitation.provider_id.in_(provider_ids),
+                ProviderInvitation.status == InvitationStatus.COMPLETED,
             )
-            for provider, average_rating, review_count in items
-        ],
+        ).all()
+    ) if provider_ids else set()
+    data = []
+    for provider, average_rating, review_count in items:
+        item = ProviderListItem.from_provider_row(
+            provider,
+            average_rating=average_rating,
+            review_count=review_count,
+        )
+        item.approval_available = (
+            provider.status == ProviderStatus.UNDER_REVIEW
+            and provider.id in invited_review_ids
+        )
+        data.append(item)
+    response = PaginatedResponse(
+        data=data,
         meta=PaginationMeta(
             page=page, page_size=page_size, total=total, total_pages=total_pages
         ),
     )
+    portal_access = DirectProviderAccessService(svc._repo._db).list_metadata(
+        [provider for provider, _average_rating, _review_count in items]
+    )
+    for item in response.data:
+        metadata = portal_access.get(item.id, {})
+        item.portal_access_action = metadata.get("action")
+        item.portal_access_status = metadata.get("status")
+        item.portal_access_reason = metadata.get("reason")
+        item.portal_login_email = metadata.get("portal_login_email")
     AuditRepository(svc._repo._db).record(
         "provider.list_viewed",
         context=context_from_request(request, user.id),
@@ -195,6 +222,39 @@ def create_provider(body: ProviderCreate, request: Request, user: CurrentUser, s
 
 class PortalAccessSendRequest(BaseModel):
     email_id: UUID | None = None
+
+
+class ProviderApprovalResponse(BaseModel):
+    message: str
+    email_sent: bool
+
+
+@router.post("/{id}/approve", response_model=ProviderApprovalResponse)
+def approve_provider(id: UUID, request: Request, user: CurrentUser, svc: _Svc):
+    try:
+        message, email_sent = svc.approve(
+            id, audit_context=context_from_request(request, user.id)
+        )
+        return ProviderApprovalResponse(message=message, email_sent=email_sent)
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+    except ProviderApprovalError as exc:
+        raise _409("provider_approval_unavailable", str(exc))
+
+
+@router.post("/{id}/approval-email", response_model=ProviderApprovalResponse)
+def resend_provider_approval_email(
+    id: UUID, request: Request, user: CurrentUser, svc: _Svc
+):
+    try:
+        message, email_sent = svc.resend_approval_email(
+            id, audit_context=context_from_request(request, user.id)
+        )
+        return ProviderApprovalResponse(message=message, email_sent=email_sent)
+    except ProviderNotFoundError:
+        raise _404("provider_not_found", "Provider not found")
+    except ProviderApprovalError as exc:
+        raise _409("provider_approval_email_unavailable", str(exc))
 
 
 @router.get("/{id}/portal-access")

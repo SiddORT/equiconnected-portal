@@ -76,6 +76,7 @@ export function AppRouter() {
         <Route path="/member" element={<Navigate to="/" replace />} />
         <Route path="/provider/login" element={<ProviderLoginPage />} />
         <Route path="/provider/setup-password" element={<ProviderPasswordSetupPage />} />
+        <Route path="/provider/reset-password" element={<ProviderPasswordSetupPage />} />
         <Route path="/terms-of-service" element={<LegalPage kind="terms" />} />
         <Route path="/privacy-policy" element={<LegalPage kind="privacy" />} />
 

@@ -50,14 +50,15 @@ import type {
   DoctorResponse,
   DoctorUpdate,
   InvitationDraftPayload,
+  InvitationSubmitPayload,
   InvitationDraftProvider,
   InvitationSpecialization,
-  ProviderStatus,
   PublicationStatus,
   Specialization,
   Language,
   VisitStability,
 } from '@/types';
+import { InvitationCredentials, validateInvitationCredentials } from '@/components/invite/InvitationCredentials';
 import styles from './DoctorForm.module.css';
 
 const VISIT_STABILITY_OPTIONS = [
@@ -84,7 +85,7 @@ export interface DoctorInvitationFormConfig {
   emailsEdited: boolean;
   loadSpecializations: () => Promise<InvitationSpecialization[]>;
   onSaveDraft: (payload: InvitationDraftPayload) => Promise<void>;
-  onSubmit: (payload: InvitationDraftPayload) => Promise<void>;
+  onSubmit: (payload: InvitationSubmitPayload) => Promise<void>;
   externalErrors?: Record<string, string>;
 }
 
@@ -133,7 +134,9 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
   const [experienceDescription, setExperienceDescription] = useState(
     inv?.initial.experience_description ?? initialData?.experience_description ?? ''
   );
-  const [status, setStatus] = useState<ProviderStatus>(initialData?.status ?? 'ACTIVE');
+  const [status, setStatus] = useState<'ACTIVE' | 'INACTIVE'>(
+    initialData?.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE'
+  );
   const [publication, setPublication] = useState<PublicationStatus>(
     initialData?.publication_status ?? 'UNPUBLISHED'
   );
@@ -183,6 +186,9 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [apiError, setApiError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [invitationPassword, setInvitationPassword] = useState('');
+  const [invitationPasswordConfirmation, setInvitationPasswordConfirmation] = useState('');
+  const [credentialErrors, setCredentialErrors] = useState<Record<string, string>>({});
   const [savingDraft, setSavingDraft] = useState(false);
 
   // Load all active specializations
@@ -319,6 +325,9 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
     setSavingDraft(true);
     try {
       await inv.onSaveDraft(buildInvitationPayload());
+      setInvitationPassword('');
+      setInvitationPasswordConfirmation('');
+      setCredentialErrors({});
     } catch (err) {
       setApiError(extractErrorMessage(err, 'Failed to save your draft. Please try again.'));
     } finally {
@@ -336,9 +345,19 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
     if (!validate()) return;
 
     if (inv) {
+      const passwordErrors = validateInvitationCredentials(
+        invitationPassword,
+        invitationPasswordConfirmation
+      );
+      setCredentialErrors(passwordErrors);
+      if (Object.keys(passwordErrors).length > 0) return;
       setSubmitting(true);
       try {
-        await inv.onSubmit(buildInvitationPayload());
+        await inv.onSubmit({
+          ...buildInvitationPayload(),
+          password: invitationPassword,
+          password_confirmation: invitationPasswordConfirmation,
+        });
       } catch (err) {
         setApiError(extractErrorMessage(err, 'Failed to submit. Please check the form and try again.'));
       } finally {
@@ -607,7 +626,7 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
               label="Status"
               options={STATUS_OPTIONS}
               value={status}
-              onChange={(e) => setStatus(e.target.value as ProviderStatus)}
+              onChange={(e) => setStatus(e.target.value as 'ACTIVE' | 'INACTIVE')}
             />
             <Select
               label="Publication status"
@@ -730,6 +749,24 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
           </section>
         </Card>
       )}
+
+      {inv && <InvitationCredentials
+        recipientEmail={inv.recipientEmail}
+        password={invitationPassword}
+        confirmation={invitationPasswordConfirmation}
+        onPasswordChange={(value) => {
+          setInvitationPassword(value);
+          setCredentialErrors({});
+        }}
+        onConfirmationChange={(value) => {
+          setInvitationPasswordConfirmation(value);
+          setCredentialErrors({});
+        }}
+        errors={{ ...credentialErrors, ...Object.fromEntries(
+          Object.entries(inv.externalErrors ?? {}).filter(([key]) => key === 'password' || key === 'password_confirmation')
+        ) }}
+        disabled={submitting || savingDraft}
+      />}
 
       {children}
 

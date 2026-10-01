@@ -6,9 +6,11 @@ from __future__ import annotations
 from datetime import date
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.models.enums import (
+    InvitationStatus,
     ProviderStatus,
     ProviderType,
     DoctorAvailability,
@@ -23,9 +25,14 @@ from app.models.provider import (
     ProviderPhoto,
     DoctorVisit,
 )
+from app.models.invitation import ProviderInvitation
+from app.models.provider_registration import ProviderRegistrationApplication
+from app.models.user import User
 from app.repositories.provider_repository import ProviderRepository
 from app.repositories.audit_repository import AuditContext, AuditRepository
 from app.services.direct_provider_access_service import invalidate_if_recipient_removed
+from app.services.email_service import EmailService
+from app.services.provider_approval_email import send_provider_approval_email
 
 
 # ── Domain exceptions ─────────────────────────────────────────────────────────
@@ -62,12 +69,19 @@ class VisitNotFoundError(Exception):
     """Raised when a visit is not part of this provider."""
 
 
+class ProviderApprovalError(Exception):
+    """Raised when the provider or its explicitly linked account cannot be approved."""
+
+
 # ── Service ───────────────────────────────────────────────────────────────────
 
 class ProviderService:
-    def __init__(self, repo: ProviderRepository) -> None:
+    def __init__(
+        self, repo: ProviderRepository, email: EmailService | None = None
+    ) -> None:
         self._repo = repo
         self._audit = AuditRepository(repo._db)
+        self._email = email or EmailService()
 
     def _record(
         self,
@@ -123,6 +137,217 @@ class ProviderService:
         if provider is None:
             raise ProviderNotFoundError(str(id))
         return provider
+
+    def _approval_user(self, provider: Provider) -> User | None:
+        """Resolve only invitation/registration-owned accounts; never match by email."""
+        db = self._repo._db
+        application = db.scalar(
+            select(ProviderRegistrationApplication).where(
+                ProviderRegistrationApplication.provider_id == provider.id
+            )
+        )
+        if application is not None:
+            return db.get(User, application.user_id)
+
+        invitations = list(
+            db.scalars(
+                select(ProviderInvitation).where(
+                    ProviderInvitation.provider_id == provider.id,
+                    ProviderInvitation.status == InvitationStatus.COMPLETED,
+                    ProviderInvitation.portal_user_id.is_not(None),
+                )
+            ).all()
+        )
+        if len(invitations) > 1:
+            raise ProviderApprovalError(
+                "More than one provider account is linked to this listing. Resolve the account ownership before approval."
+            )
+        if not invitations:
+            return None
+        invitation = invitations[0]
+        user = db.get(User, invitation.portal_user_id)
+        if (
+            user is None
+            or user.email.strip().lower() != invitation.recipient_email.strip().lower()
+            or user.role.name != "provider"
+        ):
+            raise ProviderApprovalError(
+                "The invited provider account is unavailable or does not match its invitation."
+            )
+        return user
+
+    def approve(
+        self, provider_id: UUID, *, audit_context: AuditContext | None = None
+    ) -> tuple[str, bool]:
+        """Approve an under-review listing and activate only its eligible account."""
+        provider = self._repo.lock_provider(provider_id)
+        if provider is None:
+            raise ProviderNotFoundError(str(provider_id))
+        if provider.status != ProviderStatus.UNDER_REVIEW:
+            self._repo.rollback()
+            raise ProviderApprovalError(
+                "Only providers awaiting review can be approved."
+            )
+
+        try:
+            invitations = list(
+                self._repo._db.scalars(
+                    select(ProviderInvitation).where(
+                        ProviderInvitation.provider_id == provider.id,
+                        ProviderInvitation.status == InvitationStatus.COMPLETED,
+                    )
+                ).all()
+            )
+            if not invitations:
+                raise ProviderApprovalError(
+                    "Only invited providers awaiting review can be approved here."
+                )
+            linked_invitations = [
+                invitation
+                for invitation in invitations
+                if invitation.portal_user_id is not None
+            ]
+            if len(linked_invitations) > 1:
+                raise ProviderApprovalError(
+                    "More than one provider account is linked to this listing. Resolve the account ownership before approval."
+                )
+            invitation = linked_invitations[0] if linked_invitations else invitations[0]
+            account = (
+                self._repo._db.scalar(
+                    select(User)
+                    .where(User.id == invitation.portal_user_id)
+                    .with_for_update(of=User)
+                    .execution_options(populate_existing=True)
+                )
+                if invitation.portal_user_id
+                else None
+            )
+            if account is not None and (
+                account.email.strip().lower()
+                != invitation.recipient_email.strip().lower()
+                or account.role.name != "provider"
+            ):
+                raise ProviderApprovalError(
+                    "The invited provider account is unavailable or does not match its invitation."
+                )
+            notify_account: User | None = None
+            if account is not None:
+                if account.provider_portal_approval_pending:
+                    if account.is_active or account.provider_portal_setup_pending:
+                        raise ProviderApprovalError(
+                            "This provider account is not in an approvable state."
+                        )
+                    account.is_active = True
+                    account.provider_portal_approval_pending = False
+                    notify_account = account
+                elif account.provider_portal_setup_pending:
+                    # A legacy invitation still needs its first password. The
+                    # listing may be approved, but its account remains disabled.
+                    notify_account = None
+                elif not account.is_active:
+                    raise ProviderApprovalError(
+                        "This linked provider account is disabled and will not be reactivated by approval."
+                    )
+                else:
+                    # Existing active legacy accounts are not changed, but can
+                    # receive the approval/login notice once.
+                    notify_account = account
+
+            before = provider.status.value
+            provider.status = ProviderStatus.ACTIVE
+            self._record(
+                "provider.approved",
+                provider,
+                "Approved a provider listing without publishing it.",
+                context=audit_context,
+                changes=[{"field": "status", "before": before, "after": ProviderStatus.ACTIVE.value}],
+                metadata={"portal_account_linked": account is not None},
+            )
+            self._repo.commit()
+        except ProviderApprovalError:
+            self._repo.rollback()
+            raise
+        except IntegrityError as exc:
+            self._repo.rollback()
+            raise ProviderApprovalError(
+                "The provider could not be approved because its account state changed."
+            ) from exc
+
+        if notify_account is None:
+            if account is not None:
+                return (
+                    "Provider listing approved. The linked account still needs password setup; send a setup email before the provider can sign in.",
+                    False,
+                )
+            return (
+                "Provider listing approved. No portal account is linked yet; send a password setup email when the provider is ready.",
+                False,
+            )
+
+        email_sent = send_provider_approval_email(
+            self._repo._db, notify_account, self._email
+        )
+        if email_sent:
+            return "Provider approved and the portal sign-in email was sent.", True
+        return (
+            "Provider approved, but the sign-in email could not be sent. Retry the approval email.",
+            False,
+        )
+
+    def resend_approval_email(
+        self, provider_id: UUID, *, audit_context: AuditContext | None = None
+    ) -> tuple[str, bool]:
+        provider = self._repo.get_by_id(provider_id)
+        if provider is None:
+            raise ProviderNotFoundError(str(provider_id))
+        if provider.status != ProviderStatus.ACTIVE:
+            raise ProviderApprovalError(
+                "Approve this provider before sending its approval email."
+            )
+        account = self._approval_user(provider)
+        if account is None:
+            raise ProviderApprovalError(
+                "No explicitly linked provider account is available; send a password setup email instead."
+            )
+        account = self._repo._db.scalar(
+            select(User)
+            .where(User.id == account.id)
+            .with_for_update(of=User)
+            .execution_options(populate_existing=True)
+        )
+        if account is None:
+            self._repo.rollback()
+            raise ProviderApprovalError(
+                "The linked provider account is unavailable."
+            )
+        if account.provider_portal_approval_pending:
+            raise ProviderApprovalError(
+                "This provider account is still awaiting administrator approval."
+            )
+        if account.provider_portal_setup_pending or not account.is_active:
+            raise ProviderApprovalError(
+                "The linked provider account is not active and ready to sign in."
+            )
+        if account.role.name != "provider":
+            raise ProviderApprovalError(
+                "The linked account does not have provider portal access."
+            )
+        email_sent = send_provider_approval_email(
+            self._repo._db, account, self._email
+        )
+        if email_sent:
+            self._record(
+                "provider.approval_email_sent",
+                provider,
+                "Sent provider approval and portal sign-in instructions.",
+                context=audit_context,
+            )
+            self._repo.commit()
+            return "The provider approval email was sent.", True
+        return (
+            "The provider approval email could not be sent. Please retry.",
+            False,
+        )
 
     def create(
         self,

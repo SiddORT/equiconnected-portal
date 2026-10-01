@@ -123,6 +123,13 @@ function invitationConfig(
   };
 }
 
+async function fillInvitationCredentials(user: ReturnType<typeof userEvent.setup>) {
+  const password = screen.getByLabelText('Password') as HTMLInputElement;
+  const confirmation = screen.getByLabelText('Confirm password') as HTMLInputElement;
+  if (!password.value) await user.type(password, 'SecureHorse7');
+  if (!confirmation.value) await user.type(confirmation, 'SecureHorse7');
+}
+
 function CurrentPath() {
   return <output aria-label="Current path">{useLocation().pathname}</output>;
 }
@@ -468,6 +475,50 @@ describe('ProviderForm primary address layout', () => {
 });
 
 describe('ProviderForm visit stability', () => {
+  it.each(['CLINIC', 'HOSPITAL'] as const)(
+    'keeps %s invitation credentials out of drafts and requires them for final submission',
+    async (providerType) => {
+      const save = vi.fn().mockResolvedValue(undefined);
+      const submit = vi.fn().mockResolvedValue(undefined);
+      const user = userEvent.setup();
+      const config = invitationConfig({ visit_stability: 'NOT_STABLE_VISIT' }, save, submit);
+      config.providerType = providerType;
+      render(<ProviderForm invitation={config} />);
+
+      expect(screen.getByText('invited@example.com', { selector: 'strong' })).toBeTruthy();
+      await user.click(screen.getByRole('button', { name: 'Save draft' }));
+      await waitFor(() => expect(save).toHaveBeenCalled());
+      expect(save.mock.calls[0][0]).not.toHaveProperty('password');
+      expect(save.mock.calls[0][0]).not.toHaveProperty('password_confirmation');
+
+      await fillInvitationCredentials(user);
+      await user.click(screen.getByRole('button', { name: 'Save draft' }));
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+      expect((screen.getByLabelText('Password') as HTMLInputElement).value).toBe('');
+      expect((screen.getByLabelText('Confirm password') as HTMLInputElement).value).toBe('');
+      expect(save.mock.calls[1][0]).not.toHaveProperty('password');
+      expect(save.mock.calls[1][0]).not.toHaveProperty('password_confirmation');
+      await user.click(screen.getByRole('button', { name: 'Submit for review' }));
+      expect(submit).not.toHaveBeenCalled();
+      expect(screen.getByText('Use 8–128 characters with upper- and lowercase letters and a number.')).toBeTruthy();
+      await fillInvitationCredentials(user);
+      await user.clear(screen.getByLabelText('Confirm password'));
+      await user.type(screen.getByLabelText('Confirm password'), 'MismatchHorse7');
+      await user.click(screen.getByRole('button', { name: 'Submit for review' }));
+      expect(submit).not.toHaveBeenCalled();
+      expect(screen.getByText('Passwords do not match.')).toBeTruthy();
+      await user.clear(screen.getByLabelText('Confirm password'));
+      await user.type(screen.getByLabelText('Confirm password'), 'SecureHorse7');
+      await user.click(screen.getByRole('button', { name: 'Show password' }));
+      expect((screen.getByLabelText('Password') as HTMLInputElement).type).toBe('text');
+      await user.click(screen.getByRole('button', { name: 'Submit for review' }));
+      await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({
+        password: 'SecureHorse7',
+        password_confirmation: 'SecureHorse7',
+      })));
+    }
+  );
+
   it.each(['CLINIC', 'HOSPITAL'] as const)('keeps %s invitation language search, draft and restored selections usable in a dropdown card', async (providerType) => {
     const save = vi.fn().mockResolvedValue(undefined);
     const user = userEvent.setup();
@@ -679,6 +730,7 @@ describe('ProviderForm visit stability', () => {
 
     await user.click(stable);
     await user.type(screen.getByLabelText('Maximum working radius (km)'), '15');
+    await fillInvitationCredentials(user);
     await user.click(screen.getByRole('button', { name: 'Submit for review' }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({ visit_stability: 'STABLE_VISIT', maximum_working_radius_km: 15 })
@@ -821,6 +873,7 @@ describe('ProviderForm visit stability', () => {
     await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
       locations: [expect.objectContaining({ name: 'Second', is_primary: true })],
     })));
+    await fillInvitationCredentials(user);
     await user.click(screen.getByRole('button', { name: 'Submit for review' }));
     await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({
       locations: [expect.objectContaining({ name: 'Second', is_primary: true })],
@@ -881,6 +934,7 @@ describe('ProviderForm visit stability', () => {
     }, save, submit)} />);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Remove English' })).toBeTruthy());
     expect(screen.getByRole('button', { name: 'Remove French' })).toBeTruthy();
+    await fillInvitationCredentials(user);
     await user.click(screen.getByRole('button', { name: 'Submit for review' }));
     await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({
       language_ids: ['lang-en', 'lang-fr'],

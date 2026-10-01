@@ -4,14 +4,18 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import get_settings
 from app.core.security import hash_password
-from app.models.enums import EmailDeliveryStatus, EmailPurpose, InvitationStatus
-from app.models.email_delivery_log import EmailDeliveryLog
+from app.models.enums import (
+    EmailDeliveryStatus,
+    EmailPurpose,
+    InvitationStatus,
+    ProviderApplicationStatus,
+)
 from app.models.invitation import ProviderInvitation, ProviderPortalSetupToken
 from app.models.provider import DirectProviderPortalAccess, Provider
 from app.models.provider_registration import ProviderRegistrationApplication
@@ -20,7 +24,8 @@ from app.repositories.audit_repository import AuditContext, AuditRepository
 from app.repositories.email_delivery_repository import EmailDeliveryRepository, safe_failure_message
 from app.repositories.user_repository import UserRepository
 from app.schemas.provider import _valid_email
-from app.services.email_service import EmailService
+from app.services.email_service import EmailDeliveryError, EmailService
+from app.services.provider_portal_recovery_service import ProviderPortalRecoveryService
 
 
 def invalidate_if_recipient_removed(
@@ -75,65 +80,191 @@ class DirectProviderAccessService:
 
     def status(self, provider_id: UUID) -> dict:
         provider = self._provider(provider_id)
-        access = self.db.get(DirectProviderPortalAccess, provider_id)
-        invitation = self.db.scalar(
-            select(ProviderInvitation).where(ProviderInvitation.provider_id == provider_id)
-            .order_by(ProviderInvitation.completed_at.desc().nullslast(), ProviderInvitation.created_at.desc())
-            .limit(1)
+        return self._metadata_for_providers([provider])[provider_id]
+
+    def list_metadata(self, providers: list[Provider]) -> dict[UUID, dict]:
+        """Resolve ownership and available portal actions in bounded batch queries."""
+        return self._metadata_for_providers(providers)
+
+    def _metadata_for_providers(self, providers: list[Provider]) -> dict[UUID, dict]:
+        if not providers:
+            return {}
+        provider_ids = [provider.id for provider in providers]
+        access_rows = self.db.scalars(
+            select(DirectProviderPortalAccess).where(
+                DirectProviderPortalAccess.provider_id.in_(provider_ids)
+            )
+        ).all()
+        invitation_rows = self.db.scalars(
+            select(ProviderInvitation)
+            .where(ProviderInvitation.provider_id.in_(provider_ids))
+            .order_by(
+                ProviderInvitation.provider_id,
+                ProviderInvitation.completed_at.desc().nullslast(),
+                ProviderInvitation.created_at.desc(),
+            )
+        ).all()
+        registration_rows = self.db.scalars(
+            select(ProviderRegistrationApplication).where(
+                ProviderRegistrationApplication.provider_id.in_(provider_ids)
+            )
+        ).all()
+        access_by_provider = {row.provider_id: row for row in access_rows}
+        invitation_by_provider: dict[UUID, ProviderInvitation] = {}
+        for row in invitation_rows:
+            invitation_by_provider.setdefault(row.provider_id, row)
+        registration_by_provider = {row.provider_id: row for row in registration_rows}
+
+        account_ids = {row.user_id for row in access_rows}
+        account_ids.update(
+            row.portal_user_id for row in invitation_rows
+            if row.portal_user_id is not None
         )
-        registration = self.db.scalar(
-            select(ProviderRegistrationApplication.id).where(ProviderRegistrationApplication.provider_id == provider_id)
-        )
-        contacts = [
-            {"email_id": str(item.id), "email": item.email.strip().lower()}
-            for item in provider.emails if _valid_email(item.email)
-        ]
-        if _valid_email(provider.email) and not any(item["email"] == provider.email.strip().lower() for item in contacts):
-            contacts.append({"email_id": None, "email": provider.email.strip().lower()})
-        if access:
-            user = self.db.get(User, access.user_id)
-            if user and user.provider_portal_setup_pending and not user.is_active:
-                if any(c["email"] == access.recipient_email for c in contacts):
-                    state, message = "pending", None
-                    contacts = [c for c in contacts if c["email"] == access.recipient_email]
-                    if access.sent_at:
-                        latest = self.db.scalar(
-                            select(EmailDeliveryLog).where(
-                                EmailDeliveryLog.recipient_email == access.recipient_email,
-                                EmailDeliveryLog.purpose == EmailPurpose.PROVIDER_PORTAL_ACCESS.value,
-                                EmailDeliveryLog.created_at >= access.sent_at,
-                            ).order_by(EmailDeliveryLog.created_at.desc(), EmailDeliveryLog.id.desc()).limit(1)
-                        )
-                        if latest and latest.status == EmailDeliveryStatus.FAILED.value:
-                            message = "The latest portal access email failed to send. Retry sending it."
-                else:
-                    state, message = "unavailable", "The selected contact email was removed. Cancel pending access to choose a corrected contact."
-            elif user and user.is_active and not user.provider_portal_setup_pending:
-                state, message = "active", "Portal access is already set up."
-            else:
-                state, message = "unavailable", "This provider account is disabled or unavailable."
-        elif invitation:
-            state = "invitation" if invitation.status == InvitationStatus.COMPLETED else "unavailable"
-            message = ("Use Send portal access in the completed invitation." if state == "invitation"
-                       else "Finish or resolve the provider invitation before sending portal access.")
-        elif registration:
-            state, message = "registration", "This listing belongs to a provider registration."
-        else:
-            state, message = ("eligible", None) if contacts else ("unavailable", "Add a valid provider contact email first.")
-        return {
-            "status": state,
-            "recipient_email": (
-                access.recipient_email if access else
-                invitation.recipient_email if state == "invitation" else
-                contacts[0]["email"] if len(contacts) == 1 else None
-            ),
-            "email_id": next((c["email_id"] for c in contacts if access and c["email"] == access.recipient_email), None),
-            "invitation_id": str(invitation.id) if state == "invitation" else None,
-            "sent_at": access.sent_at if access else None,
-            "message": message,
-            "selectable_emails": contacts if state in ("eligible", "pending") else [],
-            "can_revoke": bool(access and user and user.provider_portal_setup_pending and not user.is_active and user.email_verified_at is None),
+        account_ids.update(row.user_id for row in registration_rows)
+        accounts = self.db.scalars(
+            select(User).where(User.id.in_(account_ids)).options(joinedload(User.role))
+        ).all() if account_ids else []
+        users_by_id = {row.id: row for row in accounts}
+
+        emails_to_check = {
+            email.strip().lower()
+            for provider in providers
+            for email in [*(item.email for item in provider.emails), provider.email]
+            if _valid_email(email)
         }
+        matching_accounts = self.db.scalars(
+            select(User).where(func.lower(User.email).in_(emails_to_check))
+        ).all() if emails_to_check else []
+        users_by_email = {row.email.strip().lower(): row for row in matching_accounts}
+
+        result: dict[UUID, dict] = {}
+        for provider in providers:
+            access = access_by_provider.get(provider.id)
+            invitation = invitation_by_provider.get(provider.id)
+            registration = registration_by_provider.get(provider.id)
+            owner_ids = set()
+            if access:
+                owner_ids.add(access.user_id)
+            if invitation and invitation.portal_user_id:
+                owner_ids.add(invitation.portal_user_id)
+            if registration:
+                owner_ids.add(registration.user_id)
+            owner = users_by_id.get(next(iter(owner_ids))) if len(owner_ids) == 1 else None
+
+            contacts = [
+                {"email_id": str(item.id), "email": item.email.strip().lower()}
+                for item in provider.emails if _valid_email(item.email)
+            ]
+            if _valid_email(provider.email) and not any(
+                item["email"] == provider.email.strip().lower() for item in contacts
+            ):
+                contacts.append({"email_id": None, "email": provider.email.strip().lower()})
+
+            action = None
+            state = "unavailable"
+            reason = None
+            recipient = None
+            sent_at = access.sent_at if access else None
+            if len(owner_ids) > 1:
+                reason = "Portal access is unavailable because this listing has conflicting account ownership."
+            elif owner:
+                recipient = owner.email
+                if owner.role.name != "provider":
+                    reason = "The linked account does not have provider portal access."
+                elif getattr(owner, "provider_portal_approval_pending", False):
+                    reason = "Portal access is waiting for provider approval."
+                elif not owner.is_active:
+                    if owner.provider_portal_setup_pending and not registration:
+                        action, state = "setup", "pending"
+                        reason = "A password setup link can be sent to the linked provider login email."
+                    else:
+                        reason = "The linked provider account is disabled."
+                elif owner.provider_portal_setup_pending:
+                    reason = "The linked provider account is not ready for portal access."
+                elif registration and registration.review_status != ProviderApplicationStatus.APPROVED:
+                    reason = "Portal access is waiting for provider application approval."
+                elif invitation and invitation.status != InvitationStatus.COMPLETED:
+                    reason = "The provider invitation must be completed before portal access can be used."
+                else:
+                    action, state = "reset", "active"
+                    reason = "A password reset link can be sent to the linked provider login email."
+                if access and owner.provider_portal_setup_pending:
+                    selected = [
+                        item for item in contacts
+                        if item["email"] == access.recipient_email
+                    ]
+                    if not selected:
+                        action, state = None, "unavailable"
+                        reason = "The selected setup email was removed. Cancel pending access to choose a corrected contact."
+                    else:
+                        contacts = selected
+                if invitation and not access:
+                    sent_at = invitation.portal_access_sent_at
+                    recipient = owner.email
+                    if action == "setup":
+                        state = "invitation"
+            elif owner_ids:
+                reason = "The explicitly linked provider account is unavailable."
+            elif invitation:
+                sent_at = invitation.portal_access_sent_at
+                recipient = invitation.recipient_email
+                if invitation.status == InvitationStatus.COMPLETED:
+                    if users_by_email.get(recipient.lower()):
+                        reason = "This email already belongs to an EquiConnected account and cannot be linked automatically."
+                    else:
+                        action, state = "setup", "invitation"
+                        reason = "Send a first-password setup link to the invitation login email."
+                else:
+                    reason = "Complete or resolve the provider invitation before sending portal access."
+            elif registration:
+                state = "registration"
+                reason = "This listing belongs to a provider registration and requires an explicitly linked account."
+            else:
+                available = [
+                    item for item in contacts if not users_by_email.get(item["email"])
+                ]
+                if available:
+                    action, state = "setup", "eligible"
+                    if len(available) == 1:
+                        recipient = available[0]["email"]
+                    reason = "Select a saved provider contact email for first-password setup."
+                else:
+                    reason = (
+                        "Add a valid provider contact email first."
+                        if not contacts else
+                        "Every provider contact email already belongs to an EquiConnected account."
+                    )
+
+            if action == "reset" and invitation:
+                state = "invitation"
+            if action == "reset" and registration:
+                state = "registration"
+            result[provider.id] = {
+                "status": state,
+                "available": action is not None,
+                "reason": reason,
+                "action": action,
+                "recipient_email": access.recipient_email if access else recipient,
+                "portal_login_email": owner.email if owner and action == "reset" else recipient,
+                "email_id": next(
+                    (item["email_id"] for item in contacts
+                     if access and item["email"] == access.recipient_email),
+                    None,
+                ),
+                "invitation_id": (
+                    str(invitation.id)
+                    if invitation and invitation.status == InvitationStatus.COMPLETED
+                    else None
+                ),
+                "sent_at": sent_at,
+                "message": reason,
+                "selectable_emails": contacts if state in ("eligible", "pending") else [],
+                "can_revoke": bool(
+                    access and owner and owner.provider_portal_setup_pending
+                    and not owner.is_active and owner.email_verified_at is None
+                ),
+            }
+        return result
 
     def revoke(self, provider_id: UUID, *, context: AuditContext) -> dict:
         self._provider(provider_id, lock=True)
@@ -161,7 +292,80 @@ class DirectProviderAccessService:
         # Provider row serializes concurrent sends and redemption for one listing.
         provider = self._provider(provider_id, lock=True)
         state = self.status(provider_id)
-        if state["status"] not in ("eligible", "pending"):
+        if state["action"] == "reset":
+            access = self.db.get(DirectProviderPortalAccess, provider_id)
+            invitation = self.db.scalar(
+                select(ProviderInvitation).where(
+                    ProviderInvitation.provider_id == provider_id,
+                    ProviderInvitation.portal_user_id.is_not(None),
+                ).order_by(ProviderInvitation.completed_at.desc().nullslast())
+            )
+            registration = self.db.scalar(
+                select(ProviderRegistrationApplication).where(
+                    ProviderRegistrationApplication.provider_id == provider_id
+                )
+            )
+            user_id = (
+                access.user_id if access else
+                invitation.portal_user_id if invitation else
+                registration.user_id if registration else None
+            )
+            if user_id is None:
+                self.db.rollback()
+                raise DirectAccessError(
+                    "portal_access_unavailable",
+                    "The explicitly linked provider account is unavailable.",
+                )
+            from app.services.provider_portal_recovery_service import (
+                ProviderPortalRecoveryCooldownError,
+                ProviderPortalRecoveryDeliveryError,
+                ProviderPortalRecoveryUnavailableError,
+            )
+            try:
+                ProviderPortalRecoveryService(self.db, self.email).send(
+                    provider_id, user_id, context=context
+                )
+            except ProviderPortalRecoveryCooldownError as exc:
+                raise DirectAccessError("portal_access_cooldown", str(exc)) from exc
+            except ProviderPortalRecoveryDeliveryError as exc:
+                raise DirectAccessError("portal_access_delivery_failed", str(exc)) from exc
+            except ProviderPortalRecoveryUnavailableError as exc:
+                raise DirectAccessError("portal_access_unavailable", str(exc)) from exc
+            return self.status(provider_id)
+        if state["action"] == "setup" and state.get("invitation_id"):
+            invitation_id = UUID(state["invitation_id"])
+            from app.repositories.invitation_repository import InvitationRepository
+            from app.repositories.provider_repository import ProviderRepository
+            from app.services.invitation_service import (
+                InvitationService,
+                PortalAccessAccountConflictError,
+                PortalAccessUnavailableError,
+            )
+            try:
+                InvitationService(
+                    InvitationRepository(self.db), ProviderRepository(self.db), self.email
+                ).send_portal_access(invitation_id, audit_context=context)
+            except PortalAccessAccountConflictError as exc:
+                self.db.rollback()
+                raise DirectAccessError(
+                    "portal_access_account_conflict", str(exc)
+                ) from exc
+            except PortalAccessUnavailableError as exc:
+                self.db.rollback()
+                raise DirectAccessError(
+                    "portal_access_unavailable", str(exc)
+                ) from exc
+            except EmailDeliveryError as exc:
+                self.db.rollback()
+                raise DirectAccessError(
+                    "portal_access_delivery_failed",
+                    "Provider portal setup email could not be sent. The account state is unchanged; retry sending it.",
+                ) from exc
+            return self.status(provider_id)
+        if state["status"] not in ("eligible", "pending", "invitation"):
+            self.db.rollback()
+            raise DirectAccessError("portal_access_unavailable", state["message"] or "Portal access is unavailable.")
+        if state["action"] != "setup":
             self.db.rollback()
             raise DirectAccessError("portal_access_unavailable", state["message"] or "Portal access is unavailable.")
         contact = next((c for c in state["selectable_emails"] if c["email_id"] == (str(email_id) if email_id else None)), None)
@@ -174,7 +378,8 @@ class DirectProviderAccessService:
         if access:
             user = self.db.get(User, access.user_id)
             if (user is None or user.email != access.recipient_email or recipient != access.recipient_email
-                    or not user.provider_portal_setup_pending or user.is_active):
+                    or not user.provider_portal_setup_pending or user.is_active
+                    or getattr(user, "provider_portal_approval_pending", False)):
                 self.db.rollback()
                 raise DirectAccessError("portal_access_unavailable", "This account is no longer eligible for setup.")
         else:

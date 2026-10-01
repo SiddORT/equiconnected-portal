@@ -166,7 +166,7 @@ describe('InvitationsPage', () => {
     const menu = screen.getByRole('menu');
     expect(within(menu).getByRole('menuitem', { name: 'View' })).toBeTruthy();
     expect(within(menu).getByRole('menuitem', { name: 'View submitted details' })).toBeTruthy();
-    expect(within(menu).getByRole('menuitem', { name: 'Send portal access' })).toBeTruthy();
+    expect(within(menu).getByRole('menuitem', { name: 'Send password setup email' })).toBeTruthy();
     expect(menu.querySelector('[data-icon="view"]')).toBeTruthy();
     expect(menu.querySelector('[data-icon="send"]')).toBeTruthy();
   });

@@ -438,6 +438,13 @@ class ProviderListItem(BaseModel):
     thumbnail_url: str | None = None
     average_rating: float | None = None
     review_count: int = 0
+    approval_available: bool = False
+    portal_access_action: Literal["setup", "reset"] | None = None
+    portal_access_status: Literal[
+        "eligible", "pending", "active", "invitation", "registration", "unavailable"
+    ] | None = None
+    portal_access_reason: str | None = None
+    portal_login_email: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

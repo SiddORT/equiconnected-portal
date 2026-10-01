@@ -13,6 +13,11 @@ class PublicAccountAccessIssue:
 
 def public_account_access_issue(user: User) -> PublicAccountAccessIssue | None:
     """Return a stable denial reason for self-registered member or provider accounts."""
+    if getattr(user, "provider_portal_approval_pending", False):
+        return PublicAccountAccessIssue(
+            code="provider_application_pending_review",
+            message="Your provider listing is awaiting administrator approval.",
+        )
     if user.is_public_registrant and user.email_verified_at is None:
         return PublicAccountAccessIssue(
             code="email_not_verified",

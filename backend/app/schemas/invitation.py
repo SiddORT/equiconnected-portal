@@ -1,6 +1,7 @@
 """Request and response schemas for provider invitations."""
 from datetime import datetime
 from math import isfinite
+import re
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
@@ -107,7 +108,23 @@ class DraftSaveRequest(BaseModel):
 class SubmitRequest(DraftSaveRequest):
     name: str = Field(..., min_length=1, max_length=300)
     visit_stability: VisitStability
+    password: str = Field(..., min_length=8, max_length=128)
+    password_confirmation: str = Field(..., min_length=8, max_length=128)
     # Doctor invitations only: the final set of organizations to associate.
     # Reconciled atomically with the submit — PENDING relationships are created
     # (or removed) in the same transaction so nothing persists on a failed submit.
     organization_ids: list[UUID] | None = None
+
+    @model_validator(mode="after")
+    def validate_portal_password(self):
+        if self.password != self.password_confirmation:
+            raise ValueError("Passwords do not match.")
+        if not (
+            re.search(r"[a-z]", self.password)
+            and re.search(r"[A-Z]", self.password)
+            and re.search(r"\d", self.password)
+        ):
+            raise ValueError(
+                "Password must include an uppercase letter, a lowercase letter, and a number."
+            )
+        return self

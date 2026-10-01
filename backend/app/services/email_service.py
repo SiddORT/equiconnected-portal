@@ -294,6 +294,69 @@ class EmailService:
         )
         self._deliver(message, recipient)
 
+    def send_provider_approval_email(self, recipient: str, login_url: str) -> None:
+        """Notify an approved provider that their existing portal credentials are ready."""
+        message = self._build_message(
+            recipient=recipient,
+            subject="Your EquiConnected provider account is approved",
+            plain=(
+                "Your EquiConnected provider portal account has been approved.\n\n"
+                f"Sign in with this email address: {recipient}\n\n"
+                f"Sign in to your provider portal:\n{login_url}\n\n"
+                "Your provider listing remains unpublished until it is separately published.\n"
+                "If you were not expecting this message, please contact EquiConnected support.\n"
+            ),
+            html=self._branded_html(
+                headline="Your provider account<br>is approved.",
+                body_html=(
+                    "Your EquiConnected provider portal account is ready. "
+                    f"Sign in with <strong style=\"color:#f5efe4;\">{escape(recipient)}</strong>. "
+                    "Your listing remains unpublished until it is separately published."
+                ),
+                action_label="Sign in to your portal",
+                action_url=login_url,
+                security_html=(
+                    "If you did not expect this approval, please contact EquiConnected support."
+                ),
+            ),
+        )
+        self._deliver(message, recipient)
+
+    def send_provider_portal_recovery_email(
+        self, recipient: str, recovery_url: str, expires_at: datetime
+    ) -> None:
+        """Send a single-use password reset link to an explicitly linked provider."""
+        expiry = expires_at.strftime("%B %d, %Y at %H:%M UTC")
+        plain = (
+            "Reset your EquiConnected provider portal password.\n\n"
+            "An administrator requested a password reset for this provider account. "
+            "Your current password will continue to work unless you complete the reset.\n\n"
+            f"Reset your password securely before {expiry}:\n{recovery_url}\n\n"
+            "This link can only be used once. If you did not expect this email, "
+            "you can safely ignore it and continue using your current password.\n"
+        )
+        html = self._branded_html(
+            headline="Reset your provider<br>portal password.",
+            body_html=(
+                "An administrator requested a password reset for your provider "
+                "portal account. Your current password continues to work unless "
+                "you complete this reset."
+            ),
+            action_label="Reset your password",
+            action_url=recovery_url,
+            security_html=(
+                f"This one-time reset link expires on {escape(expiry)}.<br>"
+                "If you did not expect this email, you can safely ignore it."
+            ),
+        )
+        message = self._build_message(
+            recipient=recipient,
+            subject="Reset your EquiConnected provider portal password",
+            plain=plain,
+            html=html,
+        )
+        self._deliver(message, recipient)
+
     def send_subscriber_confirmation_email(self, recipient: str) -> None:
         """Acknowledge public launch interest without collecting extra profile data."""
         plain = (

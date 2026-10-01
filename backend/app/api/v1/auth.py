@@ -58,6 +58,11 @@ from app.services.auth_service import (
     ProviderPortalSetupTokenUsedError,
 )
 from app.services.email_service import EmailDeliveryError
+from app.services.provider_portal_recovery_service import (
+    ProviderPortalRecoveryTokenExpiredError,
+    ProviderPortalRecoveryTokenNotFoundError,
+    ProviderPortalRecoveryTokenUsedError,
+)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 logger = get_logger(__name__)
@@ -343,6 +348,60 @@ def setup_provider_portal_password(
         )
     return MessageResponse(
         message="Your password has been set. Sign in to access your provider portal."
+    )
+
+
+@router.post(
+    "/provider-portal/reset-password",
+    response_model=MessageResponse,
+    dependencies=[Depends(check_email_verification_rate_limit)],
+)
+def reset_provider_portal_password(
+    body: ProviderPortalPasswordSetupRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> MessageResponse:
+    """Redeem a single-use reset token for an explicitly linked provider account."""
+    try:
+        AuthService(db).reset_provider_portal_password(body.token, body.password)
+    except ProviderPortalRecoveryTokenNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "provider_portal_recovery_link_invalid",
+                "message": "This password reset link is invalid.",
+            },
+        )
+    except ProviderPortalRecoveryTokenUsedError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "provider_portal_recovery_link_used",
+                "message": "This password reset link has already been used or replaced.",
+            },
+        )
+    except ProviderPortalRecoveryTokenExpiredError:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "code": "provider_portal_recovery_link_expired",
+                "message": "This password reset link has expired. Ask an administrator for a new link.",
+            },
+        )
+    except Exception:
+        db.rollback()
+        logger.error("provider_portal.password_recovery_unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "provider_portal_recovery_unavailable",
+                "message": (
+                    "Password reset is temporarily unavailable. Your existing password may still work; "
+                    "sign in if it does, or retry the reset and ask an administrator for a new link."
+                ),
+            },
+        )
+    return MessageResponse(
+        message="Your password has been reset. Sign in to access your provider portal."
     )
 
 

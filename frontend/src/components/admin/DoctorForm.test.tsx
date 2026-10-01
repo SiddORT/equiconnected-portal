@@ -70,6 +70,13 @@ function invitationConfig(
   };
 }
 
+async function fillInvitationCredentials(user: ReturnType<typeof userEvent.setup>) {
+  const password = screen.getByLabelText('Password') as HTMLInputElement;
+  const confirmation = screen.getByLabelText('Confirm password') as HTMLInputElement;
+  if (!password.value) await user.type(password, 'SecureHorse7');
+  if (!confirmation.value) await user.type(confirmation, 'SecureHorse7');
+}
+
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 it('starts with the doctor invitation recipient and lets the doctor add another email', async () => {
@@ -111,6 +118,8 @@ it('selects invitation languages from the public catalog, saves, restores, and s
   await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
     language_ids: ['lang-en', 'lang-fr'],
   })));
+  expect(save.mock.calls[0][0]).not.toHaveProperty('password');
+  expect(save.mock.calls[0][0]).not.toHaveProperty('password_confirmation');
 
   unmount();
   const savedIds = save.mock.calls[0][0].language_ids;
@@ -121,6 +130,7 @@ it('selects invitation languages from the public catalog, saves, restores, and s
   expect(screen.getByRole('button', { name: 'Remove French' })).toBeTruthy();
   await user.type(screen.getByLabelText('First name'), 'Avery');
   await user.type(screen.getByLabelText('Last name'), 'Quinn');
+  await fillInvitationCredentials(user);
   await user.click(screen.getByRole('button', { name: 'Submit for review' }));
   await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({
     language_ids: ['lang-en', 'lang-fr'],
@@ -185,12 +195,14 @@ describe('DoctorForm invitation services', () => {
     const user = userEvent.setup();
     render(<DoctorForm invitation={invitationConfig(undefined, onSubmit)} />);
     await user.click(screen.getByRole('checkbox', { name: 'Offers stable visits' }));
+    await fillInvitationCredentials(user);
     await user.click(screen.getByRole('button', { name: 'Submit for review' }));
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.getByText('Enter a finite radius greater than 0 km.')).toBeTruthy();
     await user.type(screen.getByRole('spinbutton', { name: 'Maximum working radius (km)' }), '90');
     await user.type(screen.getByLabelText('First name'), 'Avery');
     await user.type(screen.getByLabelText('Last name'), 'Quinn');
+    await fillInvitationCredentials(user);
     await user.click(screen.getByRole('button', { name: 'Submit for review' }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       visit_stability: 'STABLE_VISIT',
@@ -211,6 +223,7 @@ describe('DoctorForm invitation services', () => {
 
     expect((screen.getByRole('textbox', { name: 'Emergency contact number' }) as HTMLInputElement).value).toBe('2071234567');
     await user.clear(screen.getByRole('textbox', { name: 'Emergency contact number' }));
+    await fillInvitationCredentials(user);
     await user.click(screen.getByRole('button', { name: 'Submit for review' }));
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.getByText('Enter a valid emergency number with 6–15 digits.')).toBeTruthy();
@@ -286,10 +299,12 @@ describe('DoctorForm invitation services', () => {
     await user.click(screen.getByRole('button', { name: /Keep South/ }));
     await user.type(screen.getByLabelText('First name'), 'Avery');
     await user.type(screen.getByLabelText('Last name'), 'Quinn');
+    await fillInvitationCredentials(user);
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
       locations: [expect.objectContaining({ name: 'South', is_primary: true })],
     })));
+    await fillInvitationCredentials(user);
     await user.click(screen.getByRole('button', { name: 'Submit for review' }));
     await waitFor(() => expect(submit).toHaveBeenCalledWith(expect.objectContaining({
       locations: [expect.objectContaining({ name: 'South', is_primary: true })],
@@ -316,6 +331,8 @@ describe('DoctorForm invitation services', () => {
     };
     const user = userEvent.setup();
     render(<DoctorForm invitation={config} />);
+  expect(screen.getByText('invited-doctor@example.com', { selector: 'strong' })).toBeTruthy();
+    await fillInvitationCredentials(user);
     await user.click(screen.getByRole('button', { name: 'Submit for review' }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       locations: [expect.objectContaining({
@@ -325,6 +342,10 @@ describe('DoctorForm invitation services', () => {
         is_primary: true,
       })],
     })));
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      password: 'SecureHorse7',
+      password_confirmation: 'SecureHorse7',
+    });
     expect(onSubmit.mock.calls[0][0]).not.toHaveProperty('organization_ids');
   });
 

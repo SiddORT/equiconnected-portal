@@ -15,6 +15,8 @@ from app.models.language import ProviderLanguage, ProviderRegistrationLanguage
 from app.models.provider_registration import ProviderRegistrationApplication
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.provider_registration_repository import ProviderRegistrationRepository
+from app.services.email_service import EmailService
+from app.services.provider_approval_email import send_provider_approval_email
 
 
 class ProviderApplicationNotFoundError(Exception):
@@ -26,10 +28,15 @@ class ProviderApplicationDecisionError(Exception):
 
 
 class ProviderRegistrationService:
-    def __init__(self, repository: ProviderRegistrationRepository) -> None:
+    def __init__(
+        self,
+        repository: ProviderRegistrationRepository,
+        email: EmailService | None = None,
+    ) -> None:
         self._repo = repository
         self._db = repository._db
         self._audit = AuditRepository(self._db)
+        self._email = email or EmailService()
 
     def list(self, **filters) -> tuple[list[ProviderRegistrationApplication], int]:
         return self._repo.list(**filters)
@@ -122,7 +129,11 @@ class ProviderRegistrationService:
             raise ProviderApplicationDecisionError(
                 "This application was already decided."
             ) from exc
-        return self.get(application_id)
+        application = self.get(application_id)
+        application.email_sent = send_provider_approval_email(
+            self._db, application.user, self._email
+        )
+        return application
 
     def reject(
         self,

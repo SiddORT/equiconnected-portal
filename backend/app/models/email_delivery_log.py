@@ -14,7 +14,8 @@ class EmailDeliveryLog(Base):
     __table_args__ = (
         CheckConstraint(
             "purpose IN ('provider_invitation', 'account_verification', "
-            "'provider_portal_access', 'subscriber_confirmation', "
+            "'provider_portal_access', 'provider_portal_recovery', "
+            "'provider_approval', 'subscriber_confirmation', "
             "'contact_notification', 'contact_confirmation', 'smtp_test')",
             name="ck_email_delivery_logs_purpose",
         ),

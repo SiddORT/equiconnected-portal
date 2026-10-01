@@ -479,7 +479,11 @@ class AuthService:
             raise ProviderPortalSetupTokenUsedError(
                 "This provider portal link is no longer available."
             )
-        if not user.provider_portal_setup_pending or user.is_active:
+        if (
+            not user.provider_portal_setup_pending
+            or user.is_active
+            or getattr(user, "provider_portal_approval_pending", False)
+        ):
             raise ProviderPortalSetupTokenUsedError(
                 "This provider portal link is no longer available."
             )
@@ -499,6 +503,12 @@ class AuthService:
             metadata={"provider_id": str(provider_id)},
         )
         self._db.commit()
+
+    def reset_provider_portal_password(self, raw_token: str, password: str) -> None:
+        """Redeem a purpose-specific recovery link without changing account state."""
+        from app.services.provider_portal_recovery_service import ProviderPortalRecoveryService
+
+        ProviderPortalRecoveryService(self._db, self._email).redeem(raw_token, password)
 
 
     # ── Login ────────────────────────────────────────────────────────────────
