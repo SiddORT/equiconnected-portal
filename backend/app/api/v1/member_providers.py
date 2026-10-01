@@ -69,6 +69,57 @@ def _location(provider) -> DirectoryLocation | None:
     )
 
 
+def _profile_locations(provider):
+    locations = sorted(
+        provider.locations,
+        key=lambda item: (not item.is_primary, item.created_at, item.id),
+    )
+    return [
+        {
+            "city": location.city,
+            "state_province": location.state_province,
+            "country": location.country,
+            "is_primary": location.is_primary,
+        }
+        for location in locations
+    ]
+
+
+def _member_photos(provider):
+    return [
+        {
+            "url": photo.storage_reference,
+            "alt_text": photo.alt_text,
+            "caption": photo.caption,
+            "display_order": photo.display_order,
+            "is_thumbnail": photo.is_thumbnail,
+        }
+        for photo in sorted(
+            provider.photos,
+            key=lambda item: (item.display_order, item.created_at, item.id),
+        )
+    ]
+
+
+def _member_visits(provider):
+    visits = sorted(
+        provider.doctor_visits,
+        key=lambda item: (item.start_date, item.end_date, item.id),
+    )
+    return [
+        {
+            "start_date": visit.start_date,
+            "end_date": visit.end_date,
+            "location": {
+                "city": visit.location.get("city", ""),
+                "state_province": visit.location.get("state_province"),
+                "country": visit.location.get("country"),
+            },
+        }
+        for visit in visits
+    ]
+
+
 def _contact(provider, field: str) -> str | None:
     entries = getattr(provider, f"{field}s")
     value = next((getattr(item, field) for item in entries if item.is_primary), None)
@@ -227,7 +278,7 @@ def remove_saved_provider(provider_id: UUID, user: MemberUser, db: _DB) -> None:
 @router.get("/{provider_id}", response_model=MemberProviderDetail)
 def get_member_provider(provider_id: UUID, user: MemberUser, svc: _Svc, db: _DB) -> MemberProviderDetail:
     try:
-        provider = svc.get_discoverable(provider_id)
+        provider = svc.get_discoverable(provider_id, include_profile=True)
     except DiscoverableProviderNotFoundError:
         raise _not_found()
     average_rating, review_count = svc.totals(provider_id)
@@ -243,11 +294,52 @@ def get_member_provider(provider_id: UUID, user: MemberUser, svc: _Svc, db: _DB)
     ]
     return MemberProviderDetail(
         **_item(provider, average_rating, review_count, is_saved=provider_id in _saved_ids(db, user.id, [provider_id])).model_dump(),
+        biography=provider.doctor_profile.biography if provider.doctor_profile else None,
+        professional_title=(
+            provider.professional_title
+            if provider.professional_title is not None
+            else provider.doctor_profile.professional_title if provider.doctor_profile else None
+        ),
+        experience_description=(
+            provider.doctor_profile.experience_description
+            if provider.doctor_profile
+            else None
+        ),
         years_experience=(
             provider.years_experience
             if provider.years_experience is not None
             else provider.doctor_profile.years_experience if provider.doctor_profile else None
         ),
+        qualifications=[
+            {
+                "title": qualification.title,
+                "institution": qualification.institution,
+                "year_obtained": qualification.year_obtained,
+                "description": qualification.description,
+                "display_order": qualification.display_order,
+            }
+            for qualification in sorted(
+                provider.qualifications,
+                key=lambda item: (item.display_order, item.created_at, item.id),
+            )
+        ],
+        photos=_member_photos(provider),
+        languages=[
+            {"name": link.language.name, "code": link.language.code}
+            for link in sorted(
+                provider.provider_languages,
+                key=lambda item: (item.language.name.casefold(), item.language.code),
+            )
+        ],
+        locations=_profile_locations(provider),
+        maximum_working_radius_km=(
+            float(provider.maximum_working_radius_km)
+            if provider.maximum_working_radius_km is not None
+            else None
+        ),
+        clinic_hospital_visit=provider.clinic_hospital_visit,
+        doctor_availability=provider.doctor_availability,
+        doctor_visits=_member_visits(provider),
         visible_reviews=visible_reviews,
         own_review=(
             _review_response(own_review)

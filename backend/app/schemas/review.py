@@ -1,16 +1,47 @@
 """Schemas for the verified-member provider directory and review moderation."""
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.models.enums import ProviderType, VisitStability
+from app.models.enums import DoctorAvailability, ProviderType, VisitStability
 
 
 class DirectoryLocation(BaseModel):
     city: str
     state_province: str | None
     country: str | None
+
+
+class MemberProviderLocation(DirectoryLocation):
+    is_primary: bool
+
+
+class MemberProviderQualification(BaseModel):
+    title: str
+    institution: str | None
+    year_obtained: int | None
+    description: str | None
+    display_order: int
+
+
+class MemberProviderPhoto(BaseModel):
+    url: str
+    alt_text: str | None
+    caption: str | None
+    display_order: int
+    is_thumbnail: bool
+
+
+class MemberProviderLanguage(BaseModel):
+    name: str
+    code: str
+
+
+class MemberProviderVisit(BaseModel):
+    start_date: date
+    end_date: date
+    location: DirectoryLocation
 
 
 class PublicProviderReview(BaseModel):
@@ -61,7 +92,18 @@ class MemberProviderListItem(BaseModel):
 
 
 class MemberProviderDetail(MemberProviderListItem):
+    biography: str | None = None
+    professional_title: str | None = None
+    experience_description: str | None = None
     years_experience: int | None = None
+    qualifications: list[MemberProviderQualification] = Field(default_factory=list)
+    photos: list[MemberProviderPhoto] = Field(default_factory=list)
+    languages: list[MemberProviderLanguage] = Field(default_factory=list)
+    locations: list[MemberProviderLocation] = Field(default_factory=list)
+    maximum_working_radius_km: float | None = None
+    clinic_hospital_visit: bool | None = None
+    doctor_availability: DoctorAvailability | None = None
+    doctor_visits: list[MemberProviderVisit] = Field(default_factory=list)
     visible_reviews: list[PublicProviderReview]
     own_review: MemberReviewResponse | None
 

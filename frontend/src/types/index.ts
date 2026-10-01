@@ -698,8 +698,8 @@ export interface ProviderPortalUpdate {
   photos?: ProviderPhotoCreate[];
   professional_title?: string | null;
   biography?: string | null;
-  years_experience?: number | null;
   experience_description?: string | null;
+  years_experience?: number | null;
   qualifications?: Array<{
     title: string;
     institution?: string | null;
@@ -1018,6 +1018,33 @@ export interface MemberProviderListItem {
 
 export interface MemberProviderDetail extends MemberProviderListItem {
   years_experience?: number | null;
+  professional_title?: string | null;
+  biography?: string | null;
+  experience_description?: string | null;
+  qualifications?: Array<{
+    title: string;
+    institution: string | null;
+    year_obtained: number | null;
+    description: string | null;
+    display_order: number;
+  }>;
+  photos?: Array<{
+    url: string;
+    alt_text: string | null;
+    caption: string | null;
+    display_order: number;
+    is_thumbnail?: boolean;
+  }>;
+  languages?: Array<{ name: string; code: string } | string>;
+  locations?: Array<DirectoryLocation & { is_primary?: boolean }>;
+  maximum_working_radius_km?: number | null;
+  clinic_hospital_visit?: boolean | null;
+  doctor_availability?: DoctorAvailability | null;
+  doctor_visits?: Array<{
+    start_date: string;
+    end_date: string;
+    location: DirectoryLocation;
+  }>;
   visible_reviews: PublicProviderReview[];
   own_review: MemberProviderReview | null;
 }

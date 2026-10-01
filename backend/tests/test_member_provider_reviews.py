@@ -1,5 +1,5 @@
 """Provider discovery, member reviews, and administrator moderation coverage."""
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
@@ -8,14 +8,17 @@ from app.core.security import create_access_token, hash_password
 from app.repositories.review_repository import ReviewRepository
 from tests.conftest import TestingSessionLocal
 from app.models.audit_log import AuditLog
-from app.models.enums import ProviderStatus, ProviderType, PublicationStatus, VisitStability
+from app.models.enums import DoctorAvailability, ProviderStatus, ProviderType, PublicationStatus, VisitStability
 from app.models.provider import (
+    DoctorVisit,
     Provider,
     ProviderLocation,
     ProviderPhoto,
     ProviderReview,
     ProviderSpecialization,
 )
+from app.models.doctor import DoctorProfile, DoctorQualification
+from app.models.language import Language, ProviderLanguage
 from app.models.specialization import Specialization
 from app.repositories.user_repository import UserRepository
 
@@ -86,6 +89,220 @@ def _provider(
 
 
 class TestMemberProviderDiscoveryAndReviews:
+    def test_member_detail_exposes_only_ordered_safe_profile_data(self, client, db):
+        member = _member(db, "profile-details@example.com")
+        doctor = _provider(
+            db,
+            "Profile Doctor",
+            provider_type=ProviderType.DOCTOR,
+            maximum_working_radius_km="75.50",
+        )
+        doctor.professional_title = None
+        doctor.clinic_hospital_visit = True
+        doctor.emergency_services_available = True
+        doctor.doctor_availability = DoctorAvailability.VISITING
+        db.add(
+            DoctorProfile(
+                provider_id=doctor.id,
+                professional_title="Equine Veterinarian",
+                biography="A member-safe professional biography.",
+                years_experience=0,
+                experience_description="Private experience note",
+            )
+        )
+        db.add_all(
+            [
+                DoctorQualification(
+                    provider_id=doctor.id,
+                    title="Advanced Equine Care",
+                    institution="North College",
+                    year_obtained=2022,
+                    description="Second",
+                    display_order=2,
+                ),
+                DoctorQualification(
+                    provider_id=doctor.id,
+                    title="Doctor of Veterinary Medicine",
+                    institution="South College",
+                    year_obtained=2018,
+                    description="First",
+                    display_order=1,
+                ),
+                ProviderPhoto(
+                    provider_id=doctor.id,
+                    storage_reference="/uploads/providers/second.jpg",
+                    alt_text="Second profile photo",
+                    caption="Second",
+                    display_order=2,
+                ),
+                ProviderPhoto(
+                    provider_id=doctor.id,
+                    storage_reference="/uploads/providers/first.jpg",
+                    alt_text="First profile photo",
+                    caption="First",
+                    display_order=1,
+                    is_thumbnail=True,
+                ),
+            ]
+        )
+        primary_location = db.query(ProviderLocation).filter_by(provider_id=doctor.id).one()
+        primary_location.address_line_1 = "Private Street Address"
+        primary_location.state_province = "Texas"
+        primary_location.postal_code = "78701"
+        db.add(
+            ProviderLocation(
+                provider_id=doctor.id,
+                address_line_1="Another Private Street",
+                city="San Antonio",
+                state_province="Texas",
+                country="United States",
+                postal_code="78201",
+                is_primary=False,
+            )
+        )
+        english = Language(name="English", code="en")
+        spanish = Language(name="Spanish", code="es")
+        db.add_all([english, spanish])
+        db.flush()
+        db.add_all(
+            [
+                ProviderLanguage(provider_id=doctor.id, language_id=english.id),
+                ProviderLanguage(provider_id=doctor.id, language_id=spanish.id),
+                DoctorVisit(
+                    provider_id=doctor.id,
+                    location={
+                        "name": "Private Visit Site",
+                        "address_line_1": "Private Visit Street",
+                        "address_line_2": "Private Suite",
+                        "city": "Dallas",
+                        "state_province": "Texas",
+                        "country": "United States",
+                        "postal_code": "75001",
+                        "latitude": 32.7767,
+                        "longitude": -96.7970,
+                        "is_primary": True,
+                    },
+                    start_date=date(2030, 4, 3),
+                    end_date=date(2030, 4, 8),
+                ),
+            ]
+        )
+        db.commit()
+
+        headers = _headers(member)
+        detail_url = f"{MEMBER_BASE}/{doctor.id}"
+        assert client.get(detail_url).status_code == 401
+        response = client.get(detail_url, headers=headers)
+        assert response.status_code == 200
+        payload = response.json()
+
+        assert payload["biography"] == "A member-safe professional biography."
+        assert payload["professional_title"] == "Equine Veterinarian"
+        assert payload["experience_description"] == "Private experience note"
+        # A legacy doctor_profile value is used when the newer provider field is null;
+        # zero years is a real value, not a missing-value sentinel.
+        assert payload["years_experience"] == 0
+        assert payload["qualifications"] == [
+            {
+                "title": "Doctor of Veterinary Medicine",
+                "institution": "South College",
+                "year_obtained": 2018,
+                "description": "First",
+                "display_order": 1,
+            },
+            {
+                "title": "Advanced Equine Care",
+                "institution": "North College",
+                "year_obtained": 2022,
+                "description": "Second",
+                "display_order": 2,
+            },
+        ]
+        assert payload["photos"] == [
+            {
+                "url": "/uploads/providers/first.jpg",
+                "alt_text": "First profile photo",
+                "caption": "First",
+                "display_order": 1,
+                "is_thumbnail": True,
+            },
+            {
+                "url": "/uploads/providers/second.jpg",
+                "alt_text": "Second profile photo",
+                "caption": "Second",
+                "display_order": 2,
+                "is_thumbnail": False,
+            },
+        ]
+        assert payload["languages"] == [
+            {"name": "English", "code": "en"},
+            {"name": "Spanish", "code": "es"},
+        ]
+        assert payload["locations"] == [
+            {
+                "city": "Austin",
+                "state_province": "Texas",
+                "country": "United States",
+                "is_primary": True,
+            },
+            {
+                "city": "San Antonio",
+                "state_province": "Texas",
+                "country": "United States",
+                "is_primary": False,
+            },
+        ]
+        assert payload["maximum_working_radius_km"] == 75.5
+        assert payload["clinic_hospital_visit"] is True
+        assert payload["emergency_services_available"] is True
+        assert payload["doctor_availability"] == "VISITING"
+        assert payload["doctor_visits"] == [
+            {
+                "start_date": "2030-04-03",
+                "end_date": "2030-04-08",
+                "location": {
+                    "city": "Dallas",
+                    "state_province": "Texas",
+                    "country": "United States",
+                },
+            }
+        ]
+        assert "Private Street Address" not in response.text
+        assert "Private Visit Street" not in response.text
+        assert "Private Suite" not in response.text
+        assert "75001" not in response.text
+        assert "32.7767" not in response.text
+        assert "emergency_contact" not in response.text
+
+    def test_member_detail_keeps_discoverability_boundary_and_non_doctor_empty_data(
+        self, client, db, seeded_admin
+    ):
+        member = _member(db, "detail-boundary@example.com")
+        visible = _provider(db, "Detail Visible Clinic", years_experience=9)
+        unpublished = _provider(
+            db, "Detail Draft Clinic", publication=PublicationStatus.UNPUBLISHED
+        )
+        inactive = _provider(
+            db, "Detail Inactive Clinic", status=ProviderStatus.INACTIVE
+        )
+        admin, _ = seeded_admin
+        headers = _headers(member)
+
+        assert client.get(
+            f"{MEMBER_BASE}/{visible.id}", headers=_headers(admin)
+        ).status_code == 403
+        assert client.get(f"{MEMBER_BASE}/{unpublished.id}", headers=headers).status_code == 404
+        assert client.get(f"{MEMBER_BASE}/{inactive.id}", headers=headers).status_code == 404
+        payload = client.get(f"{MEMBER_BASE}/{visible.id}", headers=headers).json()
+        assert payload["years_experience"] == 9
+        assert payload["biography"] is None
+        assert payload["professional_title"] is None
+        assert payload["qualifications"] == []
+        assert payload["photos"] == []
+        assert payload["languages"] == []
+        assert payload["doctor_availability"] is None
+        assert payload["doctor_visits"] == []
+
     def test_name_search_combines_filters_count_sort_and_pages_without_exposing_hidden_rows(self, client, db):
         member = _member(db, "directory-name@example.com")
         alpha = _provider(db, "Alpha Equine Care")

@@ -26,8 +26,8 @@ class ReviewService:
     def directory_facets(self):
         return self._repo.directory_facets()
 
-    def get_discoverable(self, provider_id: UUID):
-        provider = self._repo.get_discoverable(provider_id)
+    def get_discoverable(self, provider_id: UUID, *, include_profile: bool = False):
+        provider = self._repo.get_discoverable(provider_id, include_profile=include_profile)
         if provider is None:
             raise DiscoverableProviderNotFoundError(str(provider_id))
         return provider

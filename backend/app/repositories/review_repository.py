@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.enums import ProviderStatus, ProviderType, PublicationStatus, VisitStability
+from app.models.language import ProviderLanguage
 from app.models.provider import Provider, ProviderLocation, ProviderReview, ProviderSpecialization
 from app.models.provider_favorite import ProviderFavorite
 from app.models.specialization import Specialization
@@ -299,8 +300,8 @@ class ReviewRepository:
             )
         return self._db.execute(stmt.limit(limit)).unique().all()
 
-    def get_discoverable(self, provider_id: UUID) -> Provider | None:
-        return self._db.scalar(
+    def get_discoverable(self, provider_id: UUID, *, include_profile: bool = False) -> Provider | None:
+        stmt = (
             select(Provider)
             .where(
                 Provider.id == provider_id,
@@ -317,6 +318,14 @@ class ReviewRepository:
                 ),
             )
         )
+        if include_profile:
+            stmt = stmt.options(
+                selectinload(Provider.doctor_profile),
+                selectinload(Provider.qualifications),
+                selectinload(Provider.provider_languages).selectinload(ProviderLanguage.language),
+                selectinload(Provider.doctor_visits),
+            )
+        return self._db.scalar(stmt)
 
     def get_totals(self, provider_id: UUID) -> tuple[float | None, int]:
         average, count = self._db.execute(
