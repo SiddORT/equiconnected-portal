@@ -285,16 +285,20 @@ export function AnalyticsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = validTab(searchParams.get('section'));
   const filters = useMemo(() => getFilters(searchParams), [searchParams]);
-  const requestFilters = useMemo(() => queryFor(filters, tab), [filters, tab]);
+  // URL pagination must not change the identity of section-report filters.
+  const requestFilterKey = JSON.stringify(queryFor(filters, tab));
+  const requestFilters = useMemo<AnalyticsFilters>(() => JSON.parse(requestFilterKey), [requestFilterKey]);
   const [status, setStatus] = useState<PageStatus>('loading');
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [series, setSeries] = useState<Record<string, AnalyticsSeries>>({});
   const [breakdowns, setBreakdowns] = useState<Record<string, AnalyticsBreakdowns>>({});
   const [ranking, setRanking] = useState<ProviderRankingResponse | null>(null);
+  const [rankingLoading, setRankingLoading] = useState(false);
+  const [rankingError, setRankingError] = useState<string | null>(null);
+  const [rankingRefresh, setRankingRefresh] = useState(0);
   const [partialError, setPartialError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [sortBy, setSortBy] = useState<AnalyticsSort>('profile_views');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -306,32 +310,52 @@ export function AnalyticsPage() {
   const [inventoryRequested, setInventoryRequested] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const requestSequence = useRef(0);
+  const rankingSequence = useRef(0);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Only retain the latest request for each panel, not a historical report cache.
+  const panelRequests = useRef(new Map<string, { key: string; promise: Promise<unknown> }>());
   const selectedTrend = domainSeries(tab).includes(trendChoice) ? trendChoice : domainSeries(tab)[0];
   const incompleteRange = filters.preset === 'custom' && (!filters.date_from || !filters.date_to);
   const reversedRange = filters.preset === 'custom' && !!filters.date_from && !!filters.date_to && filters.date_from > filters.date_to;
 
-  useEffect(() => setProviderSearch(filters.provider_search ?? ''), [filters.provider_search]);
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    setProviderSearch(filters.provider_search ?? '');
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [filters.provider_search, tab]);
 
   const updateQuery = useCallback((updates: Record<string, string | undefined>, resetPage = true) => {
+    if ('provider_search' in updates && searchTimer.current) clearTimeout(searchTimer.current);
     const next = new URLSearchParams(searchParams);
     Object.entries(updates).forEach(([key, value]) => value ? next.set(key, value) : next.delete(key));
     if (resetPage) next.delete('page');
     setSearchParams(next, { replace: true });
-    if (resetPage) setPage(1);
   }, [searchParams, setSearchParams]);
+  const latestQuery = useRef({ searchParams, updateQuery });
+  latestQuery.current = { searchParams, updateQuery };
+
+  const searchProviders = (value: string) => {
+    setProviderSearch(value);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      latestQuery.current.updateQuery({ provider_search: value || undefined });
+    }, 300);
+  };
 
   const load = useCallback(async (isRefresh = false) => {
     const requestId = ++requestSequence.current;
-    if (isRefresh) setRefreshing(true);
+    if (isRefresh) {
+      setRefreshing(true);
+      panelRequests.current.clear();
+    }
     else setStatus('loading');
     setError(null);
     setPartialError(null);
-    setRanking(null);
     if (incompleteRange || reversedRange) {
       setSummary(null);
       setSeries({});
       setBreakdowns({});
-      setRanking(null);
+      panelRequests.current.clear();
       setStatus('success');
       setRefreshing(false);
       return;
@@ -341,14 +365,29 @@ export function AnalyticsPage() {
     const domains = (TABS.find((item) => item.id === currentTab)?.domains ?? [])
       .filter((domain) => domain !== 'providers' || inventoryRequested);
     const metricKeys = selectedTrend ? [selectedTrend] : [];
+    const panel = <T,>(slot: string, params: AnalyticsFilters, fetch: () => Promise<T>, metric?: string): Promise<T> => {
+      const key = JSON.stringify([currentTab, params, metric]);
+      const cached = panelRequests.current.get(slot);
+      if (cached?.key === key) return cached.promise as Promise<T>;
+      const promise = fetch();
+      panelRequests.current.set(slot, { key, promise });
+      // A failed panel must be fetched again on retry, never cached as success.
+      void promise.catch(() => {
+        if (panelRequests.current.get(slot)?.promise === promise) panelRequests.current.delete(slot);
+      });
+      return promise;
+    };
     try {
-      const summaryPromise = getAnalyticsSummary(scoped);
-      const breakdownPromises = domains.map(async (domain) => [domain, await getAnalyticsBreakdowns(domain, queryForDomain(scoped, domain))] as const);
-      const seriesPromises = metricKeys.map(async (metric) => [metric, await getAnalyticsSeries(metric, queryForMetric(scoped, metric))] as const);
-      const rankingPromise = currentTab === 'providers' || currentTab === 'traffic'
-        ? getProviderRanking({ ...queryForDomain(scoped, 'providers'), page: Number(searchParams.get('page') ?? page), page_size: pageSize, sort: sortBy, sort_direction: sortDirection })
-        : Promise.resolve(null);
-      const results = await Promise.allSettled([summaryPromise, ...breakdownPromises, ...seriesPromises, rankingPromise]);
+      const summaryPromise = panel('summary', scoped, () => getAnalyticsSummary(scoped));
+      const breakdownPromises = domains.map(async (domain) => {
+        const params = queryForDomain(scoped, domain);
+        return [domain, await panel(`breakdown:${domain}`, params, () => getAnalyticsBreakdowns(domain, params))] as const;
+      });
+      const seriesPromises = metricKeys.map(async (metric) => {
+        const params = queryForMetric(scoped, metric);
+        return [metric, await panel('series', params, () => getAnalyticsSeries(metric, params), metric)] as const;
+      });
+      const results = await Promise.allSettled([summaryPromise, ...breakdownPromises, ...seriesPromises]);
       if (requestId !== requestSequence.current) return;
       const summaryResult = results[0];
       if (summaryResult.status === 'rejected') throw summaryResult.reason;
@@ -371,18 +410,6 @@ export function AnalyticsPage() {
           nextSeries[metric] = report;
         }
       });
-      const rankingResult = results[cursor];
-      if (rankingResult?.status === 'fulfilled') {
-        const rankingData = rankingResult.value as ProviderRankingResponse | null;
-        setRanking(rankingData);
-        if (rankingData && rankingData.meta.page !== Number(searchParams.get('page') ?? page)) {
-          setPage(rankingData.meta.page);
-          const next = new URLSearchParams(searchParams);
-          next.set('page', String(rankingData.meta.page));
-          setSearchParams(next, { replace: true });
-        }
-      }
-      else if ((currentTab === 'providers' || currentTab === 'traffic') && rankingResult?.status === 'rejected') setPartialError('Provider ranking could not be loaded. Other reporting panels may still be available.');
       const rejectedPanels = results.slice(1).filter((result) => result.status === 'rejected').length;
       if (rejectedPanels) setPartialError(`${rejectedPanels} report panel${rejectedPanels === 1 ? '' : 's'} could not be loaded. Retry to reload the affected data.`);
       setBreakdowns(nextBreakdowns);
@@ -395,12 +422,47 @@ export function AnalyticsPage() {
     } finally {
       if (requestId === requestSequence.current) setRefreshing(false);
     }
-  }, [page, pageSize, requestFilters, searchParams, setSearchParams, sortBy, sortDirection, tab, selectedTrend, incompleteRange, reversedRange, inventoryRequested]);
+  }, [requestFilters, tab, selectedTrend, incompleteRange, reversedRange, inventoryRequested]);
 
   useEffect(() => {
     void load();
     return () => { requestSequence.current += 1; };
   }, [load]);
+
+  const rankingEnabled = tab === 'providers' || tab === 'traffic';
+  const rankingFilterKey = JSON.stringify(queryForDomain(requestFilters, 'providers'));
+  const rankingFilters = useMemo<AnalyticsFilters>(() => JSON.parse(rankingFilterKey), [rankingFilterKey]);
+  const requestedPage = Number(searchParams.get('page') ?? 1);
+  useEffect(() => {
+    const requestId = ++rankingSequence.current;
+    setRanking(null);
+    setRankingError(null);
+    if (!rankingEnabled || incompleteRange || reversedRange) {
+      setRankingLoading(false);
+      return;
+    }
+    setRankingLoading(true);
+    void getProviderRanking({ ...rankingFilters, page: requestedPage, page_size: pageSize, sort: sortBy, sort_direction: sortDirection })
+      .then((report) => {
+        if (requestId !== rankingSequence.current) return;
+        setRanking(report);
+        if (report.meta.page !== requestedPage) {
+          latestQuery.current.updateQuery({ page: String(report.meta.page) }, false);
+        }
+      })
+      .catch(() => {
+        if (requestId === rankingSequence.current) setRankingError('Provider ranking could not be loaded. Other reporting panels may still be available.');
+      })
+      .finally(() => {
+        if (requestId === rankingSequence.current) setRankingLoading(false);
+      });
+    return () => { rankingSequence.current += 1; };
+  }, [rankingEnabled, tab, rankingFilters, requestedPage, pageSize, sortBy, sortDirection, rankingRefresh, incompleteRange, reversedRange]);
+
+  const refreshReports = () => {
+    setRankingRefresh((value) => value + 1);
+    void load(true);
+  };
 
   const selectedDomains = TABS.find((item) => item.id === tab)?.domains ?? [];
   const availableCharts = useMemo<ChartSpec[]>(() => Object.entries(breakdowns).flatMap(([domain, report]) => {
@@ -520,7 +582,7 @@ export function AnalyticsPage() {
           <div className={styles.controlsTop}>
             <div className={styles.scopeIntro}><span className={styles.eyebrow}>Reporting workspace</span><p>Date-scoped events stay separate from present-day snapshots.</p></div>
             <div className={styles.actions}>
-              <button type="button" className={styles.secondaryButton} disabled={refreshing || status === 'loading'} onClick={() => void load(true)}>{refreshing ? 'Refreshing…' : '↻ Refresh'}</button>
+              <button type="button" className={styles.secondaryButton} disabled={refreshing || status === 'loading' || rankingLoading} onClick={refreshReports}>{refreshing ? 'Refreshing…' : '↻ Refresh'}</button>
               <details className={styles.exportMenu}><summary>{exporting ? 'Preparing CSV…' : 'Export CSV'}</summary><div className={styles.exportOptions}>
                 {domainSeries(tab).map((metric) => <button type="button" key={metric} disabled={exporting} onClick={() => void exportClick('series', undefined, metric)}>Time series · {displayLabel(metric)}</button>)}
                 {selectedDomains.map((domain) => <button type="button" key={domain} disabled={exporting} onClick={() => void exportClick('breakdowns', domain)}>Breakdown · {domainTitle(domain)}</button>)}
@@ -561,7 +623,7 @@ export function AnalyticsPage() {
             {filterField('provider_type', 'Provider type', [['DOCTOR', 'Doctor'], ['CLINIC', 'Clinic'], ['HOSPITAL', 'Hospital']], supportsProviders)}
             {filterField('provider_status', 'Provider status', [['DRAFT', 'Draft'], ['UNDER_REVIEW', 'Under review'], ['ACTIVE', 'Active'], ['INACTIVE', 'Inactive']], ['providers', 'reviews'].includes(tab))}
             {filterField('publication_status', 'Publication', [['PUBLISHED', 'Published'], ['UNPUBLISHED', 'Unpublished']], ['providers', 'reviews'].includes(tab))}
-            {tab === 'reviews' && <label className={styles.filterField}>Provider name<input maxLength={100} value={filters.provider_search ?? ''} placeholder="Search providers" onChange={(event) => updateQuery({ provider_search: event.target.value || undefined })} /></label>}
+             {tab === 'reviews' && <label className={styles.filterField}>Provider name<input maxLength={100} value={providerSearch} placeholder="Search providers" onChange={(event) => searchProviders(event.target.value)} /></label>}
             {supportsProviders && <>
               {tab === 'providers' && <>
                 <label className={styles.filterField}>Listing country<input value={filters.country ?? ''} placeholder="Recorded country" onChange={(event) => updateQuery({ country: event.target.value || undefined })} /></label>
@@ -581,7 +643,11 @@ export function AnalyticsPage() {
             {filterField('subscriber_type', 'Subscriber type', [['VET', 'Vet'], ['HORSE_OWNER', 'Horse owner'], ['HOSPITAL', 'Hospital'], ['CLINIC', 'Clinic'], ['STABLE_MANAGER', 'Stable manager'], ['OTHER', 'Other']], supportsEngagement)}
             {tab === 'overview' && <p className={styles.filterScope}>Choose a detailed section to add filters. Existing section filters affect matching reports only.</p>}
             <p className={styles.filterScope}>Provider filters affect provider-linked reports only. Member filters affect registration cohorts; they do not narrow sitewide traffic.</p>
-            <button type="button" className={styles.resetButton} onClick={() => setSearchParams(new URLSearchParams(tab === 'overview' ? '' : `section=${tab}`), { replace: true })}>Reset filters</button>
+             <button type="button" className={styles.resetButton} onClick={() => {
+               if (searchTimer.current) clearTimeout(searchTimer.current);
+               setProviderSearch('');
+               setSearchParams(new URLSearchParams(tab === 'overview' ? '' : `section=${tab}`), { replace: true });
+             }}>Reset filters</button>
             </div>}
           </details>
           {summary && <div className={styles.metaLine}><span>{summary.period.date_from} – {summary.period.date_to} · <strong>{summary.timezone}</strong></span><span>Last refreshed <strong>{new Date(summary.refreshed_at).toLocaleString(undefined, { timeZone: summary.timezone, timeZoneName: 'short' })}</strong></span></div>}
@@ -589,13 +655,13 @@ export function AnalyticsPage() {
 
         <div role="tabpanel" id="analytics-panel" aria-labelledby={`analytics-tab-${tab}`} tabIndex={0} aria-busy={status === 'loading'}>
         {status === 'loading' && !summary && <div className={styles.loading}><div className={styles.skeletonBlock} /><div className={styles.skeletonGrid}><i /><i /><i /><i /></div><LoadingSpinner size="lg" label="Loading analytics reports…" /></div>}
-        {status === 'error' && !summary && <ErrorState title="Analytics unavailable" message={error ?? undefined} onRetry={() => void load()} />}
-        {partialError && <div className={styles.partialNotice} role="status"><span>{partialError}</span><button type="button" onClick={() => void load(true)}>Retry reports</button></div>}
+        {status === 'error' && !summary && <ErrorState title="Analytics unavailable" message={error ?? undefined} onRetry={refreshReports} />}
+        {partialError && <div className={styles.partialNotice} role="status"><span>{partialError}</span><button type="button" onClick={refreshReports}>Retry reports</button></div>}
         {status === 'loading' && summary && <div className={styles.updateNotice} role="status">Updating reports for the applied filters…</div>}
         {incompleteRange && <div className={styles.partialNotice} role="status">Choose both start and end dates in {summary?.timezone ?? 'the configured system timezone'} to run this custom range.</div>}
         {reversedRange && <div className={styles.partialNotice} role="status">The start date must be on or before the end date. Correct the dates to run this report.</div>}
         {summary && <>
-          {status === 'error' && <div className={styles.partialNotice} role="alert">{error} Showing the previous successful report, not updated results for the selected filters.<button type="button" onClick={() => void load(true)}>Retry summary</button></div>}
+          {status === 'error' && <div className={styles.partialNotice} role="alert">{error} Showing the previous successful report, not updated results for the selected filters.<button type="button" onClick={refreshReports}>Retry summary</button></div>}
           <section className={styles.metricGroup} aria-label="Headline metrics"><div className={`${styles.metricGrid} ${tab === 'overview' ? styles.overviewMetrics : ''}`}>{metrics.map((metric) => <MetricCard key={metric.key} metric={metric} eligibleCount={eligibleCountFor(metric)} />)}</div></section>
           {tab === 'overview' && <nav className={styles.sectionLinks} aria-label="Detailed analytics">
             {TABS.filter((item) => item.id !== 'overview').map((item) => <Link key={item.id} to={`?${new URLSearchParams({ ...Object.fromEntries(searchParams), section: item.id, page: '1' })}`}>{item.label} →</Link>)}
@@ -633,8 +699,8 @@ export function AnalyticsPage() {
             </>}
           </details>}
           {showProviderRanking && <>
-            {partialError && !ranking && <ErrorState title="Provider ranking unavailable" message={partialError} onRetry={() => void load(true)} />}
-            {(ranking || status === 'loading') && <ProviderRankingTable report={ranking} loading={status === 'loading'} search={providerSearch} onSearch={(value) => { setProviderSearch(value); updateQuery({ provider_search: value || undefined }); setPage(1); }} sortBy={sortBy} sortDirection={sortDirection} onSort={(key) => { setSortDirection(sortBy === key && sortDirection === 'desc' ? 'asc' : 'desc'); setSortBy(key); setPage(1); updateQuery({ page: undefined }, false); }} page={ranking?.meta.page ?? page} pageSize={ranking?.meta.page_size ?? pageSize} onPage={(value) => { setPage(value); updateQuery({ page: String(value) }, false); }} onPageSize={(value) => { setPageSize(value); setPage(1); updateQuery({ page: '1' }, false); }} />}
+            {rankingError && <ErrorState title="Provider ranking unavailable" message={rankingError} onRetry={() => setRankingRefresh((value) => value + 1)} />}
+            {!incompleteRange && !reversedRange && <ProviderRankingTable report={ranking} loading={rankingLoading} search={providerSearch} onSearch={searchProviders} sortBy={sortBy} sortDirection={sortDirection} onSort={(key) => { setSortDirection(sortBy === key && sortDirection === 'desc' ? 'asc' : 'desc'); setSortBy(key); updateQuery({ page: undefined }, false); }} page={ranking?.meta.page ?? requestedPage} pageSize={ranking?.meta.page_size ?? pageSize} onPage={(value) => updateQuery({ page: String(value) }, false)} onPageSize={(value) => { setPageSize(value); updateQuery({ page: '1' }, false); }} />}
           </>}
           {tab === 'registrations' && <p className={styles.drillLink}>Need the underlying account records? <Link to="/admin/users">Open registered users →</Link></p>}
           {tab === 'providers' && <p className={styles.drillLink}>Manage provider records <Link to="/admin/providers">Open provider directory →</Link> · <Link to="/admin/provider-applications">Review applications →</Link> · <Link to="/admin/invitations">Manage invitations →</Link></p>}

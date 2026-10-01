@@ -52,7 +52,7 @@ function renderPage(initial = '/admin/analytics') {
 }
 
 describe('AnalyticsPage', () => {
-  afterEach(cleanup);
+  afterEach(() => { cleanup(); vi.useRealTimers(); });
   beforeEach(() => {
     vi.clearAllMocks();
     api.getAnalyticsSummary.mockResolvedValue(sampleSummary);
@@ -302,7 +302,7 @@ describe('AnalyticsPage', () => {
     const initialSummaryCalls = api.getAnalyticsSummary.mock.calls.length;
     fireEvent.click(screen.getByText('View detailed reports'));
     await waitFor(() => expect(api.getAnalyticsBreakdowns.mock.calls.map(([domain]) => domain)).toContain('providers'));
-    await waitFor(() => expect(api.getAnalyticsSummary).toHaveBeenCalledTimes(initialSummaryCalls + 1));
+    expect(api.getAnalyticsSummary).toHaveBeenCalledTimes(initialSummaryCalls);
 
     const paramsFor = (domain: string) => api.getAnalyticsBreakdowns.mock.calls
       .filter(([calledDomain]) => calledDomain === domain)
@@ -498,5 +498,129 @@ describe('AnalyticsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Refresh/ }));
     await waitFor(() => expect(api.getAnalyticsSummary).toHaveBeenCalledTimes(initialCalls + 1));
     await waitFor(() => expect(api.getAnalyticsBreakdowns).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(api.getProviderRanking).toHaveBeenCalledTimes(2));
+  });
+
+  it.each(['providers', 'traffic'])('reloads only ranking for sort, page and page size in %s', async (section) => {
+    api.getProviderRanking.mockImplementation(async (params) => ({
+      data: [], meta: { page: params.page, page_size: params.page_size, total: 100, total_pages: 10 },
+      period: sampleSummary.period, timezone: 'America/Toronto', coverage: { available: true },
+    }));
+    renderPage(`/admin/analytics?section=${section}&page=2&provider_type=CLINIC&preset=last_7_days`);
+    await screen.findByRole('region', { name: 'Headline metrics' });
+    await waitFor(() => expect(api.getProviderRanking).toHaveBeenCalledTimes(1));
+    const counts = [api.getAnalyticsSummary.mock.calls.length, api.getAnalyticsSeries.mock.calls.length, api.getAnalyticsBreakdowns.mock.calls.length];
+    fireEvent.click(screen.getByRole('button', { name: 'Next →' }));
+    await waitFor(() => expect(api.getProviderRanking).toHaveBeenLastCalledWith(expect.objectContaining({ page: 3 })));
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by Provider' }));
+    await waitFor(() => expect(api.getProviderRanking).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, sort: 'name' })));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Rows per page' }), { target: { value: '25' } });
+    await waitFor(() => expect(api.getProviderRanking).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, page_size: 25, provider_type: 'CLINIC', preset: 'last_7_days' })));
+    expect([api.getAnalyticsSummary.mock.calls.length, api.getAnalyticsSeries.mock.calls.length, api.getAnalyticsBreakdowns.mock.calls.length]).toEqual(counts);
+    expect(screen.queryByText('Updating reports for the applied filters…')).toBeNull();
+    expect(screen.getByTestId('location').textContent).toContain('provider_type=CLINIC');
+  });
+
+  it('debounces typing, merges the latest URL filters and reloads only search-scoped panels', async () => {
+    renderPage('/admin/analytics?section=providers&provider_type=CLINIC');
+    await screen.findByRole('link', { name: 'Northfield Equine' });
+    const breakdownCalls = api.getAnalyticsBreakdowns.mock.calls.length;
+    const seriesCalls = api.getAnalyticsSeries.mock.calls.length;
+    const rankingCalls = api.getProviderRanking.mock.calls.length;
+    vi.useFakeTimers();
+    const search = screen.getByRole('textbox', { name: 'Search providers' });
+    fireEvent.change(search, { target: { value: 'N' } });
+    await act(async () => { vi.advanceTimersByTime(200); });
+    fireEvent.change(search, { target: { value: 'North' } });
+    fireEvent.change(screen.getByLabelText('Group by'), { target: { value: 'weekly' } });
+    await act(async () => { vi.advanceTimersByTime(299); });
+    expect(api.getProviderRanking.mock.calls.slice(-1)[0]?.[0]).not.toHaveProperty('provider_search');
+    expect((search as HTMLInputElement).value).toBe('North');
+    await act(async () => { vi.advanceTimersByTime(1); });
+    expect(api.getProviderRanking).toHaveBeenLastCalledWith(expect.objectContaining({ provider_search: 'North', page: 1, provider_type: 'CLINIC', group_by: 'weekly' }));
+    expect(api.getProviderRanking).toHaveBeenCalledTimes(rankingCalls + 2); // grouping, then committed search
+    expect(api.getAnalyticsBreakdowns).toHaveBeenCalledTimes(breakdownCalls + 2); // grouping only
+    expect(api.getAnalyticsSeries).toHaveBeenCalledTimes(seriesCalls + 1);
+    expect(screen.getByTestId('location').textContent).toContain('provider_search=North');
+    expect(screen.getByTestId('location').textContent).not.toContain('page=');
+    vi.useRealTimers();
+    fireEvent.click(screen.getByText('Export CSV'));
+    fireEvent.click(screen.getByRole('button', { name: 'Provider ranking' }));
+    await waitFor(() => expect(api.exportAnalytics).toHaveBeenCalledWith(expect.objectContaining({ provider_search: 'North', provider_type: 'CLINIC', group_by: 'weekly', sort: 'profile_views', sort_direction: 'desc' })));
+  });
+
+  it('reloads search-scoped traffic reports but reuses the sitewide trend', async () => {
+    renderPage('/admin/analytics?section=traffic');
+    await screen.findByRole('link', { name: 'Northfield Equine' });
+    vi.useFakeTimers();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search providers' }), { target: { value: 'North' } });
+    await act(async () => { vi.advanceTimersByTime(300); });
+    expect(api.getAnalyticsSummary).toHaveBeenCalledTimes(2);
+    expect(api.getAnalyticsBreakdowns).toHaveBeenLastCalledWith('traffic', expect.objectContaining({ provider_search: 'North' }));
+    expect(api.getAnalyticsSeries).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+    fireEvent.change(screen.getByLabelText('Trend metric'), { target: { value: 'provider_profile_views' } });
+    await waitFor(() => expect(api.getAnalyticsSeries).toHaveBeenLastCalledWith('provider_profile_views', expect.objectContaining({ provider_search: 'North' })));
+    expect(api.getAnalyticsSummary).toHaveBeenCalledTimes(2);
+    expect(api.getProviderRanking).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps section reports visible while ranking is pending, and ignores stale ranking pages and errors', async () => {
+    const initial = await api.getProviderRanking();
+    api.getProviderRanking.mockClear();
+    let resolveOld!: (value: typeof initial) => void;
+    let rejectOld!: (reason: Error) => void;
+    api.getProviderRanking.mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve; }));
+    renderPage('/admin/analytics?section=providers&page=2');
+    expect(await screen.findByText('Current listed providers')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Northfield Equine' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by Provider' }));
+    expect(await screen.findByRole('link', { name: 'Northfield Equine' })).toBeTruthy();
+    await act(async () => { resolveOld({ ...initial, data: [{ ...initial.data[0], name: 'Stale provider' }], meta: { ...initial.meta, page: 2 } }); });
+    expect(screen.queryByText('Stale provider')).toBeNull();
+    expect(screen.getByTestId('location').textContent).not.toContain('page=2');
+    api.getProviderRanking.mockImplementationOnce(() => new Promise((_, reject) => { rejectOld = reject; }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by Provider' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Rows per page' }), { target: { value: '25' } });
+    await screen.findByRole('link', { name: 'Northfield Equine' });
+    await act(async () => { rejectOld(new Error('Old failure')); });
+    expect(screen.queryByText('Provider ranking unavailable')).toBeNull();
+    expect(api.getAnalyticsSummary).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries ranking failures independently and preserves section failures on ranking changes', async () => {
+    api.getProviderRanking.mockRejectedValueOnce(new Error('Ranking unavailable'));
+    api.getAnalyticsSeries.mockRejectedValueOnce(new Error('Trend unavailable'));
+    renderPage('/admin/analytics?section=traffic');
+    await screen.findByText('Provider ranking unavailable');
+    expect(screen.getByText(/report panel.*could not be loaded/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await screen.findByRole('link', { name: 'Northfield Equine' });
+    expect(api.getAnalyticsSummary).toHaveBeenCalledTimes(1);
+    expect(api.getAnalyticsSeries).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/report panel.*could not be loaded/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry reports' }));
+    await waitFor(() => expect(api.getAnalyticsSeries).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText(/report panel.*could not be loaded/)).toBeNull());
+    expect(api.getProviderRanking).toHaveBeenCalledTimes(3);
+  });
+
+  it('cancels pending provider typing when leaving the section or resetting filters', async () => {
+    renderPage('/admin/analytics?section=providers');
+    await screen.findByRole('link', { name: 'Northfield Equine' });
+    vi.useFakeTimers();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search providers' }), { target: { value: 'North' } });
+    fireEvent.click(screen.getByRole('tab', { name: 'Members' }));
+    await act(async () => { vi.advanceTimersByTime(300); });
+    expect(screen.getByTestId('location').textContent).not.toContain('provider_search');
+    fireEvent.click(screen.getByRole('tab', { name: 'Providers' }));
+    await act(async () => {});
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search providers' }), { target: { value: 'North' } });
+    fireEvent.click(screen.getByText('More filters'));
+    await act(async () => { vi.advanceTimersByTime(0); });
+    fireEvent.click(screen.getByRole('button', { name: 'Reset filters' }));
+    await act(async () => { vi.advanceTimersByTime(300); });
+    expect(screen.getByTestId('location').textContent).not.toContain('provider_search');
+    expect((screen.getByRole('textbox', { name: 'Search providers' }) as HTMLInputElement).value).toBe('');
   });
 });
