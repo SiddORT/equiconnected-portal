@@ -172,6 +172,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const stepOrder = providerType === 'DOCTOR' ? [0, 1, 2, 3, 4] : [0, 2, 3, 4];
   const wizardPosition = stepOrder.indexOf(wizardStep);
   const [name, setName] = useState(inv?.initial.name ?? initialData?.name ?? '');
+  const [description, setDescription] = useState(initialData?.description ?? '');
   const [website, setWebsite] = useState(inv?.initial.website ?? initialData?.website ?? '');
   const [phoneEntries, setPhoneEntries] = useState<PhoneEntry[]>(() => {
     if (inv) {
@@ -709,6 +710,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           provider_type: providerType as ProviderType,
           name: name.trim(),
           website: website.trim() || null,
+          ...(providerType !== 'DOCTOR' ? { description: description.trim() || null } : {}),
           years_experience: yearsExperience.trim() ? Number(yearsExperience) : null,
           ...(initialData.visit_stability === 'STABLE_VISIT' && initialData.maximum_working_radius_km == null &&
             visitStability === 'STABLE_VISIT' && !maximumRadius.trim()
@@ -874,6 +876,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           admin_form_version: 2,
           provider_type: providerType as ProviderType,
           name: name.trim(),
+          ...(providerType !== 'DOCTOR' ? { description: description.trim() || null } : {}),
           visit_stability: visitStability as VisitStability,
           website: website.trim() || null,
           years_experience: yearsExperience.trim() ? Number(yearsExperience) : null,
@@ -1046,6 +1049,19 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             value={website}
             onChange={(e) => setWebsite(e.target.value)}
           />
+          {wizard && (providerType === 'CLINIC' || providerType === 'HOSPITAL') && (
+            <FormField label="Description" optional htmlFor="provider-description">
+              <textarea
+                id="provider-description"
+                className={styles.textarea}
+                placeholder="Share a short overview of the clinic or hospital…"
+                rows={4}
+                maxLength={5000}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </FormField>
+          )}
           {wizard && (
             <div className={styles.basicSelections}>
               <SignupMultiSelect
@@ -1492,6 +1508,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             { title: 'Basic details', step: 0, items: [
               { label: 'Provider type', value: PROVIDER_TYPE_OPTIONS.find((option) => option.value === providerType)?.label ?? '' },
               { label: 'Name', value: name.trim() },
+              ...(providerType === 'CLINIC' || providerType === 'HOSPITAL'
+                ? [{ label: 'Description', value: description.trim() }]
+                : []),
               { label: 'Website', value: website.trim() },
               { label: 'Photo', value: photoPreview
                 ? <img className={wizardStyles.reviewPhoto} src={photoPreview} alt={photo ? `Selected profile photo: ${photo.name}` : 'Current provider profile photo'} />

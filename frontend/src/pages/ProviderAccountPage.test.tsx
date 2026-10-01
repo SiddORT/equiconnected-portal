@@ -84,6 +84,56 @@ function LocationProbe() {
 }
 
 describe('ProviderAccountPage', () => {
+  it('hides general description for doctors and leaves it out of profile saves', async () => {
+    const profile = {
+      ...portalProfile,
+      doctor_fields_available: true,
+      editable_profile: {
+        ...portalProfile.editable_profile,
+        description: 'Historical doctor description',
+        biography: 'Doctor biography',
+      },
+    };
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(profile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(profile);
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await screen.findByLabelText('Biography');
+    expect(screen.queryByLabelText('Description')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalled());
+    const body = vi.mocked(providersApi.updateProviderPortalProfile).mock.calls[0][0];
+    expect(body).not.toHaveProperty('description');
+    expect(body.biography).toBe('Doctor biography');
+  });
+
+  it.each(['Clinic', 'Hospital'])('keeps description editable for a %s profile', async (type) => {
+    const profile = {
+      ...portalProfile,
+      name: `${type} profile`,
+      editable_profile: { ...portalProfile.editable_profile, description: `${type} description` },
+    };
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(profile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(profile);
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    const description = await screen.findByLabelText('Description') as HTMLTextAreaElement;
+    expect(description.value).toBe(`${type} description`);
+    fireEvent.change(description, { target: { value: `Updated ${type} description` } });
+    await userEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ description: `Updated ${type} description` })
+    ));
+
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: '' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenLastCalledWith(
+      expect.objectContaining({ description: null })
+    ));
+  });
+
   it.each(['CLINIC', 'HOSPITAL'] as const)(
     'prefills and saves zero years of experience from the %s editable profile',
     async () => {

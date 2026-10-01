@@ -124,6 +124,7 @@ export function ProviderAccountPage() {
         photos,
       };
       if (profile?.doctor_fields_available) {
+        delete body.description;
         body.qualifications = qualifications;
       } else {
         delete body.professional_title;
@@ -307,9 +308,11 @@ export function ProviderAccountPage() {
             <h2>Your profile</h2>
             <p className={styles.hint}>Welcome, {user?.full_name ?? 'provider'}. Unpublished listings save immediately. Changes to published listings are held for administrator review; publication and operational controls are never available here.</p>
             <Input label="Provider or practice name" id="portal-name" value={form.name ?? ''} onChange={(e) => update('name', e.target.value)} disabled={saving} required />
-            <label className={styles.field}>Description
-              <textarea className={styles.textarea} rows={5} value={form.description ?? ''} onChange={(e) => update('description', e.target.value || null)} disabled={saving} maxLength={5000} />
-            </label>
+            {!profile.doctor_fields_available && (
+              <label className={styles.field}>Description
+                <textarea className={styles.textarea} rows={5} value={form.description ?? ''} onChange={(e) => update('description', e.target.value || null)} disabled={saving} maxLength={5000} />
+              </label>
+            )}
             <div className={styles.choice}>
               <Input label="Public email" id="portal-email" type="email" value={form.email ?? ''} onChange={(e) => update('email', e.target.value || null)} disabled={saving} />
               <Input label="Public phone" id="portal-phone" value={form.phone ?? ''} onChange={(e) => update('phone', e.target.value || null)} disabled={saving} />

@@ -188,18 +188,82 @@ describe('ProviderForm visit stability', () => {
     expect(save.mock.calls[0][0]).not.toHaveProperty('description');
   });
 
-  it('keeps a saved description untouched when editing a provider', async () => {
-    vi.mocked(updateProvider).mockResolvedValue(existingProvider());
-    vi.mocked(getProvider).mockResolvedValue(existingProvider());
-    const user = userEvent.setup();
-    render(<MemoryRouter><ProviderForm initialData={existingProvider({ description: 'Existing description' })} /></MemoryRouter>);
-    expect(screen.queryByLabelText('Description')).toBeNull();
-    await reachEditReview(user);
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
-    await waitFor(() => expect(updateProvider).toHaveBeenCalled());
-    expect(vi.mocked(updateProvider).mock.calls[0][1]).not.toHaveProperty('description');
-  });
+  it.each(['CLINIC', 'HOSPITAL'] as const)(
+    'creates a %s with its general description in the review and payload',
+    async (providerType) => {
+      vi.mocked(createProvider).mockResolvedValue({ id: 'new-provider', photos: [] } as unknown as Provider);
+      const user = userEvent.setup();
+      render(<ProviderForm />);
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Provider type' }), providerType);
+      await user.type(screen.getByLabelText('Provider / practice name'), 'North Star');
+      const description = screen.getByLabelText(/Description/) as HTMLTextAreaElement;
+      expect(description.maxLength).toBe(5000);
+      await user.type(description, 'A welcoming local care team.');
+      await user.click(screen.getByRole('button', { name: 'Continue' }));
+      await finishClinicWizard(user);
+
+      expect(screen.getByText('A welcoming local care team.')).toBeTruthy();
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
+      await user.click(screen.getByRole('button', { name: 'Create provider' }));
+      await waitFor(() => expect(createProvider).toHaveBeenCalledWith(expect.objectContaining({
+        provider_type: providerType,
+        description: 'A welcoming local care team.',
+      })));
+    }
+  );
+
+  it.each(['CLINIC', 'HOSPITAL'] as const)(
+    'prefills and saves an edited %s description',
+    async (providerType) => {
+      const provider = existingProvider({ provider_type: providerType, description: 'Existing description' });
+      vi.mocked(updateProvider).mockResolvedValue(provider);
+      vi.mocked(getProvider).mockResolvedValue(provider);
+      const user = userEvent.setup();
+      render(<MemoryRouter><ProviderForm initialData={provider} /></MemoryRouter>);
+      await reachEditReview(user);
+
+      expect(screen.getByText('Existing description')).toBeTruthy();
+      await user.click(screen.getByRole('button', { name: 'Edit Basic details' }));
+      const description = screen.getByLabelText(/Description/) as HTMLTextAreaElement;
+      expect(description.value).toBe('Existing description');
+      await user.clear(description);
+      await user.type(description, 'Updated description');
+      await user.click(screen.getByRole('button', { name: 'Continue' }));
+      await user.click(screen.getByRole('button', { name: 'Continue' }));
+      await user.click(screen.getByRole('button', { name: 'Continue' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+      await waitFor(() => expect(updateProvider).toHaveBeenCalledWith(
+        'provider-1',
+        expect.objectContaining({ description: 'Updated description' })
+      ));
+    }
+  );
+
+  it.each(['CLINIC', 'HOSPITAL'] as const)(
+    'sends null when the existing %s description is explicitly cleared',
+    async (providerType) => {
+      const provider = existingProvider({ provider_type: providerType, description: 'Remove this description' });
+      vi.mocked(updateProvider).mockResolvedValue(provider);
+      vi.mocked(getProvider).mockResolvedValue(provider);
+      const user = userEvent.setup();
+      render(<ProviderForm initialData={provider} />);
+      await reachEditReview(user);
+      await user.click(screen.getByRole('button', { name: 'Edit Basic details' }));
+      await user.clear(screen.getByLabelText(/Description/));
+      await user.click(screen.getByRole('button', { name: 'Continue' }));
+      await user.click(screen.getByRole('button', { name: 'Continue' }));
+      await user.click(screen.getByRole('button', { name: 'Continue' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+      await waitFor(() => expect(updateProvider).toHaveBeenCalledWith(
+        'provider-1',
+        expect.objectContaining({ description: null })
+      ));
+    }
+  );
   it('prefills the invitation recipient and keeps an explicitly removed address out of the draft', async () => {
     const onSaveDraft = vi.fn().mockResolvedValue(undefined);
     const user = userEvent.setup();
@@ -931,6 +995,52 @@ describe('ProviderForm visit stability', () => {
 });
 
 describe('ProviderForm edit wizard', () => {
+  it('keeps legacy Doctor descriptions hidden and omitted from admin update payloads', async () => {
+    const provider = existingProvider({
+      provider_type: 'DOCTOR',
+      description: 'Legacy description',
+    });
+    vi.mocked(updateProvider).mockResolvedValue(provider);
+    vi.mocked(getProvider).mockResolvedValue(provider);
+    const user = userEvent.setup();
+    render(<ProviderForm initialData={provider} />);
+    expect(screen.queryByLabelText('Description')).toBeNull();
+    await reachEditReview(user, true);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(updateProvider).toHaveBeenCalled());
+    expect(vi.mocked(updateProvider).mock.calls[0][1]).not.toHaveProperty('description');
+  });
+
+  it('omits a hospital description when the provider type is switched to Doctor', async () => {
+    const provider = existingProvider({
+      provider_type: 'HOSPITAL',
+      description: 'Hospital description',
+    });
+    vi.mocked(updateProvider).mockResolvedValue(provider);
+    vi.mocked(getProvider).mockResolvedValue(provider);
+    const user = userEvent.setup();
+    render(<ProviderForm initialData={provider} />);
+    expect((screen.getByLabelText(/Description/) as HTMLTextAreaElement).value).toBe('Hospital description');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Provider type' }), 'DOCTOR');
+    expect(screen.queryByLabelText('Description')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.type(screen.getByLabelText('First name'), 'Amina');
+    await user.type(screen.getByLabelText('Last name'), 'Khan');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(updateProvider).toHaveBeenCalledWith(
+      'provider-1',
+      expect.objectContaining({ provider_type: 'DOCTOR' })
+    ));
+    expect(vi.mocked(updateProvider).mock.calls[0][1]).not.toHaveProperty('description');
+  });
+
   it.each(['CLINIC', 'HOSPITAL'] as const)(
     'prefills and updates zero years of experience when editing a %s',
     async (providerType) => {
@@ -1275,6 +1385,8 @@ describe('Task 209 doctor availability and initial visit UI', () => {
       provider_type: 'DOCTOR',
       doctor_availability: 'VISITING',
     })));
+    expect(screen.queryByLabelText('Description')).toBeNull();
+    expect(vi.mocked(createProvider).mock.calls[0][0]).not.toHaveProperty('description');
     expect(vi.mocked(createProvider).mock.calls[0][0]).not.toHaveProperty('initial_visit');
   });
 
