@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LocationMarker } from '@/types';
@@ -81,6 +82,63 @@ afterEach(() => {
 });
 
 describe('DashboardMap', () => {
+  it('identifies only the origin for standard OSM tiles while retaining attribution and zoom limits', () => {
+    render(<DashboardMap markers={markers} />);
+
+    expect(leaflet.tileLayer).toHaveBeenCalledWith(
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      {
+        maxZoom: 19,
+        referrerPolicy: 'strict-origin',
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      },
+    );
+    expect(leaflet.tileLayer.mock.results[0].value.addTo).toHaveBeenCalledWith(leaflet.mapInstance);
+    expect(leaflet.map).toHaveBeenCalledWith(expect.any(HTMLElement), { scrollWheelZoom: false });
+  });
+
+  it('keeps the actual document policy at no-referrer for other resources', () => {
+    const documentHtml = new DOMParser().parseFromString(readFileSync('index.html', 'utf8'), 'text/html');
+    const policies = documentHtml.querySelectorAll('meta[name="referrer"]');
+    expect(policies).toHaveLength(1);
+    expect(policies[0].getAttribute('content')).toBe('no-referrer');
+  });
+
+  it('retains marker colors, escaped popups, primary labels, and padded bounds', () => {
+    render(<DashboardMap markers={[
+      { ...markers[0], provider_name: '<Hospital & "Care">', location_name: '<Campus>', address: '<Street>' },
+      ...markers.slice(1),
+    ]} />);
+
+    expect(leaflet.circleMarker.mock.calls.map(([, options]) => options)).toEqual(
+      ['#dc2626', '#2563eb', '#059669'].map((fillColor) => ({
+        radius: 9, color: '#ffffff', weight: 2, fillColor, fillOpacity: 0.9,
+      })),
+    );
+    expect(leaflet.circleMarker.mock.results[0].value.bindPopup).toHaveBeenCalledWith(
+      '<strong>&lt;Hospital &amp; &quot;Care&quot;&gt;</strong><br/>' +
+      'Hospital — &lt;Campus&gt;<br/>&lt;Street&gt;<br/><em>Primary location</em>',
+    );
+    expect(leaflet.circleMarker.mock.results[1].value.bindPopup).toHaveBeenCalledWith(
+      '<strong>Downtown Clinic</strong><br/>Clinic<br/>2 Clinic Street',
+    );
+    expect(leaflet.latLngBounds.mock.results[0].value.extend.mock.calls).toEqual(
+      markers.map((marker) => [[marker.latitude, marker.longitude]]),
+    );
+    expect(leaflet.mapInstance.fitBounds).toHaveBeenCalledWith(
+      leaflet.latLngBounds.mock.results[0].value, { padding: [32, 32] },
+    );
+  });
+
+  it('centers a single location at zoom 12 and removes the map on unmount', () => {
+    const { unmount } = render(<DashboardMap markers={[markers[0]]} />);
+    expect(leaflet.mapInstance.setView).toHaveBeenCalledWith([0, 0], 12);
+    expect(leaflet.mapInstance.fitBounds).not.toHaveBeenCalled();
+    unmount();
+    expect(leaflet.mapInstance.remove).toHaveBeenCalledOnce();
+  });
+
   it('shows all provider types and markers by default', () => {
     render(<DashboardMap markers={markers} />);
 
@@ -105,6 +163,7 @@ describe('DashboardMap', () => {
 
     await user.click(screen.getByRole('button', { name: 'Hide Clinic locations' }));
     expect(leaflet.circleMarker).toHaveBeenCalledTimes(6);
+    expect(leaflet.mapInstance.setView).toHaveBeenLastCalledWith([0, 0], 12);
     expect(screen.getByRole('button', { name: 'Hide Doctor locations' }).getAttribute('aria-pressed')).toBe('true');
     expect(leaflet.circleMarker.mock.calls[leaflet.circleMarker.mock.calls.length - 1][0]).toEqual([
       markers[2].latitude,
@@ -123,6 +182,14 @@ describe('DashboardMap', () => {
     expect(screen.getByRole('status').textContent).toContain('No visible locations');
     expect(screen.getByText('Select a provider type to show its locations on the map.')).toBeTruthy();
     expect(leaflet.circleMarker).toHaveBeenCalledTimes(6);
+    expect(leaflet.mapInstance.fitBounds).toHaveBeenLastCalledWith(
+      leaflet.latLngBounds.mock.results[leaflet.latLngBounds.mock.results.length - 1].value,
+      { padding: [32, 32] },
+    );
+    await user.click(screen.getByRole('button', { name: 'Show Hospital locations' }));
+    expect(screen.queryByText('No visible locations')).toBeNull();
+    expect(leaflet.circleMarker).toHaveBeenCalledTimes(7);
+    expect(leaflet.mapInstance.setView).toHaveBeenLastCalledWith([0, 0], 12);
   });
 
   it('keeps the original empty state when no locations have coordinates', () => {
@@ -130,5 +197,7 @@ describe('DashboardMap', () => {
 
     expect(screen.getByRole('status').textContent).toContain('No mappable locations');
     expect(screen.queryByRole('group', { name: 'Filter provider locations by type' })).toBeNull();
+    expect(leaflet.map).not.toHaveBeenCalled();
+    expect(leaflet.tileLayer).not.toHaveBeenCalled();
   });
 });

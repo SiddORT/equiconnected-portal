@@ -46,3 +46,4 @@
 - [First-password recovery](first-password-recovery.md) — a lost setup response may follow a successful commit; offer sign-in as well as retry without declaring the link invalid.
 - [Analytics coverage evidence](analytics-coverage-evidence.md) — surviving event dates do not establish complete historical collection coverage.
 - [Submitted application history](submitted-application-history.md) — distinguish missing legacy answers from explicit false/zero, and retain inactive selected catalog names.
+- [Tile referrer diagnosis](tile-referrer-diagnosis.md) — missing Referer is a policy mismatch, not conclusive proof of an external block; verify real browser traffic.

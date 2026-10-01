@@ -68,6 +68,9 @@ export function DashboardMap({ markers }: DashboardMapProps) {
 
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
+      // Identify website tile traffic without exposing admin paths or query tokens.
+      // Other resources retain the document-wide no-referrer policy.
+      referrerPolicy: 'strict-origin',
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
