@@ -61,6 +61,32 @@ an earlier unseen received message read. Inbox/thread pagination and send limits
 are database-backed; conversation message sequences serialize concurrent sends.
 Responses never reveal whether an unrelated conversation ID exists.
 
+## Consented provider conversation labels
+
+Inbox items and thread conversation summaries include the compatible nullable
+`member_name` field (clients may also receive an omitted field from older servers).
+Only the currently authorized, original provider participant receives a non-null
+value. It is the trimmed usable string name in the saved encrypted contact
+snapshot, with recorded `contact_consent_at`, not the member's live profile.
+Existing snapshots work without resubmission or backfill; later profile edits
+never replace the historical shared name.
+
+For members this field is null and labels continue to use `provider_name`.
+Without recorded consent the provider receives null and no thread contact
+snapshot. A readable snapshot with a missing, non-string, or blank name produces
+null; the provider interface uses “Member conversation” consistently. It must
+never substitute email, phone, profile data, or another participant's identity.
+Inbox summaries contain no other contact fields. Label decryption happens only
+for the requested authorized page; thread reads decrypt the contact once and
+reuse it for the summary.
+
+Missing/invalid keys and unknown key IDs retain the safe HTTP 503
+`messaging_encryption_unavailable` response. Unauthenticated ciphertext and
+invalid JSON/object snapshots retain HTTP 503 `message_content_unavailable`,
+without identity fallback. Names are not stored as plaintext labels, added to
+notifications/logs/analytics, or exposed through public/admin APIs. Existing
+participant and original-owner checks apply before name decryption.
+
 ## Durable notification outbox
 
 Every accepted new message creates its notification intent(s) in the same

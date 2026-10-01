@@ -28,6 +28,10 @@ function formatMessageDate(value: string) {
     : timestamp.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+function memberConversationName(conversation: PrivateConversationSummary) {
+  return conversation.member_name?.trim() || 'Member conversation';
+}
+
 function displayName(profile: MemberProfile | null) {
   return [profile?.first_name, profile?.last_name].filter((part) => part?.trim()).join(' ').trim();
 }
@@ -150,7 +154,7 @@ function InboxList({
           ? <p className={styles.muted}>Your inbox is empty. Conversations will appear here when a message is sent.</p>
           : <ul className={styles.conversationList}>
             {inbox.items.map((item: PrivateConversationSummary) => {
-              const title = role === 'member' ? item.provider_name : item.member_name;
+              const title = role === 'member' ? item.provider_name : memberConversationName(item);
               return (
                 <li key={item.id}>
                   <Link
@@ -158,7 +162,7 @@ function InboxList({
                     className={`${styles.conversationLink} ${conversationId === item.id ? styles.selectedConversation : ''}`}
                     aria-current={conversationId === item.id ? 'page' : undefined}
                   >
-                    <span className={styles.conversationTitle}>{title || (role === 'member' ? 'Provider conversation' : 'Member conversation')}</span>
+                    <span className={styles.conversationTitle}>{title || 'Provider conversation'}</span>
                     {item.last_message_at && <time dateTime={item.last_message_at}>{formatMessageDate(item.last_message_at)}</time>}
                     {item.unread_count > 0 && <span className={styles.unreadPill} aria-label={`${item.unread_count} unread messages`}>{item.unread_count > 99 ? '99+' : item.unread_count} unread</span>}
                     {item.notifications_failed && <span className={styles.notificationStatus}>Email notice failed</span>}
@@ -217,7 +221,9 @@ function Thread({
               key={`${message.sequence}-${message.id}`}
             >
               <div className={styles.messageHeading}>
-                <strong>{ownMessage ? 'You' : (role === 'member' ? conversation.conversation.provider_name : contact?.name) || (role === 'member' ? 'Provider' : 'Member')}</strong>
+                <strong>{ownMessage ? 'You' : (role === 'member'
+                  ? conversation.conversation.provider_name || 'Provider'
+                  : memberConversationName(conversation.conversation))}</strong>
                 <time dateTime={message.created_at}>{formatMessageDate(message.created_at)}</time>
               </div>
               <p>{message.body}</p>
@@ -740,7 +746,7 @@ function PrivateMessagesPage({ role }: { role: PortalRole }) {
                       ? <>
                         <div className={styles.threadHeader}>
                           <p className={styles.eyebrow}>Private conversation</p>
-                          <h2>{role === 'member' ? conversation.conversation.provider_name || routeTitle : conversation.contact?.name || 'Member conversation'}</h2>
+                          <h2>{role === 'member' ? conversation.conversation.provider_name || routeTitle : memberConversationName(conversation.conversation)}</h2>
                         </div>
                         {conversation.conversation.notifications_failed && (
                           <p className={styles.notificationNote} role="status">

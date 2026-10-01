@@ -85,12 +85,14 @@ function makeMessage(sequence: number, sender_side: 'member' | 'provider' = 'mem
 function makeThread(
   messages = [makeMessage(1), makeMessage(2, 'provider', 'We will be in touch.')],
   nextBeforeSequence: number | null = null,
+  options: { id?: string; memberName?: string | null } = {},
 ) {
   return {
     conversation: {
-      id: 'conversation-1',
+      id: options.id ?? 'conversation-1',
       provider_id: 'provider-1',
       provider_name: 'Ranch Equine Care',
+      ...(options.memberName === undefined ? {} : { member_name: options.memberName }),
       last_message_at: '2026-08-31T12:02:00Z',
       unread_count: 1,
       last_sequence: messages[messages.length - 1]?.sequence ?? 0,
@@ -100,6 +102,19 @@ function makeThread(
     contact,
     next_before_sequence: nextBeforeSequence,
     unread_count: 1,
+  };
+}
+
+function makeSummary(id: string, memberName?: string | null, unreadCount = 0) {
+  return {
+    id,
+    provider_id: 'provider-1',
+    provider_name: 'Ranch Equine Care',
+    ...(memberName === undefined ? {} : { member_name: memberName }),
+    last_message_at: '2026-08-31T12:02:00Z',
+    unread_count: unreadCount,
+    last_sequence: 2,
+    notifications_failed: false,
   };
 }
 
@@ -272,6 +287,106 @@ describe('private member and provider messaging', () => {
       vi.mocked(messagesApi.replyToPrivateConversation).mock.calls[1][1],
     );
     expect(await screen.findByRole('button', { name: 'Send reply' })).toBeTruthy();
+  });
+
+  it('keeps each provider conversation name attached to its saved thread across navigation and reload', async () => {
+    const user = userEvent.setup();
+    const namedItems = [
+      makeSummary('conversation-1', 'Saved Member One', 3),
+      makeSummary('conversation-2', 'Saved Member Two', 1),
+    ];
+    vi.mocked(messagesApi.listPrivateConversations).mockResolvedValue({
+      items: namedItems,
+      page: 1,
+      page_size: 20,
+      total: 2,
+    });
+    vi.mocked(messagesApi.getPrivateConversation).mockImplementation(async (id) => makeThread(
+      [makeMessage(1, 'member', 'A message from this member.'), makeMessage(2, 'provider')],
+      null,
+      { id, memberName: id === 'conversation-2' ? 'Saved Member Two' : 'Saved Member One' },
+    ));
+
+    const view = renderProviderMessages('/provider/messages');
+    expect(await screen.findByRole('link', { name: /Saved Member One/ })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Saved Member Two/ })).toBeTruthy();
+    expect(screen.getByLabelText('3 unread messages')).toBeTruthy();
+    await user.click(screen.getByRole('link', { name: /Saved Member Two/ }));
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'Saved Member Two' })).toBeTruthy();
+    const incoming = screen.getByText('A message from this member.').closest('li');
+    expect(incoming?.querySelector('strong')?.textContent).toBe('Saved Member Two');
+    expect(screen.getAllByText('Morgan Member').length).toBeGreaterThan(0);
+
+    // A fresh deep-link load must render the saved conversation identity too.
+    view.unmount();
+    vi.mocked(messagesApi.getPrivateConversation).mockResolvedValue(makeThread(
+      [makeMessage(1, 'member', 'A message from this member.')],
+      null,
+      { id: 'conversation-2', memberName: 'Saved Member Two' },
+    ));
+    renderProviderMessages('/provider/messages/conversation-2');
+    expect(await screen.findByRole('heading', { level: 2, name: 'Saved Member Two' })).toBeTruthy();
+    expect(screen.getByText('A message from this member.').closest('li')?.querySelector('strong')?.textContent)
+      .toBe('Saved Member Two');
+  });
+
+  it.each([
+    ['null', null],
+    ['empty', ''],
+    ['whitespace-only', '   \t '],
+    ['absent', undefined],
+  ])('uses the generic provider-side member label for a %s saved name, never contact identity', async (_case, memberName) => {
+    vi.mocked(messagesApi.listPrivateConversations).mockResolvedValue({
+      items: [makeSummary('conversation-1', memberName)],
+      page: 1,
+      page_size: 20,
+      total: 1,
+    });
+    vi.mocked(messagesApi.getPrivateConversation).mockResolvedValue(makeThread(
+      [makeMessage(1, 'member', 'A message from this member.')],
+      null,
+      { memberName },
+    ));
+
+    renderProviderMessages();
+
+    expect(await screen.findByRole('link', { name: /Member conversation/ })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Member conversation' })).toBeTruthy();
+    expect(screen.getByText('A message from this member.').closest('li')?.querySelector('strong')?.textContent)
+      .toBe('Member conversation');
+    expect(screen.getAllByText('Morgan Member').length).toBeGreaterThan(0);
+  });
+
+  it('keeps member-side provider labels and inbox pagination independent of member names', async () => {
+    const user = userEvent.setup();
+    vi.mocked(messagesApi.listPrivateConversations).mockImplementation(async (page = 1) => ({
+      items: [makeSummary(`conversation-${page}`, 'A private member name', page === 1 ? 2 : 0)],
+      page,
+      page_size: 1,
+      total: 2,
+    }));
+    vi.mocked(messagesApi.getPrivateConversation).mockImplementation(async (id) => makeThread(
+      [makeMessage(1), makeMessage(2, 'provider', 'A provider reply.')],
+      null,
+      { id, memberName: 'A private member name' },
+    ));
+
+    renderMemberMessages('/member/messages');
+
+    expect(await screen.findByRole('link', { name: /Ranch Equine Care/ })).toBeTruthy();
+    expect(screen.getByLabelText('2 unread messages')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => expect(messagesApi.listPrivateConversations).toHaveBeenCalledWith(
+      2, 20, expect.any(AbortSignal),
+    ));
+    await waitFor(() => expect(screen.getByRole('link', { name: /Ranch Equine Care/ }).getAttribute('href'))
+      .toBe('/member/messages/conversation-2'));
+    await user.click(screen.getByRole('link', { name: /Ranch Equine Care/ }));
+    expect(await screen.findByRole('heading', { level: 2, name: 'Ranch Equine Care' })).toBeTruthy();
+    expect(screen.getByText('A provider reply.').closest('li')?.querySelector('strong')?.textContent)
+      .toBe('Ranch Equine Care');
+    expect(screen.queryByText('A private member name')).toBeNull();
   });
 
   it('explains notification failure without implying a saved message was lost', async () => {

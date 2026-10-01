@@ -1,0 +1,141 @@
+{
+  "task": "task370",
+  "capture_method": "Disposable local Chromium with Fetch interception enabled before navigation. Same-origin static frontend resources continued; every /api request was fulfilled from an in-memory synthetic fixture or failed closed. External requests were blocked.",
+  "fixture_label": "SYNTHETIC FIXTURES \u00b7 NO REAL RECORDS / NO EMAIL DELIVERY",
+  "synthetic_contact_domain": "example.invalid",
+  "viewport_sizes": [
+    "1440x1000 desktop",
+    "360x900 narrow mobile"
+  ],
+  "screenshots": [
+    "provider-inbox-desktop-page-1.png",
+    "provider-inbox-desktop-page-2.png",
+    "provider-inbox-mobile-360-page-1.png",
+    "provider-thread-desktop.png",
+    "provider-thread-mobile-360.png"
+  ],
+  "desktop_inbox": {
+    "viewportWidth": 1440,
+    "rootClientWidth": 1440,
+    "rootScrollWidth": 1440,
+    "horizontalOverflow": false,
+    "title": "SYNTHETIC MEMBER \u00b7 LongMemberNameWithoutBreaksLongMemberNameWithoutBreaksLongMemberNameWithoutBreaksLongMemberNameWithoutBreaks",
+    "titleRects": 5,
+    "titleClientWidth": 275,
+    "titleScrollWidth": 275,
+    "titleBounds": {
+      "left": 248,
+      "right": 523
+    },
+    "unreadPills": [
+      "7 unread"
+    ],
+    "unreadAriaLabels": [
+      "7 unread messages"
+    ],
+    "pagination": "Previous\nPage 1 of 2\nNext",
+    "overwideDescendants": []
+  },
+  "page_two": {
+    "viewportWidth": 1440,
+    "rootClientWidth": 1440,
+    "rootScrollWidth": 1440,
+    "horizontalOverflow": false,
+    "title": "SYNTHETIC MEMBER \u00b7 Page Two Sample",
+    "titleRects": 1,
+    "titleClientWidth": 275,
+    "titleScrollWidth": 275,
+    "titleBounds": {
+      "left": 248,
+      "right": 523
+    },
+    "unreadPills": [],
+    "unreadAriaLabels": [],
+    "pagination": "Previous\nPage 2 of 2\nNext",
+    "overwideDescendants": []
+  },
+  "mobile_inbox": {
+    "viewportWidth": 360,
+    "rootClientWidth": 360,
+    "rootScrollWidth": 360,
+    "horizontalOverflow": false,
+    "title": "SYNTHETIC MEMBER \u00b7 LongMemberNameWithoutBreaksLongMemberNameWithoutBreaksLongMemberNameWithoutBreaksLongMemberNameWithoutBreaks",
+    "titleRects": 4,
+    "titleClientWidth": 284,
+    "titleScrollWidth": 284,
+    "titleBounds": {
+      "left": 38,
+      "right": 322
+    },
+    "unreadPills": [
+      "7 unread"
+    ],
+    "unreadAriaLabels": [
+      "7 unread messages"
+    ],
+    "pagination": "Previous\nPage 1 of 2\nNext",
+    "overwideDescendants": []
+  },
+  "desktop_thread": {
+    "viewportWidth": 1440,
+    "rootClientWidth": 1434,
+    "rootScrollWidth": 1434,
+    "horizontalOverflow": false,
+    "title": "SYNTHETIC MEMBER \u00b7 LongMemberNameWithoutBreaksLongMemberNameWithoutBreaksLongMemberNameWithoutBreaksLongMemberNameWithoutBreaks",
+    "titleRects": 3,
+    "titleClientWidth": 604,
+    "titleScrollWidth": 604,
+    "titleBounds": {
+      "left": 580,
+      "right": 1184
+    },
+    "unreadPills": [
+      "7 unread"
+    ],
+    "unreadAriaLabels": [
+      "7 unread messages"
+    ],
+    "pagination": "Previous\nPage 1 of 2\nNext",
+    "overwideDescendants": []
+  },
+  "mobile_thread": {
+    "viewportWidth": 360,
+    "rootClientWidth": 360,
+    "rootScrollWidth": 360,
+    "horizontalOverflow": false,
+    "title": "SYNTHETIC MEMBER \u00b7 LongMemberNameWithoutBreaksLongMemberNameWithoutBreaksLongMemberNameWithoutBreaksLongMemberNameWithoutBreaks",
+    "titleRects": 5,
+    "titleClientWidth": 310,
+    "titleScrollWidth": 310,
+    "titleBounds": {
+      "left": 25,
+      "right": 335
+    },
+    "unreadPills": [
+      "7 unread"
+    ],
+    "unreadAriaLabels": [
+      "7 unread messages"
+    ],
+    "pagination": "PreviousPage 1 of 2Next",
+    "overwideDescendants": []
+  },
+  "unknown_api_routes": [],
+  "external_requests_blocked": [
+    "https://fonts.googleapis.com",
+    "https://fonts.googleapis.com",
+    "https://fonts.googleapis.com",
+    "https://fonts.googleapis.com",
+    "https://fonts.googleapis.com",
+    "https://fonts.googleapis.com",
+    "https://fonts.googleapis.com",
+    "https://fonts.googleapis.com",
+    "https://fonts.googleapis.com",
+    "https://fonts.googleapis.com",
+    "https://fonts.googleapis.com",
+    "https://fonts.googleapis.com"
+  ],
+  "api_request_count": 29,
+  "console_error_count": 0,
+  "uncaught_exception_count": 0
+}

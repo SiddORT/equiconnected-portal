@@ -103,6 +103,7 @@ class ConversationSummary(BaseModel):
     id: UUID
     provider_id: UUID
     provider_name: str
+    member_name: str | None = None
     last_message_at: datetime | None
     unread_count: int
     last_sequence: int

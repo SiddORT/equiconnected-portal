@@ -27,7 +27,7 @@ from app.models.provider_registration import ProviderRegistrationApplication
 from app.models.role import Role
 from app.models.user import PUBLIC_ACCOUNT_ROLE_NAMES, User, UserRole
 from app.services.contact_encryption import normalize_contact
-from app.services.messaging_encryption import decrypt_text, encrypt_text
+from app.services.messaging_encryption import MessagingCiphertextInvalid, decrypt_text, encrypt_text
 
 MAX_MESSAGE_LENGTH = 5_000
 SEND_LIMIT = 20
@@ -530,7 +530,7 @@ class MessagingService:
                 ProviderConversation.id.desc(),
             )
         ).all()
-        items = []
+        authorized = []
         for conversation in conversations:
             try:
                 _conversation, side, provider, _owner = self._conversation_for_participant(
@@ -538,12 +538,21 @@ class MessagingService:
                 )
             except MessagingNotFoundError:
                 continue
+            authorized.append((conversation, side, provider))
+        total = len(authorized)
+        start = (page - 1) * page_size
+        items = []
+        # Keep the existing authorized pagination boundary. Only decrypt saved
+        # contacts on the requested page, never across the entire history.
+        for conversation, side, provider in authorized[start : start + page_size]:
+            contact = self._shared_contact(conversation, side)
             unread = self._unread_count(conversation, side)
             items.append(
                 {
                     "id": conversation.id,
                     "provider_id": provider.id,
                     "provider_name": provider.name,
+                    "member_name": (contact["name"] or None) if contact is not None else None,
                     "last_message_at": conversation.last_message_at,
                     "unread_count": unread,
                     "last_sequence": conversation.last_sequence,
@@ -552,9 +561,39 @@ class MessagingService:
                     ),
                 }
             )
-        total = len(items)
-        start = (page - 1) * page_size
-        return items[start : start + page_size], total
+        return items, total
+
+    @staticmethod
+    def _shared_contact(conversation: ProviderConversation, side: str) -> dict | None:
+        """Read historical consented contact only after participant authorization.
+
+        Missing/unusable names are not identities to infer from other fields.
+        Encryption and invalid snapshot failures retain the safe content error.
+        """
+        if side != "provider" or conversation.contact_consent_at is None:
+            return None
+        plaintext = decrypt_text(
+            conversation.contact_snapshot_ciphertext,
+            conversation_id=conversation.id,
+            record_id=conversation.id,
+            field="contact_snapshot",
+        )
+        try:
+            contact = json.loads(plaintext)
+            if not isinstance(contact, dict):
+                raise ValueError
+            if any(not isinstance(contact.get(field, ""), str) for field in ("email", "phone")):
+                raise ValueError
+        except (ValueError, TypeError) as exc:
+            raise MessagingCiphertextInvalid(
+                "Private message content could not be authenticated."
+            ) from exc
+        name = contact.get("name")
+        return {
+            "name": name.strip() if isinstance(name, str) else "",
+            "email": contact.get("email", ""),
+            "phone": contact.get("phone", ""),
+        }
 
     def _unread_count(self, conversation: ProviderConversation, side: str) -> int:
         other_side = "provider" if side == "member" else "member"
@@ -641,21 +680,13 @@ class MessagingService:
             }
             for row in rows
         ]
-        contact = None
-        if side == "provider":
-            contact = json.loads(
-                decrypt_text(
-                    conversation.contact_snapshot_ciphertext,
-                    conversation_id=conversation.id,
-                    record_id=conversation.id,
-                    field="contact_snapshot",
-                )
-            )
+        contact = self._shared_contact(conversation, side)
         return {
             "conversation": {
                 "id": conversation.id,
                 "provider_id": provider.id,
                 "provider_name": provider.name,
+                "member_name": (contact["name"] or None) if contact is not None else None,
                 "last_message_at": conversation.last_message_at,
                 "unread_count": self._unread_count(conversation, side),
                 "last_sequence": conversation.last_sequence,

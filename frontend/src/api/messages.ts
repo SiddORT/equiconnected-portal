@@ -10,7 +10,7 @@ export interface PrivateConversationSummary {
   id: string;
   provider_id: string;
   provider_name: string;
-  member_name?: string;
+  member_name?: string | null;
   last_message_at: string | null;
   unread_count: number;
   last_sequence: number;
