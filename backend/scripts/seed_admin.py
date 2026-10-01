@@ -24,6 +24,10 @@ import app.db.base  # noqa: F401, E402 — registers all models in the mapper re
 from app.db.session import SessionLocal  # noqa: E402
 from app.repositories.user_repository import UserRepository  # noqa: E402
 from app.services.auth_service import AuthService  # noqa: E402
+from app.services.contact_encryption import (  # noqa: E402
+    ContactEncryptionUnavailable,
+    ensure_contact_encryption_available,
+)
 
 configure_logging()
 logger = get_logger(__name__)
@@ -193,6 +197,23 @@ def main() -> int:
         logger.error("seed.password_too_short", min_length=12)
         return 1
 
+    # Validate before opening a session or committing the bootstrap roles.
+    # The normal application uses this same validator and encryption material.
+    try:
+        ensure_contact_encryption_available()
+    except ContactEncryptionUnavailable as exc:
+        logger.error(
+            "seed.failed",
+            error_type=type(exc).__name__,
+            encryption_reason=exc.reason,
+        )
+        print(
+            f"✗ Seed blocked by contact encryption configuration ({exc.reason}). "
+            "Run backend/scripts/check_contact_encryption.py; do not replace keys blindly.",
+            file=sys.stderr,
+        )
+        return 1
+
     db = SessionLocal()
     try:
         recover_password = _recovery_requested()
@@ -218,7 +239,10 @@ def main() -> int:
 
     except Exception as exc:
         db.rollback()
-        logger.error("seed.failed", error_type=type(exc).__name__)
+        details = {"error_type": type(exc).__name__}
+        if isinstance(exc, ContactEncryptionUnavailable):
+            details["encryption_reason"] = exc.reason
+        logger.error("seed.failed", **details)
         print("✗ Seed failed; inspect the sanitized application logs.", file=sys.stderr)
         return 1
     finally:

@@ -31,6 +31,16 @@ _BLIND_INDEX_DOMAIN = b"equiconnected/contact-blind-index/v1"
 class ContactEncryptionUnavailable(Exception):
     """Contact persistence cannot proceed because its dedicated keys are invalid."""
 
+    def __init__(
+        self,
+        message: str = "Contact encryption is not configured.",
+        *,
+        reason: str = "contact_configuration_invalid",
+    ) -> None:
+        super().__init__(message)
+        # Static categories only: never include key bytes, JSON, IDs or contacts.
+        self.reason = reason
+
 
 class ContactCiphertextInvalid(Exception):
     """Stored contact data is malformed, tampered with, or bound to another record."""
@@ -41,76 +51,99 @@ def _key_material() -> tuple[str, dict[str, bytes], bytes]:
     raw_keyring = settings.CONTACT_ENCRYPTION_KEYRING
     active_id = settings.CONTACT_ENCRYPTION_ACTIVE_KEY_ID
     raw_index_key = settings.CONTACT_BLIND_INDEX_KEY
-    if not raw_keyring or not active_id or not _KEY_ID.fullmatch(active_id):
-        raise ContactEncryptionUnavailable("Contact encryption is not configured.")
+    if not raw_keyring:
+        raise ContactEncryptionUnavailable(reason="contact_keyring_missing")
+    if not isinstance(active_id, str) or not _KEY_ID.fullmatch(active_id):
+        raise ContactEncryptionUnavailable(reason="contact_active_key_id_invalid")
+    reason = "contact_keyring_invalid"
     try:
         decoded_ring = json.loads(raw_keyring)
         if not isinstance(decoded_ring, dict) or not decoded_ring:
             raise ValueError
         keys: dict[str, bytes] = {}
         for key_id, encoded_key in decoded_ring.items():
+            reason = "contact_key_id_invalid"
             if not isinstance(key_id, str) or not _KEY_ID.fullmatch(key_id):
                 raise ValueError
+            reason = "contact_key_encoding_invalid"
             if not isinstance(encoded_key, str):
                 raise ValueError
             key = base64.b64decode(encoded_key, validate=True)
+            reason = "contact_key_length_invalid"
             if len(key) != 32:
                 raise ValueError
             keys[key_id] = key
-        if active_id not in keys or len(set(keys.values())) != len(keys):
+        reason = "contact_active_key_missing"
+        if active_id not in keys:
             raise ValueError
+        reason = "contact_keys_duplicated"
+        if len(set(keys.values())) != len(keys):
+            raise ValueError
+        reason = "contact_blind_index_missing"
+        if not raw_index_key:
+            raise ValueError
+        reason = "contact_blind_index_encoding_invalid"
         index_key = base64.b64decode(raw_index_key, validate=True)
-        if len(index_key) != 32 or any(
+        reason = "contact_blind_index_length_invalid"
+        if len(index_key) != 32:
+            raise ValueError
+        reason = "contact_blind_index_reuses_contact_key"
+        if any(
             hmac.compare_digest(index_key, encryption_key)
             for encryption_key in keys.values()
         ):
             raise ValueError
         peer_keys = _other_application_keys(settings)
         contact_material = (*keys.values(), index_key)
-        if any(
-            hmac.compare_digest(contact_key, peer_key)
-            for contact_key in contact_material
-            for peer_key in peer_keys
-        ):
-            raise ValueError
+        for source, peer_key in peer_keys:
+            if any(
+                hmac.compare_digest(contact_key, peer_key)
+                for contact_key in contact_material
+            ):
+                raise ContactEncryptionUnavailable(
+                    reason=f"contact_key_reuses_{source}_key"
+                )
         return active_id, keys, index_key
     except (ValueError, TypeError, binascii.Error, json.JSONDecodeError) as exc:
-        raise ContactEncryptionUnavailable(
-            "Contact encryption is not configured."
-        ) from exc
+        raise ContactEncryptionUnavailable(reason=reason) from exc
 
 
-def _other_application_keys(settings: Any) -> tuple[bytes, ...]:
-    """Collect peer secrets in-process solely to reject accidental key reuse."""
-    peers: list[bytes] = []
+def _other_application_keys(settings: Any) -> tuple[tuple[str, bytes], ...]:
+    """Collect comparable peer bytes, not validate another feature's readiness.
+
+    Messaging validates its own configuration before every encrypt/decrypt.
+    An unusable optional messaging keyring must not disable contact storage.
+    Keep every decodable AES key for reuse checks, including retained keys and
+    keys in a partially invalid ring; never substitute these for contact keys.
+    """
+    peers: list[tuple[str, bytes]] = []
     configured_jwt_key = getattr(settings, "SECRET_KEY", "")
     if configured_jwt_key:
         jwt_key = configured_jwt_key.encode("utf-8")
-        peers.append(jwt_key)
+        peers.append(("jwt", jwt_key))
         try:
             decoded_jwt_key = base64.b64decode(jwt_key, validate=True)
         except (ValueError, binascii.Error):
             decoded_jwt_key = b""
         if decoded_jwt_key:
-            peers.append(decoded_jwt_key)
+            peers.append(("jwt", decoded_jwt_key))
 
     raw_messaging_ring = getattr(settings, "MESSAGING_ENCRYPTION_KEYRING", "")
     if raw_messaging_ring:
         try:
             messaging_ring = json.loads(raw_messaging_ring)
-            if not isinstance(messaging_ring, dict) or not messaging_ring:
-                raise ValueError
+        except (ValueError, TypeError, binascii.Error, json.JSONDecodeError):
+            messaging_ring = None
+        if isinstance(messaging_ring, dict):
             for encoded_key in messaging_ring.values():
                 if not isinstance(encoded_key, str):
-                    raise ValueError
-                peer_key = base64.b64decode(encoded_key, validate=True)
-                if len(peer_key) != 32:
-                    raise ValueError
-                peers.append(peer_key)
-        except (ValueError, TypeError, binascii.Error, json.JSONDecodeError) as exc:
-            raise ContactEncryptionUnavailable(
-                "Contact encryption is not configured."
-            ) from exc
+                    continue
+                try:
+                    peer_key = base64.b64decode(encoded_key, validate=True)
+                except (ValueError, binascii.Error):
+                    continue
+                if len(peer_key) == 32:
+                    peers.append(("messaging", peer_key))
     return tuple(peers)
 
 
@@ -171,7 +204,7 @@ def decrypt_contact(
         key = keys.get(key_id)
         if key is None:
             raise ContactEncryptionUnavailable(
-                "Contact encryption is not configured."
+                reason="contact_ciphertext_key_missing"
             )
         packed = base64.b64decode(encoded, altchars=b"-_", validate=True)
         if len(packed) < 12 + 16:

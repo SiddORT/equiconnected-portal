@@ -47,6 +47,59 @@ process. Restoring encrypted database data without every key version needed by
 that data makes contacts unreadable. Keep old keys available until data,
 replicas, and retained recoverable backups have been assessed.
 
+### Admin seed readiness and safe diagnostics
+
+Use the application's effective settings without printing any values or
+opening a database connection:
+
+```bash
+python backend/scripts/check_contact_encryption.py
+```
+
+This performs the actual contact JSON, Base64, 32-byte length, active-key,
+duplicate-key, blind-index and cross-feature key-reuse checks. Merely confirming
+that variables are populated is insufficient. Contact readiness is independent
+of optional messaging readiness: an empty or malformed messaging ring no longer
+misreports valid contact material as unavailable. Messaging's own validation
+remains strict. Valid decodable messaging keys (including retained keys and
+those in partially invalid rings) still participate in the contact reuse check.
+
+The checker prints only fixed statuses/reason codes and returns nonzero if
+contact encryption is unavailable. A messaging-only warning is not permission
+to send messages; fix its configuration separately using the existing protected
+key material. The admin seed runs the contact preflight before creating a
+database session or bootstrap roles.
+
+If contact readiness passes, run the normal bootstrap with `ADMIN_EMAIL` and
+`ADMIN_PASSWORD` already exported:
+
+```bash
+python backend/scripts/seed_admin.py
+```
+
+Reason codes identify the required correction without exposing configuration:
+
+- `contact_keyring_invalid`, `contact_key_encoding_invalid` or
+  `contact_key_length_invalid`: restore valid JSON/standard Base64 encoding
+  of the existing contact keys, with exactly 32 decoded bytes per key.
+- `contact_keyring_missing`, `contact_active_key_id_invalid` or
+  `contact_active_key_missing`: restore the existing ring and matching active ID.
+- `contact_key_id_invalid` or `contact_keys_duplicated`: correct key labels or
+  recover the intended distinct retained keys from the protected configuration.
+- `contact_blind_index_*`: recover the intended separate 32-byte index secret
+  and its Base64 representation. Never substitute a new index secret for data
+  that was indexed with the old one.
+- `contact_key_reuses_jwt_key` or `contact_key_reuses_messaging_key`: actual
+  cross-feature key reuse remains blocked. Restore the intended independent
+  secrets from the protected source of truth; if keys really were shared, plan
+  an explicit, data-aware rotation rather than bypassing the check.
+
+No change to UAT key material is required for the optional-messaging coupling
+fix. Ensure the seed process and PM2 application resolve the same settings.
+Shell/PM2 environment values override dotenv values, so a populated `.env` alone
+does not prove that both processes use identical configuration. Do not paste
+settings dumps, JSON keyrings, passwords, hashes, or ciphertext into diagnostics.
+
 ## Controlled conversion and cutover
 
 The migration adds ciphertext-compatible TEXT storage, blind-index columns,
