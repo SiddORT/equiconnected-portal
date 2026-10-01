@@ -5,12 +5,13 @@ from datetime import date
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.time_standards import local_date_bounds
 from app.models.contact_enquiry import ContactEnquiry
 from app.models.enums import ContactEnquiryType
+from app.repositories import matches_like_substring, page_filtered_candidates
 from app.schemas.contact import ContactMessageRequest
 
 
@@ -53,16 +54,7 @@ class ContactEnquiryRepository:
         page_size: int = 25,
     ) -> tuple[list[ContactEnquiry], int]:
         filters: list[Any] = []
-        if search and search.strip():
-            pattern = f"%{search.strip()}%"
-            filters.append(
-                or_(
-                    ContactEnquiry.name.ilike(pattern),
-                    ContactEnquiry.email.ilike(pattern),
-                    ContactEnquiry.phone.ilike(pattern),
-                    ContactEnquiry.message.ilike(pattern),
-                )
-            )
+        search_term = search.strip().lower() if search else ""
         if enquiry_type is not None:
             filters.append(ContactEnquiry.enquiry_type == enquiry_type.value)
         start, end = local_date_bounds(date_from, date_to, timezone_name)
@@ -71,13 +63,29 @@ class ContactEnquiryRepository:
         if end is not None:
             filters.append(ContactEnquiry.submitted_at < end)
 
+        statement = (
+            select(ContactEnquiry)
+            .where(*filters)
+            .order_by(ContactEnquiry.submitted_at.desc(), ContactEnquiry.id.desc())
+        )
+        if search_term:
+            return page_filtered_candidates(
+                self._db.scalars(statement.execution_options(yield_per=250)),
+                lambda enquiry: (
+                    matches_like_substring(enquiry.name, search_term)
+                    or matches_like_substring(enquiry.email, search_term)
+                    or matches_like_substring(enquiry.phone, search_term)
+                    or matches_like_substring(enquiry.message, search_term)
+                ),
+                page=page,
+                page_size=page_size,
+            )
+
         total = self._db.scalar(
             select(func.count()).select_from(ContactEnquiry).where(*filters)
         ) or 0
         rows = self._db.scalars(
-            select(ContactEnquiry)
-            .where(*filters)
-            .order_by(ContactEnquiry.submitted_at.desc(), ContactEnquiry.id.desc())
+            statement
             .offset((page - 1) * page_size)
             .limit(page_size)
         ).all()

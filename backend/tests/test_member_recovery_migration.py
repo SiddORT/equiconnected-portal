@@ -8,7 +8,9 @@ import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy import inspect, select
+from app.db.contact_types import prepare_contact_values
 from app.models.email_delivery_log import EmailDeliveryLog
+from app.services.contact_encryption import contact_blind_index, decrypt_contact
 
 from tests.conftest import engine
 
@@ -53,7 +55,18 @@ def test_member_recovery_merge_preserves_both_email_purposes(recovery_first, pop
                         "failure_message": "Safe fixture failure" if status == "failed" else None,
                         "created_at": datetime.now(timezone.utc),
                     } for purpose in existing_purposes for status in ("pending", "success", "failed")]
-                    connection.execute(EmailDeliveryLog.__table__.insert(), expected)
+                    for row in expected:
+                        protected = prepare_contact_values(
+                            EmailDeliveryLog, str(row["id"]),
+                            {"recipient_email": row["recipient_email"]},
+                        )
+                        connection.execute(
+                            EmailDeliveryLog.__table__.insert().values({
+                                **{key: value for key, value in row.items()
+                                   if key != "recipient_email"},
+                                **protected,
+                            })
+                        )
                 if recovery_first:
                     messaging.upgrade()
                     insights.upgrade()
@@ -64,7 +77,19 @@ def test_member_recovery_merge_preserves_both_email_purposes(recovery_first, pop
                     actual = connection.execute(select(EmailDeliveryLog.__table__).where(
                         EmailDeliveryLog.id == expected_row["id"]
                     )).mappings().one()
-                    assert dict(actual) == expected_row
+                    actual_values = dict(actual)
+                    assert actual_values.pop("recipient_email_blind_index").digest == (
+                        contact_blind_index(
+                            expected_row["recipient_email"],
+                            table="email_delivery_logs", field="recipient_email",
+                        )
+                    )
+                    envelope = actual_values["recipient_email"]
+                    actual_values["recipient_email"] = decrypt_contact(
+                        envelope.ciphertext, table="email_delivery_logs",
+                        record_id=str(expected_row["id"]), field="recipient_email",
+                    )
+                    assert actual_values == expected_row
                 constraints = inspect(connection).get_check_constraints("email_delivery_logs")
                 purpose = next(item["sqltext"] for item in constraints
                                if item["name"] == "ck_email_delivery_logs_purpose")

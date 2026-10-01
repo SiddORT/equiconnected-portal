@@ -141,7 +141,7 @@ def build_plan(db: Session, *, database: str, schema: str) -> Plan:
         raise ResetError("No active administrator would remain.")
     retained_ids = [user.id for user in retained_users]
     retained = tuple(
-        (user.email, user.is_active,
+        (str(user.id), user.is_active,
          tuple(sorted({user.role.name} | {a.role.name for a in user.role_assignments})))
         for user in retained_users
     )
@@ -165,9 +165,9 @@ def build_plan(db: Session, *, database: str, schema: str) -> Plan:
 def format_plan(plan: Plan) -> str:
     lines = [
         f"Development reset preview: database={plan.database} schema={plan.schema}",
-        "Retained administrators (email, active, roles):",
-        *(f"  {email} | active={active} | roles={','.join(roles)}"
-          for email, active, roles in plan.retained),
+        "Retained administrators (account ID, active, roles):",
+        *(f"  {account_id} | active={active} | roles={','.join(roles)}"
+          for account_id, active, roles in plan.retained),
         "Table | current | keep | delete",
     ]
     for name, count in sorted(plan.counts.items()):
@@ -228,7 +228,11 @@ def _restore_test(db: Session, plan: Plan, path: Path) -> None:
         # pg_dump includes CREATE SCHEMA public. Remove only that empty schema
         # in the disposable DB before restoring it.
         if plan.schema == "public":
-            scratch_engine = create_engine(db.bind.url.set(database=scratch))
+            scratch_engine = create_engine(
+                db.bind.url.set(database=scratch),
+                echo=False,
+                hide_parameters=True,
+            )
             try:
                 with scratch_engine.begin() as connection:
                     connection.execute(text("DROP SCHEMA public"))
@@ -236,7 +240,11 @@ def _restore_test(db: Session, plan: Plan, path: Path) -> None:
                 scratch_engine.dispose()
         subprocess.run(["pg_restore", "--exit-on-error", "--no-owner", "--no-acl",
                         "--dbname", scratch, str(path)], **command)
-        scratch_engine = create_engine(db.bind.url.set(database=scratch))
+        scratch_engine = create_engine(
+            db.bind.url.set(database=scratch),
+            echo=False,
+            hide_parameters=True,
+        )
         try:
             with sessionmaker(bind=scratch_engine)() as restored:
                 restored.execute(text(f'SET search_path TO "{plan.schema}"'))

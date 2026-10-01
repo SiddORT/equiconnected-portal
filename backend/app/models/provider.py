@@ -25,6 +25,12 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
+from app.db.contact_types import (
+    ContactSnapshotJSON,
+    contact_index_column,
+    contact_text_column,
+    protect_model_contacts,
+)
 from app.models.base import TimestampMixin
 from app.models.enums import (
     ProviderStatus,
@@ -49,15 +55,22 @@ class Provider(TimestampMixin, Base):
     )
     name: Mapped[str] = mapped_column(String(300), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    email: Mapped[str | None] = mapped_column(String(254), nullable=True)
-    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    email: Mapped[str | None] = contact_text_column("email", nullable=True)
+    _email_blind_index: Mapped[str | None] = contact_index_column("email")
+    phone: Mapped[str | None] = contact_text_column("phone", nullable=True)
+    _phone_blind_index: Mapped[str | None] = contact_index_column("phone")
     professional_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     years_experience: Mapped[int | None] = mapped_column(Integer, nullable=True)
     clinic_hospital_visit: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     maximum_working_radius_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     emergency_services_available: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     emergency_contact_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    emergency_contact_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    emergency_contact_number: Mapped[str | None] = contact_text_column(
+        "emergency_contact_number", nullable=True
+    )
+    _emergency_contact_number_blind_index: Mapped[str | None] = contact_index_column(
+        "emergency_contact_number"
+    )
     website: Mapped[str | None] = mapped_column(String(500), nullable=True)
     visit_stability: Mapped[VisitStability] = mapped_column(
         Enum(VisitStability, name="visit_stability", native_enum=True),
@@ -156,6 +169,12 @@ class Provider(TimestampMixin, Base):
         return f"<Provider id={self.id} type={self.provider_type} name={self.name!r}>"
 
 
+protect_model_contacts(
+    Provider,
+    fields=("email", "phone", "emergency_contact_number"),
+)
+
+
 class DirectProviderPortalAccess(TimestampMixin, Base):
     """Explicit ownership reserved for an administrator-created listing."""
 
@@ -166,9 +185,20 @@ class DirectProviderPortalAccess(TimestampMixin, Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, unique=True
     )
-    recipient_email: Mapped[str] = mapped_column(String(254), nullable=False)
+    recipient_email: Mapped[str] = contact_text_column(
+        "recipient_email", nullable=False
+    )
+    _recipient_email_blind_index: Mapped[str] = contact_index_column(
+        "recipient_email", nullable=False
+    )
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     provider: Mapped["Provider"] = relationship(back_populates="direct_portal_access")
+
+
+protect_model_contacts(
+    DirectProviderPortalAccess,
+    fields=("recipient_email",),
+)
 
 
 class DoctorVisit(TimestampMixin, Base):
@@ -264,8 +294,12 @@ class ProviderProfileUpdate(TimestampMixin, Base):
         nullable=False,
         unique=True,
     )
-    proposed_profile: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    base_profile: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    proposed_profile: Mapped[dict] = mapped_column(
+        ContactSnapshotJSON("proposed_profile"), nullable=False
+    )
+    base_profile: Mapped[dict] = mapped_column(
+        ContactSnapshotJSON("base_profile"), nullable=False
+    )
     review_status: Mapped[ProviderProfileUpdateStatus] = mapped_column(
         Enum(
             ProviderProfileUpdateStatus,
@@ -291,6 +325,12 @@ class ProviderProfileUpdate(TimestampMixin, Base):
     )
 
 
+protect_model_contacts(
+    ProviderProfileUpdate,
+    snapshots=("proposed_profile", "base_profile"),
+)
+
+
 class ProviderPhone(TimestampMixin, Base):
     __tablename__ = "provider_phones"
 
@@ -303,7 +343,10 @@ class ProviderPhone(TimestampMixin, Base):
         nullable=False,
     )
     country_code: Mapped[str] = mapped_column(String(10), nullable=False)
-    number: Mapped[str] = mapped_column(String(50), nullable=False)
+    number: Mapped[str] = contact_text_column("number", nullable=False)
+    _number_blind_index: Mapped[str] = contact_index_column(
+        "number", nullable=False
+    )
     is_primary: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
@@ -322,7 +365,10 @@ class ProviderPhone(TimestampMixin, Base):
     )
 
     def __repr__(self) -> str:
-        return f"<ProviderPhone id={self.id} provider_id={self.provider_id} number={self.country_code}{self.number}>"
+        return f"<ProviderPhone id={self.id} provider_id={self.provider_id}>"
+
+
+protect_model_contacts(ProviderPhone, fields=("number",))
 
 
 class ProviderEmail(TimestampMixin, Base):
@@ -336,7 +382,10 @@ class ProviderEmail(TimestampMixin, Base):
         ForeignKey("providers.id", ondelete="CASCADE"),
         nullable=False,
     )
-    email: Mapped[str] = mapped_column(String(254), nullable=False)
+    email: Mapped[str] = contact_text_column("email", nullable=False)
+    _email_blind_index: Mapped[str] = contact_index_column(
+        "email", nullable=False
+    )
     is_primary: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
@@ -355,8 +404,10 @@ class ProviderEmail(TimestampMixin, Base):
     )
 
     def __repr__(self) -> str:
-        return f"<ProviderEmail id={self.id} provider_id={self.provider_id} email={self.email!r}>"
+        return f"<ProviderEmail id={self.id} provider_id={self.provider_id}>"
 
+
+protect_model_contacts(ProviderEmail, fields=("email",))
 
 class ProviderLocation(TimestampMixin, Base):
     __tablename__ = "provider_locations"

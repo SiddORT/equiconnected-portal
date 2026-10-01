@@ -122,7 +122,9 @@ def _load_users(db: Session, *, lock: bool) -> list[User]:
             selectinload(User.role),
             selectinload(User.role_assignments).joinedload(UserRole.role),
         )
-        .order_by(User.email)
+        # Contact values are encrypted at rest, so lock in a stable opaque
+        # order and apply the familiar plaintext order only after decryption.
+        .order_by(User.id)
     )
     if lock:
         # Lock the accounts that establish the safety boundary. PostgreSQL's FK
@@ -166,16 +168,24 @@ def _invitation_blockers(
     if not user_ids:
         return ()
     rows = db.execute(
-        select(User.email, func.count(ProviderInvitation.id))
+        select(User.id, func.count(ProviderInvitation.id))
         .join(User, ProviderInvitation.created_by == User.id)
         .where(ProviderInvitation.created_by.in_(user_ids))
-        .group_by(User.email)
-        .order_by(User.email)
+        .group_by(User.id)
     ).all()
-    return tuple(
-        InvitationBlocker(creator_email=email, invitation_count=count)
-        for email, count in rows
-    )
+    if not rows:
+        return ()
+    creators = {
+        user.id: user.email
+        for user in db.scalars(
+            select(User).where(User.id.in_([creator_id for creator_id, _ in rows]))
+        )
+    }
+    blockers = [
+        InvitationBlocker(creator_email=creators[creator_id], invitation_count=count)
+        for creator_id, count in rows
+    ]
+    return tuple(sorted(blockers, key=lambda blocker: blocker.creator_email.lower()))
 
 
 def build_reset_plan(db: Session, *, lock_users: bool = False) -> ResetPlan:
@@ -193,6 +203,8 @@ def build_reset_plan(db: Session, *, lock_users: bool = False) -> ResetPlan:
             retained.append(summary)
         else:
             targeted.append(summary)
+    retained.sort(key=lambda account: account.email.lower())
+    targeted.sort(key=lambda account: account.email.lower())
 
     target_ids = [summary.user_id for summary in targeted]
     dependent_record_counts = {
@@ -276,14 +288,13 @@ def execute_reset(db: Session, *, confirmation: str | None) -> ResetResult:
             "Restore or activate an administrator, then run the preview again."
         )
     if plan.invitation_blockers:
-        details = ", ".join(
-            f"{blocker.creator_email} ({blocker.invitation_count})"
-            for blocker in plan.invitation_blockers
+        invitation_count = sum(
+            blocker.invitation_count for blocker in plan.invitation_blockers
         )
         db.rollback()
         raise RestrictiveReferenceError(
             "Refusing reset because provider invitations created by targeted "
-            f"accounts still exist: {details}. Their created_by reference is "
+            f"accounts still exist ({invitation_count} total). Their created_by reference is "
             "restrictive; resolve those invitation records first. No changes "
             "were committed."
         )
@@ -413,7 +424,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     except Exception as exc:
         db.rollback()
-        print(f"Reset failed: {exc}", file=sys.stderr)
+        print(
+            f"Reset failed ({type(exc).__name__}); inspect the database and retry.",
+            file=sys.stderr,
+        )
         return 1
     finally:
         db.close()

@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     # Messaging uses an independent AES-GCM keyring; never derive this from SECRET_KEY.
     MESSAGING_ENCRYPTION_KEYRING: str = ""
     MESSAGING_ENCRYPTION_ACTIVE_KEY_ID: str = ""
+    # Contact data has its own keyring and separately generated blind-index key.
+    # Provisioning is lazy so deployments can add keys before enabling writes.
+    CONTACT_ENCRYPTION_KEYRING: str = ""
+    CONTACT_ENCRYPTION_ACTIVE_KEY_ID: str = ""
+    CONTACT_BLIND_INDEX_KEY: str = ""
     # Uses an external provider; deployments can override this URL template.
     # Nominatim accepts the country name supplied by the shared location picker.
     POSTAL_LOOKUP_URL: str = (

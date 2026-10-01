@@ -156,7 +156,8 @@ def _recovery_requested() -> bool:
 def _format_result(result: BootstrapResult) -> str:
     """Format a diagnostic that intentionally contains no password or hash."""
     state = (
-        f"email={result.email} active={'yes' if result.is_active else 'no'} "
+        f"account_id={result.user_id or 'unavailable'} "
+        f"active={'yes' if result.is_active else 'no'} "
         f"admin_role={'yes' if result.has_admin_role else 'no'}"
     )
     if result.status == "created":
@@ -207,7 +208,6 @@ def main() -> int:
             "seed.admin_result",
             status=result.status,
             user_id=str(result.user_id) if result.user_id else None,
-            email=result.email,
             is_active=result.is_active,
             has_admin_role=result.has_admin_role,
             credential_matches=result.credential_matches,
@@ -218,8 +218,8 @@ def main() -> int:
 
     except Exception as exc:
         db.rollback()
-        logger.error("seed.failed", error=str(exc))
-        print(f"✗ Seed failed: {exc}", file=sys.stderr)
+        logger.error("seed.failed", error_type=type(exc).__name__)
+        print("✗ Seed failed; inspect the sanitized application logs.", file=sys.stderr)
         return 1
     finally:
         db.close()

@@ -6,7 +6,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -129,7 +129,7 @@ class MemberPasswordRecoveryService:
         latest = self.db.scalar(
             select(EmailDeliveryLog)
             .where(
-                func.lower(EmailDeliveryLog.recipient_email) == normalized_email,
+                EmailDeliveryLog.recipient_email == normalized_email,
                 EmailDeliveryLog.purpose == EmailPurpose.MEMBER_PASSWORD_RECOVERY.value,
                 EmailDeliveryLog.status.in_(
                     (
@@ -148,7 +148,7 @@ class MemberPasswordRecoveryService:
         """Attempt background recovery without disclosing whether a member exists."""
         normalized_email = email.strip().lower()
         user_id = self.db.scalar(
-            select(User.id).where(func.lower(User.email) == normalized_email)
+            select(User.id).where(User.email == normalized_email)
         )
         if user_id is None:
             self.db.rollback()

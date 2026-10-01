@@ -35,6 +35,7 @@ from app.repositories.email_delivery_repository import (
     EmailDeliveryRepository,
     safe_failure_message,
 )
+from app.services.contact_encryption import normalize_contact
 from app.services.email_service import EmailService
 from app.models.enums import EmailDeliveryStatus, EmailPurpose
 from app.services.provider_service import ProviderNotFoundError
@@ -228,7 +229,7 @@ class InvitationService:
                 raise InvalidProviderDataError("First name and last name are required for a doctor invitation.")
             display_name = (
                 f'{fields["first_name"].strip()} {fields["last_name"].strip()}'
-                if doctor_names else fields.get("provider_name") or recipient
+                if doctor_names else fields.get("provider_name") or "Invited provider"
             )
             if len(display_name) > 300:
                 raise InvalidProviderDataError("Doctor full name must be 300 characters or fewer.")
@@ -638,9 +639,11 @@ class InvitationService:
             if (
                 "email" not in fields
                 and provider.email
-                and provider.email.lower() == invitation.recipient_email.lower()
+                and normalize_contact(provider.email, field="email")
+                == normalize_contact(invitation.recipient_email, field="email")
                 and not any(
-                    entry["email"].lower() == invitation.recipient_email.lower()
+                    normalize_contact(entry["email"], field="email")
+                    == normalize_contact(invitation.recipient_email, field="email")
                     for entry in fields["emails"]
                 )
             ):

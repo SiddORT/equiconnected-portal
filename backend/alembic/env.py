@@ -51,6 +51,8 @@ def run_migrations_online() -> None:
     """Run migrations in 'online' mode — requires a live DB connection."""
     configuration = config.get_section(config.config_ini_section) or {}
     configuration["sqlalchemy.url"] = get_url()
+    configuration["sqlalchemy.echo"] = "false"
+    configuration["sqlalchemy.hide_parameters"] = "true"
 
     connectable = engine_from_config(
         configuration,

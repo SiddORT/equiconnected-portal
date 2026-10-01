@@ -433,8 +433,10 @@ class ProviderInsightsService:
             date_from=date_from,
             date_to=date_to,
         )
-        provider = self.db.get(Provider, provider_id)
-        if provider is None:
+        provider_name = self.db.scalar(
+            select(Provider.name).where(Provider.id == provider_id)
+        )
+        if provider_name is None:
             return None
 
         day_count = (last - first).days + 1
@@ -629,7 +631,7 @@ class ProviderInsightsService:
             for offset in range(day_count)
         ]
         return {
-            "provider_name": provider.name,
+            "provider_name": provider_name,
             "timezone": timezone_name,
             "today": today,
             "period": {

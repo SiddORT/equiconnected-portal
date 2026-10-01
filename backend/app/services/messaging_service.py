@@ -26,6 +26,7 @@ from app.models.provider import DirectProviderPortalAccess, Provider
 from app.models.provider_registration import ProviderRegistrationApplication
 from app.models.role import Role
 from app.models.user import PUBLIC_ACCOUNT_ROLE_NAMES, User, UserRole
+from app.services.contact_encryption import normalize_contact
 from app.services.messaging_encryption import decrypt_text, encrypt_text
 
 MAX_MESSAGE_LENGTH = 5_000
@@ -111,13 +112,13 @@ class MessagingService:
         if provider is None:
             raise ProviderMessagingUnavailableError("provider_unavailable")
 
-        invitation_rows = self._db.execute(
-            select(ProviderInvitation.portal_user_id, ProviderInvitation.recipient_email).where(
-                    ProviderInvitation.provider_id == provider.id,
-                    ProviderInvitation.status == InvitationStatus.COMPLETED,
-                    ProviderInvitation.portal_user_id.is_not(None),
-                )
-            ).all()
+        invitation_rows = self._db.scalars(
+            select(ProviderInvitation).where(
+                ProviderInvitation.provider_id == provider.id,
+                ProviderInvitation.status == InvitationStatus.COMPLETED,
+                ProviderInvitation.portal_user_id.is_not(None),
+            )
+        ).all()
         registration_ids = set(
             self._db.scalars(
                 select(ProviderRegistrationApplication.user_id).where(
@@ -134,7 +135,7 @@ class MessagingService:
                 )
             ).all()
         )
-        candidates = {user_id for user_id, _email in invitation_rows}
+        candidates = {invitation.portal_user_id for invitation in invitation_rows}
         candidates.update(registration_ids)
         candidates.update(direct_ids)
         if len(candidates) > 1:
@@ -153,9 +154,10 @@ class MessagingService:
         if owner is None or not is_provider_account(owner):
             raise ProviderMessagingUnavailableError("provider_account_unavailable")
         invitation_matches = any(
-            user_id == owner.id
-            and email.strip().lower() == owner.email.strip().lower()
-            for user_id, email in invitation_rows
+            invitation.portal_user_id == owner.id
+            and normalize_contact(invitation.recipient_email, field="email")
+            == normalize_contact(owner.email, field="email")
+            for invitation in invitation_rows
         )
         if not (
             invitation_matches

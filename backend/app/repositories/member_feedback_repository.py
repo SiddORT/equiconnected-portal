@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, selectinload
 
@@ -19,6 +19,18 @@ from app.models.member_feedback import MemberFeedback, MemberFeedbackAction
 from app.models.member_history import MemberBrowsingHistory
 from app.models.provider import Provider
 from app.models.user import User
+from app.repositories import page_filtered_candidates
+from app.db.contact_types import prepare_contact_values
+
+
+def _safe_human_name(user: User, *, fallback: str = "Account holder") -> str:
+    """Build a historical display name without falling back to the user's email."""
+    name = " ".join(
+        part.strip()
+        for part in (user.first_name, user.last_name)
+        if part and part.strip()
+    )
+    return name[:200] or fallback
 
 
 class MemberFeedbackRepository:
@@ -36,11 +48,11 @@ class MemberFeedbackRepository:
         idempotency_key: UUID,
     ) -> tuple[MemberFeedback, bool]:
         now = datetime.now(timezone.utc)
-        statement = insert(MemberFeedback).values(
-            id=uuid4(),
+        feedback_id = uuid4()
+        values = dict(
+            id=feedback_id,
             member_id=member.id,
-            submitter_name=member.full_name[:200],
-            submitter_email=member.email[:254],
+            submitter_name=_safe_human_name(member, fallback="Member"),
             idempotency_key=idempotency_key,
             category=category,
             subject=subject,
@@ -52,6 +64,14 @@ class MemberFeedbackRepository:
             updated_at=now,
             version=1,
         )
+        values.update(
+            prepare_contact_values(
+                MemberFeedback,
+                str(feedback_id),
+                {"submitter_email": member.email[:254]},
+            )
+        )
+        statement = insert(MemberFeedback).values(values)
         inserted_id = self.db.scalar(
             statement.on_conflict_do_nothing(
                 constraint="uq_member_feedback_member_idempotency"
@@ -148,26 +168,30 @@ class MemberFeedbackRepository:
             conditions.append(MemberFeedback.status == status)
         if category is not None:
             conditions.append(MemberFeedback.category == category)
-        if query:
-            term = query.strip()
-            escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            pattern = f"%{escaped}%"
-            conditions.append(
-                or_(
-                    MemberFeedback.submitter_name.ilike(pattern, escape="\\"),
-                    MemberFeedback.submitter_email.ilike(pattern, escape="\\"),
-                    MemberFeedback.subject.ilike(pattern, escape="\\"),
-                    MemberFeedback.message.ilike(pattern, escape="\\"),
-                )
+        search_term = query.strip().lower() if query else ""
+        statement = (
+            select(MemberFeedback)
+            .where(*conditions)
+            .order_by(MemberFeedback.submitted_at.desc(), MemberFeedback.id.desc())
+        )
+        if search_term:
+            return page_filtered_candidates(
+                self.db.scalars(statement.execution_options(yield_per=250)),
+                lambda feedback: (
+                    search_term in (feedback.submitter_name or "").lower()
+                    or search_term in (feedback.submitter_email or "").lower()
+                    or search_term in (feedback.subject or "").lower()
+                    or search_term in (feedback.message or "").lower()
+                ),
+                page=page,
+                page_size=page_size,
             )
         total = self.db.scalar(
             select(func.count()).select_from(MemberFeedback).where(*conditions)
         ) or 0
         items = list(
             self.db.scalars(
-                select(MemberFeedback)
-                .where(*conditions)
-                .order_by(MemberFeedback.submitted_at.desc(), MemberFeedback.id.desc())
+                statement
                 .offset((page - 1) * page_size)
                 .limit(page_size)
             ).all()
@@ -194,7 +218,7 @@ class MemberFeedbackRepository:
         item = MemberFeedbackAction(
             feedback_id=feedback.id,
             actor_id=actor.id,
-            actor_name=actor.full_name[:200],
+            actor_name=_safe_human_name(actor),
             actor_email=actor.email[:254],
             actor_type=actor_type,
             action=action,

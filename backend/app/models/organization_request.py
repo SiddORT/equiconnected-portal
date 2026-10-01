@@ -6,6 +6,11 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base_class import Base
+from app.db.contact_types import (
+    contact_index_column,
+    contact_text_column,
+    protect_model_contacts,
+)
 from app.models.base import TimestampMixin
 from app.models.enums import OrganizationRequestStatus, ProviderType
 
@@ -21,7 +26,12 @@ class OrganizationRequest(TimestampMixin, Base):
     organization_type: Mapped[ProviderType] = mapped_column(
         Enum(ProviderType, name="provider_type", native_enum=True), nullable=False
     )
-    contact_email: Mapped[str | None] = mapped_column(String(254), nullable=True)
+    contact_email: Mapped[str | None] = contact_text_column(
+        "contact_email", nullable=True
+    )
+    _contact_email_blind_index: Mapped[str | None] = contact_index_column(
+        "contact_email"
+    )
     location_hint: Mapped[str | None] = mapped_column(String(500), nullable=True)
     status: Mapped[OrganizationRequestStatus] = mapped_column(
         Enum(OrganizationRequestStatus, name="organization_request_status", native_enum=True),
@@ -39,3 +49,6 @@ class OrganizationRequest(TimestampMixin, Base):
         Index("ix_organization_requests_status", "status"),
         Index("ix_organization_requests_organization_type", "organization_type"),
     )
+
+
+protect_model_contacts(OrganizationRequest, fields=("contact_email",))

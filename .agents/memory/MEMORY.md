@@ -54,3 +54,4 @@
 - [Password recovery session locking](password-recovery-session-locking.md) — recovery, password login, and refresh rotation share account-first serialization to prevent surviving reset sessions.
 - [Manual screenshot safety](manual-screenshot-safety.md) — use genuine shipped interfaces with labelled synthetic fixtures and fail-closed API isolation, never live decisions or private records.
 - [Protected provisioning evidence](protected-provisioning-evidence.md) — saved-secret confirmation is not encryption validation; verify semantics before reporting recovery.
+- [Contact cutover boundary](contact-cutover-boundary.md) — strict encrypted-only reads require a coordinated offline cutover; never hide incomplete conversion with plaintext fallback.

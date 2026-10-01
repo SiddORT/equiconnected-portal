@@ -46,6 +46,7 @@ from app.models.provider_registration import ProviderRegistrationApplication
 from app.models.specialization import Specialization
 from app.models.language import Language, ProviderRegistrationLanguage
 from app.services.email_service import EmailDeliveryError, EmailService
+from app.services.contact_encryption import normalize_contact
 
 logger = get_logger(__name__)
 
@@ -449,12 +450,15 @@ class AuthService:
             recipient = access.recipient_email
             provider = self._db.get(Provider, access.provider_id)
             contacts = (
-                {row.email.strip().lower() for row in provider.emails if _valid_email(row.email)}
+                {
+                    normalize_contact(row.email, field="email")
+                    for row in provider.emails if _valid_email(row.email)
+                }
                 if provider else set()
             )
             if provider and _valid_email(provider.email):
-                contacts.add(provider.email.strip().lower())
-            if recipient not in contacts:
+                contacts.add(normalize_contact(provider.email, field="email"))
+            if normalize_contact(recipient, field="email") not in contacts:
                 raise ProviderPortalSetupTokenUsedError("This provider portal link is no longer available.")
             resource_type, resource_id, provider_id = "provider", str(access.provider_id), access.provider_id
         else:
@@ -475,7 +479,11 @@ class AuthService:
             recipient = invitation.recipient_email
             resource_type, resource_id, provider_id = "provider_invitation", str(invitation.id), invitation.provider_id
         user = self._users.get_by_id(token.user_id)
-        if user is None or user.email != recipient:
+        if (
+            user is None
+            or normalize_contact(user.email, field="email")
+            != normalize_contact(recipient, field="email")
+        ):
             raise ProviderPortalSetupTokenUsedError(
                 "This provider portal link is no longer available."
             )
@@ -529,7 +537,7 @@ class AuthService:
         dummy_hash = "$argon2id$v=19$m=65536,t=3,p=4$dummysalt0000000$dummyhash0000000000000000000000000000000"
         if user is None:
             verify_password(password, dummy_hash)
-            logger.warning("login.failed.unknown_email", email=email)
+            logger.warning("login.failed.unknown_email")
             raise AuthenticationError("Invalid email or password")
 
         # Password verification and session issuance must share recovery's
@@ -556,9 +564,14 @@ class AuthService:
             self._db.commit()
             raise AuthenticationError("Invalid email or password")
 
-        self._require_member_access(user)
+        try:
+            self._require_member_access(user)
+        except PublicAccountAccessError:
+            self._db.rollback()
+            raise
         if not user.is_active:
             logger.warning("login.failed.inactive", user_id=str(user.id))
+            self._db.rollback()
             raise InactiveUserError("Account is disabled")
 
         # Optional: rehash if Argon2 parameters are outdated
@@ -613,12 +626,18 @@ class AuthService:
             .execution_options(populate_existing=True)
         )
         if user is None or not user.is_active:
+            self._db.rollback()
             raise InvalidTokenError("User not found or inactive")
         record = self._tokens.get_valid(raw_refresh_token, for_update=True)
         if record is None or record.user_id != user_id:
             logger.warning("refresh.failed.token_not_found_or_revoked")
+            self._db.rollback()
             raise InvalidTokenError("Token not found or revoked")
-        self._require_member_access(user)
+        try:
+            self._require_member_access(user)
+        except PublicAccountAccessError:
+            self._db.rollback()
+            raise
 
         # Rotate: revoke old, issue new
         self._tokens.revoke(record)

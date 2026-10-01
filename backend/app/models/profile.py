@@ -6,6 +6,11 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
+from app.db.contact_types import (
+    contact_index_column,
+    contact_text_column,
+    protect_model_contacts,
+)
 from app.models.base import TimestampMixin
 
 
@@ -25,12 +30,28 @@ class StableProfile(TimestampMixin, Base):
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
     postal_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     contact_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    contact_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    contact_email: Mapped[str | None] = mapped_column(String(254), nullable=True)
+    contact_phone: Mapped[str | None] = contact_text_column(
+        "contact_phone", nullable=True
+    )
+    _contact_phone_blind_index: Mapped[str | None] = contact_index_column(
+        "contact_phone"
+    )
+    contact_email: Mapped[str | None] = contact_text_column(
+        "contact_email", nullable=True
+    )
+    _contact_email_blind_index: Mapped[str | None] = contact_index_column(
+        "contact_email"
+    )
 
     user: Mapped["User"] = relationship("User", back_populates="stable_profile")
 
     __table_args__ = (Index("ix_stable_profiles_user_id", "user_id"),)
+
+
+protect_model_contacts(
+    StableProfile,
+    fields=("contact_email", "contact_phone"),
+)
 
 
 class Horse(TimestampMixin, Base):

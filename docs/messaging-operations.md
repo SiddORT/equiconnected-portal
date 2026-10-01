@@ -114,7 +114,18 @@ data, recipient addresses, or raw SMTP responses.
 
 Deploy the application only behind HTTPS. Database ciphertext at rest plus
 HTTPS is **not end-to-end encryption** and does not protect content from the
-authorized application process or conversation participants. Existing account
-and profile contact fields retain their existing storage behavior; the
-messaging encryption applies only to the new conversation bodies and
-conversation-specific consent/contact snapshots.
+authorized application process or conversation participants. Private message
+bodies and conversation-specific consent/contact snapshots use the separate
+messaging keyring described above. Account, profile, invitation, delivery,
+enquiry, subscriber, feedback, and historical contact data have their own
+encryption and blind-index key material and operational lifecycle; do not reuse
+messaging keys for contact encryption. See
+[`contact-encryption-operations.md`](contact-encryption-operations.md) for
+contact-data conversion, cutover, rotation, and recovery procedures.
+
+Database encryption does not sanitize older backups, WAL/archive files,
+replicas, exports, application logs, or SMTP systems. Contact encryption also
+does not discover arbitrary contact details typed into unrelated free-text
+fields. Treat old database copies as containing plaintext contacts unless they
+were independently protected or securely retired under the organization's
+retention process.

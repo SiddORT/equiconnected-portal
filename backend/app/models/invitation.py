@@ -7,6 +7,11 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
+from app.db.contact_types import (
+    contact_index_column,
+    contact_text_column,
+    protect_model_contacts,
+)
 from app.models.base import TimestampMixin
 from app.models.enums import InvitationStatus, ProviderType
 
@@ -21,7 +26,12 @@ class ProviderInvitation(TimestampMixin, Base):
     provider_type: Mapped[ProviderType] = mapped_column(
         Enum(ProviderType, name="provider_type", native_enum=True), nullable=False
     )
-    recipient_email: Mapped[str] = mapped_column(String(254), nullable=False)
+    recipient_email: Mapped[str] = contact_text_column(
+        "recipient_email", nullable=False
+    )
+    _recipient_email_blind_index: Mapped[str] = contact_index_column(
+        "recipient_email", nullable=False
+    )
     emails_edited: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     status: Mapped[InvitationStatus] = mapped_column(
@@ -56,11 +66,15 @@ class ProviderInvitation(TimestampMixin, Base):
     )
 
     __table_args__ = (
-        Index("ix_provider_invitations_provider_email", "provider_id", "recipient_email"),
+        Index(
+            "ix_provider_invitations_provider_email_blind_index",
+            "provider_id",
+            "recipient_email_blind_index",
+        ),
         Index(
             "uq_provider_invitations_active_provider_email",
             "provider_id",
-            "recipient_email",
+            "recipient_email_blind_index",
             unique=True,
             postgresql_where=status.in_(
                 [InvitationStatus.PENDING, InvitationStatus.ACCEPTED]
@@ -69,6 +83,9 @@ class ProviderInvitation(TimestampMixin, Base):
         Index("ix_provider_invitations_status", "status"),
         Index("ix_provider_invitations_expires_at", "expires_at"),
     )
+
+
+protect_model_contacts(ProviderInvitation, fields=("recipient_email",))
 
 
 class ProviderPortalSetupToken(TimestampMixin, Base):

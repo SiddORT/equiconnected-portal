@@ -521,7 +521,7 @@ def _spreadsheet_safe(value: str) -> str:
     return f"'{value}" if value.startswith(("=", "+", "-", "@")) else value
 
 
-def _subscriber_csv_rows(rows: list[tuple[str, str, str]]):
+def _subscriber_csv_rows(rows):
     buffer = io.StringIO(newline="")
     writer = csv.writer(buffer)
     writer.writerow(["Email address", "Registration type", "Submitted timestamp"])
@@ -558,36 +558,39 @@ def export_subscribers(
             },
         )
     timezone_name = SystemSettingsRepository(db).get_or_create().timezone
-    subscribers = SubscriberRepository(db).list_all(
+    repository = SubscriberRepository(db)
+    filters = dict(
         search=search,
         registration_type=registration_type,
         date_from=date_from,
         date_to=date_to,
         timezone_name=timezone_name,
     )
-    rows = [
-        (
-            subscriber.email,
-            (
-                subscriber.registration_type.value
-                if isinstance(subscriber.registration_type, SubscriberRegistrationType)
-                else str(subscriber.registration_type)
-            ),
-            subscriber.submitted_at.astimezone(timezone.utc).isoformat(),
-        )
-        for subscriber in subscribers
-    ]
+    exported_count = sum(1 for _ in repository.iter_all(**filters))
     AuditRepository(db).record(
         "subscriber.exported",
         context=context_from_request(request, current_user.id),
         resource_type="subscriber",
         summary="Exported the subscriber directory.",
-        metadata={"exported_count": len(rows)},
+        metadata={"exported_count": exported_count},
     )
     db.commit()
     filename = f"equiconnected-subscribers-{system_today(timezone_name).isoformat()}.csv"
+
+    def export_rows():
+        for subscriber in SubscriberRepository(db).iter_all(**filters):
+            yield (
+                subscriber.email,
+                (
+                    subscriber.registration_type.value
+                    if isinstance(subscriber.registration_type, SubscriberRegistrationType)
+                    else str(subscriber.registration_type)
+                ),
+                subscriber.submitted_at.astimezone(timezone.utc).isoformat(),
+            )
+
     return StreamingResponse(
-        _subscriber_csv_rows(rows),
+        _subscriber_csv_rows(export_rows()),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

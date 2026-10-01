@@ -11,6 +11,11 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from app.db.base_class import Base
+from app.db.contact_types import (
+    contact_index_column,
+    contact_text_column,
+    protect_model_contacts,
+)
 from app.models.base import TimestampMixin
 
 
@@ -26,15 +31,21 @@ class User(TimestampMixin, Base):
         primary_key=True,
         default=uuid.uuid4,
     )
-    email: Mapped[str] = mapped_column(
-        String(255), unique=True, nullable=False, index=True
+    email: Mapped[str] = contact_text_column("email", nullable=False)
+    _email_blind_index: Mapped[str] = contact_index_column(
+        "email", nullable=False, unique=True
     )
     # Argon2id hash — NEVER store plaintext, NEVER return via API
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
 
     first_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    mobile_number: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    mobile_number: Mapped[str | None] = contact_text_column(
+        "mobile_number", nullable=True
+    )
+    _mobile_number_blind_index: Mapped[str | None] = contact_index_column(
+        "mobile_number"
+    )
     country: Mapped[str | None] = mapped_column(String(100), nullable=True)
     state_province: Mapped[str | None] = mapped_column(String(100), nullable=True)
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -132,7 +143,10 @@ class User(TimestampMixin, Base):
         return self.role.name == PROVIDER_ACCOUNT_ROLE_NAME
 
     def __repr__(self) -> str:
-        return f"<User id={self.id} email={self.email!r} role={self.role_id}>"
+        return f"<User id={self.id} role={self.role_id}>"
+
+
+protect_model_contacts(User, fields=("email", "mobile_number"))
 
 
 class UserRole(Base):

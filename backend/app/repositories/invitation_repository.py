@@ -1,14 +1,15 @@
 """Data access for provider invitations."""
-import hashlib
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.models.enums import InvitationStatus, ProviderType
 from app.models.invitation import ProviderInvitation
 from app.models.provider import Provider
+from app.repositories import matches_like_substring, page_filtered_candidates
+from app.services.contact_encryption import contact_blind_index
 
 
 class InvitationRepository:
@@ -67,9 +68,13 @@ class InvitationRepository:
         self, provider_type: ProviderType, email: str
     ) -> None:
         """Serialize new-provider creation for one normalized type/email pair."""
-        lock_input = f"{provider_type.value}:{email}".encode("utf-8")
+        lock_digest = contact_blind_index(
+            email,
+            table="provider_invitation_advisory_lock",
+            field=f"{provider_type.value}:recipient_email",
+        )
         lock_key = int.from_bytes(
-            hashlib.sha256(lock_input).digest()[:8], byteorder="big", signed=True
+            bytes.fromhex(lock_digest)[:8], byteorder="big", signed=True
         )
         self._db.execute(select(func.pg_advisory_xact_lock(lock_key)))
 
@@ -137,14 +142,7 @@ class InvitationRepository:
             .outerjoin(Provider, Provider.id == ProviderInvitation.provider_id)
         )
         conditions = []
-        if search:
-            term = f"%{search.strip()}%"
-            conditions.append(
-                or_(
-                    ProviderInvitation.recipient_email.ilike(term),
-                    Provider.name.ilike(term),
-                )
-            )
+        search_term = search.strip().lower() if search else ""
         if status:
             conditions.append(ProviderInvitation.status == status)
         if provider_type:
@@ -155,11 +153,28 @@ class InvitationRepository:
             conditions.append(ProviderInvitation.sent_at < date_to)
         for condition in conditions:
             stmt, count_stmt = stmt.where(condition), count_stmt.where(condition)
+        if search_term:
+            candidates = self._db.execute(
+                stmt.order_by(
+                    ProviderInvitation.created_at.desc(), ProviderInvitation.id.desc()
+                ).execution_options(yield_per=250)
+            )
+            return page_filtered_candidates(
+                candidates,
+                lambda row: (
+                    matches_like_substring(row[0].recipient_email, search_term)
+                    or matches_like_substring(row[1], search_term)
+                ),
+                page=page,
+                page_size=page_size,
+            )
         total = self._db.scalar(count_stmt) or 0
         items = [
             (row[0], row[1], row[2])
             for row in self._db.execute(
-                stmt.order_by(ProviderInvitation.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+                stmt.order_by(
+                    ProviderInvitation.created_at.desc(), ProviderInvitation.id.desc()
+                ).offset((page - 1) * page_size).limit(page_size)
             )
         ]
         return items, total

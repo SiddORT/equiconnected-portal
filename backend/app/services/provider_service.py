@@ -31,6 +31,7 @@ from app.models.user import User
 from app.repositories.provider_repository import ProviderRepository
 from app.repositories.audit_repository import AuditContext, AuditRepository
 from app.services.direct_provider_access_service import invalidate_if_recipient_removed
+from app.services.contact_encryption import normalize_contact
 from app.services.email_service import EmailService
 from app.services.provider_approval_email import send_provider_approval_email
 
@@ -168,7 +169,8 @@ class ProviderService:
         user = db.get(User, invitation.portal_user_id)
         if (
             user is None
-            or user.email.strip().lower() != invitation.recipient_email.strip().lower()
+            or normalize_contact(user.email, field="email")
+            != normalize_contact(invitation.recipient_email, field="email")
             or user.role.name != "provider"
         ):
             raise ProviderApprovalError(
@@ -223,8 +225,8 @@ class ProviderService:
                 else None
             )
             if account is not None and (
-                account.email.strip().lower()
-                != invitation.recipient_email.strip().lower()
+                normalize_contact(account.email, field="email")
+                != normalize_contact(invitation.recipient_email, field="email")
                 or account.role.name != "provider"
             ):
                 raise ProviderApprovalError(

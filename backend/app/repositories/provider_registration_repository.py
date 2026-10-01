@@ -1,12 +1,13 @@
 """Persistence operations for provider-account registration applications."""
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.enums import ProviderApplicationStatus, ProviderType
 from app.models.provider_registration import ProviderRegistrationApplication
 from app.models.user import User
+from app.repositories import matches_like_substring, page_filtered_candidates
 
 
 class ProviderRegistrationRepository:
@@ -48,20 +49,7 @@ class ProviderRegistrationRepository:
         page_size: int = 25,
     ) -> tuple[list[ProviderRegistrationApplication], int]:
         conditions = []
-        if search:
-            pattern = f"%{search.strip()}%"
-            conditions.append(
-                or_(
-                    ProviderRegistrationApplication.provider_name.ilike(pattern),
-                    ProviderRegistrationApplication.user.has(
-                        or_(
-                            User.email.ilike(pattern),
-                            User.first_name.ilike(pattern),
-                            User.last_name.ilike(pattern),
-                        )
-                    ),
-                )
-            )
+        search_term = search.strip().lower() if search else ""
         if provider_type is not None:
             conditions.append(ProviderRegistrationApplication.provider_type == provider_type)
         if review_status is not None:
@@ -78,10 +66,7 @@ class ProviderRegistrationRepository:
                     User.email_verified_at.is_(None)
                 )
             )
-        total = self._db.scalar(
-            select(func.count()).select_from(ProviderRegistrationApplication).where(*conditions)
-        ) or 0
-        rows = self._db.scalars(
+        statement = (
             select(ProviderRegistrationApplication)
             .options(
                 joinedload(ProviderRegistrationApplication.user),
@@ -89,7 +74,28 @@ class ProviderRegistrationRepository:
                 joinedload(ProviderRegistrationApplication.provider),
             )
             .where(*conditions)
-            .order_by(ProviderRegistrationApplication.created_at.desc(), ProviderRegistrationApplication.id.desc())
+            .order_by(
+                ProviderRegistrationApplication.created_at.desc(),
+                ProviderRegistrationApplication.id.desc(),
+            )
+        )
+        if search_term:
+            return page_filtered_candidates(
+                self._db.scalars(statement.execution_options(yield_per=250)),
+                lambda application: (
+                    matches_like_substring(application.provider_name, search_term)
+                    or matches_like_substring(application.user.email, search_term)
+                    or matches_like_substring(application.user.first_name, search_term)
+                    or matches_like_substring(application.user.last_name, search_term)
+                ),
+                page=page,
+                page_size=page_size,
+            )
+        total = self._db.scalar(
+            select(func.count()).select_from(ProviderRegistrationApplication).where(*conditions)
+        ) or 0
+        rows = self._db.scalars(
+            statement
             .offset((page - 1) * page_size)
             .limit(page_size)
         ).all()

@@ -28,6 +28,7 @@ from app.repositories.email_delivery_repository import (
     EmailDeliveryRepository,
     safe_failure_message,
 )
+from app.services.contact_encryption import normalize_contact
 from app.services.email_service import EmailDeliveryError, EmailService
 
 
@@ -92,11 +93,19 @@ def _provider_owner_is_eligible(db: Session, provider_id: UUID, user: User) -> b
         return False
     if user.provider_portal_setup_pending or getattr(user, "provider_portal_approval_pending", False):
         return False
-    if direct and (direct.user_id != user.id or direct.recipient_email.lower() != user.email.lower()):
+    if direct and (
+        direct.user_id != user.id
+        or normalize_contact(direct.recipient_email, field="email")
+        != normalize_contact(user.email, field="email")
+    ):
         return False
     if any(
         inv.portal_user_id == user.id
-        and (inv.status != InvitationStatus.COMPLETED or inv.recipient_email.lower() != user.email.lower())
+        and (
+            inv.status != InvitationStatus.COMPLETED
+            or normalize_contact(inv.recipient_email, field="email")
+            != normalize_contact(user.email, field="email")
+        )
         for inv in invitations
     ):
         return False

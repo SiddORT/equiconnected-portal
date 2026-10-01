@@ -3,11 +3,12 @@ User data access — all DB queries for users go through here.
 """
 import uuid
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.user import PUBLIC_ACCOUNT_ROLE_NAMES, User, UserRole
 from app.models.role import Role
+from app.repositories import matches_like_substring, page_filtered_candidates
 
 
 class UserRepository:
@@ -122,15 +123,7 @@ class UserRepository:
     ) -> tuple[list[User], int]:
         """List only accounts made through the public registration role flow."""
         filters = [self._public_registrant_filter()]
-        if search:
-            pattern = f"%{search.strip().lower()}%"
-            filters.append(
-                or_(
-                    func.lower(User.first_name).like(pattern),
-                    func.lower(User.last_name).like(pattern),
-                    func.lower(User.email).like(pattern),
-                )
-            )
+        search_term = search.strip().lower() if search else ""
         if role:
             matching_role_users = (
                 select(UserRole.user_id)
@@ -143,17 +136,29 @@ class UserRepository:
         elif email_verified is False:
             filters.append(User.email_verified_at.is_(None))
 
+        statement = select(User).options(
+            joinedload(User.role),
+            selectinload(User.role_assignments).joinedload(UserRole.role),
+        ).where(*filters).order_by(User.created_at.desc(), User.id.desc())
+        if search_term:
+            return page_filtered_candidates(
+                self._db.scalars(
+                    statement.execution_options(yield_per=250)
+                ),
+                lambda user: (
+                    matches_like_substring(user.email, search_term)
+                    or matches_like_substring(user.first_name, search_term)
+                    or matches_like_substring(user.last_name, search_term)
+                ),
+                page=page,
+                page_size=page_size,
+            )
+
         total = self._db.scalar(
             select(func.count()).select_from(User).where(*filters)
         ) or 0
         items = self._db.scalars(
-            select(User)
-            .options(
-                joinedload(User.role),
-                selectinload(User.role_assignments).joinedload(UserRole.role),
-            )
-            .where(*filters)
-            .order_by(User.created_at.desc(), User.id.desc())
+            statement
             .offset((page - 1) * page_size)
             .limit(page_size)
         ).all()

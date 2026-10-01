@@ -11,12 +11,32 @@ Test-isolation strategy:
     on the SA version.
   - Rate limiting is disabled for all tests via a dependency override.
 """
+import base64
+import json
 import os
+import secrets
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
+
+# Contact encryption tests must never depend on production/development keys. Set
+# independent, freshly generated test-only keys before importing the application
+# (which imports and caches Settings). These values exist only in this process.
+_TEST_CONTACT_ENCRYPTION_KEY = secrets.token_bytes(32)
+_TEST_CONTACT_BLIND_INDEX_KEY = secrets.token_bytes(32)
+while secrets.compare_digest(
+    _TEST_CONTACT_ENCRYPTION_KEY, _TEST_CONTACT_BLIND_INDEX_KEY
+):
+    _TEST_CONTACT_BLIND_INDEX_KEY = secrets.token_bytes(32)
+os.environ["CONTACT_ENCRYPTION_KEYRING"] = json.dumps(
+    {"test-ephemeral": base64.b64encode(_TEST_CONTACT_ENCRYPTION_KEY).decode("ascii")}
+)
+os.environ["CONTACT_ENCRYPTION_ACTIVE_KEY_ID"] = "test-ephemeral"
+os.environ["CONTACT_BLIND_INDEX_KEY"] = base64.b64encode(
+    _TEST_CONTACT_BLIND_INDEX_KEY
+).decode("ascii")
 
 from app.core.rate_limit import (
     check_email_verification_rate_limit,
@@ -106,7 +126,12 @@ _CLEANUP_TABLES = [
 
 def _make_engine(schema: str):
     """Return a SQLAlchemy engine whose connections always use *schema*."""
-    e = create_engine(TEST_DB_URL, pool_pre_ping=True, pool_size=5)
+    e = create_engine(
+        TEST_DB_URL,
+        pool_pre_ping=True,
+        pool_size=5,
+        hide_parameters=True,
+    )
 
     @event.listens_for(e, "connect")
     def _set_search_path(dbapi_conn, _record):

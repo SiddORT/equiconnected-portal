@@ -185,10 +185,13 @@ HTTPS requirements, and notification recovery, and
 `docs/messaging-api-contract.md` for the endpoint contract.
 
 Message content and conversation-specific consented contacts have encrypted
-storage; existing account/profile contacts are unchanged. This is not
-end-to-end encryption. Administrators have no conversation reader. Email
-notices contain no message body or shared contact snapshot, and a saved message
-remains saved even when notification delivery fails.
+storage, separate from the dedicated contact-data encryption system. See
+`docs/messaging-operations.md` and
+`docs/contact-encryption-operations.md` for secret provisioning, migrations,
+conversion, and rotation. This is not end-to-end encryption. Administrators
+have no conversation reader. Email notices contain no message body or shared
+contact snapshot, and a saved message remains saved even when notification
+delivery fails.
 
 ## Detailed analytics
 

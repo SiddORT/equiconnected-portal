@@ -7,6 +7,11 @@ from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
+from app.db.contact_types import (
+    contact_index_column,
+    contact_text_column,
+    protect_model_contacts,
+)
 from app.models.base import TimestampMixin
 from app.models.enums import ProviderApplicationStatus, ProviderType, VisitStability
 
@@ -49,7 +54,12 @@ class ProviderRegistrationApplication(TimestampMixin, Base):
     clinic_hospital_visit: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     maximum_working_radius_km: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     emergency_services_available: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    emergency_contact_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    emergency_contact_number: Mapped[str | None] = contact_text_column(
+        "emergency_contact_number", nullable=True
+    )
+    _emergency_contact_number_blind_index: Mapped[str | None] = contact_index_column(
+        "emergency_contact_number"
+    )
     review_status: Mapped[ProviderApplicationStatus] = mapped_column(
         Enum(
             ProviderApplicationStatus,
@@ -89,3 +99,9 @@ class ProviderRegistrationApplication(TimestampMixin, Base):
             "provider_type",
         ),
     )
+
+
+protect_model_contacts(
+    ProviderRegistrationApplication,
+    fields=("emergency_contact_number",),
+)

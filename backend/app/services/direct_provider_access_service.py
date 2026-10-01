@@ -4,7 +4,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -26,6 +26,7 @@ from app.repositories.user_repository import UserRepository
 from app.schemas.provider import _valid_email
 from app.services.email_service import EmailDeliveryError, EmailService
 from app.services.provider_portal_recovery_service import ProviderPortalRecoveryService
+from app.services.contact_encryption import normalize_contact
 
 
 def invalidate_if_recipient_removed(
@@ -36,12 +37,13 @@ def invalidate_if_recipient_removed(
     if access is None:
         return
     contacts = {
-        row.email.strip().lower()
-        for row in provider.emails if row.id != excluded_email_id and _valid_email(row.email)
+        normalize_contact(row.email, field="email")
+        for row in provider.emails
+        if row.id != excluded_email_id and _valid_email(row.email)
     }
     if _valid_email(provider.email):
-        contacts.add(provider.email.strip().lower())
-    if access.recipient_email in contacts:
+        contacts.add(normalize_contact(provider.email, field="email"))
+    if normalize_contact(access.recipient_email, field="email") in contacts:
         return
     user = db.get(User, access.user_id)
     if user is None or user.is_active or not user.provider_portal_setup_pending:
@@ -127,15 +129,18 @@ class DirectProviderAccessService:
         users_by_id = {row.id: row for row in accounts}
 
         emails_to_check = {
-            email.strip().lower()
+            normalize_contact(email, field="email")
             for provider in providers
             for email in [*(item.email for item in provider.emails), provider.email]
             if _valid_email(email)
         }
         matching_accounts = self.db.scalars(
-            select(User).where(func.lower(User.email).in_(emails_to_check))
+            select(User).where(User.email.in_(emails_to_check))
         ).all() if emails_to_check else []
-        users_by_email = {row.email.strip().lower(): row for row in matching_accounts}
+        users_by_email = {
+            normalize_contact(row.email, field="email"): row
+            for row in matching_accounts
+        }
 
         result: dict[UUID, dict] = {}
         for provider in providers:
@@ -152,13 +157,22 @@ class DirectProviderAccessService:
             owner = users_by_id.get(next(iter(owner_ids))) if len(owner_ids) == 1 else None
 
             contacts = [
-                {"email_id": str(item.id), "email": item.email.strip().lower()}
+                {
+                    "email_id": str(item.id),
+                    "email": normalize_contact(item.email, field="email"),
+                }
                 for item in provider.emails if _valid_email(item.email)
             ]
             if _valid_email(provider.email) and not any(
-                item["email"] == provider.email.strip().lower() for item in contacts
+                item["email"] == normalize_contact(provider.email, field="email")
+                for item in contacts
             ):
-                contacts.append({"email_id": None, "email": provider.email.strip().lower()})
+                contacts.append(
+                    {
+                        "email_id": None,
+                        "email": normalize_contact(provider.email, field="email"),
+                    }
+                )
 
             action = None
             state = "unavailable"
@@ -191,7 +205,8 @@ class DirectProviderAccessService:
                 if access and owner.provider_portal_setup_pending:
                     selected = [
                         item for item in contacts
-                        if item["email"] == access.recipient_email
+                        if normalize_contact(item["email"], field="email")
+                        == normalize_contact(access.recipient_email, field="email")
                     ]
                     if not selected:
                         action, state = None, "unavailable"
@@ -209,7 +224,7 @@ class DirectProviderAccessService:
                 sent_at = invitation.portal_access_sent_at
                 recipient = invitation.recipient_email
                 if invitation.status == InvitationStatus.COMPLETED:
-                    if users_by_email.get(recipient.lower()):
+                    if users_by_email.get(normalize_contact(recipient, field="email")):
                         reason = "This email already belongs to an EquiConnected account and cannot be linked automatically."
                     else:
                         action, state = "setup", "invitation"
@@ -248,7 +263,8 @@ class DirectProviderAccessService:
                 "portal_login_email": owner.email if owner and action == "reset" else recipient,
                 "email_id": next(
                     (item["email_id"] for item in contacts
-                     if access and item["email"] == access.recipient_email),
+                     if access and normalize_contact(item["email"], field="email")
+                     == normalize_contact(access.recipient_email, field="email")),
                     None,
                 ),
                 "invitation_id": (
@@ -377,9 +393,16 @@ class DirectProviderAccessService:
         users = UserRepository(self.db)
         if access:
             user = self.db.get(User, access.user_id)
-            if (user is None or user.email != access.recipient_email or recipient != access.recipient_email
-                    or not user.provider_portal_setup_pending or user.is_active
-                    or getattr(user, "provider_portal_approval_pending", False)):
+            if (
+                user is None
+                or normalize_contact(user.email, field="email")
+                != normalize_contact(access.recipient_email, field="email")
+                or normalize_contact(recipient, field="email")
+                != normalize_contact(access.recipient_email, field="email")
+                or not user.provider_portal_setup_pending
+                or user.is_active
+                or getattr(user, "provider_portal_approval_pending", False)
+            ):
                 self.db.rollback()
                 raise DirectAccessError("portal_access_unavailable", "This account is no longer eligible for setup.")
         else:

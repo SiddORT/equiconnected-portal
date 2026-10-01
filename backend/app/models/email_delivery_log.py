@@ -7,6 +7,11 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base_class import Base
+from app.db.contact_types import (
+    contact_index_column,
+    contact_text_column,
+    protect_model_contacts,
+)
 
 
 class EmailDeliveryLog(Base):
@@ -32,7 +37,12 @@ class EmailDeliveryLog(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    recipient_email: Mapped[str] = mapped_column(String(255), nullable=False)
+    recipient_email: Mapped[str] = contact_text_column(
+        "recipient_email", nullable=False
+    )
+    _recipient_email_blind_index: Mapped[str] = contact_index_column(
+        "recipient_email", nullable=False
+    )
     purpose: Mapped[str] = mapped_column(String(40), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     failure_message: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -41,3 +51,6 @@ class EmailDeliveryLog(Base):
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )
+
+
+protect_model_contacts(EmailDeliveryLog, fields=("recipient_email",))

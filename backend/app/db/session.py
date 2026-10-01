@@ -21,7 +21,10 @@ def _build_engine():
         pool_pre_ping=True,        # detect stale connections
         pool_size=5,
         max_overflow=10,
-        echo=settings.DEBUG,
+        # Contacts are decrypted in application memory; never log SQL binds or
+        # result rows even when application debug logging is enabled.
+        echo=False,
+        hide_parameters=True,
     )
 
 

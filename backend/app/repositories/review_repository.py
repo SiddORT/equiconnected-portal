@@ -643,10 +643,17 @@ class ReviewRepository:
         review = self.get_review(review_id)
         if review is None:
             raise ValueError("Cannot snapshot a missing provider review.")
+        actor_name = "Unavailable account"
+        if actor:
+            actor_name = " ".join(
+                part.strip()
+                for part in (actor.first_name, actor.last_name)
+                if part and part.strip()
+            )[:200] or "Account holder"
         entry = ProviderReviewAction(
             review_id=review_id,
             actor_id=actor_id,
-            actor_name=actor.full_name[:200] if actor else "Unavailable account",
+            actor_name=actor_name,
             actor_email=actor.email[:254] if actor else "",
             actor_type=actor_type,
             action=action,

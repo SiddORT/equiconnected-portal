@@ -161,9 +161,9 @@ def create_app() -> FastAPI:
             "unhandled_exception",
             path=_safe_log_path(request),
             method=request.method,
-            # Private-message failures may contain decrypted values from a
-            # dependency. Retain the error type, never its arbitrary payload.
-            exc=type(exc).__name__ if request.url.path.startswith("/api/v1/messages") else str(exc),
+            # Any dependency or SQL exception may contain decrypted contacts.
+            # Retain its type, never an arbitrary exception payload.
+            exc=type(exc).__name__,
         )
         return JSONResponse(
             status_code=500,

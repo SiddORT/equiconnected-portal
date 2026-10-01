@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import update
 
 from app.core.security import hash_password
+from app.db.contact_types import prepare_contact_values
 from app.models.doctor import DoctorProfile
 from app.models.provider import Provider
 from app.repositories.user_repository import UserRepository
@@ -1566,8 +1567,13 @@ class TestAdminProviderForm:
     ):
         legacy = _create_provider(client, admin_token, "Legacy Emergency", provider_type="CLINIC")
         db.execute(
-            update(Provider).where(Provider.id == uuid.UUID(legacy["id"]))
-            .values(emergency_services_available=True, emergency_contact_number=None)
+            update(Provider.__table__).where(Provider.id == uuid.UUID(legacy["id"]))
+            .values({
+                Provider.__table__.c.emergency_services_available: True,
+                **prepare_contact_values(
+                    Provider, legacy["id"], {"emergency_contact_number": None}
+                ),
+            })
         )
         db.commit()
         updated = client.patch(

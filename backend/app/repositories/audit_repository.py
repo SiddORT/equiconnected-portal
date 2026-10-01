@@ -2,6 +2,7 @@
 Audit log data access.
 """
 import ipaddress
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -48,6 +49,22 @@ _DISPLAY_SAFE_FIELDS = {
     "relationship_status", "result_count", "exported_count", "imported_count",
     "skipped_count", "error_count", "updated_fields", "field",
 }
+_EMAIL_IN_TEXT = re.compile(
+    r"(?<![\w.+-])[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@"
+    r"(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+"
+    r"[A-Z]{2,63}(?![\w.-])",
+    re.IGNORECASE,
+)
+_PHONE_IN_TEXT = re.compile(
+    r"(?<!\w)(?=[+()\d][+()\d\s.-]*\d)"
+    r"\+?(?:\d[\d\s().-]{5,}\d)(?!\w)"
+)
+
+
+def _redact_summary_contacts(summary: str) -> str:
+    """Keep generated audit summaries useful without copying contact values."""
+    redacted = _EMAIL_IN_TEXT.sub(_REDACTED, summary)
+    return _PHONE_IN_TEXT.sub(_REDACTED, redacted)
 
 
 def _safe_value(key: str, value: Any) -> Any:
@@ -111,7 +128,7 @@ class AuditRepository:
     ) -> AuditLog:
         safe_metadata = sanitize_metadata(metadata)
         if summary is not None:
-            safe_metadata["summary"] = summary
+            safe_metadata["summary"] = _redact_summary_contacts(summary)
         if changes:
             safe_metadata["changes"] = [
                 {
