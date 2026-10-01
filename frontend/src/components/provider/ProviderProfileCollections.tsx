@@ -29,6 +29,8 @@ interface ProviderProfileCollectionsProps {
   photos: PortalPhoto[];
   onPhotosChange: (photos: PortalPhoto[]) => void;
   onUploadPhoto: (item: { file: File; alt_text: string | null; caption: string | null }) => Promise<PortalPhoto>;
+  onPhotoUploadStateChange: (uploading: boolean) => void;
+  unsavedUploadedPhotoCount: number;
   qualifications: PortalQualification[];
   onQualificationsChange: (qualifications: PortalQualification[]) => void;
   showQualifications: boolean;
@@ -73,6 +75,8 @@ export function ProviderProfileCollections({
   photos,
   onPhotosChange,
   onUploadPhoto,
+  onPhotoUploadStateChange,
+  unsavedUploadedPhotoCount,
   qualifications,
   onQualificationsChange,
   showQualifications,
@@ -164,6 +168,7 @@ export function ProviderProfileCollections({
     try {
       setUploadError(null);
       setUploadingPhotos(true);
+      onPhotoUploadStateChange(true);
       for (const photo of stagedPhotos) {
         await onUploadPhoto({
           file: photo.file,
@@ -188,6 +193,7 @@ export function ProviderProfileCollections({
       setUploadError(error instanceof Error ? error.message : 'Photos could not be uploaded. Please try again.');
     } finally {
       setUploadingPhotos(false);
+      onPhotoUploadStateChange(false);
     }
   }
 
@@ -352,6 +358,9 @@ export function ProviderProfileCollections({
         {uploadError && <p className={styles.uploadError} role="alert">{uploadError}</p>}
         {stagedPhotos.length > 0 && (
           <div className={styles.stagedList}>
+            <p className={styles.photoGuidance} role="status">
+              These photos are only staged in this form. Select Upload to send them, then select Save profile to include them in your provider profile.
+            </p>
             {stagedPhotos.map((photo) => (
               <div className={styles.stagedPhoto} key={photo.id}>
                 <img src={photo.preview} alt="" className={styles.preview} />
@@ -366,6 +375,15 @@ export function ProviderProfileCollections({
             <Button type="button" size="sm" disabled={disabled || uploadingPhotos || stagedPhotos.length === 0} onClick={() => void uploadStagedPhotos()}>
               Upload {stagedPhotos.length === 1 ? 'photo' : `${stagedPhotos.length} photos`}
             </Button>
+          </div>
+        )}
+        {uploadingPhotos && <p className={styles.photoGuidance} role="status">Uploading photos… Wait for the upload to finish before saving profile changes.</p>}
+        {unsavedUploadedPhotoCount > 0 && (
+          <div className={styles.uploadedNotice} role="status">
+            <strong>Uploaded, not yet saved</strong>
+            <span>
+              {unsavedUploadedPhotoCount === 1 ? 'This photo has' : 'These photos have'} been uploaded but {unsavedUploadedPhotoCount === 1 ? 'has' : 'have'} not been added to your profile yet. Select Save profile to include {unsavedUploadedPhotoCount === 1 ? 'it' : 'them'}. Unpublished profiles save immediately; changes to published listings await administrator review.
+            </span>
           </div>
         )}
         {photos.length === 0 && <p className={styles.empty}>No profile photos added yet.</p>}

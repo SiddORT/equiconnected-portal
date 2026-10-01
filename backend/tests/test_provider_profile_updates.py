@@ -23,11 +23,13 @@ from app.models.provider import (
     Provider,
     ProviderEmail,
     ProviderLocation,
+    ProviderPhoto,
     ProviderPhone,
     ProviderProfileUpdate,
 )
 from app.models.provider_registration import ProviderRegistrationApplication
 from app.repositories.user_repository import UserRepository
+import app.services.provider_portal_service as provider_portal_service
 from app.services.provider_profile_update_service import (
     _legacy_phone_contact,
     editable_profile_from_provider,
@@ -54,6 +56,7 @@ def _portal_provider(
     email: str,
     name: str,
     publication_status: PublicationStatus,
+    status: ProviderStatus = ProviderStatus.ACTIVE,
     registered_account: bool = False,
     years_experience: int | None = None,
     visit_stability: VisitStability = VisitStability.STABLE_VISIT,
@@ -64,7 +67,7 @@ def _portal_provider(
         provider_type=ProviderType.CLINIC,
         name=name,
         visit_stability=visit_stability,
-        status=ProviderStatus.ACTIVE,
+        status=status,
         publication_status=publication_status,
         description="Approved description",
         years_experience=years_experience,
@@ -502,6 +505,582 @@ def test_published_provider_photo_upload_stays_inside_the_review_request(
     db.refresh(provider)
     assert provider.photos == []
     (_UPLOADS_DIR / photo["storage_reference"].removeprefix("/uploads/")).unlink()
+
+
+def test_provider_photo_review_round_trip_reject_discard_resubmit_and_approve(
+    client, db, seeded_admin, monkeypatch, tmp_path
+):
+    admin, admin_password = seeded_admin
+    upload_root = tmp_path / "uploads"
+    monkeypatch.setattr(provider_portal_service, "_UPLOADS_DIR", upload_root)
+    provider, account = _portal_provider(
+        db,
+        admin,
+        email="photo-review-owner@example.com",
+        name="Photo Review Clinic",
+        publication_status=PublicationStatus.PUBLISHED,
+    )
+    approved_photo = ProviderPhoto(
+        provider_id=provider.id,
+        storage_reference=f"/uploads/providers/{provider.id}/photos/approved.png",
+        alt_text="Approved clinic entrance",
+        caption="Approved entrance",
+        display_order=0,
+        is_thumbnail=True,
+    )
+    db.add(approved_photo)
+    db.commit()
+    provider_token = _login(client, account.email, "ProviderPass9")
+    provider_headers = {"Authorization": f"Bearer {provider_token}"}
+    admin_token = _login(client, admin.email, admin_password)
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    users = UserRepository(db)
+    member_role = users.get_role_by_name("horse_owner") or users.create_role("horse_owner")
+    member = users.create_user(
+        email="photo-review-member@example.com",
+        password_hash=hash_password("MemberPass9"),
+        role=member_role,
+        roles=[member_role],
+    )
+    member.email_verified_at = datetime.now(timezone.utc)
+    db.commit()
+    member_headers = {
+        "Authorization": f"Bearer {_login(client, member.email, 'MemberPass9')}"
+    }
+
+    def assert_lifecycle():
+        db.refresh(provider)
+        db.refresh(account)
+        assert provider.status == ProviderStatus.ACTIVE
+        assert provider.publication_status == PublicationStatus.PUBLISHED
+        assert account.is_active is True
+
+    def assert_member_listing(name, expected_photos, expected_thumbnail):
+        listing = client.get(
+            "/api/v1/member/providers",
+            headers=member_headers,
+            params={"name": "Photo Review"},
+        )
+        assert listing.status_code == 200, listing.text
+        matching = [
+            item for item in listing.json()["data"] if item["id"] == str(provider.id)
+        ]
+        assert len(matching) == 1
+        assert matching[0]["name"] == name
+        assert matching[0]["thumbnail_url"] == expected_thumbnail
+
+        detail = client.get(
+            f"/api/v1/member/providers/{provider.id}", headers=member_headers
+        )
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["name"] == name
+        assert detail.json()["thumbnail_url"] == expected_thumbnail
+        assert [photo["url"] for photo in detail.json()["photos"]] == expected_photos
+
+    initial_gallery = client.get(
+        f"/api/v1/admin/providers/{provider.id}", headers=admin_headers
+    )
+    assert initial_gallery.status_code == 200, initial_gallery.text
+    assert initial_gallery.json()["thumbnail_url"] == approved_photo.storage_reference
+    assert_member_listing(
+        "Photo Review Clinic",
+        [approved_photo.storage_reference],
+        approved_photo.storage_reference,
+    )
+    assert_lifecycle()
+
+    uploaded = client.post(
+        "/api/v1/provider/portal/profile/photos/upload",
+        headers=provider_headers,
+        files={"file": ("proposed.png", _one_pixel_png(), "image/png")},
+        data={"alt_text": "New treatment room", "caption": "Treatment room"},
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    proposed_photo = uploaded.json()
+    upload_path = upload_root / proposed_photo["storage_reference"].removeprefix(
+        "/uploads/"
+    )
+    assert upload_path.is_file()
+    with Image.open(upload_path) as image:
+        image.verify()
+    assert_lifecycle()
+    db.refresh(provider)
+    assert [
+        (photo.storage_reference, photo.is_thumbnail) for photo in provider.photos
+    ] == [(approved_photo.storage_reference, True)]
+
+    photo_proposal = [
+        {
+            "storage_reference": approved_photo.storage_reference,
+            "alt_text": approved_photo.alt_text,
+            "caption": approved_photo.caption,
+            "display_order": 0,
+            "is_thumbnail": False,
+        },
+        {
+            **proposed_photo,
+            "display_order": 1,
+            "is_thumbnail": True,
+        },
+    ]
+    saved = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=provider_headers,
+        json={"name": "Photo Review Clinic Revised", "photos": photo_proposal},
+    )
+    assert saved.status_code == 200, saved.text
+    saved_body = saved.json()
+    update_id = saved_body["profile_update"]["id"]
+    assert saved_body["profile_update"]["review_status"] == "PENDING_REVIEW"
+    assert saved_body["name"] == "Photo Review Clinic"
+    assert saved_body["editable_profile"]["name"] == "Photo Review Clinic Revised"
+    assert [photo["storage_reference"] for photo in saved_body["photos"]] == [
+        approved_photo.storage_reference
+    ]
+    assert [
+        photo["storage_reference"]
+        for photo in saved_body["editable_profile"]["photos"]
+    ] == [
+        approved_photo.storage_reference,
+        proposed_photo["storage_reference"],
+    ]
+    assert_member_listing(
+        "Photo Review Clinic",
+        [approved_photo.storage_reference],
+        approved_photo.storage_reference,
+    )
+    assert_lifecycle()
+
+    reloaded = client.get(
+        "/api/v1/provider/portal/profile", headers=provider_headers
+    )
+    assert reloaded.status_code == 200, reloaded.text
+    assert reloaded.json()["editable_profile"]["photos"][1]["alt_text"] == (
+        "New treatment room"
+    )
+    assert reloaded.json()["editable_profile"]["photos"][1]["is_thumbnail"] is True
+    assert reloaded.json()["editable_profile"]["name"] == "Photo Review Clinic Revised"
+    assert_member_listing(
+        "Photo Review Clinic",
+        [approved_photo.storage_reference],
+        approved_photo.storage_reference,
+    )
+    assert_lifecycle()
+
+    comparison = client.get(
+        f"/api/v1/admin/provider-profile-updates/{update_id}",
+        headers=admin_headers,
+    )
+    assert comparison.status_code == 200, comparison.text
+    compared_photos = comparison.json()["proposed_profile"]["photos"]
+    assert [photo["storage_reference"] for photo in compared_photos] == [
+        approved_photo.storage_reference,
+        proposed_photo["storage_reference"],
+    ]
+    assert compared_photos[1]["is_thumbnail"] is True
+
+    rejected = client.post(
+        f"/api/v1/admin/provider-profile-updates/{update_id}/reject",
+        headers=admin_headers,
+        json={"rejection_reason": "Please confirm this new treatment-room photo."},
+    )
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json()["review_status"] == "REJECTED"
+    assert_lifecycle()
+    after_rejection = client.get(
+        f"/api/v1/admin/providers/{provider.id}", headers=admin_headers
+    )
+    assert after_rejection.status_code == 200, after_rejection.text
+    assert after_rejection.json()["thumbnail_url"] == approved_photo.storage_reference
+    assert [
+        (photo["storage_reference"], photo["is_thumbnail"])
+        for photo in after_rejection.json()["photos"]
+    ] == [(approved_photo.storage_reference, True)]
+    rejected_draft = client.get(
+        "/api/v1/provider/portal/profile", headers=provider_headers
+    )
+    assert rejected_draft.json()["profile_update"]["review_status"] == "REJECTED"
+    assert rejected_draft.json()["editable_profile"]["photos"][1][
+        "storage_reference"
+    ] == proposed_photo["storage_reference"]
+    assert rejected_draft.json()["editable_profile"]["name"] == (
+        "Photo Review Clinic Revised"
+    )
+    assert_member_listing(
+        "Photo Review Clinic",
+        [approved_photo.storage_reference],
+        approved_photo.storage_reference,
+    )
+    assert_lifecycle()
+
+    discarded = client.post(
+        "/api/v1/provider/portal/profile-update/discard",
+        headers=provider_headers,
+    )
+    assert discarded.status_code == 200, discarded.text
+    assert discarded.json()["profile_update"] is None
+    assert [
+        photo["storage_reference"]
+        for photo in discarded.json()["editable_profile"]["photos"]
+    ] == [approved_photo.storage_reference]
+    assert discarded.json()["editable_profile"]["name"] == "Photo Review Clinic"
+    assert_member_listing(
+        "Photo Review Clinic",
+        [approved_photo.storage_reference],
+        approved_photo.storage_reference,
+    )
+    assert_lifecycle()
+
+    resubmitted = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=provider_headers,
+        json={"name": "Photo Review Clinic Revised", "photos": photo_proposal},
+    )
+    assert resubmitted.status_code == 200, resubmitted.text
+    resubmitted_id = resubmitted.json()["profile_update"]["id"]
+    assert resubmitted.json()["profile_update"]["review_status"] == "PENDING_REVIEW"
+    assert_member_listing(
+        "Photo Review Clinic",
+        [approved_photo.storage_reference],
+        approved_photo.storage_reference,
+    )
+    assert_lifecycle()
+    approved = client.post(
+        f"/api/v1/admin/provider-profile-updates/{resubmitted_id}/approve",
+        headers=admin_headers,
+    )
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["review_status"] == "APPROVED"
+    assert_lifecycle()
+    gallery = client.get(
+        f"/api/v1/admin/providers/{provider.id}", headers=admin_headers
+    )
+    assert gallery.status_code == 200, gallery.text
+    gallery_body = gallery.json()
+    assert gallery_body["thumbnail_url"] == proposed_photo["storage_reference"]
+    assert gallery_body["name"] == "Photo Review Clinic Revised"
+    assert [
+        (
+            photo["storage_reference"],
+            photo["alt_text"],
+            photo["caption"],
+            photo["is_thumbnail"],
+        )
+        for photo in gallery_body["photos"]
+    ] == [
+        (
+            approved_photo.storage_reference,
+            "Approved clinic entrance",
+            "Approved entrance",
+            False,
+        ),
+        (
+            proposed_photo["storage_reference"],
+            "New treatment room",
+            "Treatment room",
+            True,
+        ),
+    ]
+    assert_member_listing(
+        "Photo Review Clinic Revised",
+        [
+            approved_photo.storage_reference,
+            proposed_photo["storage_reference"],
+        ],
+        proposed_photo["storage_reference"],
+    )
+    assert_lifecycle()
+
+
+@pytest.mark.parametrize(
+    ("provider_status", "publication_status"),
+    [
+        (provider_status, publication_status)
+        for provider_status in (ProviderStatus.ACTIVE, ProviderStatus.INACTIVE)
+        for publication_status in (
+            PublicationStatus.UNPUBLISHED,
+            PublicationStatus.PUBLISHED,
+        )
+    ],
+)
+def test_photo_save_preserves_provider_and_account_lifecycle(
+    client,
+    db,
+    seeded_admin,
+    monkeypatch,
+    tmp_path,
+    provider_status,
+    publication_status,
+):
+    admin, admin_password = seeded_admin
+    monkeypatch.setattr(provider_portal_service, "_UPLOADS_DIR", tmp_path / "uploads")
+    provider, account = _portal_provider(
+        db,
+        admin,
+        email=(
+            f"photo-lifecycle-{provider_status.value.lower()}-"
+            f"{publication_status.value.lower()}@example.com"
+        ),
+        name="Lifecycle Clinic",
+        publication_status=publication_status,
+        status=provider_status,
+    )
+    provider_token = _login(client, account.email, "ProviderPass9")
+    headers = {"Authorization": f"Bearer {provider_token}"}
+    admin_headers = {
+        "Authorization": f"Bearer {_login(client, admin.email, admin_password)}"
+    }
+
+    def assert_lifecycle():
+        db.refresh(provider)
+        db.refresh(account)
+        assert provider.status == provider_status
+        assert provider.publication_status == publication_status
+        assert account.is_active is True
+
+    uploaded = client.post(
+        "/api/v1/provider/portal/profile/photos/upload",
+        headers=headers,
+        files={"file": ("lifecycle.png", _one_pixel_png(), "image/png")},
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    assert_lifecycle()
+    photo = {
+        **uploaded.json(),
+        "display_order": 0,
+        "is_thumbnail": True,
+    }
+
+    saved = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=headers,
+        json={"name": "Lifecycle Clinic Revised", "photos": [photo]},
+    )
+    assert saved.status_code == 200, saved.text
+    assert_lifecycle()
+    if publication_status == PublicationStatus.PUBLISHED:
+        assert saved.json()["profile_update"]["review_status"] == "PENDING_REVIEW"
+        assert saved.json()["name"] == "Lifecycle Clinic"
+        assert saved.json()["editable_profile"]["name"] == "Lifecycle Clinic Revised"
+        assert provider.photos == []
+        update_id = saved.json()["profile_update"]["id"]
+
+        rejected = client.post(
+            f"/api/v1/admin/provider-profile-updates/{update_id}/reject",
+            headers=admin_headers,
+            json={"rejection_reason": "Please revise the provider photo."},
+        )
+        assert rejected.status_code == 200, rejected.text
+        assert rejected.json()["review_status"] == "REJECTED"
+        assert_lifecycle()
+        assert provider.name == "Lifecycle Clinic"
+        assert provider.photos == []
+        rejected_draft = client.get("/api/v1/provider/portal/profile", headers=headers)
+        assert rejected_draft.status_code == 200, rejected_draft.text
+        assert rejected_draft.json()["editable_profile"]["name"] == (
+            "Lifecycle Clinic Revised"
+        )
+        assert rejected_draft.json()["editable_profile"]["photos"][0][
+            "storage_reference"
+        ] == photo["storage_reference"]
+        assert_lifecycle()
+
+        discarded = client.post(
+            "/api/v1/provider/portal/profile-update/discard", headers=headers
+        )
+        assert discarded.status_code == 200, discarded.text
+        assert discarded.json()["profile_update"] is None
+        assert discarded.json()["editable_profile"]["name"] == "Lifecycle Clinic"
+        assert discarded.json()["editable_profile"]["photos"] == []
+        assert_lifecycle()
+
+        resubmitted = client.patch(
+            "/api/v1/provider/portal/profile",
+            headers=headers,
+            json={"name": "Lifecycle Clinic Revised", "photos": [photo]},
+        )
+        assert resubmitted.status_code == 200, resubmitted.text
+        assert resubmitted.json()["profile_update"]["review_status"] == "PENDING_REVIEW"
+        assert resubmitted.json()["profile_update"]["id"] != update_id
+        assert resubmitted.json()["editable_profile"]["photos"][0][
+            "storage_reference"
+        ] == photo["storage_reference"]
+        assert_lifecycle()
+        approved = client.post(
+            f"/api/v1/admin/provider-profile-updates/{resubmitted.json()['profile_update']['id']}/approve",
+            headers=admin_headers,
+        )
+        assert approved.status_code == 200, approved.text
+        assert approved.json()["review_status"] == "APPROVED"
+        assert_lifecycle()
+        assert provider.name == "Lifecycle Clinic Revised"
+        assert len(provider.photos) == 1
+        assert provider.photos[0].storage_reference == photo["storage_reference"]
+        assert provider.photos[0].is_thumbnail is True
+    else:
+        assert saved.json()["profile_update"] is None
+        assert saved.json()["name"] == "Lifecycle Clinic Revised"
+        assert len(provider.photos) == 1
+        assert provider.name == "Lifecycle Clinic Revised"
+        assert provider.photos[0].storage_reference == photo["storage_reference"]
+        assert provider.photos[0].is_thumbnail is True
+
+    reloaded = client.get("/api/v1/provider/portal/profile", headers=headers)
+    assert reloaded.status_code == 200, reloaded.text
+    assert reloaded.json()["editable_profile"]["photos"][0][
+        "storage_reference"
+    ] == photo["storage_reference"]
+    assert reloaded.json()["editable_profile"]["name"] == "Lifecycle Clinic Revised"
+    assert_lifecycle()
+
+
+def test_disabled_provider_account_cannot_upload_or_save_photos(
+    client, db, seeded_admin, tmp_path, monkeypatch
+):
+    admin, _ = seeded_admin
+    monkeypatch.setattr(provider_portal_service, "_UPLOADS_DIR", tmp_path / "uploads")
+    provider, account = _portal_provider(
+        db,
+        admin,
+        email="disabled-photo-owner@example.com",
+        name="Disabled Photo Clinic",
+        publication_status=PublicationStatus.PUBLISHED,
+    )
+    token = _login(client, account.email, "ProviderPass9")
+    headers = {"Authorization": f"Bearer {token}"}
+    uploaded = client.post(
+        "/api/v1/provider/portal/profile/photos/upload",
+        headers=headers,
+        files={"file": ("disabled-draft.png", _one_pixel_png(), "image/png")},
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    pending = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=headers,
+        json={
+            "name": "Disabled Photo Clinic Proposal",
+            "photos": [{
+                **uploaded.json(),
+                "display_order": 0,
+                "is_thumbnail": True,
+            }],
+        },
+    )
+    assert pending.status_code == 200, pending.text
+    update_id = pending.json()["profile_update"]["id"]
+    assert pending.json()["profile_update"]["review_status"] == "PENDING_REVIEW"
+    account.is_active = False
+    db.commit()
+
+    upload = client.post(
+        "/api/v1/provider/portal/profile/photos/upload",
+        headers=headers,
+        files={"file": ("disabled.png", _one_pixel_png(), "image/png")},
+    )
+    assert upload.status_code == 403, upload.text
+    assert upload.json()["detail"]["code"] == "account_disabled"
+    save = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=headers,
+        json={"photos": []},
+    )
+    assert save.status_code == 403, save.text
+    discard = client.post(
+        "/api/v1/provider/portal/profile-update/discard",
+        headers=headers,
+    )
+    assert discard.status_code == 403, discard.text
+    db.refresh(account)
+    db.refresh(provider)
+    assert account.is_active is False
+    assert provider.photos == []
+    assert provider.status == ProviderStatus.ACTIVE
+    assert provider.publication_status == PublicationStatus.PUBLISHED
+    assert provider.name == "Disabled Photo Clinic"
+    assert db.get(ProviderProfileUpdate, update_id).review_status == (
+        ProviderProfileUpdateStatus.PENDING_REVIEW
+    )
+
+
+@pytest.mark.parametrize("decision", ["approve", "reject"])
+def test_admin_can_decide_photo_review_without_reactivating_disabled_owner(
+    client, db, seeded_admin, monkeypatch, tmp_path, decision
+):
+    admin, admin_password = seeded_admin
+    monkeypatch.setattr(provider_portal_service, "_UPLOADS_DIR", tmp_path / "uploads")
+    provider, account = _portal_provider(
+        db,
+        admin,
+        email=f"disabled-decision-{decision}@example.com",
+        name="Disabled Decision Clinic",
+        publication_status=PublicationStatus.PUBLISHED,
+    )
+    provider_headers = {
+        "Authorization": f"Bearer {_login(client, account.email, 'ProviderPass9')}"
+    }
+    uploaded = client.post(
+        "/api/v1/provider/portal/profile/photos/upload",
+        headers=provider_headers,
+        files={"file": ("decision.png", _one_pixel_png(), "image/png")},
+        data={"alt_text": "Proposed room", "caption": "Proposed room"},
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    submitted = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=provider_headers,
+        json={
+            "name": "Disabled Decision Clinic Revised",
+            "photos": [{
+                **uploaded.json(),
+                "display_order": 0,
+                "is_thumbnail": True,
+            }],
+        },
+    )
+    assert submitted.status_code == 200, submitted.text
+    update_id = submitted.json()["profile_update"]["id"]
+    db.refresh(provider)
+    db.refresh(account)
+    assert provider.name == "Disabled Decision Clinic"
+    assert provider.photos == []
+    assert provider.status == ProviderStatus.ACTIVE
+    assert provider.publication_status == PublicationStatus.PUBLISHED
+    assert account.is_active is True
+
+    account.is_active = False
+    db.commit()
+    admin_headers = {
+        "Authorization": f"Bearer {_login(client, admin.email, admin_password)}"
+    }
+    if decision == "approve":
+        response = client.post(
+            f"/api/v1/admin/provider-profile-updates/{update_id}/approve",
+            headers=admin_headers,
+        )
+        expected_status = ProviderProfileUpdateStatus.APPROVED
+    else:
+        response = client.post(
+            f"/api/v1/admin/provider-profile-updates/{update_id}/reject",
+            headers=admin_headers,
+            json={"rejection_reason": "Photo requires a change."},
+        )
+        expected_status = ProviderProfileUpdateStatus.REJECTED
+
+    assert response.status_code == 200, response.text
+    assert response.json()["review_status"] == expected_status.value
+    db.refresh(provider)
+    db.refresh(account)
+    assert account.is_active is False
+    assert provider.status == ProviderStatus.ACTIVE
+    assert provider.publication_status == PublicationStatus.PUBLISHED
+    if decision == "approve":
+        assert provider.name == "Disabled Decision Clinic Revised"
+        assert len(provider.photos) == 1
+        assert provider.photos[0].alt_text == "Proposed room"
+        assert provider.photos[0].is_thumbnail is True
+    else:
+        assert provider.name == "Disabled Decision Clinic"
+        assert provider.photos == []
 
 
 def test_approved_registered_provider_submits_published_changes_for_review(

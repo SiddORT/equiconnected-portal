@@ -281,6 +281,9 @@ def test_portal_photo_upload_returns_staged_metadata_for_an_owner(client, db, se
     assert body["storage_reference"].startswith(f"/uploads/providers/{provider.id}/photos/")
     upload_path = _UPLOADS_DIR / body["storage_reference"].removeprefix("/uploads/")
     assert upload_path.exists()
+    served = client.get(body["storage_reference"])
+    assert served.status_code == 200
+    assert served.content == _ONE_PIXEL_PNG
     # Uploading the asset alone does not add it to the provider listing. The
     # provider must still save the profile, preserving the review workflow.
     assert provider.photos == []

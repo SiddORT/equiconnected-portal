@@ -23,6 +23,9 @@
 .savedPhoto { grid-template-columns: 112px minmax(0, 1fr); padding: 0; border: 0; }
 .stagedFields { display: grid; gap: 10px; min-width: 0; }
 .stagedFields strong { overflow: hidden; color: var(--text-primary); font-size: .9rem; text-overflow: ellipsis; white-space: nowrap; }
+.photoGuidance { margin: 0; color: var(--text-secondary); font-size: .9rem; line-height: 1.45; }
+.uploadedNotice { display: grid; gap: 4px; padding: 12px 14px; border: 1px solid var(--color-warning, #b7791f); border-radius: var(--radius-md); background: var(--bg-subtle); color: var(--text-primary); font-size: .9rem; line-height: 1.45; }
+.uploadedNotice strong { font-size: .9rem; }
 .preview { width: 112px; height: 88px; border-radius: var(--radius-sm); background: var(--bg-subtle); object-fit: cover; }
 .previewPlaceholder { display: grid; width: 112px; height: 88px; place-items: center; border-radius: var(--radius-sm); background: var(--bg-subtle); color: var(--text-secondary); font-size: .8rem; text-align: center; }
 @media (max-width: 620px) {

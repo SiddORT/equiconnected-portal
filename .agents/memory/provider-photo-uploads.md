@@ -8,3 +8,9 @@ Provider photo uploads accept JPEG, PNG, GIF, and WebP files up to 10 MB per pho
 **Why:** File-selector hints alone can be bypassed or may advertise rules the API does not enforce. Matching validation ensures users receive an accurate limit before they invest time filling photo metadata. Provider-owned profiles must also never accept arbitrary image references: that could expose another provider's assets or bypass the owner upload path.
 
 **How to apply:** Keep any future provider-photo uploader or API entry point aligned with this policy. Portal profile saves may retain existing listing photos or use only server-issued uploads under that provider's own path. For published listings, retain uploaded-photo changes inside the pending administrator review request; do not directly attach them to the live listing. Explain that upload happens only after explicit confirmation, recommend alt text for accessibility, and keep captions optional.
+
+Treat upload, explicit profile save, and administrator decision as separate actions. Review state is not provider operational status, publication state, or provider-account activation; never “repair” those lifecycle values merely because an information update is pending or rejected.
+
+**Why:** A reported deactivation during photo editing was not reproduced in the complete upload/save/reject/discard/resubmit/approve journey. Changing lifecycle behavior on that assumption would risk activating or publishing providers without authorization.
+
+**How to apply:** Investigate reported status changes before modifying lifecycle writes. Keep the approved-listing gallery separate from proposed-photo review, and prevent profile save or discard from racing an in-progress upload.

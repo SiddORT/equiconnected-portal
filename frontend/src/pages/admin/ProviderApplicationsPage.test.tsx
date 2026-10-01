@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import * as adminApi from '@/api/admin';
@@ -367,5 +367,67 @@ describe('ProviderApplicationsPage', () => {
       'profile-update-1',
       'Please verify the new location details.',
     ));
+  });
+
+  it.each(['approve', 'reject'] as const)('keeps photo review visible through confirmation Escape and %s decision refresh', async (action) => {
+    const original = {
+      storage_reference: '/uploads/providers/provider-1/photos/original.png',
+      alt_text: 'Approved clinic exterior',
+      caption: 'Original exterior',
+      display_order: 0,
+      is_thumbnail: true,
+    };
+    const added = {
+      ...original,
+      storage_reference: '/uploads/providers/provider-1/photos/new.png',
+      alt_text: 'New clinic interior',
+      caption: 'New interior',
+    };
+    const pending = {
+      ...profileUpdate,
+      current_profile: { ...profileUpdate.current_profile, photos: [original] },
+      proposed_profile: { ...profileUpdate.proposed_profile, photos: [added] },
+    };
+    const decided = {
+      ...pending,
+      review_status: action === 'approve' ? 'APPROVED' as const : 'REJECTED' as const,
+      current_profile: action === 'approve' ? pending.proposed_profile : pending.current_profile,
+    };
+    vi.mocked(adminApi.listProviderApplications).mockResolvedValue(response([]));
+    vi.mocked(adminApi.listProviderProfileUpdates).mockResolvedValue(response([pending]));
+    vi.mocked(adminApi.approveProviderProfileUpdate).mockResolvedValue(decided);
+    vi.mocked(adminApi.rejectProviderProfileUpdate).mockResolvedValue(decided);
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/admin/provider-applications?tab=updates']}><ProviderApplicationsPage /></MemoryRouter>);
+    await user.click(await screen.findByLabelText('Actions for Austin Equine Clinic update'));
+    await user.click(await screen.findByText('Compare profiles'));
+    const review = await screen.findByRole('dialog', { name: 'Review provider profile update' });
+    const current = within(review).getByRole('region', { name: 'Current photos' });
+    const proposed = within(review).getByRole('region', { name: 'Proposed photos' });
+    expect(within(current).getByRole('img', { name: original.alt_text }).getAttribute('src')).toBe(original.storage_reference);
+    expect(within(current).getByText('Removed')).toBeTruthy();
+    expect(within(proposed).getByText('Added')).toBeTruthy();
+    fireEvent.error(within(proposed).getByRole('img', { name: added.alt_text }));
+    expect(within(proposed).getByText('Image could not be loaded')).toBeTruthy();
+    expect(within(proposed).getByText(added.caption)).toBeTruthy();
+    expect(within(review).getByText(/does not change the provider’s active status/)).toBeTruthy();
+    const label = action === 'approve' ? 'Approve update' : 'Reject update';
+    const confirmationTitle = action === 'approve' ? 'Approve profile update?' : 'Reject profile update?';
+    await user.click(within(review).getByRole('button', { name: label }));
+    await screen.findByRole('dialog', { name: confirmationTitle });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: confirmationTitle })).toBeNull());
+    expect(screen.getByRole('dialog', { name: 'Review provider profile update' })).toBeTruthy();
+    expect(adminApi.approveProviderProfileUpdate).not.toHaveBeenCalled();
+    expect(adminApi.rejectProviderProfileUpdate).not.toHaveBeenCalled();
+    await user.click(within(review).getByRole('button', { name: label }));
+    const confirmation = await screen.findByRole('dialog', { name: confirmationTitle });
+    await user.click(within(confirmation).getByRole('button', { name: label }));
+    await waitFor(() => expect(action === 'approve' ? adminApi.approveProviderProfileUpdate : adminApi.rejectProviderProfileUpdate).toHaveBeenCalledOnce());
+    await waitFor(() => expect(within(review).queryByRole('button', { name: label })).toBeNull());
+    const approvedCollection = within(review).getByRole('region', { name: 'Current photos' });
+    expect(within(approvedCollection).getByRole('img', { name: action === 'approve' ? added.alt_text : original.alt_text }).getAttribute('src'))
+      .toBe(action === 'approve' ? added.storage_reference : original.storage_reference);
+    expect(within(approvedCollection).getByText('Profile photo')).toBeTruthy();
   });
 });

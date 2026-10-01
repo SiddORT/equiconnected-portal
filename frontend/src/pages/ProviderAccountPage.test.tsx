@@ -285,23 +285,61 @@ describe('ProviderAccountPage', () => {
     ));
   });
 
-  it('uploads staged provider photos with alt text and an image title', async () => {
+  it.each([
+    ['unpublished draft', 'direct'],
+    ['published provider profile', 'pending'],
+  ] as const)('uploads, explicitly saves, and reloads photos for %s', async (_label, saveState) => {
     vi.stubGlobal('URL', {
       createObjectURL: vi.fn(() => 'blob:provider-photo'),
       revokeObjectURL: vi.fn(),
     });
-    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(portalProfile);
-    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
-    vi.mocked(providersApi.uploadProviderPortalPhoto).mockResolvedValue({
+    const savedPhoto = {
+      id: 'photo-1',
+      provider_id: portalProfile.id,
       storage_reference: '/uploads/providers/provider-1/photos/clinic.png',
       alt_text: 'A horse clinic exterior',
       caption: 'Clinic entrance',
       display_order: 0,
+      is_thumbnail: true,
+      created_at: '2026-08-20T08:15:00Z',
+      updated_at: '2026-08-20T08:15:00Z',
+    };
+    const savedProfile: ProviderPortalProfile = {
+      ...portalProfile,
+      photos: [savedPhoto],
+      editable_profile: {
+        ...portalProfile.editable_profile,
+        photos: [{
+          storage_reference: savedPhoto.storage_reference,
+          alt_text: savedPhoto.alt_text,
+          caption: savedPhoto.caption,
+          display_order: savedPhoto.display_order,
+          is_thumbnail: savedPhoto.is_thumbnail,
+        }],
+      },
+      profile_update: saveState === 'pending' ? {
+        id: 'profile-update-1',
+        review_status: 'PENDING_REVIEW',
+        submitted_at: '2026-08-20T08:15:00Z',
+        reviewed_at: null,
+        reviewed_by_name: null,
+        rejection_reason: null,
+      } : null,
+    };
+    vi.mocked(providersApi.getProviderPortalProfile)
+      .mockResolvedValueOnce(portalProfile)
+      .mockResolvedValueOnce(savedProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    vi.mocked(providersApi.uploadProviderPortalPhoto).mockResolvedValue({
+      storage_reference: savedPhoto.storage_reference,
+      alt_text: savedPhoto.alt_text,
+      caption: savedPhoto.caption,
+      display_order: 0,
       is_thumbnail: false,
     });
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(savedProfile);
     const user = userEvent.setup();
-
-    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+    const view = render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
 
     await enterTab(user, 'Photos');
     await screen.findByRole('heading', { name: 'Your profile' });
@@ -311,6 +349,7 @@ describe('ProviderAccountPage', () => {
     await user.upload(fileInput as HTMLInputElement, image);
     await user.type(screen.getByLabelText('Alt text'), 'A horse clinic exterior');
     await user.type(screen.getByLabelText('Image title'), 'Clinic entrance');
+    expect(screen.getByText(/only staged in this form/)).toBeTruthy();
     await enterTab(user, 'Basic details');
     await enterTab(user, 'Photos');
     expect((screen.getByLabelText('Alt text') as HTMLInputElement).value).toBe('A horse clinic exterior');
@@ -320,7 +359,84 @@ describe('ProviderAccountPage', () => {
       image,
       { alt_text: 'A horse clinic exterior', caption: 'Clinic entrance' }
     ));
-    expect(screen.getByText(/Photo upload complete/)).toBeTruthy();
+    expect(providersApi.updateProviderPortalProfile).not.toHaveBeenCalled();
+    expect(screen.getByText('Uploaded, not yet saved')).toBeTruthy();
+    expect(screen.getByText(/Photo upload complete\. The photo is not part of your profile yet/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        photos: [expect.objectContaining({
+          storage_reference: savedPhoto.storage_reference,
+          alt_text: 'A horse clinic exterior',
+          caption: 'Clinic entrance',
+          is_thumbnail: true,
+        })],
+      })
+    ));
+    expect(await screen.findByText(saveState === 'pending'
+      ? /Your uploaded photos and profile changes were saved to a review request/
+      : /Your uploaded photos and profile changes were saved to your unpublished provider profile/
+    )).toBeTruthy();
+
+    view.rerender(<MemoryRouter><ProviderAccountPage key="fresh-profile-load" /></MemoryRouter>);
+    if (saveState === 'pending') {
+      expect(await screen.findByText(/A profile update is awaiting review/)).toBeTruthy();
+    } else {
+      await screen.findByRole('heading', { name: 'Your profile' });
+      expect(screen.queryByText(/A profile update is awaiting review/)).toBeNull();
+    }
+    await enterTab(user, 'Photos');
+    expect((await screen.findByLabelText('Alt text') as HTMLInputElement).value).toBe('A horse clinic exterior');
+    expect((screen.getByLabelText('Image title') as HTMLInputElement).value).toBe('Clinic entrance');
+    expect(providersApi.getProviderPortalProfile).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText('Uploaded, not yet saved')).toBeNull();
+  });
+
+  it('blocks profile saves while a provider photo upload is still running', async () => {
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:provider-photo'),
+      revokeObjectURL: vi.fn(),
+    });
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(portalProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    let finishUpload!: (photo: {
+      storage_reference: string;
+      alt_text: string | null;
+      caption: string | null;
+      display_order: number;
+      is_thumbnail: boolean;
+    }) => void;
+    vi.mocked(providersApi.uploadProviderPortalPhoto).mockImplementation(() => new Promise((resolve) => {
+      finishUpload = resolve;
+    }));
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await enterTab(user, 'Photos');
+    await screen.findByRole('heading', { name: 'Your profile' });
+    const fileInput = document.querySelector('input[type="file"]');
+    if (!fileInput) throw new Error('Photo file input was not rendered.');
+    await user.upload(fileInput as HTMLInputElement, new File(['image content'], 'clinic.png', { type: 'image/png' }));
+    await user.click(screen.getByRole('button', { name: 'Upload photo' }));
+
+    const saveButton = screen.getByRole('button', { name: 'Save profile' });
+    expect(saveButton.hasAttribute('disabled')).toBe(true);
+    const form = saveButton.closest('form');
+    if (!form) throw new Error('Provider profile form was not rendered.');
+    fireEvent.submit(form);
+    expect(providersApi.updateProviderPortalProfile).not.toHaveBeenCalled();
+    expect(await screen.findByText(/Wait for photo uploads to finish before saving your profile/)).toBeTruthy();
+
+    finishUpload({
+      storage_reference: '/uploads/providers/provider-1/photos/clinic.png',
+      alt_text: null,
+      caption: null,
+      display_order: 0,
+      is_thumbnail: false,
+    });
+    expect(await screen.findByText('Uploaded, not yet saved')).toBeTruthy();
+    expect(providersApi.updateProviderPortalProfile).not.toHaveBeenCalled();
   });
 
   it('opens the file picker from the browse photos drop zone', async () => {

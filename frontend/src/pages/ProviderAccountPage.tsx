@@ -36,7 +36,7 @@ import { DEFAULT_COUNTRY } from '@/utils/countryCodes';
 import { portalContactsFromProfile, portalScalarContactsFromCollections } from './providerPortalFormUtils';
 import styles from './ProviderAccountPage.module.css';
 
-type Notice = { variant: 'success' | 'error'; text: string } | null;
+type Notice = { variant: 'success' | 'warning' | 'error'; text: string } | null;
 type PortalTab = 'basic' | 'professional' | 'services' | 'contact' | 'photos';
 
 const PORTAL_TABS: Array<{ id: PortalTab; label: string }> = [
@@ -80,6 +80,8 @@ export function ProviderAccountPage() {
   const [phones, setPhones] = useState<PhoneEntry[]>([]);
   const [emails, setEmails] = useState<EmailEntry[]>([]);
   const [photos, setPhotos] = useState<PortalPhoto[]>([]);
+  const [uploadedPhotoReferences, setUploadedPhotoReferences] = useState<string[]>([]);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [qualifications, setQualifications] = useState<PortalQualification[]>([]);
   const [services, setServices] = useState<InvitationServiceValues>({
     visit_stability: 'NOT_STABLE_VISIT',
@@ -101,6 +103,8 @@ export function ProviderAccountPage() {
   const feedbackWasOpen = useRef(false);
   const serviceBaselineRef = useRef<InvitationServiceValues | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const photoUploadInProgressRef = useRef(false);
+  const profileSavingRef = useRef(false);
   const tabRefs = useRef<Partial<Record<PortalTab, HTMLButtonElement | null>>>({});
   const pendingInvalidFieldRef = useRef<HTMLElement | null>(null);
 
@@ -125,6 +129,7 @@ export function ProviderAccountPage() {
     setPhones(normalizePrimary(contacts.phones));
     setEmails(normalizePrimary(contacts.emails));
     setPhotos(normalizePhotos(editable.photos));
+    setUploadedPhotoReferences([]);
     setQualifications(normalizeQualifications(editable.qualifications));
     const serviceProfile = {
       name: editable.name,
@@ -224,6 +229,14 @@ export function ProviderAccountPage() {
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
+    if (photoUploadInProgressRef.current) {
+      setNotice({
+        variant: 'warning',
+        text: 'Wait for photo uploads to finish before saving your profile. Then save again to include the uploaded photos.',
+      });
+      return;
+    }
+    const includesUploadedPhotos = uploadedPhotoReferences.length > 0;
     const baselineServices = serviceBaselineRef.current;
     const nextServiceErrors = validateInvitationServices(services);
     if (
@@ -302,6 +315,7 @@ export function ProviderAccountPage() {
         delete body.biography;
         delete body.experience_description;
       }
+      profileSavingRef.current = true;
       setSaving(true);
       setNotice(null);
       const updated = await providersApi.updateProviderPortalProfile(body);
@@ -309,12 +323,17 @@ export function ProviderAccountPage() {
       setNotice({
         variant: 'success',
         text: updated.profile_update?.review_status === 'PENDING_REVIEW'
-          ? 'Your proposed profile update is awaiting administrator review. Your live listing is unchanged until approval.'
-          : 'Your unpublished provider profile has been saved.',
+          ? includesUploadedPhotos
+            ? 'Your uploaded photos and profile changes were saved to a review request. Members continue to see your last approved listing until an administrator approves it.'
+            : 'Your proposed profile update is awaiting administrator review. Your live listing is unchanged until approval.'
+          : includesUploadedPhotos
+            ? 'Your uploaded photos and profile changes were saved to your unpublished provider profile.'
+            : 'Your unpublished provider profile has been saved.',
       });
     } catch (err) {
       setNotice({ variant: 'error', text: err instanceof Error ? err.message : extractErrorMessage(err, 'Your profile could not be saved.') });
     } finally {
+      profileSavingRef.current = false;
       setSaving(false);
     }
   }
@@ -338,6 +357,9 @@ export function ProviderAccountPage() {
   async function uploadPhoto(
     { file, alt_text, caption }: { file: File; alt_text: string | null; caption: string | null }
   ): Promise<PortalPhoto> {
+    if (profileSavingRef.current) {
+      throw new Error('Wait for your profile save to finish before uploading photos.');
+    }
     const uploaded = await providersApi.uploadProviderPortalPhoto(file, { alt_text, caption });
     const portalPhoto = {
       ...uploaded,
@@ -352,11 +374,23 @@ export function ProviderAccountPage() {
       };
       return [...current, nextPhoto];
     });
+    setUploadedPhotoReferences((current) => [...new Set([...current, uploaded.storage_reference])]);
     setNotice({
       variant: 'success',
-      text: 'Photo upload complete. Save your profile to include these photos in your listing or review request.',
+      text: 'Photo upload complete. The photo is not part of your profile yet. Select Save profile to include it; unpublished profiles save immediately, while changes to published listings await administrator review.',
     });
     return portalPhoto;
+  }
+
+  function updatePhotos(next: PortalPhoto[]) {
+    setPhotos(next);
+    const remainingReferences = new Set(next.map((photo) => photo.storage_reference));
+    setUploadedPhotoReferences((current) => current.filter((reference) => remainingReferences.has(reference)));
+  }
+
+  function updatePhotoUploadState(uploading: boolean) {
+    photoUploadInProgressRef.current = uploading;
+    setPhotoUploading(uploading);
   }
 
   useEffect(() => {
@@ -425,7 +459,7 @@ export function ProviderAccountPage() {
         </header>
         {notice && <Alert variant={notice.variant} onDismiss={() => setNotice(null)}>{notice.text}</Alert>}
         {profile.profile_update?.review_status === 'PENDING_REVIEW' && (
-          <Alert variant="warning">A profile update is awaiting review. You can keep revising this draft; members continue to see your last approved listing.</Alert>
+          <Alert variant="warning">A profile update is awaiting review. You can keep revising this draft; members continue to see your last approved listing until an administrator approves it.</Alert>
         )}
         {profile.profile_update?.review_status === 'REJECTED' && (
           <Alert variant="error">Your last profile update was declined{profile.profile_update.rejection_reason ? `: ${profile.profile_update.rejection_reason}` : '.'} Revise the draft below and save it to resubmit.</Alert>
@@ -608,16 +642,19 @@ export function ProviderAccountPage() {
               emails={emails}
               onEmailsChange={setEmails}
               photos={photos}
-              onPhotosChange={setPhotos}
+              onPhotosChange={updatePhotos}
               onUploadPhoto={uploadPhoto}
+              onPhotoUploadStateChange={updatePhotoUploadState}
+              unsavedUploadedPhotoCount={uploadedPhotoReferences.length}
               qualifications={qualifications}
               onQualificationsChange={setQualifications}
               showQualifications={profile.doctor_fields_available}
-              disabled={saving}
+              disabled={saving || photoUploading}
             />
             <div className={styles.choice}>
-              <Button type="submit" loading={saving}>{profile.profile_update?.review_status === 'REJECTED' ? 'Revise and resubmit' : 'Save profile'}</Button>
-              {profile.profile_update?.review_status !== 'APPROVED' && profile.profile_update && <Button type="button" variant="secondary" disabled={saving} onClick={() => void discardDraft()}>Discard draft and reload approved listing</Button>}
+              <Button type="submit" loading={saving} disabled={photoUploading}>{profile.profile_update?.review_status === 'REJECTED' ? 'Revise and resubmit' : 'Save profile'}</Button>
+              {photoUploading && <span role="status">Wait for photo uploads to finish before saving profile changes.</span>}
+              {profile.profile_update?.review_status !== 'APPROVED' && profile.profile_update && <Button type="button" variant="secondary" disabled={saving || photoUploading} onClick={() => void discardDraft()}>Discard draft and reload approved listing</Button>}
             </div>
           </form>
         </div>

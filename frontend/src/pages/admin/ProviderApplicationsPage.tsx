@@ -11,6 +11,8 @@ import {
 import { extractErrorMessage } from '@/api/client';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { ProviderPhotoComparison } from '@/components/admin/ProviderPhotoComparison';
+import photoStyles from '@/components/admin/ProviderPhotoComparison.module.css';
 import { ActionMenu } from '@/components/ui/ActionMenu';
 import { ViewIcon } from '@/components/ui/AdminIcons';
 import { Alert } from '@/components/ui/Alert';
@@ -214,7 +216,7 @@ function ProviderUpdatesTab({ formatTimestamp }: { formatTimestamp: (value: stri
   useEffect(() => { void load(); }, [load]);
 
   async function decide(rejectionReason?: string) {
-    if (!detailTarget || !decision) return;
+    if (!detailTarget || !decision || deciding) return;
     setDeciding(true);
     setDecisionError(null);
     try {
@@ -257,7 +259,7 @@ function ProviderUpdatesTab({ formatTimestamp }: { formatTimestamp: (value: stri
       }]} />
     </div>
     <DataTable columns={columns} data={result?.data ?? []} page={1} pageSize={100} rowKey={(item) => item.id} loading={loadState === 'loading'} ariaLabel="Provider profile updates" error={loadState === 'error' ? { title: 'Failed to load provider profile updates', message: errorMessage ?? undefined, onRetry: load } : null} empty={{ icon: '↻', title: hasFilters ? 'No provider updates found' : 'No provider updates yet', description: hasFilters ? 'Try adjusting your search or review status.' : 'Published provider profile changes will appear here for review.' }} />
-    {detailTarget && <ProfileUpdateDialog update={detailTarget} formatTimestamp={formatTimestamp} error={decisionError} onClose={() => { setDetailTarget(null); setDecision(null); }} onDecision={setDecision} />}
+     {detailTarget && <ProfileUpdateDialog update={detailTarget} formatTimestamp={formatTimestamp} error={decisionError} confirmationOpen={decision !== null} onClose={() => { if (!deciding && !decision) setDetailTarget(null); }} onDecision={setDecision} />}
     {detailTarget && decision && <ProfileUpdateDecisionDialog action={decision} providerName={detailTarget.provider_name} busy={deciding} onCancel={() => setDecision(null)} onConfirm={(reason) => void decide(reason)} />}
   </>;
 }
@@ -384,10 +386,19 @@ function ApplicationDialog({ application, formatTimestamp, onClose, onDecision, 
   </div>;
 }
 
-function ProfileUpdateDialog({ update, formatTimestamp, onClose, onDecision, error }: { update: ProviderProfileUpdate; formatTimestamp: (value: string) => string; onClose: () => void; onDecision: (value: 'approve' | 'reject') => void; error: string | null }) {
+function ProfileUpdateDialog({ update, formatTimestamp, onClose, onDecision, error, confirmationOpen }: { update: ProviderProfileUpdate; formatTimestamp: (value: string) => string; onClose: () => void; onDecision: (value: 'approve' | 'reject') => void; error: string | null; confirmationOpen: boolean }) {
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => { closeRef.current?.focus(); const handler = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); }; window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler); }, [onClose]);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const confirmationRef = useRef(confirmationOpen);
+  confirmationRef.current = confirmationOpen;
+  useEffect(() => {
+    closeRef.current?.focus();
+    const handler = (event: KeyboardEvent) => { if (event.key === 'Escape' && !confirmationRef.current) onCloseRef.current(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
   const displayList = (items: unknown[]) => items.length ? JSON.stringify(items, null, 2) : '—';
   const rows: Array<[string, string, string]> = [
     ['Name', update.current_profile.name, update.proposed_profile.name],
@@ -403,7 +414,6 @@ function ProfileUpdateDialog({ update, formatTimestamp, onClose, onDecision, err
     ['Locations', displayList(update.current_profile.locations), displayList(update.proposed_profile.locations)],
     ['Phone contacts', displayList(update.current_profile.phones), displayList(update.proposed_profile.phones)],
     ['Email contacts', displayList(update.current_profile.emails), displayList(update.proposed_profile.emails)],
-    ['Photos', displayList(update.current_profile.photos), displayList(update.proposed_profile.photos)],
     ['Professional title', update.current_profile.professional_title || '—', update.proposed_profile.professional_title || '—'],
     ['Biography', update.current_profile.biography || '—', update.proposed_profile.biography || '—'],
     ['Years of experience', update.current_profile.years_experience?.toString() || '—', update.proposed_profile.years_experience?.toString() || '—'],
@@ -411,21 +421,30 @@ function ProfileUpdateDialog({ update, formatTimestamp, onClose, onDecision, err
     ['Qualifications', displayList(update.current_profile.qualifications), displayList(update.proposed_profile.qualifications)],
   ];
   const isPending = update.review_status === 'PENDING_REVIEW';
-  return <div className={styles.detailBackdrop} role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <div className={styles.detailPanel}>
-      <header className={styles.detailHeader}><h2 id={titleId} className={styles.detailTitle}>Review provider profile update</h2><button ref={closeRef} type="button" className={styles.detailClose} onClick={onClose} aria-label="Close dialog">✕</button></header>
-      <div style={{ padding: 'var(--space-6)', overflowX: 'auto' }}>
-        <p><strong>{update.provider_name}</strong> · {updateStatusBadge(update.review_status)} · Submitted {formatTimestamp(update.submitted_at)}</p>
+  const focusableSelector = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  return <div className={photoStyles.modalBackdrop} role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(event) => { if (event.target === event.currentTarget && !confirmationRef.current) onCloseRef.current(); }}>
+    <div className={photoStyles.modalPanel} onKeyDown={(event) => {
+      if (event.key !== 'Tab') return;
+      const nodes = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(focusableSelector));
+      if (!nodes.length) return;
+      if (event.shiftKey && document.activeElement === nodes[0]) { event.preventDefault(); nodes[nodes.length - 1].focus(); }
+      else if (!event.shiftKey && document.activeElement === nodes[nodes.length - 1]) { event.preventDefault(); nodes[0].focus(); }
+    }}>
+      <header className={photoStyles.modalHeader}><h2 id={titleId}>Review provider profile update</h2><button ref={closeRef} type="button" className={photoStyles.close} onClick={onClose} aria-label="Close dialog" disabled={confirmationOpen}>×</button></header>
+      <div className={photoStyles.modalBody}>
+        <p className={photoStyles.providerMeta}><strong>{update.provider_name}</strong>{updateStatusBadge(update.review_status)}<span>Submitted {formatTimestamp(update.submitted_at)}</span></p>
         {update.rejection_reason && <Alert variant="error">Previous decision: {update.rejection_reason}</Alert>}
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 'var(--space-4)' }}>
-          <thead><tr><th style={{ textAlign: 'left', padding: '8px' }}>Field</th><th style={{ textAlign: 'left', padding: '8px' }}>Current approved</th><th style={{ textAlign: 'left', padding: '8px' }}>Proposed</th></tr></thead>
-          <tbody>{rows.map(([label, current, proposed]) => <tr key={label}><th scope="row" style={{ textAlign: 'left', padding: '8px', verticalAlign: 'top' }}>{label}</th><td style={{ padding: '8px', verticalAlign: 'top', whiteSpace: 'pre-wrap' }}>{current}</td><td style={{ padding: '8px', verticalAlign: 'top', whiteSpace: 'pre-wrap', fontWeight: current === proposed ? undefined : 700 }}>{proposed}</td></tr>)}</tbody>
-        </table>
+        <ProviderPhotoComparison current={update.current_profile.photos} proposed={update.proposed_profile.photos} />
+        <div className={photoStyles.tableWrap}><table className={photoStyles.compareTable}>
+          <thead><tr><th>Field</th><th>Current approved</th><th>Proposed</th></tr></thead>
+          <tbody>{rows.map(([label, current, proposed]) => <tr key={label}><th scope="row">{label}</th><td>{current}</td><td style={{ fontWeight: current === proposed ? undefined : 700 }}>{proposed}</td></tr>)}</tbody>
+        </table></div>
+        <p className={photoStyles.scopeNote}>Reviewing this update changes only the submitted profile update. It does not change the provider’s active status, publication status, or account state.</p>
       </div>
-      {error && <div style={{ padding: '0 var(--space-6)' }}><Alert variant="error">{error}</Alert></div>}
-      <footer className={styles.detailFooter}>
-        {isPending && <><Button variant="danger" onClick={() => onDecision('reject')}>Reject update</Button><Button variant="primary" onClick={() => onDecision('approve')}>Approve update</Button></>}
-        <Button variant="ghost" onClick={onClose}>Close</Button>
+      {error && <div style={{ padding: '0 24px 12px' }}><Alert variant="error">{error}</Alert></div>}
+      <footer className={photoStyles.modalFooter}>
+        {isPending && <><Button variant="danger" onClick={() => onDecision('reject')} disabled={confirmationOpen}>Reject update</Button><Button variant="primary" onClick={() => onDecision('approve')} disabled={confirmationOpen}>Approve update</Button></>}
+        <Button variant="ghost" onClick={onClose} disabled={confirmationOpen}>Close</Button>
       </footer>
     </div>
   </div>;
@@ -474,18 +493,42 @@ function DecisionDialog({ action, providerName, busy, onCancel, onConfirm }: { a
 function ProfileUpdateDecisionDialog({ action, providerName, busy, onCancel, onConfirm }: { action: 'approve' | 'reject'; providerName: string; busy: boolean; onCancel: () => void; onConfirm: (reason?: string) => void }) {
   const titleId = useId();
   const confirmationRef = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const [reason, setReason] = useState('');
-  useEffect(() => { confirmationRef.current?.focus(); }, []);
+  const confirmLock = useRef(false);
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    confirmationRef.current?.focus();
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !busyRef.current) { event.stopPropagation(); onCancelRef.current(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, []);
   const approving = action === 'approve';
-  return <div className={styles.detailBackdrop} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-    <div className={styles.detailPanel}>
-      <header className={styles.detailHeader}><h2 id={titleId} className={styles.detailTitle}>{approving ? 'Approve profile update?' : 'Reject profile update?'}</h2></header>
-      <div style={{ padding: 'var(--space-6)' }}>
-        <p>{approving ? `Approving ${providerName}'s update immediately replaces the published profile and its managed details.` : `Rejecting ${providerName}'s update leaves the live listing unchanged. The provider can revise the same draft and resubmit it.`}</p>
-        {!approving && <label style={{ display: 'grid', gap: '6px', marginTop: 'var(--space-4)' }}>Feedback for the provider (optional)<textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={3} maxLength={500} /></label>}
-        <p className={styles.muted}>This decision is recorded in the activity history.</p>
+  return <div className={`${photoStyles.modalBackdrop} ${photoStyles.nestedBackdrop}`} role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(event) => { if (event.target === event.currentTarget && !busy) onCancel(); }}>
+    <div className={photoStyles.modalPanel} onKeyDown={(event) => {
+      if (event.key !== 'Tab') return;
+      const nodes = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]), textarea:not([disabled])'));
+      if (!nodes.length) return;
+      if (event.shiftKey && document.activeElement === nodes[0]) { event.preventDefault(); nodes[nodes.length - 1].focus(); }
+      else if (!event.shiftKey && document.activeElement === nodes[nodes.length - 1]) { event.preventDefault(); nodes[0].focus(); }
+    }}>
+      <header className={photoStyles.modalHeader}><h2 id={titleId}>{approving ? 'Approve profile update?' : 'Reject profile update?'}</h2></header>
+      <div className={photoStyles.decisionText}>
+        <p>{approving ? `Approving ${providerName}'s submitted profile update applies its proposed profile changes.` : `Rejecting ${providerName}'s submitted profile update leaves the approved profile unchanged.`}</p>
+        <p>This review does not change the provider’s active status, publication status, or account state.</p>
+        {!approving && <label style={{ display: 'grid', gap: 6, marginTop: 16 }}>Feedback for the provider (optional)<textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={3} maxLength={500} /></label>}
+        <p>This decision is recorded in the activity history.</p>
       </div>
-      <footer className={styles.detailFooter}><Button variant="ghost" onClick={onCancel} disabled={busy}>Cancel</Button><Button ref={confirmationRef} variant={approving ? 'primary' : 'danger'} onClick={() => onConfirm(approving ? undefined : reason.trim() || undefined)} loading={busy}>{approving ? 'Approve update' : 'Reject update'}</Button></footer>
+      <footer className={photoStyles.modalFooter}><Button ref={cancelRef} variant="ghost" onClick={onCancel} disabled={busy}>Cancel</Button><Button ref={confirmationRef} variant={approving ? 'primary' : 'danger'} onClick={() => { if (busy || confirmLock.current) return; confirmLock.current = true; onConfirm(approving ? undefined : reason.trim() || undefined); }} loading={busy}>{approving ? 'Approve update' : 'Reject update'}</Button></footer>
     </div>
   </div>;
 }
