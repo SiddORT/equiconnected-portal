@@ -37,6 +37,7 @@ interface DashboardMapProps {
 
 export function DashboardMap({ markers }: DashboardMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [tileWarning, setTileWarning] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<Record<ProviderType, boolean>>({
     HOSPITAL: true,
     CLINIC: true,
@@ -62,18 +63,37 @@ export function DashboardMap({ markers }: DashboardMapProps) {
   const selectedTypesKey = PROVIDER_TYPES.filter((type) => selectedTypes[type]).join(',');
 
   useEffect(() => {
+    setTileWarning(false);
     if (!containerRef.current || plottable.length === 0) return;
 
     const map = L.map(containerRef.current, { scrollWheelZoom: false });
+    let active = true;
+    let loadingFailed = false;
+    const tileEvents = {
+      loading: () => {
+        loadingFailed = false;
+      },
+      tileerror: () => {
+        loadingFailed = true;
+        if (active) setTileWarning(true);
+      },
+      // Leaflet also fires load after failed tiles finish. Only an error-free
+      // loading cycle establishes that the background has recovered.
+      load: () => {
+        if (active && !loadingFailed) setTileWarning(false);
+      },
+    };
 
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    const tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       // Identify website tile traffic without exposing admin paths or query tokens.
       // Other resources retain the document-wide no-referrer policy.
       referrerPolicy: 'strict-origin',
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    }).addTo(map);
+    });
+    tileLayer.on(tileEvents);
+    tileLayer.addTo(map);
 
     const bounds = L.latLngBounds([]);
     for (const m of visiblePlottable) {
@@ -108,6 +128,8 @@ export function DashboardMap({ markers }: DashboardMapProps) {
     }
 
     return () => {
+      active = false;
+      tileLayer.off(tileEvents);
       map.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -126,6 +148,13 @@ export function DashboardMap({ markers }: DashboardMapProps) {
   return (
     <div className={styles.wrapper}>
       <div className={styles.mapArea}>
+        <div role="status" aria-live="polite" aria-atomic="true">
+          {tileWarning && (
+            <p className={styles.tileWarning}>
+              The map background could not load. Provider location markers and type filters are still available.
+            </p>
+          )}
+        </div>
         <div
           ref={containerRef}
           className={styles.map}

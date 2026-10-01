@@ -8,6 +8,16 @@
   position: relative;
 }
 
+.tileWarning {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid #b45309;
+  border-radius: var(--radius-lg, 8px);
+  background: #fffbeb;
+  color: #92400e;
+  font-size: var(--text-sm);
+}
+
 .map {
   width: 100%;
   height: 420px;

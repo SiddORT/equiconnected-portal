@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -24,7 +24,7 @@ const leaflet = vi.hoisted(() => {
   return {
     mapInstance,
     map: vi.fn(() => mapInstance),
-    tileLayer: vi.fn(() => ({ addTo: vi.fn() })),
+    tileLayer: vi.fn(() => ({ addTo: vi.fn(), on: vi.fn(), off: vi.fn() })),
     latLngBounds: vi.fn(() => ({
       extend: vi.fn(),
       getCenter: vi.fn(() => [0, 0]),
@@ -179,7 +179,7 @@ describe('DashboardMap', () => {
       await user.click(screen.getByRole('button', { name: `Hide ${type} locations` }));
     }
 
-    expect(screen.getByRole('status').textContent).toContain('No visible locations');
+    expect(screen.getByText('No visible locations')).toBeTruthy();
     expect(screen.getByText('Select a provider type to show its locations on the map.')).toBeTruthy();
     expect(leaflet.circleMarker).toHaveBeenCalledTimes(6);
     expect(leaflet.mapInstance.fitBounds).toHaveBeenLastCalledWith(
@@ -199,5 +199,68 @@ describe('DashboardMap', () => {
     expect(screen.queryByRole('group', { name: 'Filter provider locations by type' })).toBeNull();
     expect(leaflet.map).not.toHaveBeenCalled();
     expect(leaflet.tileLayer).not.toHaveBeenCalled();
+  });
+
+  it('announces tile errors without removing markers, filters, or attribution, then recovers after a successful cycle', () => {
+    render(<DashboardMap markers={markers} />);
+    const events = leaflet.tileLayer.mock.results[0].value.on.mock.calls[0][0];
+    const status = screen.getByRole('status');
+    expect(status.textContent).toBe('');
+    expect(status.getAttribute('aria-live')).toBe('polite');
+    expect(status.getAttribute('aria-atomic')).toBe('true');
+
+    act(() => {
+      events.loading();
+      events.tileerror();
+      events.load();
+    });
+    expect(status.textContent).toContain('The map background could not load');
+    expect(status.textContent).toContain('markers and type filters are still available');
+    expect(screen.getByRole('region', { name: 'Map of provider locations' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Filter provider locations by type' })).toBeTruthy();
+    expect(leaflet.circleMarker).toHaveBeenCalledTimes(3);
+    expect(leaflet.mapInstance.remove).not.toHaveBeenCalled();
+    expect(leaflet.tileLayer).toHaveBeenCalledOnce();
+    expect(leaflet.tileLayer).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ attribution: expect.stringContaining('OpenStreetMap') }),
+    );
+
+    act(() => events.loading());
+    expect(status.textContent).toContain('The map background could not load');
+    act(() => events.load());
+    expect(status.textContent).toBe('');
+    act(() => events.tileerror());
+    expect(status.textContent).toContain('The map background could not load');
+  });
+
+  it('cleans up tile listeners and ignores events from replaced or unmounted maps', async () => {
+    const user = userEvent.setup();
+    const { rerender, unmount } = render(<DashboardMap markers={markers} />);
+    const oldLayer = leaflet.tileLayer.mock.results[0].value;
+    const oldEvents = oldLayer.on.mock.calls[0][0];
+    act(() => oldEvents.tileerror());
+
+    await user.click(screen.getByRole('button', { name: 'Hide Hospital locations' }));
+    expect(oldLayer.off).toHaveBeenCalledWith(oldEvents);
+    act(() => oldEvents.tileerror());
+    expect(screen.getByRole('status').textContent).toBe('');
+
+    for (const type of ['Clinic', 'Doctor']) {
+      await user.click(screen.getByRole('button', { name: `Hide ${type} locations` }));
+    }
+    const lastLayer = leaflet.tileLayer.mock.results[leaflet.tileLayer.mock.results.length - 1].value;
+    const lastEvents = lastLayer.on.mock.calls[0][0];
+    act(() => lastEvents.tileerror());
+    expect(screen.getByText('No visible locations')).toBeTruthy();
+    expect(screen.getByText(/The map background could not load/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Show Hospital locations' })).toBeTruthy();
+
+    rerender(<DashboardMap markers={[]} />);
+    expect(lastLayer.off).toHaveBeenCalledWith(lastEvents);
+    act(() => lastEvents.tileerror());
+    expect(screen.getByText('No mappable locations')).toBeTruthy();
+    expect(screen.queryByText(/The map background could not load/)).toBeNull();
+    unmount();
   });
 });
