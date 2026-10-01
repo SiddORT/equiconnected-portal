@@ -331,6 +331,37 @@
   font-family: var(--font-mono, monospace);
 }
 
+/* Trips share the Locations text hierarchy; only their layout is scoped here. */
+.tripHeader {
+  flex-wrap: wrap;
+}
+
+.tripHeader > div {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.tripHeader > button {
+  flex-shrink: 0;
+}
+
+.tripDescription {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: var(--leading-normal);
+}
+
+.tripText {
+  flex: 1 1 240px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.tripText > p {
+  margin: 0;
+}
+
 .itemActions {
   display: flex;
   align-items: center;

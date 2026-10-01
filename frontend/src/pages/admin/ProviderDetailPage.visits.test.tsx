@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { TimeSettingsProvider } from '@/app/TimeSettingsContext';
 import { ProviderDetailPage } from './ProviderDetailPage';
 import {
-  deleteProviderPhoto, getProvider, getProviderPortalAccess, revokeProviderPortalAccess, sendProviderPortalAccess,
+  createProviderVisit, deleteProviderPhoto, getProvider, getProviderPortalAccess, revokeProviderPortalAccess, sendProviderPortalAccess,
   setProviderThumbnail, updateProviderVisit, uploadProviderPhoto,
 } from '@/api/providers';
 import type { Provider, ProviderPortalAccess } from '@/types';
@@ -90,6 +90,75 @@ beforeEach(() => {
 });
 
 describe('ProviderDetailPage doctor visits', () => {
+  it('uses defined compact supporting and Locations item typography for every trip period', async () => {
+    const address = 'An exceptionally long equine hospital address with a continuous identifier ' + 'A'.repeat(150);
+    vi.mocked(getProvider).mockResolvedValue(doctor({
+      doctor_visits: [
+        { id: 'past', start_date: '2000-01-01', end_date: '2000-01-02', location: { address_line_1: address, city: 'Calgary' } },
+        { id: 'current', start_date: '2000-01-01', end_date: '2999-01-01', location: { address_line_1: address, city: 'Calgary' } },
+        { id: 'future', start_date: '2999-06-01', end_date: '2999-06-03', location: { address_line_1: address, city: 'Calgary' } },
+      ],
+    }));
+    renderDetail();
+    const description = await screen.findByText('Availability and visit locations are recorded as date periods.');
+    expect(description.classList.contains(styles.tripDescription)).toBe(true);
+    expect(screen.getByRole('heading', { name: 'Doctor trips' }).classList.contains(styles.sectionTitle)).toBe(true);
+    for (const period of ['Previous', 'Current', 'Upcoming']) {
+      const label = screen.getByText(new RegExp(`^${period} ·`));
+      expect(label.classList.contains(styles.itemTitle)).toBe(true);
+      expect(label.parentElement!.classList.contains(styles.itemMain)).toBe(true);
+      expect(label.parentElement!.classList.contains(styles.tripText)).toBe(true);
+      expect(label.nextElementSibling!.classList.contains(styles.itemSub)).toBe(true);
+    }
+    expect(screen.getAllByRole('button', { name: 'Amend' })).toHaveLength(1);
+    // Vitest stubs module imports; check declarations from the actual CSS.
+    const style = document.createElement('style');
+    style.textContent = readFileSync('src/pages/admin/ProviderDetailPage.module.css', 'utf8');
+    document.head.append(style);
+    try {
+      const rules = Array.from(style.sheet!.cssRules) as CSSStyleRule[];
+      const rule = (selector: string) => rules.find((r) => r.selectorText === selector)!.style;
+      expect(rule('.tripDescription').getPropertyValue('font-size')).toBe('var(--text-sm)');
+      expect(rule('.tripDescription').getPropertyValue('color')).toBe('var(--text-muted)');
+      expect(rule('.tripDescription').getPropertyValue('margin')).toBe('var(--space-2) 0 0');
+      expect(rule('.itemTitle').getPropertyValue('font-size')).toBe('var(--text-sm)');
+      expect(rule('.itemTitle').getPropertyValue('font-weight')).toBe('var(--font-medium)');
+      expect(rule('.itemTitle').getPropertyValue('color')).toBe('var(--text-primary)');
+      expect(rule('.itemSub').getPropertyValue('font-size')).toBe('var(--text-sm)');
+      expect(rule('.itemSub').getPropertyValue('color')).toBe('var(--text-secondary)');
+      expect(rule('.tripText > p').getPropertyValue('margin')).toBe('0px');
+      expect(rule('.itemMain').getPropertyValue('min-width')).toBe('0px');
+      expect(rule('.itemMain').getPropertyValue('gap')).toBe('2px');
+      expect(rule('.tripText').getPropertyValue('overflow-wrap')).toBe('anywhere');
+      expect(rule('.tripText').getPropertyValue('max-width')).toBe('100%');
+      expect(rule('.tripHeader').getPropertyValue('flex-wrap')).toBe('wrap');
+      expect(rule('.tripHeader > button').getPropertyValue('flex-shrink')).toBe('0');
+    } finally {
+      style.remove();
+    }
+  });
+
+  it('creates a future return and reloads its dates and address', async () => {
+    const visit = { id: 'new-trip', start_date: '2999-06-01', end_date: '2999-06-03',
+      location: { address_line_1: '1 Prairie Way', city: 'Calgary', name: null,
+        state_province: null, country: null, postal_code: null } };
+    const refreshed = doctor({ doctor_visits: [visit] });
+    vi.mocked(getProvider).mockResolvedValueOnce(doctor()).mockResolvedValue(refreshed);
+    vi.mocked(createProviderVisit).mockResolvedValue(refreshed);
+    renderDetail();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add future return' }));
+    for (const [label, value] of Object.entries({
+      'Address line 1': '1 Prairie Way', City: 'Calgary', 'Start date': visit.start_date, 'End date': visit.end_date,
+    })) fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add return' }));
+    await waitFor(() => expect(createProviderVisit).toHaveBeenCalledWith('provider-1', {
+      location: visit.location, start_date: visit.start_date, end_date: visit.end_date,
+    }));
+    expect(await screen.findByText('Upcoming · 2999-06-01 to 2999-06-03')).toBeTruthy();
+    expect(screen.getByText('1 Prairie Way, Calgary')).toBeTruthy();
+    expect(getProvider).toHaveBeenCalledTimes(2);
+  });
+
   it('groups resend and compact destructive cancel while reserving flexible sizing for the email picker', async () => {
     vi.mocked(getProvider).mockResolvedValue(doctor());
     vi.mocked(getProviderPortalAccess).mockResolvedValue(pendingAccess());

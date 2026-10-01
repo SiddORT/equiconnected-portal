@@ -1034,10 +1034,10 @@ export function ProviderDetailPage() {
         {p.provider_type === 'DOCTOR' && (
           <Card padding="none" shadow="sm" className={styles.colFull}>
             <CardHeader>
-              <div className={styles.cardHeaderRow}>
+              <div className={`${styles.cardHeaderRow} ${styles.tripHeader}`}>
                 <div>
                   <h2 className={styles.sectionTitle}>Doctor trips</h2>
-                  <p className={styles.hint}>Availability and visit locations are recorded as date periods.</p>
+                  <p className={styles.tripDescription}>Availability and visit locations are recorded as date periods.</p>
                 </div>
                 {p.doctor_availability === 'VISITING' && (
                   <Button variant="outline" size="sm" onClick={() => openVisitForm()}>Add future return</Button>
@@ -1076,9 +1076,9 @@ export function ProviderDetailPage() {
                     const period = visit.end_date < today ? 'Previous' : visit.start_date > today ? 'Upcoming' : 'Current';
                     return (
                       <div key={visit.id} className={styles.item}>
-                        <div>
-                          <strong>{period} · {visit.start_date} to {visit.end_date}</strong>
-                          <p>{[visit.location.name, visit.location.address_line_1, visit.location.city, visit.location.state_province, visit.location.country, visit.location.postal_code].filter(Boolean).join(', ')}</p>
+                        <div className={`${styles.itemMain} ${styles.tripText}`}>
+                          <strong className={styles.itemTitle}>{period} · {visit.start_date} to {visit.end_date}</strong>
+                          <p className={styles.itemSub}>{[visit.location.name, visit.location.address_line_1, visit.location.city, visit.location.state_province, visit.location.country, visit.location.postal_code].filter(Boolean).join(', ')}</p>
                         </div>
                         {period === 'Upcoming' && (
                           <Button variant="ghost" size="sm" disabled={busy} onClick={() => openVisitForm(visit)}>Amend</Button>
