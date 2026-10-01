@@ -213,6 +213,7 @@ export function MemberLoginPage() {
               }
             />
 
+            <Link to="/forgot-password" className={styles.signupLink}>Forgot password?</Link>
             <Button type="submit" variant="primary" fullWidth size="lg" loading={submitting}>
               {submitting ? 'Signing in…' : 'Sign in'}
             </Button>

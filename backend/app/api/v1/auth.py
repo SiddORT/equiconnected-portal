@@ -22,6 +22,7 @@ from app.core.rate_limit import (
     check_registration_rate_limit,
     check_verification_resend_rate_limit,
     check_postal_lookup_rate_limit,
+    check_member_password_recovery_rate_limit,
 )
 from app.core.security import decode_token
 from app.db.session import get_db
@@ -38,6 +39,8 @@ from app.schemas.auth import (
     RegistrationResponse,
     VerificationResendRequest,
     VerificationTokenResendRequest,
+    MemberPasswordRecoveryRequest,
+    MemberPasswordRecoveryResetRequest,
     UserProfile,
 )
 from app.schemas.common import MessageResponse
@@ -58,6 +61,16 @@ from app.services.auth_service import (
     ProviderPortalSetupTokenUsedError,
 )
 from app.services.email_service import EmailDeliveryError
+from app.services.member_password_recovery_service import (
+    MEMBER_PASSWORD_RECOVERY_ACKNOWLEDGEMENT,
+    MemberPasswordRecoveryCooldownError,
+    MemberPasswordRecoveryDeliveryError,
+    MemberPasswordRecoveryTokenExpiredError,
+    MemberPasswordRecoveryTokenInvalidError,
+    MemberPasswordRecoveryTokenUsedError,
+    MemberPasswordRecoveryUnavailableError,
+    MemberPasswordRecoveryService,
+)
 from app.services.provider_portal_recovery_service import (
     ProviderPortalRecoveryTokenExpiredError,
     ProviderPortalRecoveryTokenNotFoundError,
@@ -257,6 +270,135 @@ def _send_verification_background(bind, email: str) -> None:
         except Exception:
             session.rollback()
             logger.error("verification.resend_unavailable")
+
+
+def _send_member_password_recovery_background(bind, email: str) -> None:
+    """Resolve and deliver anonymously after sending the uniform acknowledgement."""
+    with sessionmaker(bind=bind)() as session:
+        try:
+            MemberPasswordRecoveryService(session).request_for_email(email)
+        except Exception:
+            session.rollback()
+            # Keep account addresses, link tokens, and infrastructure details
+            # out of application logs.
+            logger.error("member_password_recovery.background_unavailable")
+
+
+@router.post(
+    "/member-password-recovery/request",
+    response_model=MessageResponse,
+    dependencies=[Depends(check_member_password_recovery_rate_limit)],
+)
+def request_member_password_recovery(
+    body: MemberPasswordRecoveryRequest,
+    db: Annotated[Session, Depends(get_db)],
+    background_tasks: BackgroundTasks,
+) -> MessageResponse:
+    """Acknowledge before account lookup or mail delivery to prevent enumeration."""
+    background_tasks.add_task(
+        _send_member_password_recovery_background, db.get_bind(), body.email
+    )
+    return MessageResponse(message=MEMBER_PASSWORD_RECOVERY_ACKNOWLEDGEMENT)
+
+
+@router.post(
+    "/member-password-recovery/request-current",
+    response_model=MessageResponse,
+    dependencies=[Depends(check_member_password_recovery_rate_limit)],
+)
+def request_current_member_password_recovery(
+    current_user: CurrentUser,
+    db: Annotated[Session, Depends(get_db)],
+) -> MessageResponse:
+    """Send the recovery link only to the authenticated account's current email."""
+    try:
+        MemberPasswordRecoveryService(db).request_for_current_member(current_user.id)
+    except MemberPasswordRecoveryCooldownError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"code": "member_recovery_cooldown", "message": str(exc)},
+            headers={"Retry-After": "300"},
+        )
+    except MemberPasswordRecoveryUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "member_recovery_unavailable", "message": str(exc)},
+        )
+    except MemberPasswordRecoveryDeliveryError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "member_recovery_delivery_failed", "message": str(exc)},
+        )
+    except Exception:
+        db.rollback()
+        logger.error("member_password_recovery.current_request_unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "member_recovery_unavailable",
+                "message": "Password recovery is temporarily unavailable. Please try again later.",
+            },
+        )
+    return MessageResponse(
+        message="A password reset link has been sent to the email address on your account."
+    )
+
+
+@router.post(
+    "/member-password-recovery/reset",
+    response_model=MessageResponse,
+    dependencies=[
+        Depends(check_email_verification_rate_limit),
+        Depends(check_member_password_recovery_rate_limit),
+    ],
+)
+def reset_member_password(
+    body: MemberPasswordRecoveryResetRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> MessageResponse:
+    """Redeem a one-time recovery link without creating a new session."""
+    try:
+        MemberPasswordRecoveryService(db).redeem(body.token, body.password)
+    except MemberPasswordRecoveryTokenInvalidError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "member_recovery_link_invalid",
+                "message": "This member password reset link is invalid.",
+            },
+        )
+    except MemberPasswordRecoveryTokenUsedError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "member_recovery_link_used",
+                "message": "This member password reset link has already been used or replaced.",
+            },
+        )
+    except MemberPasswordRecoveryTokenExpiredError:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={
+                "code": "member_recovery_link_expired",
+                "message": "This member password reset link has expired. Request a new reset email.",
+            },
+        )
+    except Exception:
+        db.rollback()
+        logger.error("member_password_recovery.reset_unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "member_recovery_unavailable",
+                "message": (
+                    "Password reset is temporarily unavailable. Your existing password may still work; "
+                    "sign in if it does, or try again with this link."
+                ),
+            },
+        )
+    return MessageResponse(
+        message="Your password has been reset. Sign in to access your member account."
+    )
 
 
 @router.post(

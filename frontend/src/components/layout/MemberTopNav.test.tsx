@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { MemberTopNav } from './MemberTopNav';
+import { readFileSync } from 'node:fs';
 
 const { logout, getProfile, getRecentMemberHistory } = vi.hoisted(() => ({
   logout: vi.fn(),
@@ -29,6 +30,7 @@ vi.mock('@/app/AuthContext', () => ({
 }));
 vi.mock('@/api/profile', () => ({ getProfile }));
 vi.mock('@/api/memberFeedback', () => ({ getRecentMemberHistory, submitPlatformFeedback: vi.fn() }));
+vi.mock('@/components/messaging/useMessageUnreadCount', () => ({ useMessageUnreadCount: () => 3 }));
 
 beforeEach(() => {
   getProfile.mockResolvedValue({ horses: [{ id: 'horse-1' }] });
@@ -44,12 +46,22 @@ afterEach(() => {
 });
 
 describe('MemberTopNav', () => {
+  it('keeps the account name visible and truncated at narrow mobile widths', () => {
+    const css = readFileSync('src/components/layout/MemberTopNav.module.css', 'utf8');
+    expect(css).toMatch(/@media\(max-width:460px\)\{[^]*?\.accountIdentity\{display:flex;/);
+    expect(css).toMatch(/\.accountIdentity strong\{[^}]*text-overflow:ellipsis;white-space:nowrap/);
+    expect(css).toContain('@media(max-width:360px){.brand small{display:none}.brand strong{max-width:95px;font-size:12px}.avatar{display:none}.accountIdentity{max-width:58px}');
+  });
+
   it('provides member navigation, identity, and a visible logout control', () => {
     render(<MemoryRouter><MemberTopNav /></MemoryRouter>);
 
     expect(screen.getByRole('link', { name: 'Providers' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Profile' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Logout' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Messages/ }).getAttribute('href')).toBe('/member/messages');
+    expect(screen.getByLabelText('3 unread messages')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Account menu for Amina Rider' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Logout' })).toBeNull();
     expect(screen.getByText('Amina Rider')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'EquiConnected home' }).querySelector('img')?.getAttribute('src')).toBe('/logo.png');
     expect(screen.getByRole('button', { name: 'Open member navigation' }).getAttribute('aria-expanded')).toBe('false');
@@ -77,6 +89,9 @@ describe('MemberTopNav', () => {
     expect(await screen.findByText('Provider search')).toBeTruthy();
     expect(screen.getByRole('menuitem', { name: 'My Reviews & Feedback' }).getAttribute('href')).toBe('/my-reviews');
     expect(screen.getByRole('menuitem', { name: 'View all' }).getAttribute('href')).toBe('/history');
+    expect(screen.getByRole('menuitem', { name: 'Profile' }).getAttribute('href')).toBe('/profile');
+    expect(screen.getByRole('menuitem', { name: 'Reset password' }).getAttribute('href')).toBe('/forgot-password');
+    expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeTruthy();
   });
 
   it('refreshes profile and history after member activity events and closes on Escape with focus return', async () => {
@@ -103,6 +118,12 @@ describe('MemberTopNav', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'View all' })));
     await user.keyboard('{ArrowDown}');
     expect(document.activeElement?.textContent).toContain('Provider search');
+    await user.keyboard('{End}');
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Sign out' }));
+    await user.keyboard('{Home}');
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'View all' }));
+    await user.tab();
+    expect(document.activeElement?.textContent).toContain('Provider search');
     await user.click(screen.getByRole('link', { name: 'EquiConnected home' }));
     expect(accountButton.getAttribute('aria-expanded')).toBe('false');
   });
@@ -119,7 +140,8 @@ describe('MemberTopNav', () => {
       </MemoryRouter>
     );
 
-    await user.click(screen.getByRole('button', { name: 'Logout' }));
+    await user.click(screen.getByRole('button', { name: 'Account menu for Amina Rider' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }));
     await waitFor(() => expect(logout).toHaveBeenCalledTimes(1));
     expect(await screen.findByText('Member sign-in')).toBeTruthy();
   });

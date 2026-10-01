@@ -105,7 +105,7 @@ export function MemberTopNav() {
 
   useEffect(() => {
     if (!accountOpen) return;
-    const outside = (event: MouseEvent) => {
+    const outside = (event: Event) => {
       if (event.target instanceof Node && !accountRef.current?.contains(event.target)) setAccountOpen(false);
     };
     const key = (event: KeyboardEvent) => {
@@ -114,13 +114,22 @@ export function MemberTopNav() {
         accountButtonRef.current?.focus();
       }
     };
-    document.addEventListener('mousedown', outside);
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('touchstart', outside, { passive: true });
     document.addEventListener('keydown', key);
     return () => {
-      document.removeEventListener('mousedown', outside);
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('touchstart', outside);
       document.removeEventListener('keydown', key);
     };
   }, [accountOpen]);
+
+  function focusAccountMenuItem(last = false) {
+    window.setTimeout(() => {
+      const items = accountRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])');
+      (last ? items?.[items.length - 1] : items?.[0])?.focus();
+    }, 0);
+  }
 
   const onAccountMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])'));
@@ -142,7 +151,7 @@ export function MemberTopNav() {
     setAccountOpen(nextOpen);
     if (nextOpen) {
       void refreshAccountData();
-      window.setTimeout(() => accountRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus(), 0);
+      focusAccountMenuItem();
     }
   };
 
@@ -189,17 +198,18 @@ export function MemberTopNav() {
             <NavLink to="/profile" className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`} onClick={() => setMenuOpen(false)}>Profile</NavLink>
             <NavLink to="/providers?saved=true" className={({ isActive }) => `${styles.link} ${isActive && new URLSearchParams(location.search).get('saved') === 'true' ? styles.active : ''}`} onClick={() => setMenuOpen(false)}>Saved providers</NavLink>
           </nav>
-          <div className={styles.account} ref={accountRef}>
+          <div
+            className={styles.account}
+            ref={accountRef}
+            onBlurCapture={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setAccountOpen(false);
+            }}
+          >
             <button ref={accountButtonRef} className={styles.accountButton} type="button" aria-haspopup="menu" aria-expanded={accountOpen} aria-label={`Account menu for ${displayName}`} onClick={toggleAccountMenu} onKeyDown={(event) => {
               if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                 event.preventDefault();
                 if (!accountOpen) toggleAccountMenu();
-                if (event.key === 'ArrowUp') {
-                  window.setTimeout(() => {
-                    const items = accountRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])');
-                    items?.[items.length - 1]?.focus();
-                  }, 0);
-                }
+                focusAccountMenuItem(event.key === 'ArrowUp');
               }
             }}>
               <span className={styles.avatar} aria-hidden="true">{initials}</span>
@@ -221,14 +231,13 @@ export function MemberTopNav() {
                       : <p className={styles.noHistory}>Searches and provider views will appear here as you browse.</p>}
               </div>
               <div className={styles.dropdownActions}>
+                <Link role="menuitem" to="/profile" onClick={chooseAccountAction}><span className={styles.actionGlyph} aria-hidden="true">◉</span>Profile</Link>
+                <Link role="menuitem" to="/forgot-password" onClick={chooseAccountAction}><span className={styles.actionGlyph} aria-hidden="true">↺</span>Reset password</Link>
                 <Link role="menuitem" to="/my-reviews" onClick={chooseAccountAction}><span className={styles.actionGlyph} aria-hidden="true">☆</span>My Reviews &amp; Feedback</Link>
                 <button role="menuitem" type="button" onClick={() => { chooseAccountAction(); setFeedbackOpen(true); }}><span className={styles.actionGlyph} aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 2v16M2 10h16M4.35 4.35l11.3 11.3m0-11.3-11.3 11.3" /></svg></span>Feedback on EquiConnected</button>
                 <button role="menuitem" type="button" disabled={loggingOut} onClick={handleLogout}><span className={styles.actionGlyph} aria-hidden="true">↗</span>{loggingOut ? 'Signing out…' : 'Sign out'}</button>
               </div>
             </div>}
-            <button type="button" className={styles.logout} onClick={handleLogout} disabled={loggingOut} aria-label="Logout" title="Sign out">
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 3H4v14h4M11 6l4 4-4 4m4-4H7" /></svg>
-            </button>
           </div>
         </div>
       </header>

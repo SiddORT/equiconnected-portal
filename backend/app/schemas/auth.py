@@ -201,6 +201,35 @@ class VerificationTokenResendRequest(BaseModel):
     token: str = Field(min_length=20, max_length=512)
 
 
+class MemberPasswordRecoveryRequest(BaseModel):
+    email: EmailStr
+
+    @field_validator("email")
+    @classmethod
+    def normalise_member_recovery_email(cls, value: str) -> str:
+        return value.strip().lower()
+
+
+class MemberPasswordRecoveryResetRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=512)
+    password: str = Field(min_length=8, max_length=128)
+    password_confirmation: str = Field(min_length=8, max_length=128)
+
+    @model_validator(mode="after")
+    def validate_password(self):
+        if self.password != self.password_confirmation:
+            raise ValueError("Passwords do not match.")
+        if not (
+            re.search(r"[a-z]", self.password)
+            and re.search(r"[A-Z]", self.password)
+            and re.search(r"\d", self.password)
+        ):
+            raise ValueError(
+                "Password must include an uppercase letter, a lowercase letter, and a number."
+            )
+        return self
+
+
 class RegistrationResponse(BaseModel):
     message: str
     email_sent: bool

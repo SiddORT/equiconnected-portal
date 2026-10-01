@@ -15,7 +15,8 @@ depends_on = None
 _BASE_PURPOSES = (
     "'provider_invitation', 'account_verification', 'provider_portal_access', "
     "'provider_portal_recovery', 'provider_approval', 'subscriber_confirmation', "
-    "'contact_notification', 'contact_confirmation', 'smtp_test'"
+    "'contact_notification', 'contact_confirmation', 'smtp_test', "
+    "'member_password_recovery'"
 )
 _MESSAGING_PURPOSES = (
     _BASE_PURPOSES

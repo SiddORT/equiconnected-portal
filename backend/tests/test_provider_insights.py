@@ -895,4 +895,7 @@ def test_provider_insights_migration_roundtrip_and_canonical_head():
 
     config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == ["d353c0353201"]
+    assert len(scripts.get_heads()) == 1
+    # Future migrations may advance or merge the canonical head; Insights must
+    # remain part of that lineage rather than permanently being its tip.
+    assert "d353c0353201" in {revision.revision for revision in scripts.walk_revisions()}

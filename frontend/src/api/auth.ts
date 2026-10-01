@@ -123,3 +123,26 @@ export async function resetProviderPortalPassword(
   }
   return data;
 }
+
+function requireRecoveryMessage(data: MessageResponse): MessageResponse {
+  if (!data || typeof data.message !== 'string' || !data.message.trim()) {
+    throw new Error('Unexpected member recovery response');
+  }
+  return data;
+}
+
+export async function requestMemberPasswordRecovery(email?: string): Promise<MessageResponse> {
+  const { data } = email === undefined
+    ? await apiClient.post<MessageResponse>('/auth/member-password-recovery/request-current')
+    : await apiClient.post<MessageResponse>('/auth/member-password-recovery/request', { email });
+  return requireRecoveryMessage(data);
+}
+
+export async function resetMemberPassword(
+  token: string, password: string, password_confirmation: string
+): Promise<MessageResponse> {
+  const { data } = await apiClient.post<MessageResponse>('/auth/member-password-recovery/reset', {
+    token, password, password_confirmation,
+  });
+  return requireRecoveryMessage(data);
+}

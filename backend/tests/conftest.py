@@ -24,6 +24,7 @@ from app.core.rate_limit import (
     check_registration_rate_limit,
     check_verification_resend_rate_limit,
     check_subscriber_rate_limit,
+    check_member_password_recovery_rate_limit,
 )
 from app.db.base import Base
 from app.db.session import get_db
@@ -68,6 +69,7 @@ _CLEANUP_TABLES = [
     "provider_conversations",
     "messaging_send_limits",
     "provider_profile_updates",
+    "member_password_recovery_tokens",
     "provider_portal_recovery_tokens",
     "provider_portal_setup_tokens",
     "direct_provider_portal_access",
@@ -221,6 +223,7 @@ def client(db):
     app.dependency_overrides[check_email_verification_rate_limit] = _no_rate_limit
     app.dependency_overrides[check_verification_resend_rate_limit] = _no_rate_limit
     app.dependency_overrides[check_subscriber_rate_limit] = _no_rate_limit
+    app.dependency_overrides[check_member_password_recovery_rate_limit] = _no_rate_limit
 
     with TestClient(app) as c:
         yield c

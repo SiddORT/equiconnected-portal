@@ -532,6 +532,18 @@ class AuthService:
             logger.warning("login.failed.unknown_email", email=email)
             raise AuthenticationError("Invalid email or password")
 
+        # Password verification and session issuance must share recovery's
+        # user-first lock. Otherwise a login verified just before reset could
+        # commit a surviving refresh session after reset revoked existing rows.
+        user = self._db.scalar(
+            select(User)
+            .where(User.id == user.id)
+            .with_for_update(of=User)
+            .execution_options(populate_existing=True)
+        )
+        if user is None:
+            raise AuthenticationError("Invalid email or password")
+
         if not verify_password(password, user.password_hash):
             logger.warning("login.failed.wrong_password", user_id=str(user.id))
             self._audit.log(
@@ -590,15 +602,22 @@ class AuthService:
         if payload.get("type") != "refresh":
             raise InvalidTokenError("Wrong token type")
 
-        record = self._tokens.get_valid(raw_refresh_token)
-        if record is None:
-            logger.warning("refresh.failed.token_not_found_or_revoked")
-            raise InvalidTokenError("Token not found or revoked")
-
         user_id = uuid.UUID(payload["sub"])
-        user = self._users.get_by_id(user_id)
+        # Match password recovery's user-first lock order. A refresh that wins
+        # first is revoked by the reset; a refresh that waits observes the
+        # revoked row and cannot mint a new post-reset session.
+        user = self._db.scalar(
+            select(User)
+            .where(User.id == user_id)
+            .with_for_update(of=User)
+            .execution_options(populate_existing=True)
+        )
         if user is None or not user.is_active:
             raise InvalidTokenError("User not found or inactive")
+        record = self._tokens.get_valid(raw_refresh_token, for_update=True)
+        if record is None or record.user_id != user_id:
+            logger.warning("refresh.failed.token_not_found_or_revoked")
+            raise InvalidTokenError("Token not found or revoked")
         self._require_member_access(user)
 
         # Rotate: revoke old, issue new

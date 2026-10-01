@@ -31,6 +31,7 @@ function purposeLabel(purpose: EmailDeliveryLog['purpose']): string {
   if (purpose === 'provider_invitation') return 'Provider profile invitation';
   if (purpose === 'provider_portal_access') return 'Provider portal access';
   if (purpose === 'provider_portal_recovery') return 'Provider portal password recovery';
+  if (purpose === 'member_password_recovery') return 'Member password recovery';
   if (purpose === 'provider_approval') return 'Provider account approval';
   if (purpose === 'subscriber_confirmation') return 'Subscriber confirmation';
   if (purpose === 'contact_notification') return 'Contact notification';

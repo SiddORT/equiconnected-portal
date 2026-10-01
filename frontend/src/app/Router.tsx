@@ -48,6 +48,7 @@ import { MemberHistoryPage } from '@/pages/MemberHistoryPage';
 import { PlatformFeedbackPage, PlatformFeedbackDetailPage } from '@/pages/admin/PlatformFeedbackPage';
 import { AnalyticsPage } from '@/pages/admin/AnalyticsPage';
 import { MemberMessagesPage, ProviderMessagesPage } from '@/pages/PrivateMessagesPage';
+import { MemberPasswordRecoveryPage } from '@/pages/MemberPasswordRecoveryPage';
 
 const AnimationPage = lazy(() =>
   import('@/pages/AnimationPage').then((module) => ({ default: module.AnimationPage }))
@@ -75,6 +76,8 @@ export function AppRouter() {
         <Route path="/provider/signup" element={<ProviderSignupPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/login" element={<MemberLoginPage />} />
+        <Route path="/forgot-password" element={<MemberPasswordRecoveryPage key="request" />} />
+        <Route path="/reset-password" element={<MemberPasswordRecoveryPage key="reset" />} />
         <Route path="/member" element={<Navigate to="/" replace />} />
         <Route path="/provider/login" element={<ProviderLoginPage />} />
         <Route path="/provider/setup-password" element={<ProviderPasswordSetupPage />} />

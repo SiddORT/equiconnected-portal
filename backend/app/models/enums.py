@@ -98,6 +98,7 @@ class EmailPurpose(str, enum.Enum):
     ACCOUNT_VERIFICATION = "account_verification"
     PROVIDER_PORTAL_ACCESS = "provider_portal_access"
     PROVIDER_PORTAL_RECOVERY = "provider_portal_recovery"
+    MEMBER_PASSWORD_RECOVERY = "member_password_recovery"
     PROVIDER_APPROVAL = "provider_approval"
     SUBSCRIBER_CONFIRMATION = "subscriber_confirmation"
     CONTACT_NOTIFICATION = "contact_notification"

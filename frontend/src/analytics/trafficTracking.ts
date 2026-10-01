@@ -216,6 +216,7 @@ export function usePublicTrafficRoute(
     };
     if (
       location.pathname === expectedPath
+      && !['/reset-password', '/forgot-password'].includes(location.pathname)
       && !hasSensitiveTrafficUrlParameter(location.search, location.hash)
       && isNewTrafficNavigation(lastLocation.current, current)
     ) {

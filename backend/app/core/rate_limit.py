@@ -42,6 +42,7 @@ _verification_resend_attempts: dict[str, deque[float]] = defaultdict(deque)
 _smtp_test_attempts: dict[str, deque[float]] = defaultdict(deque)
 _analytics_traffic_attempts: dict[str, deque[float]] = defaultdict(deque)
 _contact_click_attempts: dict[str, deque[float]] = defaultdict(deque)
+_member_password_recovery_attempts: dict[str, deque[float]] = defaultdict(deque)
 
 
 # ── Dependency ────────────────────────────────────────────────────────────────
@@ -251,6 +252,17 @@ def check_smtp_test_rate_limit(user_id: str) -> None:
                 headers={"Retry-After": str(window_seconds)},
             )
         q.append(now)
+
+
+def check_member_password_recovery_rate_limit(request: Request) -> None:
+    """Bound anonymous and authenticated member recovery requests per IP."""
+    _check_rate_limit(
+        request,
+        _member_password_recovery_attempts,
+        window_seconds=600,
+        max_attempts=5,
+        message="Too many password reset requests. Please try again later.",
+    )
 
 
 def check_analytics_traffic_rate_limit(request: Request) -> None:

@@ -388,6 +388,7 @@ export interface EmailDeliveryLog {
     | 'account_verification'
     | 'provider_portal_access'
     | 'provider_portal_recovery'
+    | 'member_password_recovery'
     | 'provider_approval'
     | 'subscriber_confirmation'
     | 'contact_notification'

@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
@@ -288,9 +288,15 @@ describe('PublicPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(screen.getByText('Hi, Ada')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Profile' }).getAttribute('href')).toBe('/profile');
-    expect(screen.getByRole('link', { name: 'Directory' }).getAttribute('href')).toBe('/providers');
+    const accountButton = screen.getByRole('button', { name: 'Account menu for Ada' });
+    expect(accountButton.textContent).toContain('Ada');
+    expect(accountButton.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('link', { name: 'Profile' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
+    const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
+    const directoryLink = within(navigation).getByRole('link', { name: 'Directory' });
+    expect(directoryLink.getAttribute('href')).toBe('/providers');
+    expect(directoryLink.compareDocumentPosition(accountButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Join EquiConnected' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull();
     const hero = screen.getByRole('heading', { name: /Trusted equine care/i }).closest('section');
@@ -311,8 +317,75 @@ describe('PublicPage', () => {
     const reviews = within(screen.getByRole('region', { name: 'In their words.' }));
     expect(reviews.getByRole('link', { name: 'Browse provider profiles' }).getAttribute('href')).toBe('/providers');
 
-    await user.click(screen.getByRole('button', { name: 'Sign out' }));
+    await user.click(accountButton);
+    const accountMenu = screen.getByRole('menu', { name: 'Account' });
+    expect(within(navigation).queryByRole('link', { name: 'Profile' })).toBeNull();
+    expect(within(navigation).queryByRole('button', { name: 'Sign out' })).toBeNull();
+    expect(within(accountMenu).getByRole('menuitem', { name: 'Profile' }).getAttribute('href')).toBe('/profile');
+    expect(within(accountMenu).getByRole('menuitem', { name: 'Reset password' }).getAttribute('href')).toBe('/forgot-password');
+    expect(within(accountMenu).getByRole('menuitem', { name: 'Sign out' })).toBeTruthy();
+    await user.click(within(accountMenu).getByRole('menuitem', { name: 'Sign out' }));
     expect(logout).toHaveBeenCalledOnce();
+  });
+
+  it('supports member account-menu arrows, Escape, Tab blur, and outside touch dismissal', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      ...guestAuth(),
+      isAuthenticated: true,
+      user: {
+        id: 'member',
+        email: 'ada@example.com',
+        first_name: 'Ada',
+        last_name: 'Rider',
+        full_name: 'Ada Rider',
+        role: 'horse_owner',
+        roles: ['horse_owner'],
+        email_verified_at: '2026-08-31',
+        last_successful_login_at: null,
+        is_active: true,
+      },
+    });
+    const user = userEvent.setup();
+    renderPage();
+    const trigger = screen.getByRole('button', { name: 'Account menu for Ada' });
+
+    trigger.focus();
+    await user.keyboard('{ArrowDown}');
+    const menu = screen.getByRole('menu', { name: 'Account' });
+    const profile = within(menu).getByRole('menuitem', { name: 'Profile' });
+    const reset = within(menu).getByRole('menuitem', { name: 'Reset password' });
+    await waitFor(() => expect(document.activeElement).toBe(profile));
+    await user.keyboard('{ArrowDown}');
+    expect(document.activeElement).toBe(reset);
+    await user.keyboard('{End}');
+    expect(document.activeElement).toBe(within(menu).getByRole('menuitem', { name: 'Sign out' }));
+    await user.keyboard('{Home}');
+    expect(document.activeElement).toBe(profile);
+    await user.keyboard('{Escape}');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(trigger);
+
+    await user.click(trigger);
+    const reopenedMenu = screen.getByRole('menu', { name: 'Account' });
+    const reopenedProfile = within(reopenedMenu).getByRole('menuitem', { name: 'Profile' });
+    const reopenedReset = within(reopenedMenu).getByRole('menuitem', { name: 'Reset password' });
+    await waitFor(() => expect(document.activeElement).toBe(reopenedProfile));
+    await user.tab();
+    expect(document.activeElement).toBe(reopenedReset);
+    await user.tab();
+    await user.tab();
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+
+    await user.click(trigger);
+    fireEvent.touchStart(screen.getByRole('heading', { name: /Trusted equine care/i }));
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('keeps the homepage member name visible with responsive truncation', () => {
+    const homeCss = readFileSync('src/components/public/home-v2/HomeV2.module.css', 'utf8');
+    expect(homeCss).toMatch(/\.publicAccountName \{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; \}/);
+    expect(homeCss).toContain('.headerMember .publicAccountButton { max-width: clamp(72px, 27vw, 126px);');
+    expect(homeCss).toContain('.headerMember .brand img { width: min(144px, 28vw); }');
   });
 
   it('uses member-gated directory destinations for guests', () => {

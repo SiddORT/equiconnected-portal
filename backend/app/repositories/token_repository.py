@@ -34,13 +34,17 @@ class TokenRepository:
         self._db.flush()
         return record
 
-    def get_valid(self, raw_token: str) -> RefreshToken | None:
+    def get_valid(
+        self, raw_token: str, *, for_update: bool = False
+    ) -> RefreshToken | None:
         token_hash = _hash_token(raw_token)
         stmt = select(RefreshToken).where(
             RefreshToken.token_hash == token_hash,
             RefreshToken.revoked_at.is_(None),
             RefreshToken.expires_at > datetime.now(timezone.utc),
         )
+        if for_update:
+            stmt = stmt.with_for_update().execution_options(populate_existing=True)
         return self._db.scalars(stmt).first()
 
     def revoke(self, record: RefreshToken) -> None:

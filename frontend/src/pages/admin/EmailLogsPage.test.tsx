@@ -131,6 +131,7 @@ describe('EmailLogsPage', () => {
 
   it.each([
     ['messaging_member_acknowledgement', 'Private message acknowledgement'],
+    ['member_password_recovery', 'Member password recovery'],
     ['messaging_provider_new_message', 'New private provider message'],
     ['messaging_member_reply', 'Private message reply notification'],
   ] as const)('labels %s delivery attempts', async (purpose, label) => {

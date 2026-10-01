@@ -51,3 +51,4 @@
 - [Browser failure injection](browser-failure-injection.md) — keep intentional failures active until explicit retry so Strict Mode replay cannot hide the error state.
 - [Private message delivery policy](private-message-delivery-policy.md) — retry safe pre-SMTP failures, not uncertain handoffs; message acceptance is independent of email.
 - [Aggregate retry expiry](aggregate-retry-expiry.md) — expiring unlinkable receipts need independent event-age validation so delayed replays cannot become fresh counts.
+- [Password recovery session locking](password-recovery-session-locking.md) — recovery, password login, and refresh rotation share account-first serialization to prevent surviving reset sessions.

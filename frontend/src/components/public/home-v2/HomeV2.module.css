@@ -31,18 +31,27 @@
 .brand { display: flex; align-items: center; flex: 0 0 auto; }
 .brand img { width: 176px; height: auto; display: block; transition: filter .3s ease; }
 .headerScrolled .brand img { filter: brightness(.55) sepia(.5); }
-.greeting { max-width: 130px; overflow: hidden; margin-left: auto; font-size: 13.2px; text-overflow: ellipsis; white-space: nowrap; opacity: .83; }
 .navigation { display: flex; align-items: center; gap: clamp(16px,2vw,30px); margin-left: auto; font-size: 14.4px; }
 .navigation > a:not(.navJoin) { white-space: nowrap; opacity: .88; transition: opacity .2s ease; }
 .navigation > a:not(.navJoin):hover { opacity: 1; }
 .navJoin { min-height: 41px; display: inline-flex; align-items: center; justify-content: center; padding: 0 18px; border-radius: 99px; background: var(--paper); color: var(--ink) !important; font-weight: 700; }
 .headerScrolled .navJoin { background: var(--ink); color: var(--paper) !important; }
-.signOut { padding: 6px 0; border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 13.2px !important; }
 .menuToggle { display: none; }
 .menuGlyph { width: 18px; display: grid; gap: 5px; }
 .menuGlyph i { height: 1px; background: currentColor; transition: transform .2s ease; }
 .menuToggleOpen .menuGlyph i:first-child { transform: translateY(3px) rotate(45deg); }
 .menuToggleOpen .menuGlyph i:last-child { transform: translateY(-3px) rotate(-45deg); }
+.publicAccount { position: relative; z-index: 22; flex: 0 0 auto; }
+.publicAccountButton { max-width: 190px; display: flex; align-items: center; gap: 8px; padding: 8px 0 8px 8px; border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 13px; }
+.publicAccountButton:hover, .publicAccountButton[aria-expanded="true"] { color: var(--gold-light); }
+.publicAccountName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.publicAccountChevron { width: 14px; height: 14px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.5; transition: transform .2s ease; }
+.publicAccountButton[aria-expanded="true"] .publicAccountChevron { transform: rotate(180deg); }
+.publicAccountMenu { position: absolute; z-index: 30; top: calc(100% + 10px); right: 0; width: min(240px, calc(100vw - 32px)); padding: 7px; border: 1px solid rgba(39,36,30,.13); border-radius: 12px; background: var(--paper); color: var(--ink); box-shadow: 0 18px 42px rgba(16,17,13,.28); }
+.publicAccountMenu a, .publicAccountMenu button { width: 100%; display: block; padding: 11px 13px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); cursor: pointer; font: 600 14px/1.4 var(--sans); text-align: left; text-decoration: none; }
+.publicAccountMenu a:hover, .publicAccountMenu button:hover, .publicAccountMenu a:focus-visible, .publicAccountMenu button:focus-visible { background: var(--paper-soft); }
+.publicAccountMenu button:disabled { cursor: wait; opacity: .65; }
+.publicAccountButton:focus-visible, .publicAccountMenu a:focus-visible, .publicAccountMenu button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 
 .audienceDropdown { position: relative; }
 .audienceDropdown > button { cursor: pointer; white-space: nowrap; }
@@ -758,16 +767,15 @@
 @media (max-width: 1100px) {
   .headerInner { width: calc(100% - 40px); min-height: 72px; }
   .brand img { width: 158px; }
-  .greeting { display: none; }
   .page .menuToggle { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; padding: 10px 0 10px 12px; border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 18px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
   .navigation { position: absolute; top: 65px; right: 14px; left: 14px; display: none; align-items: stretch; gap: 0; max-height: calc(100dvh - 76px); overflow-y: auto; padding: 14px 21px 19px; background: var(--paper); color: var(--ink); box-shadow: 0 18px 48px rgba(16,17,13,.24); }
   .navigationOpen { display: grid; }
   .navigation > a:not(.navJoin) { padding: 10px 0; border-bottom: 1px solid var(--line); opacity: 1; font: 400 26.4px var(--serif); }
   .navigation .navJoin { margin-top: 13px; background: var(--gold-light); color: var(--ink) !important; }
-  .navigation .signOut { padding: 11px 0; border-bottom: 1px solid var(--line); text-align: left; }
   .navigation .audienceSignIn { width: 100%; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); font: 400 26.4px var(--serif); }
   .navigation .audienceNavJoin > .navJoin { width: 100%; }
   .navigation .audienceChoices { position: static; width: 100%; max-width: none; margin-top: 6px; box-shadow: none; }
+  .publicAccountButton { max-width: 145px; }
 }
 @media (max-width: 900px) {
   .stepList { gap: 24px 18px; }
@@ -866,6 +874,14 @@
   .footerMain { padding: 42px 0 48px; }
   .footerLinks { gap: 30px 20px; }
   .footerBottom { flex-direction: column; gap: 4px; font-size: 10px; }
+}
+@media (max-width: 620px) {
+  .headerMember .headerInner { gap: 9px; }
+  .headerMember .brand { min-width: 0; }
+  .headerMember .brand img { width: min(144px, 28vw); }
+  .headerMember .publicAccount { min-width: 0; }
+  .headerMember .publicAccountButton { max-width: clamp(72px, 27vw, 126px); gap: 4px; padding-left: 3px; font-size: 11px; }
+  .headerMember .publicAccountMenu { top: calc(100% + 8px); }
 }
 @media (max-width: 900px) {
   .findSection { width: min(100% - 44px, 680px); grid-template-columns: 1fr; gap: 38px; }

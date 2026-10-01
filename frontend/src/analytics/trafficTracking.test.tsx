@@ -49,6 +49,19 @@ describe('traffic route instrumentation', () => {
     vi.restoreAllMocks();
   });
 
+  it.each(['/reset-password#token=private', '/reset-password', '/forgot-password'])(
+    'never tracks member recovery even after URL stripping: %s', async (path) => {
+      function RecoveryRoute() {
+        usePublicTrafficRoute('home', path.split('#')[0]);
+        return null;
+      }
+      const router = createMemoryRouter([{ path: '*', element: <RecoveryRoute /> }], { initialEntries: [path] });
+      render(<RouterProvider router={router} />);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(publicPost).not.toHaveBeenCalled();
+    },
+  );
+
   it('is Strict Mode safe and ignores query/hash-only route changes', async () => {
     const router = createMemoryRouter(
       [{ path: '*', element: <HomeRoute /> }],

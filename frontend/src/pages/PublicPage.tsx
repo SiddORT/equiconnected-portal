@@ -1,7 +1,7 @@
 /**
  * Public EquiConnected homepage — editorial, horse-first storytelling.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
 import { hasMemberRole } from '@/features/member/memberAccess';
@@ -48,6 +48,7 @@ export function PublicPage() {
   const member = !authLoading && isAuthenticated && hasMemberRole(user);
   const { settings, isLoading: settingsLoading, error: settingsError } = useTimeSettings();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [headerScrolled, setHeaderScrolled] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [email, setEmail] = useState('');
@@ -57,6 +58,8 @@ export function PublicPage() {
   const [emailError, setEmailError] = useState('');
   const [roleError, setRoleError] = useState('');
   const [formError, setFormError] = useState('');
+  const accountRef = useRef<HTMLDivElement>(null);
+  const accountButtonRef = useRef<HTMLButtonElement>(null);
   const careHref = member ? '/providers' : '/signup';
   const horseOwner = member && (user?.roles?.length ? user.roles : [user?.role]).includes('horse_owner');
   const greeting = user?.first_name?.trim() || user?.full_name?.trim() || 'Member';
@@ -117,6 +120,59 @@ export function PublicPage() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!accountOpen) return;
+    const dismissOutside = (event: Event) => {
+      if (event.target instanceof Node && !accountRef.current?.contains(event.target)) setAccountOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setAccountOpen(false);
+        accountButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', dismissOutside);
+    document.addEventListener('touchstart', dismissOutside, { passive: true });
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', dismissOutside);
+      document.removeEventListener('touchstart', dismissOutside);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [accountOpen]);
+
+  function focusAccountMenuItem(last = false) {
+    window.setTimeout(() => {
+      const items = accountRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])');
+      (last ? items?.[items.length - 1] : items?.[0])?.focus();
+    }, 0);
+  }
+
+  function toggleAccountMenu() {
+    const nextOpen = !accountOpen;
+    setAccountOpen(nextOpen);
+    if (nextOpen) focusAccountMenuItem();
+  }
+
+  function onAccountMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])'));
+    if (!items.length) return;
+    const current = items.indexOf(document.activeElement as HTMLElement);
+    let next = -1;
+    if (event.key === 'ArrowDown') next = current < 0 ? 0 : (current + 1) % items.length;
+    if (event.key === 'ArrowUp') next = current < 0 ? items.length - 1 : (current - 1 + items.length) % items.length;
+    if (event.key === 'Home') next = 0;
+    if (event.key === 'End') next = items.length - 1;
+    if (next >= 0) {
+      event.preventDefault();
+      items[next].focus();
+    }
+  }
+
+  function closeAccountMenu() {
+    setAccountOpen(false);
+  }
+
   async function handleNotify(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!registrationType) {
@@ -144,9 +200,10 @@ export function PublicPage() {
   async function handleLogout() {
     if (loggingOut) return;
     setLoggingOut(true);
+    setAccountOpen(false);
+    setMenuOpen(false);
     try {
       await logout();
-      setMenuOpen(false);
     } finally {
       setLoggingOut(false);
     }
@@ -159,12 +216,11 @@ export function PublicPage() {
   return (
     <div className={styles.page}>
       <a className={styles.skipLink} href="#main-content">Skip to content</a>
-      <header className={`${styles.header} ${headerScrolled ? styles.headerScrolled : ''}`}>
+      <header className={`${styles.header} ${member ? styles.headerMember : ''} ${headerScrolled ? styles.headerScrolled : ''}`}>
         <div className={styles.headerInner}>
           <Link to="/" className={styles.brand} aria-label="EquiConnected home">
             <img src="/equiconnected-logo.png" alt="" aria-hidden="true" />
           </Link>
-          {member && <span className={styles.greeting}>Hi, {greeting}</span>}
           <button
             className={`${styles.menuToggle} ${menuOpen ? styles.menuToggleOpen : ''}`}
             type="button"
@@ -182,12 +238,7 @@ export function PublicPage() {
             <a href="/#visiting" onClick={closeMenu}>Visiting specialists</a>
             <a href="/#emergency" onClick={closeMenu}>Emergency</a>
             {member ? (
-              <>
-                <Link to="/profile" onClick={closeMenu}>Profile</Link>
-                <button type="button" className={styles.signOut} onClick={() => void handleLogout()} disabled={loggingOut}>
-                  {loggingOut ? 'Signing out…' : 'Sign out'}
-                </button>
-              </>
+              null
             ) : (
               <AudienceDropdown action="signin" placement="navigation" onSelect={closeMenu} resetOn={menuOpen} />
             )}
@@ -195,6 +246,48 @@ export function PublicPage() {
               ? <Link className={styles.navJoin} to="/providers" onClick={closeMenu}>Directory</Link>
               : <AudienceDropdown action="join" placement="navigation" onSelect={closeMenu} resetOn={menuOpen} />}
           </nav>
+          {member && (
+            <div
+              className={styles.publicAccount}
+              ref={accountRef}
+              onBlurCapture={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closeAccountMenu();
+              }}
+            >
+              <button
+                ref={accountButtonRef}
+                className={styles.publicAccountButton}
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={accountOpen}
+                aria-controls="home-account-menu"
+                aria-label={`Account menu for ${greeting}`}
+                onClick={toggleAccountMenu}
+                onKeyDown={(event) => {
+                  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+                  event.preventDefault();
+                  if (!accountOpen) {
+                    setAccountOpen(true);
+                    focusAccountMenuItem(event.key === 'ArrowUp');
+                  } else {
+                    focusAccountMenuItem(event.key === 'ArrowUp');
+                  }
+                }}
+              >
+                <span className={styles.publicAccountName}>{greeting}</span>
+                <svg className={styles.publicAccountChevron} viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+              </button>
+              {accountOpen && (
+                <div id="home-account-menu" className={styles.publicAccountMenu} role="menu" aria-label="Account" onKeyDown={onAccountMenuKeyDown}>
+                  <Link role="menuitem" to="/profile" onClick={closeAccountMenu}>Profile</Link>
+                  <Link role="menuitem" to="/forgot-password" onClick={closeAccountMenu}>Reset password</Link>
+                  <button role="menuitem" type="button" onClick={() => void handleLogout()} disabled={loggingOut}>
+                    {loggingOut ? 'Signing out…' : 'Sign out'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </header>
 

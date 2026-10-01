@@ -357,6 +357,41 @@ class EmailService:
         )
         self._deliver(message, recipient)
 
+    def send_member_password_recovery_email(
+        self, recipient: str, recovery_url: str, expires_at: datetime
+    ) -> None:
+        """Send a branded, one-time password reset link to a member."""
+        expiry = expires_at.strftime("%B %d, %Y at %H:%M UTC")
+        plain = (
+            "Reset your EquiConnected member password.\n\n"
+            "A password reset was requested for your member account. Your current "
+            "password will continue to work unless you complete the reset.\n\n"
+            f"Reset your password securely before {expiry}:\n{recovery_url}\n\n"
+            "This link can only be used once. If you did not request this, "
+            "you can safely ignore this email.\n"
+        )
+        html = self._branded_html(
+            headline="Reset your member<br>password.",
+            body_html=(
+                "A password reset was requested for your EquiConnected member "
+                "account. Your current password continues to work unless you "
+                "complete this reset."
+            ),
+            action_label="Reset your password",
+            action_url=recovery_url,
+            security_html=(
+                f"This one-time reset link expires on {escape(expiry)}.<br>"
+                "If you did not request this, you can safely ignore this email."
+            ),
+        )
+        message = self._build_message(
+            recipient=recipient,
+            subject="Reset your EquiConnected member password",
+            plain=plain,
+            html=html,
+        )
+        self._deliver(message, recipient)
+
     def send_subscriber_confirmation_email(self, recipient: str) -> None:
         """Acknowledge public launch interest without collecting extra profile data."""
         plain = (
