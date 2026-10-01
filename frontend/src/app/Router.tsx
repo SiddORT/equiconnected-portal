@@ -54,6 +54,9 @@ const AnimationPage = lazy(() =>
   import('@/pages/AnimationPage').then((module) => ({ default: module.AnimationPage }))
 );
 
+const UserManualPage = lazy(() =>
+  import('@/pages/admin/UserManualPage').then((module) => ({ default: module.UserManualPage }))
+);
 export function AppRouter() {
   return (
     <BrowserRouter>
@@ -93,6 +96,7 @@ export function AppRouter() {
           <Route element={<AdminLayout />}>
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/dashboard" element={<DashboardPage />} />
+            <Route path="/admin/user-manual" element={<Suspense fallback={<p role="status">Loading user manual…</p>}><UserManualPage /></Suspense>} />
             <Route path="/admin/visiting-providers" element={<AdminVisitingProviderCalendarPage />} />
             <Route path="/admin/analytics" element={<AnalyticsPage />} />
             <Route path="/admin/specializations" element={<SpecializationsPage />} />

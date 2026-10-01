@@ -254,6 +254,19 @@ export function AdminTopNav() {
             <div className={styles.dropdownDivider} />
 
             <NavLink
+              to="/admin/user-manual"
+              className={({ isActive }) => [
+                styles.dropdownItem,
+                isActive ? styles['dropdownItem--active'] : '',
+              ].filter(Boolean).join(' ')}
+              role="menuitem"
+              onClick={() => setMenuOpen(false)}
+            >
+              <span aria-hidden="true">▤</span>
+              User Manual
+            </NavLink>
+
+            <NavLink
               to="/admin/analytics"
               className={({ isActive }) => [
                 styles.dropdownItem,

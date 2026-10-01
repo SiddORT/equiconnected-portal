@@ -9,6 +9,12 @@ For responsive checks narrower than 500px, do not assume Chromium's `--window-si
 
 **How to apply:** Prefer the app preview for visual inspection. For scripted mobile checks, set explicit device metrics and wait until the page has rendered before measuring or capturing; confirm the effective viewport width.
 
+A mobile browser can expand its layout viewport to fit an unbroken text run even when device emulation and the viewport meta tag are correct.
+
+**Why:** A long comma-separated CSV header made the page shrink visually; only the fixed navigation appeared oversized in bounding-box probes, obscuring the actual overflowing text.
+
+**How to apply:** Compare root client width, scroll width, and visual viewport width. Find descendants whose scroll width exceeds client width, not only elements whose bounding boxes extend past the screen. Allow long manual/report text to wrap rather than changing account navigation to compensate.
+
 Browser API interception must match the pathname's API prefix, not a broad URL substring.
 
 **Why:** A wildcard matching any `/api/` segment also catches Vite's source-module URLs under `/src/api/`, replacing JavaScript with fixture JSON and preventing the app from rendering.

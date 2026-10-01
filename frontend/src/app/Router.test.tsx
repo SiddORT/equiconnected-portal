@@ -29,6 +29,13 @@ afterEach(() => {
 });
 
 describe('AppRouter member entry', () => {
+  it('protects the manual behind the existing admin guard', async () => {
+    window.history.replaceState({}, '', '/admin/user-manual');
+    render(<AppRouter />);
+    await waitFor(() => expect(window.location.pathname).toBe('/admin/login'));
+    expect(window.history.state.usr?.from?.pathname).toBe('/admin/user-manual');
+  });
+
   it.each([
     ['/providers/visiting-calendar?name=Maple', '/login'],
     ['/admin/visiting-providers', '/admin/login'],

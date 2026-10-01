@@ -100,7 +100,7 @@ describe('AdminTopNav', () => {
     }
   });
 
-  it('shows Analytics only in the open profile menu, above Activity Logs', async () => {
+  it('puts User Manual first in the profile menu, before Analytics and Activity Logs', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><AdminTopNav /><LocationProbe /></MemoryRouter>);
     const navigation = screen.getByRole('navigation', { name: 'Admin navigation' });
@@ -109,6 +109,9 @@ describe('AdminTopNav', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open profile menu' }));
     const menu = screen.getByRole('menu', { name: 'Profile options' });
+    const manual = within(menu).getByRole('menuitem', { name: 'User Manual' });
+    expect(manual.getAttribute('href')).toBe('/admin/user-manual');
+    expect(manual.getAttribute('aria-current')).toBeNull();
     const analytics = within(menu).getByRole('menuitem', { name: 'Analytics' });
     expect(analytics.getAttribute('href')).toBe('/admin/analytics');
     expect(analytics.getAttribute('aria-current')).toBeNull();
@@ -119,11 +122,9 @@ describe('AdminTopNav', () => {
         .map((node) => node.textContent)
         .join('').trim(),
     );
+    expect(labels[0]).toBe('User Manual');
+    expect(labels.indexOf('User Manual') + 1).toBe(labels.indexOf('Analytics'));
     expect(labels.indexOf('Analytics') + 1).toBe(labels.indexOf('Activity Logs'));
-    if (labels.includes('User Manual')) {
-      expect(labels[0]).toBe('User Manual');
-      expect(labels[1]).toBe('Analytics');
-    }
     for (const name of ['Activity Logs', 'Email Logs', 'Settings', 'Logout']) {
       expect(within(menu).getByRole('menuitem', { name })).toBeTruthy();
     }
@@ -132,6 +133,17 @@ describe('AdminTopNav', () => {
     expect(screen.getByTestId('location').textContent).toBe('/admin/analytics');
     expect(screen.queryByRole('menu', { name: 'Profile options' })).toBeNull();
     expect(within(navigation).queryByRole('link', { name: 'Analytics' })).toBeNull();
+  });
+
+  it('marks the manual menu item active and closes the profile menu on selection', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/admin/user-manual']}><AdminTopNav /><LocationProbe /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: 'Open profile menu' }));
+    const manual = screen.getByRole('menuitem', { name: 'User Manual' });
+    expect(manual.getAttribute('aria-current')).toBe('page');
+    expect(manual.className).toContain('dropdownItem--active');
+    await user.click(manual);
+    expect(screen.queryByRole('menu', { name: 'Profile options' })).toBeNull();
   });
 
   it('marks Analytics active and closes on selection even at its existing URL', async () => {
