@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import pytest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from threading import Barrier, Lock
@@ -25,6 +26,7 @@ from app.repositories.user_repository import UserRepository
 from app.services.direct_provider_access_service import DirectProviderAccessService
 from app.services.email_service import EmailDeliveryError, EmailService
 from sqlalchemy.orm import sessionmaker
+from app.repositories.audit_repository import AuditRepository
 
 
 _ADMIN_PROVIDERS = "/api/v1/admin/providers"
@@ -130,6 +132,68 @@ def test_legacy_direct_provider_can_be_selected_and_receive_portal_access(
     )
     assert profile.status_code == 200, profile.text
     assert profile.json()["id"] == str(provider.id)
+
+
+@pytest.mark.parametrize("failure", ["invalid", "expired", "replaced", "validation", "service"])
+def test_setup_failures_leave_account_pending_and_token_unused(
+    client, db, seeded_admin, monkeypatch, failure
+):
+    admin, _ = seeded_admin
+    provider = _provider(db)
+    email = _email(db, provider, "setup-recovery@portal.example.com")
+    db.commit()
+    delivered = []
+    monkeypatch.setattr(
+        EmailService, "send_provider_portal_access_email",
+        lambda _self, _recipient, url, _expires: delivered.append(url),
+    )
+    path = f"{_ADMIN_PROVIDERS}/{provider.id}/portal-access"
+    headers = _headers(client, admin)
+    assert client.post(path, headers=headers, json={"email_id": str(email.id)}).status_code == 200
+    raw_token = _setup_token(delivered)
+    token = db.query(ProviderPortalSetupToken).filter_by(
+        token_hash=hashlib.sha256(raw_token.encode()).hexdigest()
+    ).one()
+    account = db.get(User, token.user_id)
+    old_hash = account.password_hash
+    if failure == "expired":
+        token.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        db.commit()
+    if failure == "replaced":
+        assert client.post(path, headers=headers, json={"email_id": str(email.id)}).status_code == 200
+    password = "SyntheticSetup9"
+    payload = {"token": raw_token, "password": password, "password_confirmation": password}
+    if failure == "invalid":
+        payload["token"] = "synthetic-unknown-token"
+    if failure == "validation":
+        payload["password_confirmation"] = "DifferentSetup9"
+    original_log = AuditRepository.log
+    if failure == "service":
+        def unavailable(*_args, **_kwargs):
+            raise RuntimeError("Synthetic audit outage")
+        monkeypatch.setattr(AuditRepository, "log", unavailable)
+    response = client.post("/api/v1/auth/provider-portal/setup-password", json=payload)
+    expected = {
+        "invalid": (404, "provider_portal_link_invalid"),
+        "expired": (410, "provider_portal_link_expired"),
+        "replaced": (409, "provider_portal_link_used"),
+        "validation": (422, None),
+        "service": (503, "provider_portal_setup_unavailable"),
+    }[failure]
+    assert response.status_code == expected[0]
+    if expected[1]:
+        assert response.json()["detail"]["code"] == expected[1]
+    db.expire_all()
+    assert token.used_at is None
+    assert account.is_active is False
+    assert account.provider_portal_setup_pending is True
+    assert account.email_verified_at is None
+    assert account.password_hash == old_hash
+    if failure in ("validation", "service"):
+        monkeypatch.setattr(AuditRepository, "log", original_log)
+        payload["password_confirmation"] = password
+        assert client.post("/api/v1/auth/provider-portal/setup-password", json=payload).status_code == 200
+        assert _login(client, email.email, password)
 
 
 def test_direct_access_rejects_email_owned_by_an_unrelated_account(

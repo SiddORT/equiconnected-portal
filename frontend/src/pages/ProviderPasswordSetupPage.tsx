@@ -1,11 +1,27 @@
 import { useState } from 'react';
+import axios from 'axios';
 import { Link, useSearchParams } from 'react-router-dom';
 import * as authApi from '@/api/auth';
-import { extractErrorMessage, getApiErrorCode } from '@/api/client';
+import { getApiErrorCode } from '@/api/client';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import styles from './SignupPage.module.css';
+
+function setupErrorMessage(error: unknown): string {
+  // Only explicit token rejections establish that a link is unusable.
+  const code = getApiErrorCode(error);
+  if (code === 'provider_portal_link_invalid') return 'This provider portal link is invalid. Ask an administrator for a new link.';
+  if (code === 'provider_portal_link_expired') return 'This provider portal link has expired. Ask an administrator for a new link.';
+  if (code === 'provider_portal_link_used') return 'This provider portal link has already been used or replaced. Try signing in if you already set your password, or ask an administrator for a new link.';
+  if (axios.isAxiosError(error)) {
+    if (!error.response) return 'We could not connect to the provider portal. Check your connection and try again with this link. If you already submitted your password, try signing in first.';
+    if (error.response.status === 422) return 'Your password could not be accepted. Use 8–128 characters with upper- and lowercase letters and a number, and make sure both passwords match.';
+    if (error.response.status === 429) return 'Too many setup attempts. Please wait a few minutes, then try again with this link.';
+    if (error.response.status >= 500) return 'Provider password setup is temporarily unavailable. Please try again with this link in a few minutes. If you already submitted your password, try signing in first.';
+  }
+  return 'We could not confirm your password setup. Try signing in if you already submitted your password, or try again with this link. If this continues, contact an administrator.';
+}
 
 export function ProviderPasswordSetupPage() {
   const [params] = useSearchParams();
@@ -23,8 +39,8 @@ export function ProviderPasswordSetupPage() {
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!token) return;
-    if (password.length < 8 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
-      setError('Use at least 8 characters with upper- and lowercase letters and a number.');
+    if (password.length < 8 || password.length > 128 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+      setError('Use 8–128 characters with upper- and lowercase letters and a number.');
       return;
     }
     if (password !== confirmation) {
@@ -37,14 +53,7 @@ export function ProviderPasswordSetupPage() {
       await authApi.setupProviderPortalPassword(token, password, confirmation);
       setComplete(true);
     } catch (err) {
-      const code = getApiErrorCode(err);
-      setError(
-        code === 'provider_portal_link_expired'
-          ? 'This provider portal link has expired. Ask an administrator for a new link.'
-          : code === 'provider_portal_link_used'
-            ? 'This provider portal link has already been used or replaced.'
-            : extractErrorMessage(err, 'This provider portal link is invalid.')
-      );
+      setError(setupErrorMessage(err));
     } finally {
       setSaving(false);
     }

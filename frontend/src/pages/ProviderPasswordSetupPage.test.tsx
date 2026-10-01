@@ -17,15 +17,72 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
-function renderSetup() {
+function renderSetup(path = '/provider/setup-password?token=invitation-token') {
   return render(
-    <MemoryRouter initialEntries={['/provider/setup-password?token=invitation-token']}>
+    <MemoryRouter initialEntries={[path]}>
       <ProviderPasswordSetupPage />
     </MemoryRouter>
   );
 }
 
 describe('ProviderPasswordSetupPage', () => {
+  it('disables setup when the token is missing', () => {
+    renderSetup('/provider/setup-password');
+    expect(screen.getByRole('alert').textContent).toContain('link is invalid');
+    expect((screen.getByRole('button', { name: 'Set password' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(setupProviderPortalPassword).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['invalid', 404, 'provider_portal_link_invalid', 'link is invalid'],
+    ['expired', 410, 'provider_portal_link_expired', 'link has expired'],
+    ['used or replaced', 409, 'provider_portal_link_used', 'used or replaced'],
+    ['network', undefined, undefined, 'Check your connection'],
+    ['temporary service', 503, undefined, 'temporarily unavailable'],
+    ['rate limited', 429, undefined, 'wait a few minutes'],
+    ['validation', 422, undefined, '8–128 characters'],
+    ['routing', 404, undefined, 'could not confirm'],
+    ['unexpected response', 200, undefined, 'could not confirm'],
+  ])('classifies %s failures and permits retry without clearing entered values', async (_name, status, code, message) => {
+    const user = userEvent.setup();
+    setupProviderPortalPassword.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: status ? { status, data: { detail: { code, message: 'Untrusted server detail' } } } : undefined,
+    }).mockResolvedValueOnce({ message: 'Password set' });
+    renderSetup();
+    await user.type(screen.getByLabelText('Password'), 'SyntheticSetup9');
+    await user.type(screen.getByLabelText('Confirm password'), 'SyntheticSetup9');
+    await user.click(screen.getByRole('button', { name: 'Set password' }));
+    expect((await screen.findByRole('alert')).textContent).toContain(message);
+    if (code !== 'provider_portal_link_invalid') {
+      expect(screen.getByRole('alert').textContent).not.toContain('link is invalid');
+    }
+    expect(screen.queryByRole('heading', { name: 'Password set' })).toBeNull();
+    expect((screen.getByLabelText('Password') as HTMLInputElement).value).toBe('SyntheticSetup9');
+    await user.click(screen.getByRole('button', { name: 'Set password' }));
+    expect(await screen.findByRole('heading', { name: 'Password set' })).toBeTruthy();
+    expect(setupProviderPortalPassword).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives retry guidance for non-HTTP failures', async () => {
+    setupProviderPortalPassword.mockRejectedValue(new Error('Unexpected response'));
+    const user = userEvent.setup();
+    renderSetup();
+    await user.type(screen.getByLabelText('Password'), 'SyntheticSetup9');
+    await user.type(screen.getByLabelText('Confirm password'), 'SyntheticSetup9');
+    await user.click(screen.getByRole('button', { name: 'Set password' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('could not confirm');
+  });
+
+  it('rejects passwords above the API length limit without sending a request', async () => {
+    const user = userEvent.setup();
+    renderSetup();
+    await user.type(screen.getByLabelText('Password'), `Synthetic9${'a'.repeat(120)}`);
+    await user.click(screen.getByRole('button', { name: 'Set password' }));
+    expect(screen.getByRole('alert').textContent).toContain('8–128 characters');
+    expect(setupProviderPortalPassword).not.toHaveBeenCalled();
+  });
+
   it('keeps both password fields masked by default and preserves their values while toggling independently', async () => {
     const user = userEvent.setup();
     renderSetup();

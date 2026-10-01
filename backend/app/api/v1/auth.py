@@ -329,6 +329,18 @@ def setup_provider_portal_password(
                 "message": "This provider portal link has expired. Ask an administrator for a new link.",
             },
         )
+    except Exception:
+        # Roll back activation, consumption and audit together. Do not log the
+        # exception/body: database exceptions can contain credential parameters.
+        db.rollback()
+        logger.error("provider_portal.password_setup_unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "provider_portal_setup_unavailable",
+                "message": "Provider password setup is temporarily unavailable. Please try again later.",
+            },
+        )
     return MessageResponse(
         message="Your password has been set. Sign in to access your provider portal."
     )

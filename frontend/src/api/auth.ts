@@ -101,5 +101,9 @@ export async function setupProviderPortalPassword(
     password,
     password_confirmation,
   });
+  // A misrouted request can return an HTML page with HTTP 200, not API success.
+  if (!data || typeof data.message !== 'string' || !data.message.trim()) {
+    throw new Error('Unexpected provider password setup response');
+  }
   return data;
 }
