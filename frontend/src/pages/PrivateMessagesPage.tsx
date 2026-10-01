@@ -677,7 +677,7 @@ function PrivateMessagesPage({ role }: { role: PortalRole }) {
         </header>
 
         {inboxError && <Alert variant="error">{inboxError}<button type="button" onClick={() => { setInboxLoading(true); setReloadKey((key) => key + 1); }}>Retry loading inbox</button></Alert>}
-        <div className={`${styles.workspace} ${selectedThread || startMode ? styles.workspaceThread : ''}`}>
+        <div className={`${styles.workspace} ${selectedThread || startMode ? styles.workspaceThread : ''} ${startMode ? styles.workspaceStart : ''}`}>
           {showInbox && <InboxList
             role={role}
             inbox={inbox}

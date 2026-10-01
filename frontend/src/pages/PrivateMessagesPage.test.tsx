@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import * as messagesApi from '@/api/messages';
 import * as profileApi from '@/api/profile';
 import { MemberMessagesPage, ProviderMessagesPage } from './PrivateMessagesPage';
+import styles from './PrivateMessagesPage.module.css';
 
 vi.mock('@/app/AuthContext', () => ({
   useAuth: () => ({
@@ -157,6 +159,17 @@ afterEach(() => {
 });
 
 describe('private member and provider messaging', () => {
+  it('gives a new conversation the full workspace width without an empty inbox column', async () => {
+    renderMemberMessages('/member/messages?provider_id=provider-1');
+
+    expect(await screen.findByRole('heading', { name: 'Ranch Equine Care' })).toBeTruthy();
+    const workspace = screen.getByRole('region', { name: 'Start a conversation' }).parentElement;
+    expect(workspace?.classList.contains(styles.workspaceStart)).toBe(true);
+    const css = readFileSync('src/pages/PrivateMessagesPage.module.css', 'utf8');
+    const startRule = css.match(/\.workspaceStart\s*\{([^}]+)\}/)?.[1];
+    expect(startRule).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  });
+
   it('shows the server-derived contact preview and explicit consent, then sends only a provider ID, message and request ID', async () => {
     const user = userEvent.setup();
     vi.mocked(messagesApi.startPrivateConversation).mockResolvedValue(makeThread());
@@ -203,6 +216,7 @@ describe('private member and provider messaging', () => {
     renderProviderMessages();
 
     expect(await screen.findByText('Morgan Member')).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Conversation' }).parentElement?.classList.contains(styles.workspaceStart)).toBe(false);
     expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeTruthy();
     expect(document.querySelector('img[onerror]')).toBeNull();
     expect(screen.getByRole('link', { name: 'Email member' }).getAttribute('href')).toBe('mailto:member@example.com');

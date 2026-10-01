@@ -54,6 +54,10 @@
   min-height: 520px;
 }
 
+.workspaceStart {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .inbox {
   display: flex;
   min-width: 0;
