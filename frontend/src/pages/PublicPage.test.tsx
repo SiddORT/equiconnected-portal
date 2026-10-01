@@ -99,6 +99,7 @@ describe('PublicPage', () => {
     expect(footer.getByRole('link', { name: 'Find a provider' }).getAttribute('href')).toBe('/signup');
     expect(footer.getByRole('link', { name: 'List your practice' }).getAttribute('href')).toBe('/provider/signup');
     expect(footer.getByRole('link', { name: 'Contact us' }).getAttribute('href')).toBe('/#contact');
+    expect(footer.getByRole('link', { name: 'About EquiConnected' }).getAttribute('href')).toBe('/about');
     expect(footer.queryByText(/hello@equiconnected|9:00–18:00|all seven emirates/i)).toBeNull();
     expect(footer.queryByRole('link', { name: /Admin login/i, hidden: true })).toBeNull();
     expect(screen.getByRole('contentinfo').querySelector('a[href="/admin/login"]')).toBeNull();

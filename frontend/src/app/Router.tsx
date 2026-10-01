@@ -54,6 +54,10 @@ const AnimationPage = lazy(() =>
   import('@/pages/AnimationPage').then((module) => ({ default: module.AnimationPage }))
 );
 
+const AboutPage = lazy(() =>
+  import('@/pages/AboutPage').then((module) => ({ default: module.AboutPage }))
+);
+
 const UserManualPage = lazy(() =>
   import('@/pages/admin/UserManualPage').then((module) => ({ default: module.UserManualPage }))
 );
@@ -63,6 +67,7 @@ export function AppRouter() {
       <Routes>
         {/* ── Public ──────────────────────────────────────────────── */}
         <Route path="/" element={<PublicPage />} />
+        <Route path="/about" element={<Suspense fallback={<p role="status">Loading About EquiConnected…</p>}><AboutPage /></Suspense>} />
         <Route
           path="/animation"
           element={(

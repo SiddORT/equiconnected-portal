@@ -38,7 +38,7 @@ export function HomeFooter({ member, careHref }: { member: boolean; careHref: st
           </div>
           <div>
             <span>Company</span>
-            <a href="/#why">About EquiConnected</a>
+            <Link to="/about">About EquiConnected</Link>
             <a href="/#contact">Contact</a>
             <Link to="/privacy-policy">Privacy</Link>
             <Link to="/terms-of-service">Terms of service</Link>

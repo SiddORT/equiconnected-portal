@@ -29,6 +29,16 @@ afterEach(() => {
 });
 
 describe('AppRouter member entry', () => {
+  it('opens the About page directly without authentication', async () => {
+    const scroll = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    window.history.replaceState({}, '', '/about');
+    render(<AppRouter />);
+    expect(await screen.findByRole('heading', { level: 1, name: /Made by horse people, for horse people/i })).toBeTruthy();
+    expect(window.location.pathname).toBe('/about');
+    expect(document.title).toBe('About EquiConnected | EquiConnected');
+    scroll.mockRestore();
+  });
+
   it('protects the manual behind the existing admin guard', async () => {
     window.history.replaceState({}, '', '/admin/user-manual');
     render(<AppRouter />);
