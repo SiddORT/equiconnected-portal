@@ -9,6 +9,8 @@ import {
   setProviderThumbnail, updateProviderVisit, uploadProviderPhoto,
 } from '@/api/providers';
 import type { Provider, ProviderPortalAccess } from '@/types';
+import { readFileSync } from 'node:fs';
+import styles from './ProviderDetailPage.module.css';
 
 vi.mock('@/api/providers', () => ({
   addProviderSpecialization: vi.fn(),
@@ -60,6 +62,16 @@ function renderDetail() {
   );
 }
 
+function pendingAccess(overrides: Partial<ProviderPortalAccess> = {}): ProviderPortalAccess {
+  return {
+    status: 'pending', recipient_email: 'main@example.com', email_id: 'email-1',
+    invitation_id: null, sent_at: '2025-01-01T00:00:00Z', message: null,
+    can_revoke: true,
+    selectable_emails: [{ email_id: 'email-1', email: 'main@example.com' }],
+    ...overrides,
+  };
+}
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -78,6 +90,101 @@ beforeEach(() => {
 });
 
 describe('ProviderDetailPage doctor visits', () => {
+  it('groups resend and compact destructive cancel while reserving flexible sizing for the email picker', async () => {
+    vi.mocked(getProvider).mockResolvedValue(doctor());
+    vi.mocked(getProviderPortalAccess).mockResolvedValue(pendingAccess());
+    renderDetail();
+    const cancel = await screen.findByRole('button', { name: 'Cancel pending access' });
+    const resend = screen.getByRole('button', { name: 'Resend portal access email' });
+    const group = screen.getByRole('group', { name: 'Portal access actions' });
+    expect(cancel.parentElement).toBe(group);
+    expect(resend.parentElement).toBe(group);
+    expect(resend.nextElementSibling).toBe(cancel);
+    expect(cancel.className).toContain('btn--sm');
+    expect(cancel.className).toContain('btn--danger');
+    const email = screen.getByRole('combobox', { name: 'Contact email for portal access' }).parentElement!;
+    expect(email.classList.contains(styles.portalAccessEmail)).toBe(true);
+    expect(email.parentElement).toBe(group.parentElement);
+
+    // CSS imports are stubbed in Vitest: inspect the real stylesheet and selectors.
+    const style = document.createElement('style');
+    style.textContent = readFileSync('src/pages/admin/ProviderDetailPage.module.css', 'utf8');
+    document.head.append(style);
+    try {
+      const rules = Array.from(style.sheet!.cssRules) as CSSStyleRule[];
+      const rule = (selector: string) => rules.find((r) => r.selectorText === selector)!.style;
+      expect(rule('.portalAccessEmail').getPropertyValue('flex-grow')).toBe('1');
+      expect(rule('.portalAccessEmail').getPropertyValue('min-width')).toBe('min(100%, 260px)');
+      expect(rules.some((r) => r.selectorText === '.portalAccessActions > :first-child')).toBe(false);
+      expect(rule('.portalAccessActions').getPropertyValue('flex-wrap')).toBe('wrap');
+      expect(rule('.portalAccessButtons').getPropertyValue('flex-wrap')).toBe('wrap');
+      expect(rule('.portalAccessButtons').getPropertyValue('max-width')).toBe('100%');
+      expect(rule('.portalAccessButtons > button').getPropertyValue('flex')).toBe('0 0 auto');
+    } finally {
+      style.remove();
+    }
+  });
+
+  it('keeps cancel available without send controls when revocation is permitted', async () => {
+    vi.mocked(getProvider).mockResolvedValue(doctor());
+    vi.mocked(getProviderPortalAccess).mockResolvedValue(pendingAccess({ status: 'invitation', invitation_id: 'inv-1' }));
+    renderDetail();
+    expect(await screen.findByRole('button', { name: 'Cancel pending access' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /portal access email/i })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Contact email for portal access' })).toBeNull();
+  });
+
+  it('hides cancel when revocation is not permitted', async () => {
+    vi.mocked(getProvider).mockResolvedValue(doctor());
+    vi.mocked(getProviderPortalAccess).mockResolvedValue(pendingAccess({ can_revoke: false }));
+    renderDetail();
+    await screen.findByRole('button', { name: 'Resend portal access email' });
+    expect(screen.queryByRole('button', { name: 'Cancel pending access' })).toBeNull();
+  });
+
+  it('resends the selected contact and disables both actions and the picker while sending', async () => {
+    vi.mocked(getProvider).mockResolvedValue(doctor());
+    vi.mocked(getProviderPortalAccess).mockResolvedValue(pendingAccess());
+    let finish!: (access: ProviderPortalAccess) => void;
+    vi.mocked(sendProviderPortalAccess).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    const user = userEvent.setup();
+    renderDetail();
+    const resend = await screen.findByRole('button', { name: 'Resend portal access email' });
+    await user.click(resend);
+    expect(sendProviderPortalAccess).toHaveBeenCalledWith('provider-1', 'email-1');
+    expect((resend as HTMLButtonElement).disabled).toBe(true);
+    expect(resend.getAttribute('aria-busy')).toBe('true');
+    expect((screen.getByRole('button', { name: 'Cancel pending access' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('combobox', { name: 'Contact email for portal access' }) as HTMLSelectElement).disabled).toBe(true);
+    finish(pendingAccess());
+    await waitFor(() => expect((resend as HTMLButtonElement).disabled).toBe(false));
+  });
+
+  it('requires confirmation and shows loading while canceling, then recovers on failure', async () => {
+    vi.mocked(getProvider).mockResolvedValue(doctor());
+    vi.mocked(getProviderPortalAccess).mockResolvedValue(pendingAccess());
+    let fail!: (error: Error) => void;
+    vi.mocked(revokeProviderPortalAccess).mockImplementation(() => new Promise((_resolve, reject) => { fail = reject; }));
+    const user = userEvent.setup();
+    renderDetail();
+    const cancel = await screen.findByRole('button', { name: 'Cancel pending access' });
+    await user.click(cancel);
+    expect(revokeProviderPortalAccess).not.toHaveBeenCalled();
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    expect(revokeProviderPortalAccess).not.toHaveBeenCalled();
+    await user.click(cancel);
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel access' }));
+    expect(revokeProviderPortalAccess).toHaveBeenCalledWith('provider-1');
+    expect(cancel.getAttribute('aria-busy')).toBe('true');
+    expect((cancel as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Resend portal access email' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('combobox', { name: 'Contact email for portal access' }) as HTMLSelectElement).disabled).toBe(true);
+    fail(new Error('Network unavailable'));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    await waitFor(() => expect((cancel as HTMLButtonElement).disabled).toBe(false));
+    expect(cancel.getAttribute('aria-busy')).toBe('false');
+  });
+
   it.each([false, true])('omits clinic/hospital visits from the services summary when its value is %s', async (visits) => {
     vi.mocked(getProvider).mockResolvedValue(doctor({
       provider_type: 'HOSPITAL',

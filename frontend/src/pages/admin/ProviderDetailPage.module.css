@@ -59,9 +59,23 @@
   flex-wrap: wrap;
 }
 
-.portalAccessActions > :first-child {
+.portalAccessEmail {
   flex: 1;
   min-width: min(100%, 260px);
+}
+
+.portalAccessButtons {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.portalAccessButtons > button {
+  flex: 0 0 auto;
 }
 
 .portalSuccess {

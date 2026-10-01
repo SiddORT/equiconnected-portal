@@ -477,6 +477,8 @@ export function ProviderDetailPage() {
       ? (p.emails.find((e) => e.is_primary) ?? p.emails[0]).email
       : (p.email ?? null);
 
+  const canSendPortalAccess = portalAccess != null && ['eligible', 'pending'].includes(portalAccess.status);
+
   const primaryPhone =
     p.phones.length > 0
       ? (() => {
@@ -619,9 +621,10 @@ export function ProviderDetailPage() {
                 {portalAccess.message && <p className={styles.portalAccessMessage}>{portalAccess.message}</p>}
                 {portalAccessSuccess && <p className={styles.portalSuccess} role="status">{portalAccessSuccess}</p>}
                 {portalAccessActionError && <p className={styles.actionError} role="alert">{portalAccessActionError}</p>}
-                {['eligible', 'pending'].includes(portalAccess.status) && (
+                {(canSendPortalAccess || portalAccess.can_revoke) && (
                   <div className={styles.portalAccessActions}>
-                    <Select
+                    {canSendPortalAccess && <Select
+                      containerClassName={styles.portalAccessEmail}
                       label="Contact email for portal access"
                       value={selectedPortalEmailKey}
                       onChange={(event) => setSelectedPortalEmailKey(event.target.value)}
@@ -631,33 +634,32 @@ export function ProviderDetailPage() {
                       }))}
                       placeholder="Choose a contact email"
                       disabled={portalAccessSending || portalAccessRevoking || portalAccess.selectable_emails.length === 0}
-                    />
-                    <Button
-                      variant="primary"
-                      disabled={portalAccessSending || portalAccessRevoking || !selectedPortalEmailKey || portalAccess.selectable_emails.length === 0}
-                      loading={portalAccessSending}
-                      onClick={() => void handleSendPortalAccess()}
-                    >
-                      {portalAccess.status === 'pending' ? 'Resend portal access email' : 'Send portal access email'}
-                    </Button>
-                  </div>
-                )}
-                {portalAccess.can_revoke && (
-                  <div className={styles.portalAccessActions}>
-                    <Button
-                      variant="danger"
-                      disabled={portalAccessSending || portalAccessRevoking}
-                      loading={portalAccessRevoking}
-                      onClick={() => openConfirm(
-                        'Cancel pending portal access?',
-                        'This invalidates the pending setup link and permanently removes the unactivated account. The recipient will no longer be able to use that link. You can then send a new invitation to the corrected contact email.',
-                        () => void handleRevokePortalAccess(),
-                        true,
-                        'Cancel access'
-                      )}
-                    >
-                      Cancel pending access
-                    </Button>
+                    />}
+                    <div className={styles.portalAccessButtons} role="group" aria-label="Portal access actions">
+                      {canSendPortalAccess && <Button
+                        variant="primary"
+                        disabled={portalAccessSending || portalAccessRevoking || !selectedPortalEmailKey || portalAccess.selectable_emails.length === 0}
+                        loading={portalAccessSending}
+                        onClick={() => void handleSendPortalAccess()}
+                      >
+                        {portalAccess.status === 'pending' ? 'Resend portal access email' : 'Send portal access email'}
+                      </Button>}
+                      {portalAccess.can_revoke && <Button
+                        variant="danger"
+                        size="sm"
+                        disabled={portalAccessSending || portalAccessRevoking}
+                        loading={portalAccessRevoking}
+                        onClick={() => openConfirm(
+                          'Cancel pending portal access?',
+                          'This invalidates the pending setup link and permanently removes the unactivated account. The recipient will no longer be able to use that link. You can then send a new invitation to the corrected contact email.',
+                          () => void handleRevokePortalAccess(),
+                          true,
+                          'Cancel access'
+                        )}
+                      >
+                        Cancel pending access
+                      </Button>}
+                    </div>
                   </div>
                 )}
                 {portalAccess.status === 'invitation' && portalAccess.invitation_id && (
