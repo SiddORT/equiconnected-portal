@@ -8,9 +8,8 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Country } from 'country-state-city';
 import { extractErrorMessage } from '@/api/client';
-import { listProviderSignupLanguages, lookupProviderPostalCode, type PostalCandidate } from '@/api/auth';
+import { listProviderSignupLanguages, type PostalCandidate } from '@/api/auth';
 import {
   addProviderEmail,
   addProviderPhone,
@@ -62,6 +61,11 @@ import styles from './ProviderForm.module.css';
 import wizardStyles from './ProviderWizard.module.css';
 import { invitationEmailEntries } from './invitationEmailEntries';
 import { completeEmergencyNumber, emergencyPhoneFromNumber } from './emergencyPhone';
+import {
+  normalizePostalCountry,
+  postalLookupMessage,
+  startPostalLookup,
+} from '@/utils/postalLookup';
 import {
   InvitationAddresses, InvitationServiceFields, invitationAddressesFromDraft,
   invitationLocationsPayload, invitationServicePayload, invitationServiceValuesFromDraft,
@@ -334,6 +338,13 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const [postalMessage, setPostalMessage] = useState('');
   const [postalLoading, setPostalLoading] = useState(false);
   const [selectedPostalCode, setSelectedPostalCode] = useState<string | null>(initialData?.locations.length ? (initialData.locations.find((l) => l.is_primary) ?? initialData.locations[0]).postal_code ?? null : null);
+  const postalLookupCancel = useRef<(() => void) | null>(null);
+
+  function cancelPostalLookup() {
+    postalLookupCancel.current?.();
+    postalLookupCancel.current = null;
+    setPostalLoading(false);
+  }
 
   const [specializations, setSpecializations] = useState<Specialization[]>([]);
   const [specsError, setSpecsError] = useState<string | null>(null);
@@ -414,34 +425,28 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   }, [invitationMode, initialData]);
 
   useEffect(() => {
-    if (!wizard) return;
     const query = location.postal_code.trim();
-    if (query.length < 4 || query === selectedPostalCode) return;
-    const controller = new AbortController();
-    const timeout = window.setTimeout(async () => {
-      setPostalLoading(true);
-      try {
-        const result = await lookupProviderPostalCode(query, controller.signal);
-        if (controller.signal.aborted) return;
+    if (!wizard || query.length < 4 || query === selectedPostalCode) {
+      setPostalLoading(false);
+      return;
+    }
+    const cancel = startPostalLookup(query, {
+      onLoading: () => setPostalLoading(true),
+      onResult: (result) => {
+        setPostalLoading(false);
         setPostalCandidates(result.candidates);
-        setPostalMessage(result.status === 'no_match'
-          ? 'No matching place found. Enter the location manually.'
-          : result.status === 'unavailable'
-            ? 'Lookup is unavailable. Enter the location manually.'
-            : 'Choose a place below to fill your location.');
-      } catch {
-        if (!controller.signal.aborted) {
-          setPostalCandidates([]);
-          setPostalMessage('Lookup is unavailable. Enter the location manually.');
-        }
-      } finally {
-        if (!controller.signal.aborted) setPostalLoading(false);
-      }
-    }, 550);
-    return () => { controller.abort(); window.clearTimeout(timeout); };
+        setPostalMessage(postalLookupMessage(result, 'provider'));
+      },
+    });
+    postalLookupCancel.current = cancel;
+    return () => {
+      cancel();
+      if (postalLookupCancel.current === cancel) postalLookupCancel.current = null;
+    };
   }, [wizard, location.postal_code, selectedPostalCode]);
 
   function updatePostalCode(value: string) {
+    cancelPostalLookup();
     setLocation((current) => ({
       ...current, postal_code: value, country: '', state_province: '', city: '',
     }));
@@ -454,10 +459,11 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   }
 
   function selectPostalCandidate(candidate: PostalCandidate) {
+    cancelPostalLookup();
     setLocation((current) => ({
       ...current,
       postal_code: candidate.postal_code || current.postal_code,
-      country: Country.getCountryByCode(candidate.country_code?.toUpperCase() ?? '')?.name ?? candidate.country,
+      country: normalizePostalCountry(candidate),
       state_province: candidate.state_province || '',
       city: candidate.city,
     }));
@@ -1468,7 +1474,12 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             )}
             <LocationPicker
               value={location}
-              onChange={(nextLocation) => setLocation((current) => ({ ...current, ...nextLocation }))}
+              onChange={(nextLocation) => {
+                cancelPostalLookup();
+                setPostalCandidates([]);
+                setPostalMessage('');
+                setLocation((current) => ({ ...current, ...nextLocation }));
+              }}
               errors={{
                 country: errs.country,
                 state_province: errs.state_province,

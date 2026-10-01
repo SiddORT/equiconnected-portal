@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach, beforeEach } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { createElement } from 'react';
@@ -23,8 +23,14 @@ vi.mock('@/api/auth', () => ({
   lookupProviderPostalCode: vi.fn().mockResolvedValue({ status: 'no_match', candidates: [] }),
 }));
 vi.mock('@/components/ui/LocationPicker', () => ({
-  LocationPicker: ({ onChange }: { onChange: (value: object) => void }) =>
+  LocationPicker: ({ onChange, value }: {
+    onChange: (value: object) => void;
+    value: { country: string; state_province: string; city: string };
+  }) => createElement('div', null,
     createElement('button', { type: 'button', onClick: () => onChange({ country: 'Canada', state_province: 'Alberta', city: 'Calgary' }) }, 'Choose test location'),
+    createElement('output', { 'data-testid': 'signup-location-values' },
+      [value.country, value.state_province, value.city].join('|')),
+  ),
 }));
 beforeEach(() => {
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
@@ -182,6 +188,77 @@ describe('provider signup emergency phone picker', () => {
       emergency_services_available: false,
       emergency_contact_number: null,
     })));
+  });
+});
+
+describe('provider signup postal lookup', () => {
+  it('requires explicit selection for a unique match and normalizes the selected country', async () => {
+    const user = userEvent.setup();
+    vi.mocked(authApi.lookupProviderPostalCode).mockResolvedValue({
+      status: 'match',
+      candidates: [{
+        country: 'Unknown',
+        country_code: 'in',
+        state_province: 'Delhi',
+        city: 'New Delhi',
+        postal_code: '110001',
+        display_name: 'New Delhi, Delhi, India',
+      }],
+    });
+    render(createElement(MemoryRouter, null, createElement(ProviderSignupPage)));
+    const postal = await screen.findByLabelText('Pincode / postal code');
+    await user.type(postal, '110001');
+    const candidate = await screen.findByRole('button', { name: 'New Delhi, Delhi, India' });
+    expect(screen.getByTestId('signup-location-values').textContent).toBe('||');
+    expect(screen.getByText('Choose a place below to fill your location.')).toBeTruthy();
+
+    await user.click(candidate);
+    expect(screen.getByTestId('signup-location-values').textContent).toBe('India|Delhi|New Delhi');
+    expect(screen.getByText('Location filled. You can correct it below.')).toBeTruthy();
+  });
+
+  it('does not show a delayed lookup result after manual location correction', async () => {
+    const user = userEvent.setup();
+    let resolveLookup: ((result: {
+      status: 'match';
+      candidates: Array<{
+        country: string; country_code?: string; state_province: string; city: string;
+        postal_code: string; display_name: string;
+      }>;
+    }) => void) | null = null;
+    vi.mocked(authApi.lookupProviderPostalCode).mockImplementationOnce(() => new Promise((resolve) => {
+      resolveLookup = resolve;
+    }));
+    render(createElement(MemoryRouter, null, createElement(ProviderSignupPage)));
+    await user.type(await screen.findByLabelText('Pincode / postal code'), '90210');
+    await waitFor(() => expect(authApi.lookupProviderPostalCode).toHaveBeenCalled());
+    await user.click(screen.getByRole('button', { name: 'Choose test location' }));
+
+    await act(async () => {
+      resolveLookup?.({
+        status: 'match',
+        candidates: [{
+          country: 'United States', country_code: 'US', state_province: 'California',
+          city: 'Beverly Hills', postal_code: '90210', display_name: 'Beverly Hills, CA',
+        }],
+      });
+    });
+    expect(screen.queryByRole('button', { name: 'Beverly Hills, CA' })).toBeNull();
+    expect(screen.queryByText('Choose a place below to fill your location.')).toBeNull();
+    expect(screen.queryByText('Looking up locations…')).toBeNull();
+    expect(screen.getByTestId('signup-location-values').textContent).toBe('Canada|Alberta|Calgary');
+  });
+
+  it('skips short postal queries and gives manual-entry feedback when lookup fails', async () => {
+    const user = userEvent.setup();
+    render(createElement(MemoryRouter, null, createElement(ProviderSignupPage)));
+    const postal = await screen.findByLabelText('Pincode / postal code');
+    await user.type(postal, '123');
+    expect(authApi.lookupProviderPostalCode).not.toHaveBeenCalled();
+
+    vi.mocked(authApi.lookupProviderPostalCode).mockRejectedValueOnce(new Error('offline'));
+    await user.type(postal, '4');
+    expect(await screen.findByText('Lookup is unavailable. Enter the location manually.')).toBeTruthy();
   });
 });
 

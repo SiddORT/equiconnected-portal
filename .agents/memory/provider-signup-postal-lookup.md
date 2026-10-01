@@ -14,3 +14,9 @@ For member profile addresses, a unique complete postal match may fill location f
 **Why:** Saved locations may contain deliberate corrections to postal data; opening a profile must not replace them. Automatic fill is useful only when the member initiates a new pincode query and has not since corrected its location.
 
 **How to apply:** Keep lookup initiation tied to pincode edits and retain per-section cancellation when sharing postal lookup logic across forms.
+
+Share transport cancellation, country normalization, and status interpretation, but keep selection policy with each form. Only members may auto-fill a unique complete match; provider and invitation forms require explicit selection. Provider state text remains source-provided while members canonicalize state abbreviations.
+
+**Why:** These differences are intentional, not duplication to remove. A shared helper that also chooses candidates or canonicalizes every field can silently change saved locations.
+
+**How to apply:** When changing postal sources, test cancellation even if the source ignores abort signals, and verify unique-match behavior separately for member, signup, admin, and invitation forms.

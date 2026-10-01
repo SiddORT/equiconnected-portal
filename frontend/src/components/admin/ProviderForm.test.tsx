@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { ProviderForm, type InvitationFormConfig } from './ProviderForm';
@@ -128,6 +128,97 @@ function CurrentPath() {
 }
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.unstubAllGlobals(); });
+
+describe('Admin provider postal lookup', () => {
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  async function reachLocationStep(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByLabelText('Pincode / postal code')).toBeTruthy();
+  }
+
+  it('requires explicit selection for a unique match and normalizes the selected country', async () => {
+    render(<ProviderForm />);
+    const user = await beginAdminWizard();
+    vi.mocked(lookupProviderPostalCode).mockResolvedValue({
+      status: 'match',
+      candidates: [{
+        country: 'Unknown',
+        country_code: 'in',
+        state_province: 'Delhi',
+        city: 'New Delhi',
+        postal_code: '110001',
+        display_name: 'New Delhi, Delhi, India',
+      }],
+    });
+    await reachLocationStep(user);
+    await user.type(screen.getByLabelText('Pincode / postal code'), '110001');
+    const candidate = await screen.findByRole('button', { name: 'New Delhi, Delhi, India' });
+    expect(screen.getByRole('button', { name: 'Country' }).textContent).toContain('Select country');
+
+    await user.click(candidate);
+    await user.click(screen.getByRole('button', { name: 'Country' }));
+    expect(screen.getByRole('option', { name: 'India' }).getAttribute('aria-selected')).toBe('true');
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'State / Province' }));
+    expect(screen.getByRole('option', { name: 'Delhi' }).getAttribute('aria-selected')).toBe('true');
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'City' }));
+    expect(screen.getByRole('option', { name: 'New Delhi' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByText('Location filled. You can correct it below.')).toBeTruthy();
+  });
+
+  it('cancels stale results after a manual location edit', async () => {
+    render(<ProviderForm />);
+    const user = await beginAdminWizard();
+    let resolveLookup: ((result: {
+      status: 'match';
+      candidates: Array<{
+        country: string; country_code?: string; state_province: string; city: string;
+        postal_code: string; display_name: string;
+      }>;
+    }) => void) | null = null;
+    vi.mocked(lookupProviderPostalCode).mockImplementationOnce(() => new Promise((resolve) => {
+      resolveLookup = resolve;
+    }));
+    await reachLocationStep(user);
+    await user.type(screen.getByLabelText('Pincode / postal code'), '90210');
+    await waitFor(() => expect(lookupProviderPostalCode).toHaveBeenCalled());
+
+    await user.click(screen.getByRole('button', { name: 'Country' }));
+    await user.type(screen.getByRole('combobox', { name: 'Search country' }), 'Canada');
+    await user.click(screen.getByRole('option', { name: 'Canada' }));
+    await act(async () => {
+      resolveLookup?.({
+        status: 'match',
+        candidates: [{
+          country: 'United States', country_code: 'US', state_province: 'California',
+          city: 'Beverly Hills', postal_code: '90210', display_name: 'Beverly Hills, CA',
+        }],
+      });
+    });
+    expect(screen.queryByRole('button', { name: 'Beverly Hills, CA' })).toBeNull();
+    expect(screen.queryByText('Choose a place below to fill your location.')).toBeNull();
+    expect(screen.queryByText('Looking up locations…')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Country' }).textContent).toContain('Canada');
+  });
+
+  it('skips short queries and reports lookup failures', async () => {
+    render(<ProviderForm />);
+    const user = await beginAdminWizard();
+    await reachLocationStep(user);
+    const postal = screen.getByLabelText('Pincode / postal code');
+    await user.type(postal, '123');
+    expect(lookupProviderPostalCode).not.toHaveBeenCalled();
+
+    vi.mocked(lookupProviderPostalCode).mockRejectedValueOnce(new Error('offline'));
+    await user.type(postal, '4');
+    expect(await screen.findByText('Lookup is unavailable. Enter the location manually.')).toBeTruthy();
+  });
+});
 
 async function beginAdminWizard(type = 'CLINIC') {
   const user = userEvent.setup();

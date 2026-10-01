@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Country } from 'country-state-city';
-import { lookupProviderPostalCode, type PostalCandidate } from '@/api/auth';
+import type { PostalCandidate } from '@/api/auth';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import type { DraftLocation, InvitationDraftPayload, InvitationDraftProvider, VisitStability } from '@/types';
 import { COUNTRY_CODES, DEFAULT_COUNTRY } from '@/utils/countryCodes';
+import { normalizePostalCountry, postalLookupMessage, startPostalLookup } from '@/utils/postalLookup';
 import styles from './InvitationProfileFields.module.css';
 
 export interface InvitationServiceValues {
@@ -247,79 +247,103 @@ export function InvitationAddresses({
   const requestedPostalCodes = useRef(new Map(
     value.map((address) => [address.key, address.postal_code.trim()])
   ));
+  const addressLookups = useRef(new Map<string, { postalCode: string; cancel: () => void }>());
   // Keep legacy choices available if the invitee changes their mind before saving.
   const legacyAddresses = useRef(value.length > 1 ? value : []);
   const postalSignature = value.map((address) => `${address.key}:${address.postal_code.trim()}`).join('|');
 
   useEffect(() => {
-    const timers: number[] = [];
-    const controllers: AbortController[] = [];
+    const currentPostalCodes = new Map(value.map((address) => [address.key, address.postal_code.trim()]));
+    for (const [key, request] of addressLookups.current) {
+      if (currentPostalCodes.get(key) === request.postalCode) continue;
+      request.cancel();
+      addressLookups.current.delete(key);
+      if (!currentPostalCodes.has(key)) requestedPostalCodes.current.delete(key);
+      setLookup((current) => ({
+        ...current,
+        [key]: { candidates: [], message: '', loading: false },
+      }));
+    }
+
     for (const address of value) {
       const postalCode = address.postal_code.trim();
       if (postalCode.length < 4) continue;
       const lastPostalCode = requestedPostalCodes.current.get(address.key);
       if (lastPostalCode === postalCode) continue;
       requestedPostalCodes.current.set(address.key, postalCode);
-      const controller = new AbortController();
-      controllers.push(controller);
-      const timer = window.setTimeout(async () => {
-        setLookup((current) => ({
-          ...current,
-          [address.key]: { candidates: [], message: '', loading: true },
-        }));
-        try {
-          const result = await lookupProviderPostalCode(postalCode, controller.signal);
-          if (controller.signal.aborted) return;
+      setLookup((current) => ({
+        ...current,
+        [address.key]: { candidates: [], message: '', loading: false },
+      }));
+      const cancel = startPostalLookup(postalCode, {
+        onLoading: () => {
+          setLookup((current) => ({
+            ...current,
+            [address.key]: { candidates: [], message: '', loading: true },
+          }));
+        },
+        onResult: (result) => {
+          addressLookups.current.delete(address.key);
           setLookup((current) => ({
             ...current,
             [address.key]: {
               candidates: result.candidates,
-              message: result.status === 'no_match'
-                ? 'No matching place found. You can enter the address manually.'
-                : result.status === 'unavailable'
-                  ? 'Postal lookup is unavailable. You can enter the address manually.'
-                  : 'Choose a matching place or enter the address manually.',
+              message: postalLookupMessage(result, 'invitation'),
               loading: false,
             },
           }));
-        } catch {
-          if (!controller.signal.aborted) {
-            setLookup((current) => ({
-              ...current,
-              [address.key]: {
-                candidates: [],
-                message: 'Postal lookup is unavailable. You can enter the address manually.',
-                loading: false,
-              },
-            }));
-          }
-        }
-      }, 550);
-      timers.push(timer);
+        },
+      });
+      addressLookups.current.set(address.key, { postalCode, cancel });
     }
-    return () => {
-      timers.forEach(window.clearTimeout);
-      controllers.forEach((controller) => controller.abort());
-    };
     // Existing postal values are restored from a saved invitation and should
     // not trigger a lookup until the invitee edits the field.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [postalSignature]);
 
+  useEffect(() => () => {
+    for (const [key, request] of addressLookups.current) {
+      request.cancel();
+      if (requestedPostalCodes.current.get(key) === request.postalCode) {
+        requestedPostalCodes.current.delete(key);
+      }
+    }
+    addressLookups.current.clear();
+  }, []);
+
+  function clearAddressLookup(key: string) {
+    addressLookups.current.get(key)?.cancel();
+    addressLookups.current.delete(key);
+    setLookup((current) => ({
+      ...current,
+      [key]: { candidates: [], message: '', loading: false },
+    }));
+  }
+
   function update(index: number, patch: Partial<InvitationAddress>) {
-    onChange(value.map((address, i) => i === index ? { ...address, ...patch } : address));
+    const address = value[index];
+    const locationFields: (keyof InvitationAddress)[] = [
+      'postal_code', 'country', 'state_province', 'city', 'address_line_1', 'address_line_2',
+    ];
+    if (locationFields.some((field) => Object.prototype.hasOwnProperty.call(patch, field))) {
+      clearAddressLookup(address.key);
+      if (Object.prototype.hasOwnProperty.call(patch, 'postal_code')) {
+        requestedPostalCodes.current.delete(address.key);
+      }
+    }
+    onChange(value.map((current, i) => i === index ? { ...current, ...patch } : current));
   }
 
   function selectCandidate(index: number, candidate: PostalCandidate) {
     const address = value[index];
     const selectedPostalCode = candidate.postal_code || address.postal_code;
-    requestedPostalCodes.current.set(address.key, selectedPostalCode.trim());
     update(index, {
       postal_code: selectedPostalCode,
-      country: Country.getCountryByCode(candidate.country_code?.toUpperCase() ?? '')?.name ?? candidate.country,
+      country: normalizePostalCountry(candidate),
       state_province: candidate.state_province || '',
       city: candidate.city,
     });
+    requestedPostalCodes.current.set(address.key, selectedPostalCode.trim());
     setLookup((current) => ({
       ...current,
       [address.key]: { candidates: [], message: 'selected', loading: false },
@@ -363,11 +387,7 @@ export function InvitationAddresses({
                     errors[`address_${index}_postal_code`] ? `${postalId}-error` : '',
                     postalFeedback ? `${postalId}-lookup` : '',
                   ].filter(Boolean).join(' ') || undefined}
-                  onChange={(event) => {
-                    update(index, { postal_code: event.target.value });
-                    requestedPostalCodes.current.delete(address.key);
-                    setLookup((current) => ({ ...current, [address.key]: { candidates: [], message: '', loading: false } }));
-                  }}
+                  onChange={(event) => update(index, { postal_code: event.target.value })}
                   error={errors[`address_${index}_postal_code`]} disabled={disabled} />
                 {addressLookup?.loading && <p id={`${postalId}-lookup`} className={styles.hint} role="status">Looking up postal code…</p>}
                 {addressLookup?.message && addressLookup.message !== 'selected' && (
@@ -382,10 +402,13 @@ export function InvitationAddresses({
                     </button>
                   ))}
                   <button className={styles.manualButton} type="button"
-                    onClick={() => setLookup((current) => ({
-                      ...current,
-                      [address.key]: { candidates: [], message: 'Enter location details manually.', loading: false },
-                    }))} disabled={disabled}>
+                    onClick={() => {
+                      clearAddressLookup(address.key);
+                      setLookup((current) => ({
+                        ...current,
+                        [address.key]: { candidates: [], message: 'Enter location details manually.', loading: false },
+                      }));
+                    }} disabled={disabled}>
                     Enter location manually
                   </button>
                 </div>

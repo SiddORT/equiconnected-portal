@@ -203,4 +203,41 @@ describe('MemberAddressFields', () => {
     expect((screen.getAllByLabelText('City')[0] as HTMLInputElement).value).toBe('Updated personal city');
     expect((screen.getAllByLabelText('City')[1] as HTMLInputElement).value).toBe('Stable city');
   });
+
+  it('cancels personal lookup without cancelling the stable lookup', async () => {
+    vi.useFakeTimers();
+    const resolvers: Array<(result: { status: 'match'; candidates: typeof completeCandidate[] }) => void> = [];
+    vi.mocked(authApi.lookupProviderPostalCode).mockImplementation(() =>
+      new Promise((resolve) => { resolvers.push(resolve); }));
+    render(<><AddressHarness /><AddressHarness section="stable" /></>);
+    const postals = screen.getAllByLabelText('Pincode / Postal code');
+    fireEvent.change(postals[0], { target: { value: '11111' } });
+    fireEvent.change(postals[1], { target: { value: '22222' } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(550); });
+    fireEvent.change(screen.getAllByLabelText('City')[0], { target: { value: 'Manual city' } });
+    expect(vi.mocked(authApi.lookupProviderPostalCode).mock.calls[0][1]?.aborted).toBe(true);
+    expect(vi.mocked(authApi.lookupProviderPostalCode).mock.calls[1][1]?.aborted).toBe(false);
+    await act(async () => {
+      resolvers.forEach((resolve) => resolve({ status: 'match', candidates: [completeCandidate] }));
+    });
+    expect((screen.getAllByLabelText('City')[0] as HTMLInputElement).value).toBe('Manual city');
+    expect((screen.getAllByLabelText('City')[1] as HTMLInputElement).value).toBe('Austin');
+  });
+
+  it('preserves replacement saved values and aborts the previous request', async () => {
+    vi.useFakeTimers();
+    let resolve!: (result: { status: 'match'; candidates: typeof completeCandidate[] }) => void;
+    vi.mocked(authApi.lookupProviderPostalCode).mockImplementation(() =>
+      new Promise((res) => { resolve = res; }));
+    const onChange = vi.fn();
+    const view = render(<MemberAddressFields section="personal" value={{}} onChange={onChange} />);
+    await lookup();
+    onChange.mockClear();
+    view.rerender(<MemberAddressFields section="personal"
+      value={{ postal_code: '99999', city: 'Saved correction' }} onChange={onChange} />);
+    await act(async () => { resolve({ status: 'match', candidates: [completeCandidate] }); });
+    expect(onChange).not.toHaveBeenCalled();
+    expect((screen.getByLabelText('City') as HTMLInputElement).value).toBe('Saved correction');
+    expect(authApi.lookupProviderPostalCode).toHaveBeenCalledTimes(1);
+  });
 });

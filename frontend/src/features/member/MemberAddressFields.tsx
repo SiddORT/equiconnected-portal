@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Country, State } from 'country-state-city';
-import { lookupProviderPostalCode, type PostalCandidate } from '@/api/auth';
+import type { PostalCandidate } from '@/api/auth';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { getStateOptions } from '@/utils/geography';
+import { memberPostalLocation, postalLookupMessage, startPostalLookup } from '@/utils/postalLookup';
 import styles from './MemberAddressFields.module.css';
 
 export interface MemberAddressValue {
@@ -13,23 +13,6 @@ export interface MemberAddressValue {
   city?: string | null;
   address?: string | null;
   address_line_2?: string | null;
-}
-
-function candidateLocation(candidate: PostalCandidate) {
-  const country = Country.getCountryByCode(candidate.country_code?.toUpperCase() ?? '')?.name
-    ?? Country.getAllCountries().find((item) =>
-      item.name.toLowerCase() === candidate.country.trim().toLowerCase()
-      || item.isoCode.toLowerCase() === candidate.country.trim().toLowerCase())?.name
-    ?? candidate.country.trim();
-  const states = getStateOptions(country);
-  const state = candidate.state_province.trim();
-  const countryCode = Country.getAllCountries().find((item) => item.name === country)?.isoCode;
-  return {
-    country,
-    state_province: (countryCode && State.getStateByCodeAndCountry(state.toUpperCase(), countryCode)?.name)
-      || states.find((item) => item.value.toLowerCase() === state.toLowerCase())?.value || state,
-    city: candidate.city.trim(),
-  };
 }
 
 /** Lookup starts only after a member edits the pincode, never on profile load. */
@@ -43,9 +26,7 @@ export function MemberAddressFields({
   const [message, setMessage] = useState('');
   const [candidates, setCandidates] = useState<PostalCandidate[]>([]);
   const [selected, setSelected] = useState('');
-  const request = useRef(0);
-  const controller = useRef<AbortController | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelLookup = useRef<(() => void) | null>(null);
   const postal = useRef(value.postal_code ?? '');
   const changeRef = useRef(onChange);
   changeRef.current = onChange;
@@ -53,10 +34,8 @@ export function MemberAddressFields({
   const statusId = `${postalId}-status`;
 
   function cancel() {
-    request.current += 1;
-    controller.current?.abort();
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = null;
+    cancelLookup.current?.();
+    cancelLookup.current = null;
   }
 
   useEffect(() => {
@@ -69,11 +48,7 @@ export function MemberAddressFields({
     }
   }, [value.postal_code]);
 
-  useEffect(() => () => {
-    request.current += 1;
-    controller.current?.abort();
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
+  useEffect(() => () => cancelLookup.current?.(), []);
 
   function editLocation(patch: Partial<MemberAddressValue>) {
     cancel();
@@ -91,17 +66,12 @@ export function MemberAddressFields({
     setSelected('');
     setMessage('');
     if (next.trim().length < 4) return;
-    const version = request.current;
-    const abortController = new AbortController();
-    controller.current = abortController;
     setMessage('Looking up postal code…');
-    timer.current = setTimeout(async () => {
-      try {
-        const result = await lookupProviderPostalCode(next.trim(), abortController.signal);
-        if (abortController.signal.aborted || version !== request.current) return;
-        const matches = result.status === 'match' ? result.candidates : [];
+    cancelLookup.current = startPostalLookup(next, {
+      onResult: (result) => {
+        const matches = result.candidates;
         if (matches.length === 1) {
-          const location = candidateLocation(matches[0]);
+          const location = memberPostalLocation(matches[0]);
           const complete = location.country && location.city
             && (location.state_province || getStateOptions(location.country).length === 0);
           if (complete) {
@@ -111,16 +81,9 @@ export function MemberAddressFields({
           }
         }
         setCandidates(matches);
-        setMessage(matches.length
-          ? 'Choose a matching place to fill location details, or enter them manually.'
-          : result.status === 'unavailable'
-            ? 'Postal lookup is unavailable. Enter location details manually.'
-            : 'No complete matching place found. Enter location details manually.');
-      } catch {
-        if (abortController.signal.aborted || version !== request.current) return;
-        setMessage('Postal lookup is unavailable. Enter location details manually.');
-      }
-    }, 550);
+        setMessage(postalLookupMessage(result, 'member'));
+      },
+    });
   }
 
   return (
@@ -139,7 +102,7 @@ export function MemberAddressFields({
               setSelected(index);
               if (!index) return;
               cancel();
-              onChange(candidateLocation(candidates[Number(index) - 1]));
+              onChange(memberPostalLocation(candidates[Number(index) - 1]));
               setMessage('Matching place selected. You can correct location details manually.');
             }}>
             <option value="">Choose a matching place</option>

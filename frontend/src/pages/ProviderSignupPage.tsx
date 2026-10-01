@@ -1,7 +1,6 @@
 /** Public registration page for hospitals, clinics, and doctors. */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Country } from 'country-state-city';
 import { extractErrorMessage, getApiErrorCode } from '@/api/client';
 import * as authApi from '@/api/auth';
 import { Alert } from '@/components/ui/Alert';
@@ -16,6 +15,11 @@ import type {
   ProviderType,
 } from '@/types';
 import { DEFAULT_COUNTRY } from '@/utils/countryCodes';
+import {
+  normalizePostalCountry,
+  postalLookupMessage,
+  startPostalLookup,
+} from '@/utils/postalLookup';
 import styles from './SignupPage.module.css';
 import { VerificationResend } from './VerificationResend';
 
@@ -122,6 +126,13 @@ export function ProviderSignupPage() {
   const [postalMessage, setPostalMessage] = useState('');
   const [postalLoading, setPostalLoading] = useState(false);
   const [selectedPostalCode, setSelectedPostalCode] = useState<string | null>(null);
+  const postalLookupCancel = useRef<(() => void) | null>(null);
+
+  function cancelPostalLookup() {
+    postalLookupCancel.current?.();
+    postalLookupCancel.current = null;
+    setPostalLoading(false);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -147,36 +158,31 @@ export function ProviderSignupPage() {
 
   useEffect(() => {
     const query = form.postal_code.trim();
-    if (query.length < 4 || query === selectedPostalCode) return;
-    const controller = new AbortController();
-    const timeout = window.setTimeout(async () => {
-      setPostalLoading(true);
-      try {
-        const result = await authApi.lookupProviderPostalCode(query, controller.signal);
-        if (controller.signal.aborted) return;
+    if (query.length < 4 || query === selectedPostalCode) {
+      setPostalLoading(false);
+      return;
+    }
+    const cancel = startPostalLookup(query, {
+      onLoading: () => setPostalLoading(true),
+      onResult: (result) => {
+        setPostalLoading(false);
         setPostalCandidates(result.candidates);
-        setPostalMessage(result.status === 'no_match'
-          ? 'No matching place found. Enter the location manually.'
-          : result.status === 'unavailable'
-            ? 'Lookup is unavailable. Enter the location manually.'
-            : 'Choose a place below to fill your location.');
-      } catch {
-        if (!controller.signal.aborted) {
-          setPostalCandidates([]);
-          setPostalMessage('Lookup is unavailable. Enter the location manually.');
-        }
-      } finally {
-        if (!controller.signal.aborted) setPostalLoading(false);
-      }
-    }, 550);
-    return () => { controller.abort(); window.clearTimeout(timeout); };
+        setPostalMessage(postalLookupMessage(result, 'provider'));
+      },
+    });
+    postalLookupCancel.current = cancel;
+    return () => {
+      cancel();
+      if (postalLookupCancel.current === cancel) postalLookupCancel.current = null;
+    };
   }, [form.postal_code, selectedPostalCode]);
 
   function selectPostalCandidate(candidate: PostalCandidate) {
+    cancelPostalLookup();
     setForm((current) => ({
       ...current,
       postal_code: candidate.postal_code || current.postal_code,
-      country: Country.getCountryByCode(candidate.country_code?.toUpperCase() ?? '')?.name ?? candidate.country,
+      country: normalizePostalCountry(candidate),
       state_province: candidate.state_province || '',
       city: candidate.city,
     }));
@@ -211,6 +217,7 @@ export function ProviderSignupPage() {
   }
 
   function updatePostalCode(value: string) {
+    cancelPostalLookup();
     setForm((current) => ({
       ...current, postal_code: value, country: '', state_province: '', city: '',
     }));
@@ -359,7 +366,14 @@ export function ProviderSignupPage() {
                 </div>
               )}
             </div>
-            <LocationPicker value={form} onChange={(nextLocation) => { setForm((current) => ({ ...current, ...nextLocation })); setErrors((current) => ({ ...current, country: undefined, state_province: undefined, city: undefined })); setGlobalError(null); }} errors={{ country: errors.country, state_province: errors.state_province, city: errors.city }} disabled={submitting} theme="dark" required optionalState idPrefix="provider-signup-location" />
+            <LocationPicker value={form} onChange={(nextLocation) => {
+              cancelPostalLookup();
+              setPostalCandidates([]);
+              setPostalMessage('');
+              setForm((current) => ({ ...current, ...nextLocation }));
+              setErrors((current) => ({ ...current, country: undefined, state_province: undefined, city: undefined }));
+              setGlobalError(null);
+            }} errors={{ country: errors.country, state_province: errors.state_province, city: errors.city }} disabled={submitting} theme="dark" required optionalState idPrefix="provider-signup-location" />
             <Input label="Address" id="provider-working-address" maxLength={300} autoComplete="street-address" containerClassName={styles.signupField} value={form.working_address} onChange={(e) => update('working_address', e.target.value)} error={errors.working_address} disabled={submitting} required />
             <div className={styles.conditionalRow}>
               <label className={styles.serviceCheckbox} htmlFor="provider-stable-visit">
