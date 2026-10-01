@@ -26,6 +26,8 @@ import {
 import type { EmailEntry } from '@/components/admin/MultiEmailField';
 import type { PhoneEntry } from '@/components/admin/MultiPhoneField';
 import type {
+  DoctorVisit,
+  DoctorVisitCreate,
   InvitationDraftProvider,
   ProviderPortalProfile,
   ProviderPortalUpdate,
@@ -37,15 +39,122 @@ import { portalContactsFromProfile, portalScalarContactsFromCollections } from '
 import styles from './ProviderAccountPage.module.css';
 
 type Notice = { variant: 'success' | 'warning' | 'error'; text: string } | null;
-type PortalTab = 'basic' | 'professional' | 'services' | 'contact' | 'photos';
+type PortalTab = 'basic' | 'professional' | 'services' | 'contact' | 'photos' | 'visits';
 
-const PORTAL_TABS: Array<{ id: PortalTab; label: string }> = [
+const BASE_PORTAL_TABS: Array<{ id: PortalTab; label: string }> = [
   { id: 'basic', label: 'Basic details' },
   { id: 'professional', label: 'Professional details' },
   { id: 'services', label: 'Services' },
   { id: 'contact', label: 'Contact & location' },
   { id: 'photos', label: 'Photos' },
 ];
+const VISITS_TAB = { id: 'visits' as const, label: 'Visits' };
+
+function portalTabs(canScheduleVisits: boolean) {
+  return canScheduleVisits ? [...BASE_PORTAL_TABS, VISITS_TAB] : BASE_PORTAL_TABS;
+}
+
+function mayScheduleProviderVisits(
+  profile: ProviderPortalProfile | null
+): profile is ProviderPortalProfile {
+  return Boolean(
+    profile
+    && profile.can_schedule_visits
+    && profile.doctor_fields_available
+    && profile.doctor_availability === 'VISITING'
+  );
+}
+
+function localDateString(date = new Date()) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+function formatCalendarDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function visitLocationDescription(location: DoctorVisitCreate['location']) {
+  const coordinates = location.latitude != null || location.longitude != null
+    ? `Coordinates: ${location.latitude ?? '—'}, ${location.longitude ?? '—'}`
+    : null;
+  return [
+    location.name,
+    location.address_line_1,
+    location.address_line_2,
+    [location.city, location.state_province, location.postal_code].filter(Boolean).join(', '),
+    location.country,
+    coordinates,
+  ].filter(Boolean).join(', ');
+}
+
+function visitAdditionSnapshotKey(visit: DoctorVisitCreate) {
+  return JSON.stringify({
+    start_date: visit.start_date,
+    end_date: visit.end_date,
+    location: Object.fromEntries(
+      Object.entries(visit.location).sort(([left], [right]) => (
+        left < right ? -1 : left > right ? 1 : 0
+      ))
+    ),
+  });
+}
+
+function isSavedVisitAddition(visit: DoctorVisitCreate, savedAdditions: DoctorVisitCreate[]) {
+  const key = visitAdditionSnapshotKey(visit);
+  return savedAdditions.some((saved) => visitAdditionSnapshotKey(saved) === key);
+}
+
+function isUnchangedPastVisit(
+  visit: DoctorVisitCreate,
+  savedAdditions: DoctorVisitCreate[],
+  today: string
+) {
+  return visit.start_date < today && isSavedVisitAddition(visit, savedAdditions);
+}
+
+function validateVisitAdditions(
+  additions: DoctorVisitCreate[],
+  savedAdditions: DoctorVisitCreate[],
+  recordedVisits: DoctorVisit[],
+  today: string
+): string | null {
+  for (let index = 0; index < additions.length; index += 1) {
+    const visit = additions[index];
+    if (!visit.start_date || !visit.end_date) return 'Each proposed visit needs a start and end date.';
+    if (visit.start_date < today && !isSavedVisitAddition(visit, savedAdditions)) {
+      return 'New visits must start today or later.';
+    }
+    if (visit.start_date > visit.end_date) return 'A visit end date must be on or after its start date.';
+    if (!visit.location.address_line_1.trim() || !visit.location.city.trim()) {
+      return 'Each proposed visit needs an address line and city.';
+    }
+    const overlaps = (other: Pick<DoctorVisitCreate, 'start_date' | 'end_date'>) =>
+      visit.start_date <= other.end_date && other.start_date <= visit.end_date;
+    if (recordedVisits.some(overlaps) || additions.some((other, otherIndex) => (
+      otherIndex !== index && overlaps(other)
+    ))) {
+      return 'Visit dates cannot overlap another recorded or proposed visit.';
+    }
+  }
+  return null;
+}
+
+function groupVisits(visits: DoctorVisit[], today: string) {
+  return {
+    previous: visits.filter((visit) => visit.end_date < today),
+    current: visits.filter((visit) => visit.start_date <= today && visit.end_date >= today),
+    upcoming: visits.filter((visit) => visit.start_date > today),
+  };
+}
 
 function normalizePrimary<T extends { is_primary?: boolean }>(entries: T[]) {
   const primaryIndex = entries.findIndex((entry) => entry.is_primary);
@@ -76,6 +185,8 @@ export function ProviderAccountPage() {
   const [profile, setProfile] = useState<ProviderPortalProfile | null>(null);
   const [specializations, setSpecializations] = useState<ProviderSpecializationBrief[]>([]);
   const [form, setForm] = useState<ProviderPortalUpdate>({});
+  const [visitAdditions, setVisitAdditions] = useState<DoctorVisitCreate[]>([]);
+  const [visitError, setVisitError] = useState<string | null>(null);
   const [locations, setLocations] = useState<PortalLocation[]>([]);
   const [phones, setPhones] = useState<PhoneEntry[]>([]);
   const [emails, setEmails] = useState<EmailEntry[]>([]);
@@ -107,6 +218,7 @@ export function ProviderAccountPage() {
   const profileSavingRef = useRef(false);
   const tabRefs = useRef<Partial<Record<PortalTab, HTMLButtonElement | null>>>({});
   const pendingInvalidFieldRef = useRef<HTMLElement | null>(null);
+  const visibleTabs = portalTabs(mayScheduleProviderVisits(profile));
 
   function populate(next: ProviderPortalProfile) {
     setProfile(next);
@@ -124,6 +236,8 @@ export function ProviderAccountPage() {
       years_experience: editable.years_experience ?? null,
       experience_description: editable.experience_description ?? null,
     });
+    setVisitAdditions(editable.visit_additions ?? []);
+    setVisitError(null);
     setLocations(normalizePrimary(editable.locations));
     const contacts = portalContactsFromProfile(editable);
     setPhones(normalizePrimary(contacts.phones));
@@ -196,15 +310,16 @@ export function ProviderAccountPage() {
   }
 
   function handleTabKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
-    const currentIndex = PORTAL_TABS.findIndex((tab) => tab.id === activeTab);
+    const tabs = portalTabs(mayScheduleProviderVisits(profile));
+    const currentIndex = tabs.findIndex((tab) => tab.id === activeTab);
     let nextIndex: number | null = null;
-    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % PORTAL_TABS.length;
-    if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + PORTAL_TABS.length) % PORTAL_TABS.length;
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+    if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
     if (event.key === 'Home') nextIndex = 0;
-    if (event.key === 'End') nextIndex = PORTAL_TABS.length - 1;
+    if (event.key === 'End') nextIndex = tabs.length - 1;
     if (nextIndex === null) return;
     event.preventDefault();
-    changeTab(PORTAL_TABS[nextIndex].id, true);
+    changeTab(tabs[nextIndex].id, true);
   }
 
   function routeToInvalidField(field: HTMLElement) {
@@ -272,6 +387,48 @@ export function ProviderAccountPage() {
       }
       return;
     }
+    if (mayScheduleProviderVisits(profile)) {
+      const invalidVisit = validateVisitAdditions(
+        visitAdditions,
+        profile.editable_profile.visit_additions ?? [],
+        profile.doctor_visits ?? [],
+        localDateString()
+      );
+      setVisitError(invalidVisit);
+      if (invalidVisit) {
+        setActiveTab('visits');
+        const index = visitAdditions.findIndex((visit) => (
+          !visit.start_date
+          || (
+            visit.start_date < localDateString()
+            && !isSavedVisitAddition(visit, profile.editable_profile.visit_additions ?? [])
+          )
+          || !visit.end_date
+          || visit.start_date > visit.end_date
+          || !visit.location.address_line_1.trim()
+          || !visit.location.city.trim()
+        ));
+        const visit = visitAdditions[index];
+        const invalidVisitId = !visit?.start_date || (
+          visit.start_date < localDateString()
+          && !isSavedVisitAddition(visit, profile.editable_profile.visit_additions ?? [])
+        )
+          ? `portal-visit-${index}-start-date`
+          : !visit.end_date || visit.start_date > visit.end_date
+            ? `portal-visit-${index}-end-date`
+            : !visit.location.address_line_1.trim()
+              ? `portal-visit-${index}-address-line-1`
+              : !visit.location.city.trim()
+                ? `portal-visit-${index}-city`
+                : null;
+        const visitField = invalidVisitId
+          ? formRef.current?.querySelector<HTMLElement>(`#${invalidVisitId}`)
+          : null;
+        if (visitField) routeToInvalidField(visitField);
+        else setActiveTab('visits');
+        return;
+      }
+    }
     const invalidFields = Array.from(formRef.current?.querySelectorAll<HTMLElement>(':invalid') ?? []);
     const grandfatheredMissingRadius = baselineServices?.visit_stability === 'STABLE_VISIT'
       && services.visit_stability === 'STABLE_VISIT'
@@ -287,7 +444,6 @@ export function ProviderAccountPage() {
       routeToInvalidField(invalidField);
       return;
     }
-
     try {
       const scalarContacts = portalScalarContactsFromCollections(phones, emails);
       const servicePayload = invitationServicePayload(services);
@@ -307,6 +463,7 @@ export function ProviderAccountPage() {
         emails: emails.map(({ email, is_primary }) => ({ email: email.trim(), is_primary })),
         photos,
       };
+      if (mayScheduleProviderVisits(profile)) body.visit_additions = visitAdditions;
       if (profile?.doctor_fields_available) {
         delete body.description;
         body.qualifications = qualifications;
@@ -393,6 +550,48 @@ export function ProviderAccountPage() {
     setPhotoUploading(uploading);
   }
 
+  function updateVisitAddition(index: number, patch: Partial<DoctorVisitCreate>) {
+    setVisitAdditions((current) => current.map((visit, itemIndex) => (
+      itemIndex === index ? { ...visit, ...patch } : visit
+    )));
+    setVisitError(null);
+  }
+
+  function updateVisitLocation(
+    index: number,
+    patch: Partial<DoctorVisitCreate['location']>
+  ) {
+    setVisitAdditions((current) => current.map((visit, itemIndex) => (
+      itemIndex === index
+        ? { ...visit, location: { ...visit.location, ...patch } }
+        : visit
+    )));
+    setVisitError(null);
+  }
+
+  function addVisitAddition() {
+    setVisitAdditions((current) => [...current, {
+      start_date: '',
+      end_date: '',
+      location: {
+        name: null,
+        address_line_1: '',
+        address_line_2: null,
+        city: '',
+        state_province: null,
+        country: null,
+        postal_code: null,
+      },
+    }]);
+    setVisitError(null);
+    changeTab('visits');
+  }
+
+  function removeVisitAddition(index: number) {
+    setVisitAdditions((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    setVisitError(null);
+  }
+
   useEffect(() => {
     if (feedbackOpen) {
       feedbackWasOpen.current = true;
@@ -445,6 +644,8 @@ export function ProviderAccountPage() {
   const allSpecializationsSelected = specializations.length > 0
     && selectedActiveSpecializationCount === specializations.length;
   const someSpecializationsSelected = selectedActiveSpecializationCount > 0 && !allSpecializationsSelected;
+  const today = localDateString();
+  const visitsByPeriod = groupVisits(profile.doctor_visits ?? [], today);
 
   return (
     <div className={styles.page}>
@@ -524,7 +725,7 @@ export function ProviderAccountPage() {
               aria-label="Provider profile sections"
               className={styles.tabs}
             >
-              {PORTAL_TABS.map((tab) => (
+              {visibleTabs.map((tab) => (
                 <button
                   key={tab.id}
                   ref={(node) => { tabRefs.current[tab.id] = node; }}
@@ -543,6 +744,124 @@ export function ProviderAccountPage() {
                 </button>
               ))}
             </div>
+            {mayScheduleProviderVisits(profile) && (
+              <div
+                id="provider-panel-visits"
+                role="tabpanel"
+                aria-labelledby="provider-tab-visits"
+                tabIndex={0}
+                hidden={activeTab !== 'visits'}
+                data-tab-panel="visits"
+                className={styles.tabPanel}
+              >
+                <div className={styles.visitHeading}>
+                  <h3>Visit history and scheduling</h3>
+                  <p>Recorded visits are read-only. New trips are proposed separately and do not change your approved schedule until they are saved and, for published listings, approved.</p>
+                </div>
+                <section className={styles.visitSection} aria-labelledby="visit-history-heading">
+                  <h4 id="visit-history-heading">Recorded visit history</h4>
+                  {([
+                    ['Previous', visitsByPeriod.previous],
+                    ['Current', visitsByPeriod.current],
+                    ['Upcoming', visitsByPeriod.upcoming],
+                  ] as const).map(([label, visits]) => (
+                    <section className={styles.visitPeriod} key={label} aria-labelledby={`visit-period-${label.toLowerCase()}`}>
+                      <h5 id={`visit-period-${label.toLowerCase()}`}>{label}</h5>
+                      {visits.length === 0
+                        ? <p className={styles.visitEmpty}>No {label.toLowerCase()} visits recorded.</p>
+                        : <div className={styles.visitCards}>
+                          {visits.map((visit) => (
+                            <article className={styles.visitCard} key={visit.id}>
+                              <p className={styles.visitDates}>
+                                <time dateTime={visit.start_date}>{formatCalendarDate(visit.start_date)}</time>
+                                {' – '}
+                                <time dateTime={visit.end_date}>{formatCalendarDate(visit.end_date)}</time>
+                              </p>
+                              <p className={styles.visitLocation}>{visitLocationDescription(visit.location)}</p>
+                            </article>
+                          ))}
+                        </div>}
+                    </section>
+                  ))}
+                </section>
+                <div className={styles.sectionDivider} />
+                <section className={styles.visitSection} aria-labelledby="proposed-visits-heading">
+                  <div className={styles.visitSectionHeader}>
+                    <div>
+                      <h4 id="proposed-visits-heading">Proposed visits</h4>
+                      <p>{profile.profile_update?.review_status === 'PENDING_REVIEW'
+                        ? 'These additions are awaiting administrator review. You can revise or remove them before resubmitting.'
+                        : profile.profile_update?.review_status === 'REJECTED'
+                          ? 'These additions were declined with your profile update. Revise or remove them before saving again.'
+                          : 'Add trips here, then select Save profile to submit them. Leaving this tab never saves or submits changes.'}</p>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" disabled={saving} onClick={addVisitAddition}>
+                      Add visit
+                    </Button>
+                  </div>
+                  {visitError && <Alert variant="error">{visitError}</Alert>}
+                  {visitAdditions.length === 0
+                    ? <p className={styles.visitEmpty}>No proposed visits. Recorded visits remain unchanged.</p>
+                    : <div className={styles.visitCards}>
+                      {visitAdditions.map((visit, index) => (
+                        <fieldset className={styles.proposedVisit} key={index}>
+                          <legend>Proposed visit {index + 1}</legend>
+                          <div className={styles.visitFieldActions}>
+                            <p>Not part of your recorded visit history until the change is saved and approved when review is required.</p>
+                            <button
+                              type="button"
+                              className={styles.removeVisit}
+                              onClick={() => removeVisitAddition(index)}
+                              disabled={saving}
+                              aria-label={`Remove proposed visit ${index + 1}`}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <div className={styles.visitGrid}>
+                            <Input
+                              label={`Visit ${index + 1} start date`}
+                              id={`portal-visit-${index}-start-date`}
+                              type="date"
+                              value={visit.start_date}
+                              min={isUnchangedPastVisit(visit, profile.editable_profile.visit_additions ?? [], today)
+                                ? undefined
+                                : today}
+                              required
+                              disabled={saving}
+                              onChange={(event) => updateVisitAddition(index, { start_date: event.target.value })}
+                            />
+                            <Input
+                              label={`Visit ${index + 1} end date`}
+                              id={`portal-visit-${index}-end-date`}
+                              type="date"
+                              value={visit.end_date}
+                              min={isUnchangedPastVisit(visit, profile.editable_profile.visit_additions ?? [], today)
+                                ? visit.start_date
+                                : visit.start_date || today}
+                              required
+                              disabled={saving}
+                              onChange={(event) => updateVisitAddition(index, { end_date: event.target.value })}
+                            />
+                          </div>
+                          <h5>Visit location</h5>
+                          <div className={styles.visitGrid}>
+                            <Input label={`Visit ${index + 1} location name`} value={visit.location.name ?? ''} onChange={(event) => updateVisitLocation(index, { name: event.target.value || null })} disabled={saving} />
+                            <Input id={`portal-visit-${index}-address-line-1`} label={`Visit ${index + 1} address line 1`} value={visit.location.address_line_1} onChange={(event) => updateVisitLocation(index, { address_line_1: event.target.value })} disabled={saving} required />
+                            <Input label={`Visit ${index + 1} address line 2`} value={visit.location.address_line_2 ?? ''} onChange={(event) => updateVisitLocation(index, { address_line_2: event.target.value || null })} disabled={saving} />
+                            <Input id={`portal-visit-${index}-city`} label={`Visit ${index + 1} city`} value={visit.location.city} onChange={(event) => updateVisitLocation(index, { city: event.target.value })} disabled={saving} required />
+                            <Input label={`Visit ${index + 1} state, province, or emirate`} value={visit.location.state_province ?? ''} onChange={(event) => updateVisitLocation(index, { state_province: event.target.value || null })} disabled={saving} />
+                            <Input label={`Visit ${index + 1} country`} value={visit.location.country ?? ''} onChange={(event) => updateVisitLocation(index, { country: event.target.value || null })} disabled={saving} />
+                            <Input label={`Visit ${index + 1} postal code`} value={visit.location.postal_code ?? ''} onChange={(event) => updateVisitLocation(index, { postal_code: event.target.value || null })} disabled={saving} />
+                            <Input label={`Visit ${index + 1} latitude`} type="number" min="-90" max="90" step="0.000001" value={visit.location.latitude ?? ''} onChange={(event) => updateVisitLocation(index, { latitude: event.target.value ? Number(event.target.value) : null })} disabled={saving} />
+                            <Input label={`Visit ${index + 1} longitude`} type="number" min="-180" max="180" step="0.000001" value={visit.location.longitude ?? ''} onChange={(event) => updateVisitLocation(index, { longitude: event.target.value ? Number(event.target.value) : null })} disabled={saving} />
+                          </div>
+                        </fieldset>
+                      ))}
+                    </div>}
+                </section>
+              </div>
+            )}
             <div
               id="provider-panel-basic"
               role="tabpanel"

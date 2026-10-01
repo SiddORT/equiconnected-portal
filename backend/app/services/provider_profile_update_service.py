@@ -1,14 +1,18 @@
 """Shared profile-snapshot validation and administrator decision operations."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import json
 import re
 from types import SimpleNamespace
 from uuid import UUID
 
 from app.core.phone_metadata import SUPPORTED_PHONE_DIAL_CODES
-from app.models.enums import ProviderProfileUpdateStatus, ProviderType
+from app.models.enums import (
+    DoctorAvailability,
+    ProviderProfileUpdateStatus,
+    ProviderType,
+)
 from app.models.provider import Provider, ProviderProfileUpdate
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.provider_profile_update_repository import ProviderProfileUpdateRepository
@@ -170,6 +174,9 @@ def editable_profile_from_provider(provider: Provider) -> ProviderPortalEditable
                 ),
             )
         ],
+        # Approved/admin-created visits are immutable history, not editable
+        # profile fields. The portal only carries not-yet-recorded additions.
+        "visit_additions": [],
     }
     if provider.provider_type == ProviderType.DOCTOR:
         payload.update(
@@ -202,7 +209,14 @@ def editable_profile_from_provider(provider: Provider) -> ProviderPortalEditable
                 ],
             }
         )
-    for field in ("locations", "phones", "emails", "photos", "qualifications"):
+    for field in (
+        "locations",
+        "phones",
+        "emails",
+        "photos",
+        "qualifications",
+        "visit_additions",
+    ):
         if field in payload:
             payload[field] = _canonicalize_collection(payload[field])
     return ProviderPortalEditableProfile.model_validate(payload)
@@ -261,7 +275,14 @@ def serialize_editable_profile(
 ) -> dict:
     """Create a stable, JSON-safe payload for comparisons and persistence."""
     payload = profile.model_dump(mode="json")
-    for field in ("locations", "phones", "emails", "photos", "qualifications"):
+    for field in (
+        "locations",
+        "phones",
+        "emails",
+        "photos",
+        "qualifications",
+        "visit_additions",
+    ):
         if field in payload:
             payload[field] = _canonicalize_collection(payload[field])
     if provider.provider_type != ProviderType.DOCTOR:
@@ -276,6 +297,7 @@ def validate_editable_profile(
     provider_repo: ProviderRepository,
     *,
     supplied_fields: set[str] | None = None,
+    previous_visit_additions: list | None = None,
 ) -> None:
     if provider.provider_type != ProviderType.DOCTOR and supplied_fields and _DOCTOR_FIELDS.intersection(supplied_fields):
         raise InvalidProviderDataError(
@@ -328,6 +350,63 @@ def validate_editable_profile(
             "Enter a complete international emergency contact number with a dial code and 6–15 local digits."
         )
 
+    # Do not invalidate retained trips on unrelated edits: an administrator
+    # may have changed the schedule since submission. Recheck the live schedule
+    # when additions are revised and, independently, when an admin approves.
+    should_validate_visits = supplied_fields is None or (
+        "visit_additions" in supplied_fields
+    )
+    if should_validate_visits and profile.visit_additions:
+        if (
+            provider.provider_type != ProviderType.DOCTOR
+            or provider.doctor_availability != DoctorAvailability.VISITING
+        ):
+            raise InvalidProviderDataError(
+                "Only visiting doctors can add scheduled visits."
+            )
+
+        unchanged_additions = {
+            json.dumps(
+                addition.model_dump(mode="json"),
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            for addition in (previous_visit_additions or [])
+        }
+        for addition in profile.visit_additions:
+            if supplied_fields is not None and "visit_additions" in supplied_fields:
+                key = json.dumps(
+                    addition.model_dump(mode="json"),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                if key not in unchanged_additions and addition.start_date < date.today():
+                    raise InvalidProviderDataError(
+                        "New visit dates must start today or later."
+                    )
+
+        recorded_ranges = [
+            (visit.start_date, visit.end_date)
+            for visit in provider_repo.visits(provider.id)
+        ]
+        addition_ranges = [
+            (addition.start_date, addition.end_date)
+            for addition in profile.visit_additions
+        ]
+        for index, (start, end) in enumerate(addition_ranges):
+            overlaps_recorded = any(
+                recorded_start <= end and start <= recorded_end
+                for recorded_start, recorded_end in recorded_ranges
+            )
+            overlaps_addition = any(
+                other_start <= end and start <= other_end
+                for other_start, other_end in addition_ranges[index + 1 :]
+            )
+            if overlaps_recorded or overlaps_addition:
+                raise InvalidProviderDataError(
+                    "Visit dates overlap another scheduled visit, including endpoints."
+                )
+
 
 def apply_editable_profile(
     provider: Provider,
@@ -341,6 +420,9 @@ def apply_editable_profile(
     # suggestion semantics intentionally remain owned by InvitationService.
     profile = sync_editable_profile_contacts(profile, {"emails", "phones"})
     fields = profile.model_dump()
+    # These virtual draft entries are persisted as DoctorVisit rows only after
+    # validation; they are not writable provider attributes.
+    fields.pop("visit_additions", None)
     if provider.provider_type != ProviderType.DOCTOR:
         for field in _DOCTOR_FIELDS:
             fields.pop(field, None)
@@ -349,6 +431,23 @@ def apply_editable_profile(
         SimpleNamespace(provider_id=provider.id),
         fields,
     )
+
+
+def append_visit_additions(
+    provider: Provider,
+    profile: ProviderPortalEditableProfile,
+    provider_repo: ProviderRepository,
+) -> None:
+    """Append validated trip additions while leaving all saved visits intact."""
+    for addition in profile.visit_additions:
+        provider_repo.add_visit(
+            provider.id,
+            {
+                "location": addition.location.model_dump(mode="json"),
+                "start_date": addition.start_date,
+                "end_date": addition.end_date,
+            },
+        )
 
 
 class ProviderProfileUpdateService:
@@ -409,8 +508,13 @@ class ProviderProfileUpdateService:
                 "Review the latest listing before approving the draft."
             )
         profile = editable_profile_from_snapshot(loaded, update.proposed_profile)
-        validate_editable_profile(loaded, profile, self._providers)
+        try:
+            validate_editable_profile(loaded, profile, self._providers)
+        except InvalidProviderDataError as exc:
+            self._db.rollback()
+            raise ProviderProfileUpdateConflictError(str(exc)) from exc
         apply_editable_profile(loaded, profile, self._providers)
+        append_visit_additions(loaded, profile, self._providers)
         now = datetime.now(timezone.utc)
         update.review_status = ProviderProfileUpdateStatus.APPROVED
         update.reviewed_by_user_id = reviewer_id

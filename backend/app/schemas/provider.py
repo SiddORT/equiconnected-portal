@@ -116,6 +116,28 @@ class DoctorVisitResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ProviderVisitLocation(LocationCreate):
+    """Visit address snapshot that rejects IDs or non-address metadata."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ProviderVisitAddition(BaseModel):
+    """A new visit proposed by an account owner, without stored visit identity."""
+
+    location: ProviderVisitLocation
+    start_date: date
+    end_date: date
+
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def validate_date_order(self):
+        if self.start_date > self.end_date:
+            raise ValueError("Visit end date must be on or after start date.")
+        return self
+
+
 # ── Photo ─────────────────────────────────────────────────────────────────────
 
 class PhotoCreate(BaseModel):
@@ -562,6 +584,7 @@ class ProviderPortalUpdate(BaseModel):
     phones: list[PhoneCreate] | None = None
     emails: list[EmailCreate] | None = None
     photos: list[PhotoCreate] | None = None
+    visit_additions: list[ProviderVisitAddition] = Field(default_factory=list)
     professional_title: str | None = Field(None, max_length=200)
     biography: str | None = Field(None, max_length=10000)
     years_experience: int | None = Field(None, ge=0, le=100)
@@ -589,6 +612,7 @@ class ProviderPortalEditableProfile(ProviderPortalUpdate):
     phones: list[PhoneCreate] = Field(default_factory=list)
     emails: list[EmailCreate] = Field(default_factory=list)
     photos: list[PhotoCreate] = Field(default_factory=list)
+    visit_additions: list[ProviderVisitAddition] = Field(default_factory=list)
     qualifications: list[QualificationCreate] = Field(default_factory=list)
 
 
@@ -618,6 +642,9 @@ class ProviderPortalResponse(BaseModel):
     phones: list[PhoneResponse] = []
     emails: list[EmailResponse] = []
     doctor_profile: DoctorProfileOut | None = None
+    doctor_availability: DoctorAvailability | None = None
+    doctor_visits: list[DoctorVisitResponse] = Field(default_factory=list)
+    can_schedule_visits: bool = False
     # This capability flag lets the portal render clinical fields without
     # exposing the provider's administrative provider_type.
     doctor_fields_available: bool = False
@@ -671,6 +698,15 @@ class ProviderPortalResponse(BaseModel):
                 else None
             ),
             doctor_fields_available=provider.provider_type == ProviderType.DOCTOR,
+            doctor_availability=provider.doctor_availability,
+            doctor_visits=[
+                DoctorVisitResponse.model_validate(visit)
+                for visit in provider.doctor_visits
+            ],
+            can_schedule_visits=(
+                provider.provider_type == ProviderType.DOCTOR
+                and provider.doctor_availability == DoctorAvailability.VISITING
+            ),
             qualifications=[
                 QualificationCreate(
                     title=row.title,

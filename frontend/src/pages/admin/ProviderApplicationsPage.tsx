@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   approveProviderApplication,
@@ -65,6 +66,95 @@ function updateStatusBadge(status: ProviderProfileUpdateStatus) {
   };
   return <Badge size="sm" variant={config[status].variant}>{config[status].label}</Badge>;
 }
+
+interface ProposedVisitLocation {
+  name?: string | null;
+  address_line_1?: string | null;
+  address_line_2?: string | null;
+  city?: string | null;
+  state_province?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  is_primary?: boolean | null;
+}
+
+interface ProposedVisitAddition {
+  start_date: string;
+  end_date: string;
+  location: ProposedVisitLocation;
+}
+
+const calendarDateFormatter = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  timeZone: 'UTC',
+});
+
+function formatCalendarDate(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return value;
+
+  const [, yearText, monthText, dayText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const date = new Date(0);
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCFullYear(year, month - 1, day);
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) return value;
+
+  return calendarDateFormatter.format(date);
+}
+
+function renderVisitAdditions(value: unknown): ReactNode {
+  const visits = Array.isArray(value) ? value as ProposedVisitAddition[] : [];
+  if (!visits.length) {
+    return 'No visits are being added; the provider’s existing visit history remains unchanged.';
+  }
+
+  const locationFields: Array<[string, keyof ProposedVisitLocation]> = [
+    ['Name', 'name'],
+    ['Address line 1', 'address_line_1'],
+    ['Address line 2', 'address_line_2'],
+    ['City', 'city'],
+    ['State / province', 'state_province'],
+    ['Postal code', 'postal_code'],
+    ['Country', 'country'],
+    ['Latitude', 'latitude'],
+    ['Longitude', 'longitude'],
+    ['Primary location', 'is_primary'],
+  ];
+
+  return <>
+    <p>These visits are added to the existing history; they do not replace scheduled or completed visits.</p>
+    <ol aria-label="Proposed additional doctor visits">
+      {visits.map((visit, index) => <li key={`${visit.start_date}-${visit.end_date}-${index}`}>
+        <strong>
+          {formatCalendarDate(visit.start_date)} – {formatCalendarDate(visit.end_date)} (inclusive)
+        </strong>
+        <ul>
+          {locationFields.map(([label, field]) => {
+            const rawValue = visit.location?.[field];
+            const displayValue = rawValue === null || rawValue === undefined || rawValue === ''
+              ? 'Not provided'
+              : typeof rawValue === 'boolean'
+                ? rawValue ? 'Yes' : 'No'
+                : String(rawValue);
+            return <li key={field}><strong>{label}:</strong> {displayValue}</li>;
+          })}
+        </ul>
+      </li>)}
+    </ol>
+  </>;
+}
+
 export function ProviderApplicationsPage() {
   const { formatTimestamp } = useTimeSettings();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -400,7 +490,10 @@ function ProfileUpdateDialog({ update, formatTimestamp, onClose, onDecision, err
     return () => window.removeEventListener('keydown', handler);
   }, []);
   const displayList = (items: unknown[]) => items.length ? JSON.stringify(items, null, 2) : '—';
-  const rows: Array<[string, string, string]> = [
+  const proposedVisits = (
+    update.proposed_profile as typeof update.proposed_profile & { visit_additions?: ProposedVisitAddition[] }
+  ).visit_additions;
+  const rows: Array<[string, ReactNode, ReactNode]> = [
     ['Name', update.current_profile.name, update.proposed_profile.name],
     ['Description', update.current_profile.description || '—', update.proposed_profile.description || '—'],
     ['Email', update.current_profile.email || '—', update.proposed_profile.email || '—'],
@@ -419,6 +512,7 @@ function ProfileUpdateDialog({ update, formatTimestamp, onClose, onDecision, err
     ['Years of experience', update.current_profile.years_experience?.toString() || '—', update.proposed_profile.years_experience?.toString() || '—'],
     ['Experience notes', update.current_profile.experience_description || '—', update.proposed_profile.experience_description || '—'],
     ['Qualifications', displayList(update.current_profile.qualifications), displayList(update.proposed_profile.qualifications)],
+    ['Visit additions', 'Existing visit history is retained.', renderVisitAdditions(proposedVisits)],
   ];
   const isPending = update.review_status === 'PENDING_REVIEW';
   const focusableSelector = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';

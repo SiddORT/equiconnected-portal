@@ -45,6 +45,9 @@ const portalProfile: ProviderPortalProfile = {
   emails: [],
   doctor_profile: null,
   doctor_fields_available: false,
+  doctor_availability: null,
+  can_schedule_visits: false,
+  doctor_visits: [],
   qualifications: [],
   average_rating: 4.5,
   review_count: 1,
@@ -67,6 +70,7 @@ const portalProfile: ProviderPortalProfile = {
     phones: [],
     emails: [],
     photos: [],
+    visit_additions: [],
     qualifications: [],
   },
   profile_update: null,
@@ -82,6 +86,53 @@ function LocationProbe() {
   const location = useLocation();
   return <output data-testid="location">{location.pathname}</output>;
 }
+
+function calendarDateOffset(offset: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + offset);
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+function recordedVisit(
+  id: string,
+  start_date: string,
+  end_date: string,
+  city: string
+) {
+  return {
+    id,
+    start_date,
+    end_date,
+    location: {
+      address_line_1: `${city} trip address`,
+      address_line_2: 'Unit 2',
+      city,
+      state_province: 'Texas',
+      country: 'United States',
+      postal_code: '78701',
+    },
+  };
+}
+
+const visitingProfile: ProviderPortalProfile = {
+  ...portalProfile,
+  doctor_fields_available: true,
+  doctor_availability: 'VISITING',
+  can_schedule_visits: true,
+  doctor_visits: [
+    recordedVisit('previous-visit', '2020-01-10', '2020-01-12', 'Austin'),
+    recordedVisit('current-visit', calendarDateOffset(-1), calendarDateOffset(0), 'Dallas'),
+    recordedVisit('upcoming-visit', calendarDateOffset(1), calendarDateOffset(2), 'Houston'),
+  ],
+  editable_profile: {
+    ...portalProfile.editable_profile,
+    visit_additions: [],
+  },
+};
 
 async function enterTab(user: ReturnType<typeof userEvent.setup>, label: string) {
   await user.click(await screen.findByRole('tab', { name: label }));
@@ -747,6 +798,325 @@ describe('ProviderAccountPage', () => {
     await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
       expect.objectContaining({ experience_description: null })
     ));
+  });
+
+  it.each([
+    ['an ongoing doctor', { doctor_fields_available: true, doctor_availability: 'ONGOING' as const }],
+    ['a legacy doctor with unknown availability', { doctor_fields_available: true, doctor_availability: null }],
+    ['a clinic', { doctor_fields_available: false, doctor_availability: null }],
+  ])('does not expose visit scheduling to %s', async (_label, details) => {
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue({
+      ...portalProfile,
+      ...details,
+      can_schedule_visits: false,
+      doctor_visits: [],
+    });
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await screen.findByRole('heading', { name: 'Your profile' });
+    expect(screen.queryByRole('tab', { name: 'Visits' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add visit' })).toBeNull();
+  });
+
+  it('requires explicit Visiting availability even if a capability flag is inconsistent', async () => {
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue({
+      ...portalProfile,
+      doctor_fields_available: true,
+      doctor_availability: null,
+      can_schedule_visits: true,
+    });
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await screen.findByRole('heading', { name: 'Your profile' });
+    expect(screen.queryByRole('tab', { name: 'Visits' })).toBeNull();
+  });
+
+  it('shows clear empty states for a visiting doctor with no recorded visits', async () => {
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue({
+      ...visitingProfile,
+      doctor_visits: [],
+    });
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await enterTab(user, 'Visits');
+    expect(screen.getByText('No previous visits recorded.')).toBeTruthy();
+    expect(screen.getByText('No current visits recorded.')).toBeTruthy();
+    expect(screen.getByText('No upcoming visits recorded.')).toBeTruthy();
+  });
+
+  it('shows owner-only recorded visits in Previous, Current, and Upcoming using calendar dates and saved locations', async () => {
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(visitingProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+    const user = userEvent.setup();
+
+    await enterTab(user, 'Visits');
+    expect(screen.getByRole('heading', { name: 'Previous' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Current' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Upcoming' })).toBeTruthy();
+    expect(screen.getAllByText(/2020/)).toHaveLength(2);
+    expect(screen.getByText(/Austin trip address/)).toBeTruthy();
+    expect(screen.getByText(/Dallas trip address/)).toBeTruthy();
+    expect(screen.getByText(/Houston trip address/)).toBeTruthy();
+    expect(screen.getAllByRole('article')).toHaveLength(3);
+    expect(screen.queryByText('No previous visits recorded.')).toBeNull();
+    expect(screen.queryByText('No current visits recorded.')).toBeNull();
+    expect(screen.queryByText('No upcoming visits recorded.')).toBeNull();
+    expect(document.querySelector('time[datetime="2020-01-10"]')).toBeTruthy();
+    expect(document.querySelector(`time[datetime="${calendarDateOffset(0)}"]`)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Remove proposed visit/ })).toBeNull();
+  });
+
+  it('keeps a same-day proposed visit staged until explicit save, then reloads the saved snapshot', async () => {
+    const proposedDate = calendarDateOffset(30);
+    const savedVisit = {
+      start_date: proposedDate,
+      end_date: proposedDate,
+      location: {
+        name: 'County fair',
+        address_line_1: '42 Arena Lane',
+        address_line_2: 'Gate 3',
+        city: 'Dallas',
+        state_province: 'Texas',
+        country: 'United States',
+        postal_code: '75201',
+      },
+    };
+    const savedProfile: ProviderPortalProfile = {
+      ...visitingProfile,
+      profile_update: {
+        id: 'profile-update-visit',
+        review_status: 'PENDING_REVIEW',
+        submitted_at: '2026-08-20T08:15:00Z',
+        reviewed_at: null,
+        reviewed_by_name: null,
+        rejection_reason: null,
+      },
+      editable_profile: {
+        ...visitingProfile.editable_profile,
+        visit_additions: [savedVisit],
+      },
+    };
+    vi.mocked(providersApi.getProviderPortalProfile)
+      .mockResolvedValueOnce(visitingProfile)
+      .mockResolvedValueOnce(savedProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(savedProfile);
+    const user = userEvent.setup();
+    const view = render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await enterTab(user, 'Visits');
+    await user.click(screen.getByRole('button', { name: 'Add visit' }));
+    await enterTab(user, 'Basic details');
+    expect(providersApi.updateProviderPortalProfile).not.toHaveBeenCalled();
+    await enterTab(user, 'Visits');
+    fireEvent.change(screen.getByLabelText('Visit 1 start date'), { target: { value: proposedDate } });
+    fireEvent.change(screen.getByLabelText('Visit 1 end date'), { target: { value: proposedDate } });
+    await user.type(screen.getByLabelText('Visit 1 location name'), 'County fair');
+    await user.type(screen.getByLabelText('Visit 1 address line 1'), '42 Arena Lane');
+    await user.type(screen.getByLabelText('Visit 1 address line 2'), 'Gate 3');
+    await user.type(screen.getByLabelText('Visit 1 city'), 'Dallas');
+    await user.type(screen.getByLabelText('Visit 1 state, province, or emirate'), 'Texas');
+    await user.type(screen.getByLabelText('Visit 1 country'), 'United States');
+    await user.type(screen.getByLabelText('Visit 1 postal code'), '75201');
+    expect(providersApi.updateProviderPortalProfile).not.toHaveBeenCalled();
+    expect(screen.getByText(/select Save profile to submit them/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        visit_additions: [{
+          ...savedVisit,
+        }],
+      })
+    ));
+    expect(await screen.findByText(/A profile update is awaiting review/)).toBeTruthy();
+    expect(screen.getAllByText(/awaiting administrator review/)).toHaveLength(2);
+
+    view.rerender(<MemoryRouter><ProviderAccountPage key="fresh-visit-profile" /></MemoryRouter>);
+    await enterTab(user, 'Visits');
+    expect((screen.getByLabelText('Visit 1 start date') as HTMLInputElement).value).toBe(proposedDate);
+    expect((screen.getByLabelText('Visit 1 end date') as HTMLInputElement).value).toBe(proposedDate);
+    expect((screen.getByLabelText('Visit 1 address line 1') as HTMLInputElement).value).toBe('42 Arena Lane');
+    expect(providersApi.getProviderPortalProfile).toHaveBeenCalledTimes(2);
+  });
+
+  it('focuses incomplete visit fields and blocks overlapping inclusive date ranges with a clear error', async () => {
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(visitingProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await enterTab(user, 'Visits');
+    await user.click(screen.getByRole('button', { name: 'Add visit' }));
+    const startDate = screen.getByLabelText('Visit 1 start date');
+    fireEvent.change(startDate, { target: { value: calendarDateOffset(8) } });
+    fireEvent.change(screen.getByLabelText('Visit 1 end date'), { target: { value: calendarDateOffset(8) } });
+    await user.type(screen.getByLabelText('Visit 1 address line 1'), '9 Main Street');
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Visit 1 city')));
+    expect(providersApi.updateProviderPortalProfile).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText('Visit 1 city'), 'Austin');
+    fireEvent.change(startDate, { target: { value: visitingProfile.doctor_visits[2].start_date } });
+    fireEvent.change(screen.getByLabelText('Visit 1 end date'), {
+      target: { value: visitingProfile.doctor_visits[2].end_date },
+    });
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+    expect(await screen.findByText('Visit dates cannot overlap another recorded or proposed visit.')).toBeTruthy();
+    expect(providersApi.updateProviderPortalProfile).not.toHaveBeenCalled();
+  });
+
+  it('retains pending visit additions during unrelated profile saves and lets rejected additions be removed or discarded', async () => {
+    const savedVisit = {
+      start_date: calendarDateOffset(40),
+      end_date: calendarDateOffset(41),
+      location: {
+        address_line_1: '8 Clinic Road',
+        city: 'Austin',
+        name: null,
+        address_line_2: null,
+        state_province: null,
+        country: null,
+        postal_code: null,
+      },
+    };
+    const pendingProfile: ProviderPortalProfile = {
+      ...visitingProfile,
+      profile_update: {
+        id: 'pending-visit-update',
+        review_status: 'PENDING_REVIEW',
+        submitted_at: '2026-08-20T08:15:00Z',
+        reviewed_at: null,
+        reviewed_by_name: null,
+        rejection_reason: null,
+      },
+      editable_profile: {
+        ...visitingProfile.editable_profile,
+        visit_additions: [savedVisit],
+      },
+    };
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(pendingProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(pendingProfile);
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    await user.click(await screen.findByLabelText('Provider or practice name'));
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ visit_additions: [savedVisit] })
+    ));
+
+    const rejectedProfile: ProviderPortalProfile = {
+      ...pendingProfile,
+      profile_update: {
+        ...pendingProfile.profile_update!,
+        review_status: 'REJECTED',
+        rejection_reason: 'Please confirm the venue.',
+      },
+    };
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(rejectedProfile);
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue({
+      ...rejectedProfile,
+      profile_update: {
+        ...rejectedProfile.profile_update!,
+        review_status: 'PENDING_REVIEW',
+        rejection_reason: null,
+      },
+      editable_profile: { ...rejectedProfile.editable_profile, visit_additions: [] },
+    });
+    vi.mocked(providersApi.discardProviderPortalProfileUpdate).mockResolvedValue(visitingProfile);
+    cleanup();
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+    await enterTab(user, 'Visits');
+    expect(screen.getByText(/Please confirm the venue/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Remove proposed visit 1' }));
+    expect(screen.queryByLabelText('Visit 1 start date')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Revise and resubmit' }));
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenLastCalledWith(
+      expect.objectContaining({ visit_additions: [] })
+    ));
+    await user.click(screen.getByRole('button', { name: 'Discard draft and reload approved listing' }));
+    await waitFor(() => expect(providersApi.discardProviderPortalProfileUpdate).toHaveBeenCalledOnce());
+  });
+
+  it('allows an unchanged past visit draft during unrelated saves but rejects a revised past addition', async () => {
+    const pastVisit = {
+      start_date: calendarDateOffset(-30),
+      end_date: calendarDateOffset(-29),
+      location: {
+        name: null,
+        address_line_1: '8 Clinic Road',
+        address_line_2: null,
+        city: 'Austin',
+        state_province: null,
+        country: null,
+        postal_code: null,
+        latitude: null,
+        longitude: null,
+        is_primary: false,
+      },
+    };
+    const pendingProfile: ProviderPortalProfile = {
+      ...visitingProfile,
+      profile_update: {
+        id: 'past-visit-update',
+        review_status: 'PENDING_REVIEW',
+        submitted_at: '2026-08-20T08:15:00Z',
+        reviewed_at: null,
+        reviewed_by_name: null,
+        rejection_reason: null,
+      },
+      editable_profile: {
+        ...visitingProfile.editable_profile,
+        visit_additions: [pastVisit],
+      },
+    };
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(pendingProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue({
+      ...pendingProfile,
+      editable_profile: { ...pendingProfile.editable_profile, name: 'Updated provider' },
+    });
+    const user = userEvent.setup();
+
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+
+    const nameInput = await screen.findByLabelText('Provider or practice name');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Updated provider');
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Updated provider',
+        visit_additions: [pastVisit],
+      })
+    ));
+
+    cleanup();
+    vi.mocked(providersApi.updateProviderPortalProfile).mockClear();
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(pendingProfile);
+    const revisedUser = userEvent.setup();
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+    await enterTab(revisedUser, 'Visits');
+    const cityInput = screen.getByLabelText('Visit 1 city');
+    await revisedUser.clear(cityInput);
+    await revisedUser.type(cityInput, 'Dallas');
+    await revisedUser.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    expect(await screen.findByText('New visits must start today or later.')).toBeTruthy();
+    expect(providersApi.updateProviderPortalProfile).not.toHaveBeenCalled();
   });
 
   it('routes hidden native validation failures to the tab containing the invalid field', async () => {

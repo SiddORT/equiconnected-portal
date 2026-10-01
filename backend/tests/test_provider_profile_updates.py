@@ -1,15 +1,21 @@
 """Provider-owned published-profile update review lifecycle."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
+import time
+from threading import Event, Thread
+from uuid import uuid4
 
 from PIL import Image
 import pytest
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 from app.core.security import hash_password
 from app.models.doctor import DoctorProfile
 from app.models.audit_log import AuditLog
 from app.models.enums import (
+    DoctorAvailability,
     InvitationStatus,
     ProviderApplicationStatus,
     ProviderProfileUpdateStatus,
@@ -21,6 +27,7 @@ from app.models.enums import (
 from app.models.invitation import ProviderInvitation
 from app.models.provider import (
     Provider,
+    DoctorVisit,
     ProviderEmail,
     ProviderLocation,
     ProviderPhoto,
@@ -29,8 +36,14 @@ from app.models.provider import (
 )
 from app.models.provider_registration import ProviderRegistrationApplication
 from app.repositories.user_repository import UserRepository
+from app.repositories.provider_profile_update_repository import (
+    ProviderProfileUpdateRepository,
+)
+from app.repositories.provider_repository import ProviderRepository
 import app.services.provider_portal_service as provider_portal_service
 from app.services.provider_profile_update_service import (
+    ProviderProfileUpdateConflictError,
+    ProviderProfileUpdateService,
     _legacy_phone_contact,
     editable_profile_from_provider,
 )
@@ -120,7 +133,14 @@ def _portal_provider(
     return provider, account
 
 
-def _portal_doctor(db, admin, *, email: str, publication_status: PublicationStatus):
+def _portal_doctor(
+    db,
+    admin,
+    *,
+    email: str,
+    publication_status: PublicationStatus,
+    doctor_availability: DoctorAvailability | None = None,
+):
     users = UserRepository(db)
     role = users.get_role_by_name("provider") or users.create_role(
         "provider", "Provider portal"
@@ -129,6 +149,7 @@ def _portal_doctor(db, admin, *, email: str, publication_status: PublicationStat
         provider_type=ProviderType.DOCTOR,
         name="Dr. Portal Notes",
         visit_stability=VisitStability.STABLE_VISIT,
+        doctor_availability=doctor_availability,
         status=ProviderStatus.ACTIVE,
         publication_status=publication_status,
     )
@@ -161,6 +182,550 @@ def _portal_doctor(db, admin, *, email: str, publication_status: PublicationStat
     )
     db.commit()
     return provider, account
+
+
+def _visit_addition(start: date, end: date, city: str = "Pune") -> dict:
+    return {
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "location": {
+            "address_line_1": "12 Arena Road",
+            "city": city,
+            "country": "India",
+        },
+    }
+
+
+def test_visiting_doctor_owner_history_draft_and_delayed_approval(
+    client, db, seeded_admin
+):
+    admin, admin_password = seeded_admin
+    provider, account = _portal_doctor(
+        db,
+        admin,
+        email="visiting-owner@example.com",
+        publication_status=PublicationStatus.PUBLISHED,
+        doctor_availability=DoctorAvailability.VISITING,
+    )
+    historical = DoctorVisit(
+        provider_id=provider.id,
+        location={
+            "address_line_1": "Old Road",
+            "city": "Mumbai",
+            "country": "India",
+        },
+        start_date=date.today() - timedelta(days=20),
+        end_date=date.today() - timedelta(days=18),
+    )
+    db.add(historical)
+    db.commit()
+    owner_token = _login(client, account.email, "ProviderPass9")
+    owner_headers = {"Authorization": f"Bearer {owner_token}"}
+    initial = client.get("/api/v1/provider/portal/profile", headers=owner_headers)
+    assert initial.status_code == 200, initial.text
+    assert initial.json()["doctor_availability"] == "VISITING"
+    assert initial.json()["can_schedule_visits"] is True
+    assert [item["id"] for item in initial.json()["doctor_visits"]] == [
+        str(historical.id)
+    ]
+    assert initial.json()["doctor_visits"][0]["location"]["city"] == "Mumbai"
+    assert initial.json()["editable_profile"]["visit_additions"] == []
+
+    proposed_date = date.today() + timedelta(days=20)
+    submitted = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=owner_headers,
+        json={"visit_additions": [_visit_addition(proposed_date, proposed_date + timedelta(days=1))]},
+    )
+    assert submitted.status_code == 200, submitted.text
+    assert submitted.json()["can_schedule_visits"] is True
+    assert len(submitted.json()["doctor_visits"]) == 1
+    assert submitted.json()["editable_profile"]["visit_additions"][0]["start_date"] == (
+        proposed_date.isoformat()
+    )
+    assert "id" not in submitted.json()["editable_profile"]["visit_additions"][0]
+    assert db.query(DoctorVisit).filter_by(provider_id=provider.id).count() == 1
+
+    users = UserRepository(db)
+    member_role = users.get_role_by_name("horse_owner") or users.create_role(
+        "horse_owner"
+    )
+    member = users.create_user(
+        email="visit-directory-member@example.com",
+        password_hash=hash_password("MemberPass9"),
+        role=member_role,
+        roles=[member_role],
+    )
+    member.email_verified_at = datetime.now(timezone.utc)
+    db.commit()
+    member_token = _login(client, member.email, "MemberPass9")
+    public_detail = client.get(
+        f"/api/v1/member/providers/{provider.id}",
+        headers={"Authorization": f"Bearer {member_token}"},
+    )
+    assert public_detail.status_code == 200, public_detail.text
+    assert len(public_detail.json()["doctor_visits"]) == 1
+    assert public_detail.json()["doctor_visits"][0]["location"]["city"] == "Mumbai"
+    assert public_detail.json()["doctor_visits"][0]["start_date"] == (
+        historical.start_date.isoformat()
+    )
+
+    update = db.query(ProviderProfileUpdate).filter_by(provider_id=provider.id).one()
+    # Simulate a timely draft whose review is delayed beyond its start date.
+    late_start = date.today() - timedelta(days=1)
+    proposed_snapshot = dict(update.proposed_profile)
+    proposed_snapshot["visit_additions"] = [
+        _visit_addition(late_start, late_start + timedelta(days=1))
+    ]
+    update.proposed_profile = proposed_snapshot
+    db.commit()
+
+    unrelated = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=owner_headers,
+        json={"description": "An unrelated profile edit."},
+    )
+    assert unrelated.status_code == 200, unrelated.text
+    assert unrelated.json()["editable_profile"]["visit_additions"][0]["start_date"] == (
+        late_start.isoformat()
+    )
+    assert db.query(DoctorVisit).filter_by(provider_id=provider.id).count() == 1
+
+    admin_token = _login(client, admin.email, admin_password)
+    approved = client.post(
+        f"/api/v1/admin/provider-profile-updates/{update.id}/approve",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert approved.status_code == 200, approved.text
+    visits = db.query(DoctorVisit).filter_by(provider_id=provider.id).order_by(
+        DoctorVisit.start_date
+    ).all()
+    assert len(visits) == 2
+    saved_history = next(item for item in visits if item.id == historical.id)
+    assert saved_history.location["city"] == "Mumbai"
+    assert saved_history.start_date == date.today() - timedelta(days=20)
+    assert visits[-1].start_date == late_start
+    assert client.post(
+        f"/api/v1/admin/provider-profile-updates/{update.id}/approve",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    ).status_code == 409
+    assert db.query(DoctorVisit).filter_by(provider_id=provider.id).count() == 2
+
+
+def test_visiting_doctor_rejects_invalid_or_overlapping_additions(client, db, seeded_admin):
+    admin, _ = seeded_admin
+    provider, account = _portal_doctor(
+        db,
+        admin,
+        email="visiting-validation@example.com",
+        publication_status=PublicationStatus.PUBLISHED,
+        doctor_availability=DoctorAvailability.VISITING,
+    )
+    recorded_start = date.today() + timedelta(days=20)
+    recorded = DoctorVisit(
+        provider_id=provider.id,
+        location={"address_line_1": "Scheduled Road", "city": "Pune"},
+        start_date=recorded_start,
+        end_date=recorded_start + timedelta(days=1),
+    )
+    db.add(recorded)
+    db.commit()
+    token = _login(client, account.email, "ProviderPass9")
+    headers = {"Authorization": f"Bearer {token}"}
+    base = "/api/v1/provider/portal/profile"
+
+    requests = [
+        ({"visit_additions": None}, "visit_additions"),
+        (
+            {"visit_additions": [_visit_addition(date.today() - timedelta(days=1), date.today())]},
+            "today or later",
+        ),
+        (
+            {"visit_additions": [_visit_addition(date.today() + timedelta(days=3), date.today() + timedelta(days=2))]},
+            "on or after",
+        ),
+        (
+            {
+                "visit_additions": [
+                    {
+                        **_visit_addition(date.today() + timedelta(days=3), date.today() + timedelta(days=4)),
+                        "id": str(uuid4()),
+                    }
+                ]
+            },
+            "Extra inputs",
+        ),
+        (
+            {
+                "visit_additions": [
+                    _visit_addition(recorded_start + timedelta(days=1), recorded_start + timedelta(days=2))
+                ]
+            },
+            "overlap",
+        ),
+        (
+            {
+                "visit_additions": [
+                    _visit_addition(date.today() + timedelta(days=3), date.today() + timedelta(days=4)),
+                    _visit_addition(date.today() + timedelta(days=4), date.today() + timedelta(days=5)),
+                ]
+            },
+            "overlap",
+        ),
+        (
+            {
+                "visit_additions": [
+                    {
+                        "start_date": (date.today() + timedelta(days=3)).isoformat(),
+                        "end_date": (date.today() + timedelta(days=3)).isoformat(),
+                        "location": {"address_line_1": "   ", "city": "Pune"},
+                    }
+                ]
+            },
+            "String should have at least 1 character",
+        ),
+    ]
+    for payload, message in requests:
+        response = client.patch(base, headers=headers, json=payload)
+        assert response.status_code == 422, response.text
+        assert message.lower() in response.text.lower()
+    assert db.query(DoctorVisit).filter_by(provider_id=provider.id).count() == 1
+    assert db.query(ProviderProfileUpdate).filter_by(provider_id=provider.id).count() == 0
+
+
+def test_unpublished_visit_additions_apply_once_and_published_draft_transition_clears(
+    client, db, seeded_admin
+):
+    admin, _ = seeded_admin
+    provider, account = _portal_doctor(
+        db,
+        admin,
+        email="unpublished-visiting-owner@example.com",
+        publication_status=PublicationStatus.UNPUBLISHED,
+        doctor_availability=DoctorAvailability.VISITING,
+    )
+    token = _login(client, account.email, "ProviderPass9")
+    headers = {"Authorization": f"Bearer {token}"}
+    visit_date = date.today()
+    direct = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=headers,
+        json={"visit_additions": [_visit_addition(visit_date, visit_date)]},
+    )
+    assert direct.status_code == 200, direct.text
+    assert direct.json()["profile_update"] is None
+    assert direct.json()["editable_profile"]["visit_additions"] == []
+    assert len(direct.json()["doctor_visits"]) == 1
+    assert direct.json()["doctor_visits"][0]["start_date"] == visit_date.isoformat()
+    assert client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=headers,
+        json={"name": "Unpublished Doctor"},
+    ).status_code == 200
+    assert db.query(DoctorVisit).filter_by(provider_id=provider.id).count() == 1
+
+    published, published_account = _portal_doctor(
+        db,
+        admin,
+        email="transition-visiting-owner@example.com",
+        publication_status=PublicationStatus.PUBLISHED,
+        doctor_availability=DoctorAvailability.VISITING,
+    )
+    published_token = _login(client, published_account.email, "ProviderPass9")
+    published_headers = {"Authorization": f"Bearer {published_token}"}
+    future = date.today() + timedelta(days=12)
+    pending = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=published_headers,
+        json={"visit_additions": [_visit_addition(future, future)]},
+    )
+    assert pending.status_code == 200, pending.text
+    update = db.query(ProviderProfileUpdate).filter_by(provider_id=published.id).one()
+    published.publication_status = PublicationStatus.UNPUBLISHED
+    db.commit()
+    saved = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=published_headers,
+        json={"description": "Now unpublished."},
+    )
+    assert saved.status_code == 200, saved.text
+    assert len(saved.json()["doctor_visits"]) == 1
+    assert saved.json()["editable_profile"]["visit_additions"] == []
+    assert update.proposed_profile["visit_additions"] == []
+    assert client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=published_headers,
+        json={"name": "Unpublished After Review"},
+    ).status_code == 200
+    assert db.query(DoctorVisit).filter_by(provider_id=published.id).count() == 1
+
+
+def test_only_visiting_doctor_owners_can_propose_visits(client, db, seeded_admin):
+    admin, _ = seeded_admin
+    non_visiting_doctor, doctor_account = _portal_doctor(
+        db,
+        admin,
+        email="ongoing-owner@example.com",
+        publication_status=PublicationStatus.UNPUBLISHED,
+        doctor_availability=DoctorAvailability.ONGOING,
+    )
+    clinic, clinic_account = _portal_provider(
+        db,
+        admin,
+        email="clinic-owner-visits@example.com",
+        name="No Visit Clinic",
+        publication_status=PublicationStatus.UNPUBLISHED,
+    )
+    legacy_doctor, legacy_account = _portal_doctor(
+        db,
+        admin,
+        email="legacy-doctor-owner@example.com",
+        publication_status=PublicationStatus.UNPUBLISHED,
+    )
+
+    for provider, account in (
+        (non_visiting_doctor, doctor_account),
+        (clinic, clinic_account),
+        (legacy_doctor, legacy_account),
+    ):
+        token = _login(client, account.email, "ProviderPass9")
+        headers = {"Authorization": f"Bearer {token}"}
+        profile = client.get("/api/v1/provider/portal/profile", headers=headers)
+        assert profile.status_code == 200, profile.text
+        assert profile.json()["can_schedule_visits"] is False
+        assert profile.json()["doctor_availability"] == (
+            "ONGOING" if provider.id == non_visiting_doctor.id else None
+        )
+        response = client.patch(
+            "/api/v1/provider/portal/profile",
+            headers=headers,
+            json={
+                "visit_additions": [
+                    _visit_addition(
+                        date.today() + timedelta(days=5),
+                        date.today() + timedelta(days=5),
+                    )
+                ]
+            },
+        )
+        assert response.status_code == 422, response.text
+        assert db.query(DoctorVisit).filter_by(provider_id=provider.id).count() == 0
+
+
+def test_visit_addition_rejection_revision_and_discard_stay_private(
+    client, db, seeded_admin
+):
+    admin, admin_password = seeded_admin
+    provider, account = _portal_doctor(
+        db,
+        admin,
+        email="revise-visits-owner@example.com",
+        publication_status=PublicationStatus.PUBLISHED,
+        doctor_availability=DoctorAvailability.VISITING,
+    )
+    owner_token = _login(client, account.email, "ProviderPass9")
+    owner_headers = {"Authorization": f"Bearer {owner_token}"}
+    first_start = date.today() + timedelta(days=8)
+    submitted = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=owner_headers,
+        json={"visit_additions": [_visit_addition(first_start, first_start)]},
+    )
+    assert submitted.status_code == 200, submitted.text
+    update_id = submitted.json()["profile_update"]["id"]
+
+    admin_token = _login(client, admin.email, admin_password)
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    rejected = client.post(
+        f"/api/v1/admin/provider-profile-updates/{update_id}/reject",
+        headers=admin_headers,
+        json={"rejection_reason": "Please adjust the proposed dates."},
+    )
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json()["proposed_profile"]["visit_additions"][0]["start_date"] == (
+        first_start.isoformat()
+    )
+    assert db.query(DoctorVisit).filter_by(provider_id=provider.id).count() == 0
+
+    revised_start = date.today() + timedelta(days=14)
+    revised = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=owner_headers,
+        json={"visit_additions": [_visit_addition(revised_start, revised_start, "Jaipur")]},
+    )
+    assert revised.status_code == 200, revised.text
+    assert revised.json()["profile_update"]["id"] == update_id
+    assert revised.json()["profile_update"]["review_status"] == "PENDING_REVIEW"
+    assert revised.json()["editable_profile"]["visit_additions"][0]["location"]["city"] == (
+        "Jaipur"
+    )
+    assert db.query(DoctorVisit).filter_by(provider_id=provider.id).count() == 0
+
+    cleared = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers=owner_headers,
+        json={"visit_additions": []},
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["editable_profile"]["visit_additions"] == []
+    assert db.query(DoctorVisit).filter_by(provider_id=provider.id).count() == 0
+    discarded = client.post(
+        "/api/v1/provider/portal/profile-update/discard",
+        headers=owner_headers,
+    )
+    assert discarded.status_code == 200, discarded.text
+    assert discarded.json()["profile_update"] is None
+
+
+def test_approval_rechecks_fresh_admin_visits_and_appends_nothing_on_conflict(
+    client, db, seeded_admin
+):
+    admin, admin_password = seeded_admin
+    provider, account = _portal_doctor(
+        db,
+        admin,
+        email="admin-conflict-visits-owner@example.com",
+        publication_status=PublicationStatus.PUBLISHED,
+        doctor_availability=DoctorAvailability.VISITING,
+    )
+    owner_token = _login(client, account.email, "ProviderPass9")
+    start = date.today() + timedelta(days=18)
+    submitted = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers={"Authorization": f"Bearer {owner_token}"},
+        json={"visit_additions": [_visit_addition(start, start + timedelta(days=1))]},
+    )
+    assert submitted.status_code == 200, submitted.text
+    update_id = submitted.json()["profile_update"]["id"]
+
+    admin_token = _login(client, admin.email, admin_password)
+    admin_visit = client.post(
+        f"/api/v1/admin/providers/{provider.id}/visits",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json=_visit_addition(start + timedelta(days=1), start + timedelta(days=2), "Delhi"),
+    )
+    assert admin_visit.status_code == 201, admin_visit.text
+    assert len(admin_visit.json()["doctor_visits"]) == 1
+
+    approval = client.post(
+        f"/api/v1/admin/provider-profile-updates/{update_id}/approve",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert approval.status_code == 409, approval.text
+    assert approval.json()["detail"]["code"] == "provider_profile_update_conflict"
+    visits = db.query(DoctorVisit).filter_by(provider_id=provider.id).all()
+    assert len(visits) == 1
+    assert visits[0].location["city"] == "Delhi"
+    db.refresh(provider)
+    assert provider.name == "Dr. Portal Notes"
+
+
+def test_approval_waiting_on_admin_root_lock_rechecks_post_commit_schedule(
+    client, db, seeded_admin
+):
+    admin, _ = seeded_admin
+    provider, account = _portal_doctor(
+        db,
+        admin,
+        email="concurrent-visit-owner@example.com",
+        publication_status=PublicationStatus.PUBLISHED,
+        doctor_availability=DoctorAvailability.VISITING,
+    )
+    start = date.today() + timedelta(days=24)
+    owner_token = _login(client, account.email, "ProviderPass9")
+    submitted = client.patch(
+        "/api/v1/provider/portal/profile",
+        headers={"Authorization": f"Bearer {owner_token}"},
+        json={"visit_additions": [_visit_addition(start, start + timedelta(days=1))]},
+    )
+    assert submitted.status_code == 200, submitted.text
+    update_id = submitted.json()["profile_update"]["id"]
+
+    bind = db.get_bind()
+    if bind.dialect.name != "postgresql":
+        pytest.skip("This locking assertion requires PostgreSQL row locks.")
+    admin_session = Session(bind=bind)
+    admin_repo = ProviderRepository(admin_session)
+    try:
+        # The administrator has already read an empty/stale visit collection.
+        stale_provider = admin_repo.get_by_id(provider.id)
+        assert stale_provider is not None
+        assert stale_provider.doctor_visits == []
+        assert admin_repo.lock_provider(provider.id) is not None
+        admin_pid = admin_session.scalar(text("SELECT pg_backend_pid()"))
+        admin_repo.add_visit(
+            provider.id,
+            {
+                "location": {
+                    "address_line_1": "Concurrent Admin Road",
+                    "city": "Delhi",
+                    "country": "India",
+                },
+                "start_date": start + timedelta(days=1),
+                "end_date": start + timedelta(days=2),
+            },
+        )
+
+        approval_started = Event()
+        approval_finished = Event()
+        outcome: dict[str, object] = {}
+
+        def approve_in_independent_session():
+            session = Session(bind=bind)
+            try:
+                repository = ProviderRepository(session)
+                stale = repository.get_by_id(provider.id)
+                assert stale is not None and stale.doctor_visits == []
+                approval_pid = session.scalar(text("SELECT pg_backend_pid()"))
+                outcome["approval_pid"] = approval_pid
+                approval_started.set()
+                service = ProviderProfileUpdateService(
+                    ProviderProfileUpdateRepository(session), repository
+                )
+                service.approve(update_id, admin.id)
+                outcome["result"] = "approved"
+            except Exception as exc:  # surfaced to the main test thread below
+                outcome["result"] = exc
+            finally:
+                approval_finished.set()
+                session.close()
+
+        worker = Thread(target=approve_in_independent_session)
+        worker.start()
+        assert approval_started.wait(timeout=5)
+        approval_pid = outcome["approval_pid"]
+        deadline = time.monotonic() + 10
+        is_blocked_by_admin = False
+        with Session(bind=bind) as monitor:
+            while time.monotonic() < deadline:
+                is_blocked_by_admin = bool(
+                    monitor.scalar(
+                        text(
+                            "SELECT :admin_pid = ANY(pg_blocking_pids(:approval_pid))"
+                        ),
+                        {"admin_pid": admin_pid, "approval_pid": approval_pid},
+                    )
+                )
+                if is_blocked_by_admin:
+                    break
+                time.sleep(0.05)
+        assert is_blocked_by_admin, "Approval never waited for the administrator's provider lock."
+
+        admin_session.commit()
+        worker.join(timeout=10)
+        assert not worker.is_alive()
+        assert approval_finished.is_set()
+        assert isinstance(outcome["result"], ProviderProfileUpdateConflictError)
+    finally:
+        admin_session.rollback()
+        admin_session.close()
+
+    db.expire_all()
+    visits = db.query(DoctorVisit).filter_by(provider_id=provider.id).all()
+    assert len(visits) == 1
+    assert visits[0].location["city"] == "Delhi"
+    db.refresh(provider)
+    assert provider.name == "Dr. Portal Notes"
 
 
 def test_unpublished_provider_saves_directly_without_a_review_request(client, db, seeded_admin):

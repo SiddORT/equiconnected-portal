@@ -72,6 +72,7 @@ const profileUpdate = {
     visit_stability: 'STABLE_VISIT' as const,
     specialization_ids: [],
     locations: [],
+    visit_additions: [],
     phones: [],
     emails: [],
     photos: [],
@@ -86,6 +87,7 @@ const profileUpdate = {
     visit_stability: 'STABLE_VISIT' as const,
     specialization_ids: [],
     locations: [],
+    visit_additions: [],
     phones: [],
     emails: [],
     photos: [],
@@ -313,6 +315,76 @@ describe('ProviderApplicationsPage', () => {
     expect(await screen.findByText('Current approved')).toBeTruthy();
     expect(screen.getAllByText('Austin Equine Clinic').length).toBeGreaterThan(1);
     expect(screen.getByText('Austin Equine Specialists')).toBeTruthy();
+  });
+
+  it('shows proposed visit additions as inclusive calendar dates with complete location snapshots', async () => {
+    const updateWithVisits = {
+      ...profileUpdate,
+      proposed_profile: {
+        ...profileUpdate.proposed_profile,
+        visit_additions: [
+          {
+            start_date: '2026-08-21',
+            end_date: '2026-08-23',
+            location: {
+              name: 'North barn',
+              address_line_1: '12 Arena Road',
+              address_line_2: 'Unit 4',
+              city: 'Austin',
+              state_province: 'Texas',
+              postal_code: '78701',
+              country: 'United States',
+              latitude: 0,
+              longitude: 0,
+              is_primary: false,
+            },
+          },
+          {
+            start_date: '2026-09-02',
+            end_date: '2026-09-02',
+            location: {
+              address_line_1: '8 Prairie Lane',
+              city: 'Dallas',
+              country: 'United States',
+            },
+          },
+        ],
+      },
+    };
+    vi.mocked(adminApi.listProviderProfileUpdates).mockResolvedValue(response([updateWithVisits]));
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/admin/provider-applications?tab=updates']}><ProviderApplicationsPage /></MemoryRouter>);
+
+    await user.click(await screen.findByLabelText('Actions for Austin Equine Clinic update'));
+    await user.click(await screen.findByText('Compare profiles'));
+    const review = await screen.findByRole('dialog', { name: 'Review provider profile update' });
+    const visitsRow = within(review).getByRole('row', { name: /Visit additions/ });
+    const proposed = within(visitsRow).getAllByRole('cell')[1];
+
+    expect(within(visitsRow).getByText('Existing visit history is retained.')).toBeTruthy();
+    expect(within(proposed).getByText(/added to the existing history; they do not replace scheduled or completed visits/)).toBeTruthy();
+    expect(within(proposed).getByRole('list', { name: 'Proposed additional doctor visits' }).children).toHaveLength(2);
+    expect(within(proposed).getByText('Aug 21, 2026 – Aug 23, 2026 (inclusive)')).toBeTruthy();
+    expect(within(proposed).getByText('Sep 2, 2026 – Sep 2, 2026 (inclusive)')).toBeTruthy();
+    for (const detail of [
+      'Name: North barn',
+      'Address line 1: 12 Arena Road',
+      'Address line 2: Unit 4',
+      'City: Austin',
+      'State / province: Texas',
+      'Postal code: 78701',
+      'Country: United States',
+      'Latitude: 0',
+      'Longitude: 0',
+      'Primary location: No',
+      'Address line 1: 8 Prairie Lane',
+      'City: Dallas',
+    ]) {
+      expect(within(proposed).getAllByText((_content, element) =>
+        element?.tagName === 'LI' &&
+        element.textContent?.replace(/\s+/g, ' ').replace(/\s*:\s*/g, ': ').trim() === detail,
+      ).length).toBeGreaterThan(0);
+    }
   });
 
   it('approves a pending provider profile update from its comparison dialog', async () => {

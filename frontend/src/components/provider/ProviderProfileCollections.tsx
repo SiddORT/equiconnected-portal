@@ -18,7 +18,7 @@ export type PortalQualification = NonNullable<ProviderPortalUpdate['qualificatio
 };
 
 interface ProviderProfileCollectionsProps {
-  activeTab: 'basic' | 'professional' | 'services' | 'contact' | 'photos';
+  activeTab: 'basic' | 'professional' | 'services' | 'contact' | 'photos' | 'visits';
   professionalContent: ReactNode;
   locations: PortalLocation[];
   onLocationsChange: (locations: PortalLocation[]) => void;

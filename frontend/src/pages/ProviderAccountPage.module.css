@@ -15,13 +15,30 @@
 .choice { display: flex; gap: 18px; flex-wrap: wrap; }
 .choice label, .specializations label { display: flex; gap: 7px; align-items: center; font-size: .92rem; }
 .specializations { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; border-bottom: 1px solid var(--border-default); }
+.tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; border-bottom: 1px solid var(--border-default); }
 .tab { min-height: 48px; padding: 9px 12px; border: 1px solid var(--border-default); border-bottom: 0; border-radius: var(--radius-md) var(--radius-md) 0 0; background: var(--bg-subtle); color: var(--text-secondary); cursor: pointer; font: inherit; font-size: .9rem; font-weight: 650; line-height: 1.25; }
 .tab[aria-selected="true"] { border-color: var(--color-primary-700); background: var(--bg-surface); color: var(--color-primary-700); box-shadow: inset 0 3px 0 var(--color-primary-700); }
 .tab:focus-visible { outline: 3px solid var(--color-accent-400); outline-offset: 2px; }
 .tab:disabled { cursor: not-allowed; opacity: .6; }
 .tabPanel { display: grid; gap: 20px; }
 .tabPanel[hidden] { display: none; }
+.visitHeading, .visitSection { display: grid; gap: 12px; }
+.visitHeading h3, .visitSection h4, .visitPeriod h5, .proposedVisit h5 { margin: 0; color: var(--text-primary); }
+.visitHeading p, .visitSectionHeader p, .visitFieldActions p { margin: 0; color: var(--text-secondary); font-size: .9rem; line-height: 1.5; }
+.visitSectionHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.visitSectionHeader > div { display: grid; gap: 5px; }
+.visitPeriod { display: grid; gap: 10px; }
+.visitCards { display: grid; gap: 12px; }
+.visitCard { display: grid; gap: 6px; padding: 16px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-subtle); }
+.visitDates, .visitLocation { margin: 0; color: var(--text-primary); line-height: 1.5; }
+.visitDates { font-weight: 700; }
+.visitEmpty { margin: 0; color: var(--text-secondary); font-size: .9rem; line-height: 1.5; }
+.proposedVisit { display: grid; gap: 14px; margin: 0; padding: 18px; border: 1px solid var(--border-default); border-radius: var(--radius-md); }
+.proposedVisit legend { padding: 0 5px; color: var(--text-primary); font-size: .96rem; font-weight: 700; }
+.visitFieldActions { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.removeVisit { flex: 0 0 auto; border: 0; background: transparent; color: var(--color-error); cursor: pointer; font: inherit; font-size: .88rem; font-weight: 700; }
+.removeVisit:disabled { cursor: not-allowed; opacity: .55; }
+.visitGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .specializationSection { display: grid; gap: 14px; }
 .specializationHeader { display: flex; flex-wrap: wrap; flex-direction: column; align-items: flex-start; gap: 12px; }
 .specializationHeader h3, .tabPanel h3 { margin: 0; color: var(--text-primary); font-size: 1.12rem; }
@@ -58,6 +75,8 @@
   .card { padding: 20px 16px; }
   .specializations { grid-template-columns: 1fr; }
   .tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .visitGrid { grid-template-columns: 1fr; }
+  .visitSectionHeader, .visitFieldActions { flex-direction: column; }
   .tab { padding: 9px 7px; font-size: .84rem; }
   .specializationHeader { align-items: flex-start; flex-direction: column; }
   .drawerHeader { flex-direction: column; }

@@ -24,6 +24,7 @@ from app.repositories.provider_repository import ProviderRepository
 from app.repositories.review_repository import ReviewRepository
 from app.services.invitation_service import InvalidProviderDataError
 from app.services.provider_profile_update_service import (
+    append_visit_additions,
     apply_editable_profile,
     editable_profile_from_snapshot,
     editable_profile_from_provider,
@@ -271,6 +272,7 @@ class ProviderPortalService:
             "experience_description", "qualifications",
             "maximum_working_radius_km", "emergency_services_available",
             "emergency_contact_number",
+            "visit_additions",
         }
         safe_fields = {key: value for key, value in fields.items() if key in allowed}
         if not safe_fields:
@@ -296,7 +298,11 @@ class ProviderPortalService:
         editable = sync_editable_profile_contacts(editable, set(safe_fields))
         self._validate_photo_references(provider, editable)
         validate_editable_profile(
-            provider, editable, self._providers, supplied_fields=set(safe_fields)
+            provider,
+            editable,
+            self._providers,
+            supplied_fields=set(safe_fields),
+            previous_visit_additions=base.visit_additions,
         )
 
         if provider.publication_status.value == "PUBLISHED":
@@ -330,7 +336,26 @@ class ProviderPortalService:
                 metadata={"provider_id": str(provider.id), "updated_fields": sorted(safe_fields)},
             )
         else:
+            # Unpublished profile changes are applied directly. Revalidate any
+            # retained proposals against the now-current schedule, but do not
+            # make a formerly timely addition invalid merely because review
+            # was delayed or the listing became unpublished.
+            if editable.visit_additions:
+                validate_editable_profile(provider, editable, self._providers)
             apply_editable_profile(provider, editable, self._providers)
+            append_visit_additions(provider, editable, self._providers)
+            if (
+                profile_update is not None
+                and profile_update.review_status
+                in (
+                    ProviderProfileUpdateStatus.PENDING_REVIEW,
+                    ProviderProfileUpdateStatus.REJECTED,
+                )
+                and profile_update.proposed_profile.get("visit_additions")
+            ):
+                cleared_snapshot = dict(profile_update.proposed_profile)
+                cleared_snapshot["visit_additions"] = []
+                profile_update.proposed_profile = cleared_snapshot
             self._audit.record(
                 "provider_portal.profile_updated",
                 context=audit_context,

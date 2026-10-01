@@ -54,6 +54,7 @@ class ProviderRepository:
                 selectinload(Provider.qualifications),
                 selectinload(Provider.provider_languages).selectinload(ProviderLanguage.language),
             )
+            .execution_options(populate_existing=True)
         )
 
     def lock_provider(self, provider_id: UUID) -> Provider | None:
@@ -62,12 +63,14 @@ class ProviderRepository:
             select(Provider)
             .where(Provider.id == provider_id)
             .with_for_update(of=Provider)
+            .execution_options(populate_existing=True)
         )
 
     def visits(self, provider_id: UUID) -> list[DoctorVisit]:
         return list(self._db.scalars(
             select(DoctorVisit).where(DoctorVisit.provider_id == provider_id)
             .order_by(DoctorVisit.start_date, DoctorVisit.id)
+            .execution_options(populate_existing=True)
         ))
 
     def add_visit(self, provider_id: UUID, fields: dict) -> DoctorVisit:

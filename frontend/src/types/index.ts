@@ -626,9 +626,13 @@ export interface DoctorVisitLocation {
   address_line_1: string;
   city: string;
   name?: string | null;
+  address_line_2?: string | null;
   state_province?: string | null;
   country?: string | null;
   postal_code?: string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  is_primary?: boolean;
 }
 
 export interface DoctorVisitCreate {
@@ -667,6 +671,9 @@ export interface ProviderPortalProfile {
   emails: ProviderEmail[];
   doctor_profile: DoctorProfileInfo | null;
   doctor_fields_available: boolean;
+  doctor_availability: DoctorAvailability | null;
+  can_schedule_visits: boolean;
+  doctor_visits: DoctorVisit[];
   qualifications: Array<{
     title: string;
     institution: string | null;
@@ -696,6 +703,7 @@ export interface ProviderPortalUpdate {
   phones?: ProviderPhoneCreate[];
   emails?: ProviderEmailCreate[];
   photos?: ProviderPhotoCreate[];
+  visit_additions?: DoctorVisitCreate[];
   professional_title?: string | null;
   biography?: string | null;
   experience_description?: string | null;
@@ -725,6 +733,7 @@ export interface ProviderPortalEditableProfile extends ProviderPortalUpdate {
   phones: ProviderPhoneCreate[];
   emails: ProviderEmailCreate[];
   photos: ProviderPhotoCreate[];
+  visit_additions: DoctorVisitCreate[];
   qualifications: NonNullable<ProviderPortalUpdate['qualifications']>;
 }
 
