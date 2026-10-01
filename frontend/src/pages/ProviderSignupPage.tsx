@@ -22,6 +22,7 @@ import {
 } from '@/utils/postalLookup';
 import styles from './SignupPage.module.css';
 import { VerificationResend } from './VerificationResend';
+import { usePublicTrafficRoute } from '@/analytics/trafficTracking';
 
 type FormErrors = Partial<Record<keyof ProviderRegistrationRequest, string>>;
 
@@ -107,6 +108,7 @@ export function validateProviderSignup(
 }
 
 export function ProviderSignupPage() {
+  usePublicTrafficRoute('provider_signup', '/provider/signup');
   const [form, setForm] = useState<ProviderRegistrationRequest>(initialForm);
   const [mobileCountry, setMobileCountry] = useState(DEFAULT_COUNTRY);
   const [emergencyCountry, setEmergencyCountry] = useState(DEFAULT_COUNTRY);

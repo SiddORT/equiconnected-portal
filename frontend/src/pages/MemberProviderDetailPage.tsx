@@ -2,6 +2,12 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type Keyboard
 import { Link, useLocation, useParams } from 'react-router-dom';
 import * as providersApi from '@/api/providers';
 import { recordMemberHistory } from '@/api/memberHistoryRecording';
+import {
+  hasSensitiveTrafficUrlParameter,
+  isNewTrafficNavigation,
+  recordMemberTrafficView,
+  type TrafficRouteLocation,
+} from '@/analytics/trafficTracking';
 import { extractErrorMessage } from '@/api/client';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { Alert } from '@/components/ui/Alert';
@@ -113,6 +119,9 @@ export function MemberProviderDetailPage() {
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
   const reviewRef = useRef<HTMLTextAreaElement>(null);
   const recordedProfile = useRef<string | null>(null);
+  const trafficLocation = useRef<TrafficRouteLocation | null>(null);
+  const activeProfileId = useRef(id);
+  activeProfileId.current = id;
   const reviewSubmitting = useRef(false);
   const closeGallery = useCallback(() => setGalleryIndex(null), []);
 
@@ -129,6 +138,22 @@ export function MemberProviderDetailPage() {
       setProvider(detail);
       setRating(String(detail.own_review?.rating ?? 5));
       setComment(detail.own_review?.comment ?? '');
+      if (activeProfileId.current === id) {
+        const currentLocation: TrafficRouteLocation = {
+          key: location.key,
+          pathname: location.pathname,
+          search: location.search,
+          hash: location.hash,
+          category: 'provider_profile',
+        };
+        if (
+          !hasSensitiveTrafficUrlParameter(location.search, location.hash)
+          && isNewTrafficNavigation(trafficLocation.current, currentLocation)
+        ) {
+          recordMemberTrafficView('provider_profile', id);
+        }
+        trafficLocation.current = currentLocation;
+      }
       const eventKey = `provider:${location.key}:${id}`;
       if (recordedProfile.current !== eventKey) {
         recordedProfile.current = eventKey;
@@ -141,7 +166,7 @@ export function MemberProviderDetailPage() {
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, [id, location.key]);
+  }, [id, location.hash, location.key, location.pathname, location.search]);
 
   useEffect(() => {
     void load().catch(() => undefined);

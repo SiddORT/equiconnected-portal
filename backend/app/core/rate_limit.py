@@ -37,6 +37,7 @@ _registration_attempts: dict[str, deque[float]] = defaultdict(deque)
 _email_verification_attempts: dict[str, deque[float]] = defaultdict(deque)
 _verification_resend_attempts: dict[str, deque[float]] = defaultdict(deque)
 _smtp_test_attempts: dict[str, deque[float]] = defaultdict(deque)
+_analytics_traffic_attempts: dict[str, deque[float]] = defaultdict(deque)
 
 
 # ── Dependency ────────────────────────────────────────────────────────────────
@@ -224,3 +225,14 @@ def check_smtp_test_rate_limit(user_id: str) -> None:
                 headers={"Retry-After": str(window_seconds)},
             )
         q.append(now)
+
+
+def check_analytics_traffic_rate_limit(request: Request) -> None:
+    """Bound traffic-ingestion abuse using only the in-memory rate window."""
+    _check_rate_limit(
+        request,
+        _analytics_traffic_attempts,
+        window_seconds=60,
+        max_attempts=60,
+        message="Too many traffic events. Please try again shortly.",
+    )

@@ -44,6 +44,7 @@ import { LanguagesPage } from '@/pages/admin/LanguagesPage';
 import { MemberReviewsPage } from '@/pages/MemberReviewsPage';
 import { MemberHistoryPage } from '@/pages/MemberHistoryPage';
 import { PlatformFeedbackPage, PlatformFeedbackDetailPage } from '@/pages/admin/PlatformFeedbackPage';
+import { AnalyticsPage } from '@/pages/admin/AnalyticsPage';
 
 const AnimationPage = lazy(() =>
   import('@/pages/AnimationPage').then((module) => ({ default: module.AnimationPage }))
@@ -85,6 +86,7 @@ export function AppRouter() {
           <Route element={<AdminLayout />}>
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/dashboard" element={<DashboardPage />} />
+            <Route path="/admin/analytics" element={<AnalyticsPage />} />
             <Route path="/admin/specializations" element={<SpecializationsPage />} />
             <Route path="/admin/languages" element={<LanguagesPage />} />
             <Route path="/admin/providers" element={<ProvidersPage />} />

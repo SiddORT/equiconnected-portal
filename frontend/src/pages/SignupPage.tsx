@@ -16,6 +16,7 @@ import { DEFAULT_COUNTRY } from '@/utils/countryCodes';
 import { getStateOptions } from '@/utils/geography';
 import styles from './SignupPage.module.css';
 import { VerificationResend } from './VerificationResend';
+import { usePublicTrafficRoute } from '@/analytics/trafficTracking';
 
 type FormState = RegistrationRequest;
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -70,6 +71,7 @@ export function validateSignup(form: FormState): FormErrors {
 }
 
 export function SignupPage() {
+  usePublicTrafficRoute('signup', '/signup');
   const [form, setForm] = useState<FormState>(initialForm);
   const [mobileCountry, setMobileCountry] = useState(DEFAULT_COUNTRY);
   const [errors, setErrors] = useState<FormErrors>({});

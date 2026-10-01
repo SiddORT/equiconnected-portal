@@ -160,6 +160,7 @@ development database target before running either command; do not run on product
 | `POST /api/v1/auth/logout` | Revoke refresh token |
 | `GET  /api/v1/auth/me` | Current user profile |
 | `GET  /api/v1/admin/dashboard/stats` | Dashboard stats: user total, provider counts, map markers, and analytics |
+| `GET  /api/v1/admin/analytics/{summary,series,breakdowns,provider-ranking,export}` | Protected analytical reports and aggregate CSV downloads |
 | `GET  /api/v1/admin/activity-logs` | Paginated, date-filtered administrator activity history |
 | `GET/POST /api/v1/admin/specializations` | List / create specializations |
 | `GET/PATCH /api/v1/admin/specializations/{id}` | Get / update specialization |
@@ -172,6 +173,17 @@ development database target before running either command; do not run on product
 - Passwords hashed with Argon2id; access tokens are short-lived JWTs (15 min)
 - Specialization names are case-insensitively unique at the DB level (unique constraint)
 - Deactivating a specialization sets `is_active=false` — records are never deleted
+
+## Detailed analytics
+
+`/admin/analytics` is separate from the operational dashboard; the dashboard's
+map and visiting-provider calendar remain available. Metric sources, filter
+scopes, current snapshots versus period activity, coverage, and CSV definitions
+are documented in `docs/analytics-api.md`. The prospective aggregate-only
+traffic collection contract and eligible routes are documented in
+`docs/analytics-traffic-contract.md`. Keep the legacy homepage counter separate
+from new page views and daily browser visitor estimates; neither counts
+verified unique people.
 
 ## Phases completed
 

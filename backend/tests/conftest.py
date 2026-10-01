@@ -43,6 +43,11 @@ TEST_SCHEMA = "test_equiconnected"
 # ── Tables that need truncation in FK-safe reverse order ─────────────────────
 # Leaf tables first so FK constraints are satisfied.
 _CLEANUP_TABLES = [
+    "analytics_traffic_tracking_receipts",
+    "analytics_traffic_provider_profile_daily",
+    "analytics_traffic_page_category_daily",
+    "analytics_traffic_visitor_daily",
+    "analytics_traffic_tracking_metadata",
     "member_feedback_actions",
     "member_feedback",
     "member_browsing_history",
@@ -191,6 +196,14 @@ def client(db):
 
     def _no_rate_limit():
         return None
+
+    # TestClient uses one shared synthetic address. Preserve rate limiting
+    # within each test, but do not let unrelated tests consume its allowance.
+    from app.core import rate_limit
+    with rate_limit._lock:
+        for name, bucket in vars(rate_limit).items():
+            if name.endswith("_attempts") and isinstance(bucket, dict):
+                bucket.clear()
 
     app.dependency_overrides[get_db] = _override_get_db
     app.dependency_overrides[check_login_rate_limit] = _no_rate_limit

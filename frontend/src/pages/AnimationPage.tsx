@@ -1,3 +1,5 @@
+import { usePublicTrafficRoute } from '@/analytics/trafficTracking';
+
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -34,6 +36,7 @@ function useReducedMotion() {
 }
 
 export function AnimationPage() {
+  usePublicTrafficRoute('animation', '/animation');
   const [sceneStatus, setSceneStatus] = useState<SceneStatus>('loading');
   const [phase, setPhase] = useState<TimelinePhase>('opening');
   const [playToken, setPlayToken] = useState(0);

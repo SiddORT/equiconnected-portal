@@ -6,18 +6,23 @@ from datetime import datetime, timezone
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import CurrentUser
 from app.db.session import get_db
+from app.core.rate_limit import check_analytics_traffic_rate_limit
+from app.core.time_standards import system_today
 from app.models.enums import ProviderType, VisitStability
 from app.models.provider_favorite import ProviderFavorite
 from app.models.user import PUBLIC_ACCOUNT_ROLE_NAMES, User
 from app.repositories.audit_repository import context_from_request
 from app.repositories.review_repository import ReviewRepository
+from app.repositories.system_settings_repository import SystemSettingsRepository
+from app.schemas.analytics_traffic import MemberTrafficViewRequest
 from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.schemas.provider import selected_provider_photo
 from app.schemas.review import (
@@ -36,6 +41,7 @@ from app.services.review_service import (
     ReviewService,
     ReviewStateError,
 )
+from app.services.analytics_traffic_service import record_successful_view
 
 router = APIRouter(prefix="/member/providers", tags=["Member Provider Directory"])
 member_reviews_router = APIRouter(prefix="/member/reviews", tags=["Member Reviews"])
@@ -188,6 +194,59 @@ def _member_review_item(review, provider) -> MemberReviewItem:
 @router.get("/filters")
 def member_provider_filters(user: MemberUser, svc: _Svc) -> dict:
     return svc.directory_facets()
+
+
+@router.post(
+    "/traffic-view",
+    status_code=204,
+    dependencies=[Depends(check_analytics_traffic_rate_limit)],
+)
+def record_member_traffic_view(
+    body: MemberTrafficViewRequest,
+    user: MemberUser,
+    svc: _Svc,
+    db: _DB,
+) -> Response:
+    """Record only successful authorized directory/profile route views."""
+    if body.category == "provider_profile":
+        if body.provider_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": "provider_id_required",
+                    "message": "A provider identifier is required.",
+                },
+            )
+        try:
+            svc.get_discoverable(body.provider_id)
+        except DiscoverableProviderNotFoundError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "provider_not_found",
+                    "message": "Provider not found.",
+                },
+            ) from None
+
+    try:
+        timezone_name = SystemSettingsRepository(db).get_or_create().timezone
+        record_successful_view(
+            db,
+            visit_date=system_today(timezone_name),
+            category=body.category,
+            navigation_key=body.navigation_key,
+            first_eligible_view_today=body.first_eligible_view_today,
+            provider_id=body.provider_id,
+        )
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "traffic_tracking_unavailable",
+                "message": "Traffic tracking is temporarily unavailable.",
+            },
+        ) from None
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 def _saved_ids(db: Session, member_id: UUID, provider_ids: list[UUID]) -> set[UUID]:

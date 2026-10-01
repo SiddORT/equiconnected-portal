@@ -44,3 +44,4 @@
 - [CSS selector regression checks](css-selector-regression-checks.md) — Vitest can stub even raw CSS imports; use the actual stylesheet when testing nested-control isolation.
 - [Contact enquiry acceptance](contact-acceptance.md) — durable storage defines acceptance; optional notification failure must never prompt duplicate submissions.
 - [First-password recovery](first-password-recovery.md) — a lost setup response may follow a successful commit; offer sign-in as well as retry without declaring the link invalid.
+- [Analytics coverage evidence](analytics-coverage-evidence.md) — surviving event dates do not establish complete historical collection coverage.

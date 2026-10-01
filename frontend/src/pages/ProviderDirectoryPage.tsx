@@ -2,6 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import * as providersApi from '@/api/providers';
 import { historyFilters, recordMemberHistory } from '@/api/memberHistoryRecording';
+import {
+  hasSensitiveTrafficUrlParameter,
+  isNewTrafficNavigation,
+  recordMemberTrafficView,
+  type TrafficRouteLocation,
+} from '@/analytics/trafficTracking';
 import { extractErrorMessage } from '@/api/client';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
@@ -73,6 +79,7 @@ export function ProviderDirectoryPage() {
   const filtersRef = useRef<HTMLSelectElement>(null);
   const requestId = useRef(0);
   const lastRecordedSearch = useRef<string | null>(null);
+  const trafficLocation = useRef<TrafficRouteLocation | null>(null);
   useEffect(() => () => { geoRequestId.current++; requestId.current++; }, []);
   const query = searchParams.toString();
   const closestFirst = searchParams.get('closest_first') === 'true';
@@ -142,6 +149,30 @@ export function ProviderDirectoryPage() {
     });
     return () => { requestId.current++; };
   }, [key, retry]); // key includes the applied query and opt-in coordinates
+
+  useEffect(() => {
+    if (!ready) return;
+    const currentLocation: TrafficRouteLocation = {
+      key: location.key,
+      pathname: location.pathname,
+      search: location.search,
+      hash: location.hash,
+      category: 'provider_directory',
+    };
+    if (
+      !hasSensitiveTrafficUrlParameter(location.search, location.hash)
+      && isNewTrafficNavigation(trafficLocation.current, currentLocation)
+    ) {
+      recordMemberTrafficView('provider_directory');
+    }
+    trafficLocation.current = currentLocation;
+  }, [
+    ready,
+    location.hash,
+    location.key,
+    location.pathname,
+    location.search,
+  ]);
 
   const setDraftValue = (name: string, value: string) => setDraft(previous => {
     const next = new URLSearchParams(previous);

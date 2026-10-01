@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getDashboardStats } from '@/api/admin';
 import { extractErrorMessage } from '@/api/client';
 import { useAuth } from '@/app/AuthContext';
+import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -48,6 +49,7 @@ export function DashboardPage() {
         title="Dashboard"
         subtitle={`Welcome back, ${user?.full_name ?? 'Admin'}`}
         breadcrumbs={[{ label: 'Admin' }, { label: 'Dashboard' }]}
+        actions={<Link to="/admin/analytics" className={styles.analyticsLink}>View detailed analytics <span aria-hidden="true">→</span></Link>}
       />
 
       <div className={styles.body}>

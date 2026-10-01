@@ -1,10 +1,21 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { StrictMode } from 'react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import * as providersApi from '@/api/providers';
+import { recordMemberTrafficView } from '@/analytics/trafficTracking';
 import { MemberProviderDetailPage } from './MemberProviderDetailPage';
+
+const { recordTrafficView } = vi.hoisted(() => ({
+  recordTrafficView: vi.fn(),
+}));
+
+vi.mock('@/analytics/trafficTracking', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/analytics/trafficTracking')>()),
+  recordMemberTrafficView: recordTrafficView,
+}));
 
 vi.mock('@/api/providers', () => ({
   getMemberProvider: vi.fn(),
@@ -43,6 +54,31 @@ afterEach(() => {
 });
 
 describe('MemberProviderDetailPage', () => {
+  it('records one profile view when Strict Mode replays and races successful loads', async () => {
+    const pending: Array<
+      (value: Awaited<ReturnType<typeof providersApi.getMemberProvider>>) => void
+    > = [];
+    vi.mocked(providersApi.getMemberProvider).mockImplementation(
+      () => new Promise((resolve) => pending.push(resolve)),
+    );
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={['/providers/provider-1']}>
+          <Routes><Route path="/providers/:id" element={<MemberProviderDetailPage />} /></Routes>
+        </MemoryRouter>
+      </StrictMode>,
+    );
+
+    await waitFor(() => expect(pending).toHaveLength(2));
+    await act(async () => {
+      pending.forEach((resolve) => resolve(detail));
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Austin Equine Clinic' })).toBeTruthy();
+    await waitFor(() => expect(recordMemberTrafficView).toHaveBeenCalledTimes(1));
+    expect(recordMemberTrafficView).toHaveBeenCalledWith('provider_profile', 'provider-1');
+  });
+
   it('shows the provider profile, preserves zero years, and uses ordered, persisted doctor details', async () => {
     vi.mocked(providersApi.getMemberProvider).mockResolvedValue({
       ...detail,
@@ -120,7 +156,9 @@ describe('MemberProviderDetailPage', () => {
       </MemoryRouter>
     );
     expect((await screen.findByRole('link', { name: 'Back to providers' })).getAttribute('href')).toBe('/providers');
+    expect(recordMemberTrafficView).toHaveBeenCalledTimes(1);
     view.unmount();
+    recordTrafficView.mockClear();
     vi.mocked(providersApi.getMemberProvider).mockRejectedValue(new Error('Not found'));
     render(
       <MemoryRouter initialEntries={[{
@@ -130,6 +168,7 @@ describe('MemberProviderDetailPage', () => {
       </MemoryRouter>
     );
     expect((await screen.findByRole('link', { name: 'Back to providers' })).getAttribute('href')).toBe('/providers');
+    expect(recordMemberTrafficView).not.toHaveBeenCalled();
   });
   it('preserves directory search and coordinates on normal back navigation', async () => {
     vi.mocked(providersApi.getMemberProvider).mockResolvedValue(detail);

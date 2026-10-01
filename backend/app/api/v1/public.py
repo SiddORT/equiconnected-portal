@@ -3,11 +3,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.rate_limit import (
     check_contact_rate_limit,
+    check_analytics_traffic_rate_limit,
     check_public_provider_rate_limit,
     check_public_visit_rate_limit,
     check_subscriber_rate_limit,
@@ -15,6 +16,8 @@ from app.core.rate_limit import (
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.public_visit import PublicVisitDaily
+from app.schemas.analytics_traffic import PublicTrafficViewRequest
+from app.services.analytics_traffic_service import record_successful_view
 from app.models.enums import ProviderType
 from app.repositories.review_repository import ReviewRepository
 from app.repositories.system_settings_repository import SystemSettingsRepository
@@ -174,6 +177,36 @@ def record_public_visit(db: _DB) -> Response:
     else:
         db.commit()
 
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/traffic/page-view",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(check_analytics_traffic_rate_limit)],
+)
+def record_public_traffic_page_view(
+    body: PublicTrafficViewRequest,
+    db: _DB,
+) -> Response:
+    """Best-effort ingestion for fixed, allowlisted public page categories."""
+    try:
+        timezone_name = SystemSettingsRepository(db).get_or_create().timezone
+        record_successful_view(
+            db,
+            visit_date=system_today(timezone_name),
+            category=body.category,
+            navigation_key=body.navigation_key,
+            first_eligible_view_today=body.first_eligible_view_today,
+        )
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "traffic_tracking_unavailable",
+                "message": "Traffic tracking is temporarily unavailable.",
+            },
+        ) from None
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

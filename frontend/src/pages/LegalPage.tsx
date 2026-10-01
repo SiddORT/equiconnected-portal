@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import styles from './LegalPage.module.css';
+import { usePublicTrafficRoute } from '@/analytics/trafficTracking';
 
 type LegalSection = {
   title: string;
@@ -205,6 +206,10 @@ function LegalSection({ section, number }: { section: LegalSection; number: numb
 }
 
 export function LegalPage({ kind }: { kind: 'terms' | 'privacy' }) {
+  usePublicTrafficRoute(
+    kind,
+    kind === 'terms' ? '/terms-of-service' : '/privacy-policy',
+  );
   const location = useLocation();
   const content = kind === 'terms' ? TERMS_CONTENT : PRIVACY_CONTENT;
   const otherPolicy = kind === 'terms'

@@ -1,0 +1,18 @@
+.wrap { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-lg); overflow: hidden; }
+.header { padding: 1.15rem 1.25rem; display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; }
+.header h3 { font-size: var(--text-base); color: var(--text-primary); }
+.header p { color: var(--text-secondary); font-size: var(--text-xs); margin-top: .25rem; }
+.search { display: grid; gap: .3rem; color: var(--text-secondary); font-size: .7rem; }
+.search input { width: 210px; padding: .55rem .7rem; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-page); color: var(--text-primary); font: inherit; font-size: .8rem; }
+.scroll { overflow-x: auto; }
+.scroll table { min-width: 940px; width: 100%; border-collapse: collapse; font-size: .76rem; }
+.scroll th, .scroll td { text-align: left; padding: .7rem .75rem; border-top: 1px solid var(--border-default); white-space: nowrap; }
+.scroll thead th { background: var(--color-primary-50); color: var(--color-primary-900); font-size: .67rem; letter-spacing: .035em; }
+.scroll thead button { border: 0; background: none; color: inherit; font: inherit; cursor: pointer; padding: 0; }
+.scroll tbody th { font-weight: 600; }
+.scroll a { color: var(--color-primary-700); }
+.scroll tbody td:nth-child(n+3):nth-child(-n+7) { font-variant-numeric: tabular-nums; }
+.empty { text-align: center !important; padding: 2.5rem !important; color: var(--text-secondary); }
+.skeleton span { display: block; height: 22px; width: 75%; border-radius: 5px; background: linear-gradient(90deg, var(--color-primary-50), var(--bg-page), var(--color-primary-50)); }
+.skeleton td { padding: .85rem; }
+@media(max-width: 650px) { .header { align-items: stretch; flex-direction: column; } .search input { width: 100%; } }

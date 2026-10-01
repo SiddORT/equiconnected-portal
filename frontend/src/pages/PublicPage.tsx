@@ -27,6 +27,7 @@ import finalPhoto from '@/components/public/home-v2/media/final-horses.jpg';
 import styles from '@/components/public/home-v2/HomeV2.module.css';
 import type { SubscriberRegistrationType } from '@/types';
 import ownerPortrait from '@/components/public/home-v2/media/owner-portrait.jpg';
+import { usePublicTrafficRoute } from '@/analytics/trafficTracking';
 
 const REGISTRATION_TYPES: Array<{ value: SubscriberRegistrationType; label: string }> = [
   { value: 'HORSE_OWNER', label: 'Horse owner' },
@@ -42,6 +43,7 @@ function Arrow() {
 }
 
 export function PublicPage() {
+  usePublicTrafficRoute('home', '/');
   const { isAuthenticated, isLoading: authLoading, user, logout } = useAuth();
   const member = !authLoading && isAuthenticated && hasMemberRole(user);
   const { settings, isLoading: settingsLoading, error: settingsError } = useTimeSettings();
