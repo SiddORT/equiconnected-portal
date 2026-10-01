@@ -19,13 +19,14 @@
 .field { min-width: 0; display: flex; flex-direction: column; }
 .field > span, .field > label { color: #746e63; font-size: 10px; font-weight: 700; letter-spacing: .15em; line-height: 1.5; text-transform: uppercase; }
 .field small { font-size: 10px; font-weight: 400; letter-spacing: 0; text-transform: none; }
-.field input, .field select, .field textarea { width: 100%; min-width: 0; border: 0; border-bottom: 1px solid rgba(39,36,30,.25); border-radius: 0; background: transparent; color: #27241e; font: 500 14px var(--sans,Arial,sans-serif); }
-.field input, .field select { height: 52px; }
-.field textarea { height: 140px; resize: vertical; padding: 16px 0; }
-.field input::placeholder, .field textarea::placeholder { color: #8b857a; }
-.field input:focus, .field select:focus, .field textarea:focus { border-bottom-color: #98753d; outline: none; }
+/* Only style our own controls, not inputs inside the shared country picker. */
+.field > input, .field > select, .field > textarea, .phoneRow > input { width: 100%; min-width: 0; border: 0; border-bottom: 1px solid rgba(39,36,30,.25); border-radius: 0; background: transparent; color: #27241e; font: 500 14px var(--sans,Arial,sans-serif); }
+.field > input, .field > select, .phoneRow > input { height: 52px; }
+.field > textarea { height: 140px; resize: vertical; padding: 16px 0; }
+.field > input::placeholder, .field > textarea::placeholder, .phoneRow > input::placeholder { color: #8b857a; }
+.field > input:focus, .field > select:focus, .field > textarea:focus, .phoneRow > input:focus { border-bottom-color: #98753d; outline: none; }
 .phoneRow { display: flex; align-items: center; border-bottom: 1px solid rgba(39,36,30,.25); }
-.phoneRow input { flex: 1; width: 0; border: 0; }
+.phoneRow > input { flex: 1; width: 0; border: 0; }
 .phoneRow:focus-within { border-bottom-color: #98753d; }
 .messageField { grid-column: 1 / -1; }
 .formBottom { display: flex; align-items: center; justify-content: space-between; gap: 22px; margin-top: 25px; }
@@ -38,6 +39,13 @@
 .confirmation { padding: 30px 0; border-top: 1px solid rgba(39,36,30,.2); }
 .confirmation h3 { margin: 0; font: 400 32px var(--serif,Georgia,serif); }
 .confirmation p { margin: 8px 0 0; color: #756f63; }
+/* Anchor the desktop popover to the full phone row so narrow columns
+   cannot push it beyond the form's right edge. Keep touch positioning shared. */
+@media (pointer: fine), (pointer: none) {
+  .phoneRow { position: relative; }
+  .phoneRow > div { position: static; }
+  .phoneRow [role="dialog"] { left: auto; right: 0; width: min(260px, calc(100vw - 40px)); }
+}
 @media (max-width: 900px) {
   .section { grid-template-columns: 1fr; }
   .visual { min-height: 470px; }

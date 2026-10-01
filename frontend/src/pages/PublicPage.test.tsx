@@ -5,6 +5,8 @@ import { MemoryRouter } from 'react-router-dom';
 import * as publicApi from '@/api/public';
 import { useAuth } from '@/app/AuthContext';
 import { PublicPage } from './PublicPage';
+import contactStyles from '@/components/public/home-v2/ContactSection.module.css';
+import { readFileSync } from 'node:fs';
 
 vi.mock('@/api/public', () => ({
   recordPublicVisit: vi.fn(() => Promise.resolve()),
@@ -115,6 +117,97 @@ describe('PublicPage', () => {
     const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
     expect(within(navigation).getByRole('button', { name: 'Sign in' }).getAttribute('aria-expanded')).toBe('false');
     expect(within(navigation).getByRole('button', { name: 'Join EquiConnected' }).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('searches contact countries by name and dial code and submits the selected prefix', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
+    const user = userEvent.setup();
+    renderPage();
+    const form = screen.getByRole('form', { name: 'Contact EquiConnected' });
+    const contact = within(form);
+    await user.click(contact.getByRole('button', { name: 'Country code: United Arab Emirates +971' }));
+    const search = contact.getByRole('textbox', { name: 'Search countries' });
+    expect(search.getAttribute('placeholder')).toBe('Search country or code…');
+    await waitFor(() => expect(document.activeElement).toBe(search));
+    await user.type(search, 'United Kingdom');
+    const countries = within(contact.getByRole('listbox', { name: 'Countries' }));
+    expect(countries.getAllByRole('option')).toHaveLength(1);
+    expect(countries.getByRole('option').textContent).toContain('United Kingdom');
+    await user.clear(search);
+    await user.type(search, '+44');
+    await user.click(contact.getByRole('option', { name: /United Kingdom/ }));
+    expect(contact.queryByRole('dialog', { name: 'Select country code' })).toBeNull();
+    expect(contact.getByRole('button', { name: 'Country code: United Kingdom +44' })).toBeTruthy();
+
+    await user.type(contact.getByRole('textbox', { name: 'Full name' }), 'Sam Rider');
+    await user.type(contact.getByRole('textbox', { name: 'Email' }), 'sam@example.com');
+    await user.type(contact.getByRole('textbox', { name: /Phone/ }), '7700 900123');
+    await user.type(contact.getByRole('textbox', { name: 'Message' }), 'Please tell me more about the platform.');
+    await user.click(contact.getByRole('button', { name: 'Send message' }));
+    await waitFor(() => expect(publicApi.sendContactMessage).toHaveBeenCalledWith({
+      name: 'Sam Rider',
+      email: 'sam@example.com',
+      enquiry_type: 'general',
+      phone: '+44 7700 900123',
+      message: 'Please tell me more about the platform.',
+    }));
+  });
+
+  it('keeps contact country keyboard selection, Escape and outside dismissal working', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
+    const user = userEvent.setup();
+    renderPage();
+    const contact = within(screen.getByRole('form', { name: 'Contact EquiConnected' }));
+    const trigger = contact.getByRole('button', { name: 'Country code: United Arab Emirates +971' });
+    trigger.focus();
+    await user.keyboard('{ArrowDown}');
+    const search = contact.getByRole('textbox', { name: 'Search countries' });
+    await waitFor(() => expect(document.activeElement).toBe(search));
+    await user.keyboard('{ArrowDown}{ArrowUp}{ArrowDown}{Enter}');
+    expect(contact.getByRole('button', { name: 'Country code: United Kingdom +44' })).toBeTruthy();
+    expect(publicApi.sendContactMessage).not.toHaveBeenCalled();
+
+    await user.click(trigger);
+    await user.type(contact.getByRole('textbox', { name: 'Search countries' }), 'Australia');
+    await user.keyboard('{Escape}');
+    expect(contact.queryByRole('dialog')).toBeNull();
+    await user.click(trigger);
+    expect((contact.getByRole('textbox', { name: 'Search countries' }) as HTMLInputElement).value).toBe('');
+    await user.click(contact.getByRole('textbox', { name: 'Full name' }));
+    expect(contact.queryByRole('dialog')).toBeNull();
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('does not apply contact control CSS to the nested country search input', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
+    const user = userEvent.setup();
+    renderPage();
+    const contact = within(screen.getByRole('form', { name: 'Contact EquiConnected' }));
+    await user.click(contact.getByRole('button', { name: 'Country code: United Arab Emirates +971' }));
+    const search = contact.getByRole('textbox', { name: 'Search countries' });
+    search.focus();
+    // Parse the real CSS with its module class names. JSDOM cannot measure
+    // layout, but can catch the descendant selectors that collapsed this input.
+    const stylesheet = document.createElement('style');
+    const contactCss = readFileSync('src/components/public/home-v2/ContactSection.module.css', 'utf8');
+    stylesheet.textContent = contactCss.replace(/\.(\w+)/g, (selector, name: string) =>
+      contactStyles[name] ? `.${contactStyles[name]}` : selector);
+    document.head.append(stylesheet);
+    try {
+      const rules = Array.from(stylesheet.sheet!.cssRules)
+        .filter((rule): rule is CSSStyleRule => 'selectorText' in rule)
+        .filter((rule) => /\b(input|select|textarea)\b/.test(rule.selectorText));
+      expect(rules.length).toBeGreaterThan(0);
+      for (const rule of rules) {
+        expect(search.matches(rule.selectorText), rule.selectorText).toBe(false);
+      }
+      expect(rules.some((rule) => contact.getByRole('textbox', { name: /Phone/ }).matches(rule.selectorText))).toBe(true);
+    } finally {
+      stylesheet.remove();
+    }
   });
 
   it('offers the existing member and provider journeys from both nav actions and the hero', async () => {
