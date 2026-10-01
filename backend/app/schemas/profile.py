@@ -18,6 +18,7 @@ class PersonalProfileUpdate(BaseModel):
     last_name: str = Field(min_length=1, max_length=100)
     mobile_number: str = Field(min_length=6, max_length=32)
     address: str | None = Field(default=None, max_length=300)
+    address_line_2: str | None = Field(default=None, max_length=300)
     country: str = Field(min_length=1, max_length=100)
     state_province: str | None = Field(default=None, max_length=100)
     city: str = Field(min_length=1, max_length=100)
@@ -38,13 +39,16 @@ class PersonalProfileUpdate(BaseModel):
             raise ValueError("Enter a valid mobile number.")
         return value
 
-    _trim_optional_fields = field_validator("address", "state_province", "postal_code")(_trim_optional)
+    _trim_optional_fields = field_validator(
+        "address", "address_line_2", "state_province", "postal_code"
+    )(_trim_optional)
 
 
 class StableProfileUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=5000)
     address: str | None = Field(default=None, max_length=300)
+    address_line_2: str | None = Field(default=None, max_length=300)
     country: str | None = Field(default=None, max_length=100)
     state_province: str | None = Field(default=None, max_length=100)
     city: str | None = Field(default=None, max_length=100)
@@ -62,7 +66,7 @@ class StableProfileUpdate(BaseModel):
         return value
 
     _trim_optional_fields = field_validator(
-        "description", "address", "country", "state_province", "city", "postal_code",
+        "description", "address", "address_line_2", "country", "state_province", "city", "postal_code",
         "contact_name", "contact_phone", mode="before"
     )(_trim_optional)
 
@@ -102,6 +106,7 @@ class StableProfileResponse(BaseModel):
     name: str
     description: str | None
     address: str | None
+    address_line_2: str | None
     country: str | None
     state_province: str | None
     city: str | None
@@ -136,6 +141,7 @@ class MemberProfileResponse(BaseModel):
     email: EmailStr
     mobile_number: str | None
     address: str | None
+    address_line_2: str | None
     country: str | None
     state_province: str | None
     city: str | None

@@ -39,6 +39,7 @@ class User(TimestampMixin, Base):
     state_province: Mapped[str | None] = mapped_column(String(100), nullable=True)
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
     address: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    address_line_2: Mapped[str | None] = mapped_column(String(300), nullable=True)
     postal_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     terms_accepted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

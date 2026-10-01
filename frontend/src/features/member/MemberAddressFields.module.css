@@ -1,0 +1,5 @@
+.address { display: grid; gap: var(--space-3); min-width: 0; }
+.location { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+.hint { color: var(--text-secondary); font-size: var(--text-sm); margin: 0; overflow-wrap: anywhere; }
+.select { width: 100%; min-width: 0; padding: var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-md); color: var(--text-primary); background: var(--bg-surface); }
+@media (max-width: 700px) { .location { grid-template-columns: 1fr; } }

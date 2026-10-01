@@ -42,6 +42,33 @@ describe('calculateProfileCompletion', () => {
     expect(completion.sections.find((section) => section.id === 'horses')?.complete).toBe(true);
   });
 
+  it('does not require optional personal or stable address line 2 for completion', () => {
+    const personal = calculateProfileCompletion({
+      ...completePersonal,
+      address_line_2: null,
+      roles: ['stable_manager'],
+      stable_profile: {
+        id: 'stable-1',
+        name: 'Oak Valley Stables',
+        description: null,
+        address: '14 Oak Lane',
+        address_line_2: null,
+        country: 'United States',
+        state_province: 'Texas',
+        city: 'Austin',
+        postal_code: '78701',
+        contact_name: 'Amina Rider',
+        contact_phone: '+1 555 123 4567',
+        contact_email: 'amina@example.com',
+        updated_at: '',
+      },
+      horses: [],
+    });
+
+    expect(personal.sections.find((section) => section.id === 'personal')?.complete).toBe(true);
+    expect(personal.sections.find((section) => section.id === 'stable')?.complete).toBe(true);
+  });
+
   it('does not require a state for countries without state choices', () => {
     const countryWithoutStates = getCountryOptions()
       .find((country) => getStateOptions(country.value).length === 0);

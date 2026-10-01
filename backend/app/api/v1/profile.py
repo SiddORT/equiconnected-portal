@@ -48,7 +48,8 @@ def _profile_response(user) -> MemberProfileResponse:
     roles = sorted({assignment.role.name for assignment in user.role_assignments} or {user.role.name})
     return MemberProfileResponse(
         first_name=user.first_name, last_name=user.last_name, email=user.email,
-        mobile_number=user.mobile_number, address=user.address, country=user.country,
+        mobile_number=user.mobile_number, address=user.address, address_line_2=user.address_line_2,
+        country=user.country,
         state_province=user.state_province, city=user.city, postal_code=user.postal_code,
         roles=roles, stable_profile=user.stable_profile,
         horses=sorted(user.horses, key=lambda horse: (horse.created_at, horse.id)),

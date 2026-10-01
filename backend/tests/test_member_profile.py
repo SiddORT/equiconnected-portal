@@ -70,8 +70,77 @@ class TestMemberProfile:
         assert response.status_code == 200
         saved = client.get(BASE, headers=headers).json()
         assert saved["address"] == "12 Oak Lane"
+        assert saved["address_line_2"] is None
         assert saved["stable_profile"]["name"] == "Oak Valley Stables"
+        assert saved["stable_profile"]["address_line_2"] is None
         assert client.post(f"{BASE}/horses", headers=headers, json={"name": "Nope", "sex": "MARE"}).status_code == 403
+
+    def test_address_line_2_is_optional_validated_and_legacy_updates_preserve_it(self, client, db):
+        member = _member(db, email="address-lines@example.com", roles=["stable_manager"])
+        headers = _headers(member)
+        personal = {**_personal(), "address_line_2": "  Suite 4  "}
+        saved_personal = client.put(f"{BASE}/personal", headers=headers, json=personal)
+        assert saved_personal.status_code == 200
+        assert saved_personal.json()["address"] == "12 Oak Lane"
+        assert saved_personal.json()["address_line_2"] == "Suite 4"
+
+        stable = {
+            "name": "Oak Valley Stables", "address": "14 Oak Lane", "address_line_2": "Barn 2",
+            "country": "United States", "city": "Austin",
+        }
+        saved_stable = client.put(f"{BASE}/stable", headers=headers, json=stable)
+        assert saved_stable.status_code == 200
+        assert saved_stable.json()["address"] == "14 Oak Lane"
+        assert saved_stable.json()["address_line_2"] == "Barn 2"
+
+        # Older client payloads omit address_line_2; that omission must not
+        # erase the newer value. Reload confirms that both values persist.
+        legacy_personal = client.put(f"{BASE}/personal", headers=headers, json=_personal())
+        legacy_stable = client.put(
+            f"{BASE}/stable",
+            headers=headers,
+            json={"name": "Updated Oak Valley", "address": "16 Oak Lane"},
+        )
+        assert legacy_personal.status_code == 200
+        assert legacy_personal.json()["address_line_2"] == "Suite 4"
+        assert legacy_stable.status_code == 200
+        assert legacy_stable.json()["address_line_2"] == "Barn 2"
+        reloaded = client.get(BASE, headers=headers).json()
+        assert reloaded["address"] == "12 Oak Lane"
+        assert reloaded["address_line_2"] == "Suite 4"
+        assert reloaded["stable_profile"]["address"] == "16 Oak Lane"
+        assert reloaded["stable_profile"]["address_line_2"] == "Barn 2"
+
+        blank_personal = client.put(
+            f"{BASE}/personal",
+            headers=headers,
+            json={**_personal(), "address_line_2": "   "},
+        )
+        blank_stable = client.put(
+            f"{BASE}/stable",
+            headers=headers,
+            json={"name": "Oak Valley Stables", "address_line_2": "  "},
+        )
+        assert blank_personal.status_code == 200
+        assert blank_personal.json()["address_line_2"] is None
+        assert blank_stable.status_code == 200
+        assert blank_stable.json()["address_line_2"] is None
+
+    def test_address_line_2_max_length_is_validated_for_both_profiles(self, client, db):
+        member = _member(db, email="address-validation@example.com", roles=["stable_manager"])
+        headers = _headers(member)
+        personal = client.put(
+            f"{BASE}/personal",
+            headers=headers,
+            json={**_personal(), "address_line_2": "x" * 301},
+        )
+        stable = client.put(
+            f"{BASE}/stable",
+            headers=headers,
+            json={"name": "Oak Valley Stables", "address_line_2": "x" * 301},
+        )
+        assert personal.status_code == 422
+        assert stable.status_code == 422
 
     def test_horses_are_role_gated_validated_and_owner_scoped(self, client, db):
         owner = _member(db, email="owner@example.com", roles=["horse_owner"])

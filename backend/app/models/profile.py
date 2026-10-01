@@ -19,6 +19,7 @@ class StableProfile(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     address: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    address_line_2: Mapped[str | None] = mapped_column(String(300), nullable=True)
     country: Mapped[str | None] = mapped_column(String(100), nullable=True)
     state_province: Mapped[str | None] = mapped_column(String(100), nullable=True)
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)

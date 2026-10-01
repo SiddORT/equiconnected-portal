@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import * as profileApi from '@/api/profile';
+import * as authApi from '@/api/auth';
 import { ProfilePage } from './ProfilePage';
 import type { MemberProfile } from '@/types';
 
@@ -18,6 +19,10 @@ vi.mock('@/api/profile', () => ({
   removeHorsePhoto: vi.fn(),
 }));
 
+vi.mock('@/api/auth', () => ({
+  lookupProviderPostalCode: vi.fn(),
+}));
+
 const baseProfile: MemberProfile = {
   first_name: 'Amina', last_name: 'Rider', email: 'amina@example.com',
   mobile_number: '+1 555 123 4567', address: null, country: 'United States',
@@ -30,6 +35,7 @@ const stableProfile = {
   name: 'Oak Valley Stables',
   description: null,
   address: '14 Oak Lane',
+  address_line_2: null,
   country: 'United States',
   state_province: 'Texas',
   city: 'Austin',
@@ -76,17 +82,24 @@ describe('ProfilePage', () => {
     expect(profileApi.createHorse).not.toHaveBeenCalled();
   });
 
-  it('applies a postal lookup result while keeping the location picker available', async () => {
+  it('uses pincode-first lookup and keeps location details manually editable', async () => {
     vi.mocked(profileApi.getProfile).mockResolvedValue(baseProfile);
-    vi.mocked(profileApi.lookupPostalCode).mockResolvedValue({
-      status: 'match', city: 'Round Rock', state_province: 'Texas',
+    vi.mocked(authApi.lookupProviderPostalCode).mockResolvedValue({
+      status: 'match', candidates: [{
+        country: 'United States', country_code: 'US', state_province: 'Texas',
+        city: 'Round Rock', postal_code: '78664', display_name: 'Round Rock, Texas, United States',
+      }],
     });
     renderProfile();
-    const postalCode = await screen.findByLabelText('Postal / ZIP code');
+    const postalCode = await screen.findByLabelText('Pincode / Postal code');
+    expect(authApi.lookupProviderPostalCode).not.toHaveBeenCalled();
     fireEvent.change(postalCode, { target: { value: '78664' } });
-    fireEvent.blur(postalCode);
-    await waitFor(() => expect(profileApi.lookupPostalCode).toHaveBeenCalledWith('United States', '78664'));
-    expect(screen.getByRole('button', { name: 'City' }).textContent).toContain('Round Rock');
+    await waitFor(() => expect(authApi.lookupProviderPostalCode).toHaveBeenCalledWith(
+      '78664', expect.any(AbortSignal),
+    ));
+    expect((screen.getByLabelText('City') as HTMLInputElement).value).toBe('Round Rock');
+    expect((screen.getByLabelText('Address line 1') as HTMLInputElement).value).toBe('');
+    expect(screen.getByLabelText('Address line 2')).toBeTruthy();
   });
 
   it('shows role-aware section statuses and separates optional horse details', async () => {
@@ -139,5 +152,46 @@ describe('ProfilePage', () => {
 
     await waitFor(() => expect(profileApi.saveStable).toHaveBeenCalledTimes(1));
     expect((screen.getByLabelText('First name') as HTMLInputElement).value).toBe('Unsaved personal change');
+  });
+
+  it('saves and reloads personal and stable address line 2 independently', async () => {
+    const user = userEvent.setup();
+    const initial = {
+      ...baseProfile, roles: ['horse_owner', 'stable_manager'], address: '12 Oak Lane',
+      stable_profile: { ...stableProfile },
+    };
+    const savedPersonal = { ...initial, address_line_2: 'Apartment 4' };
+    const savedStable = { ...stableProfile, address_line_2: 'Barn 2' };
+    vi.mocked(profileApi.getProfile).mockResolvedValue(initial);
+    vi.mocked(profileApi.savePersonal).mockResolvedValue(savedPersonal);
+    vi.mocked(profileApi.saveStable).mockResolvedValue(savedStable);
+    const view = renderProfile();
+
+    await screen.findByRole('heading', { name: 'Stable Manager' });
+    const personalLine2 = screen.getAllByLabelText('Address line 2')[0];
+    const stableLine2 = screen.getAllByLabelText('Address line 2')[1];
+    await user.type(personalLine2, 'Apartment 4');
+    await user.type(stableLine2, 'Barn 2');
+    await user.click(screen.getByRole('button', { name: 'Save personal information' }));
+    await waitFor(() => expect(profileApi.savePersonal).toHaveBeenCalledWith(expect.objectContaining({
+      address_line_2: 'Apartment 4',
+    })));
+    expect(profileApi.saveStable).not.toHaveBeenCalled();
+    expect((screen.getAllByLabelText('Address line 2')[1] as HTMLInputElement).value).toBe('Barn 2');
+
+    await user.click(screen.getByRole('button', { name: 'Save stable profile' }));
+    await waitFor(() => expect(profileApi.saveStable).toHaveBeenCalledWith(expect.objectContaining({
+      address_line_2: 'Barn 2',
+    })));
+    expect((screen.getAllByLabelText('Address line 2')[0] as HTMLInputElement).value).toBe('Apartment 4');
+
+    view.unmount();
+    vi.mocked(profileApi.getProfile).mockResolvedValue({
+      ...savedPersonal, stable_profile: savedStable,
+    });
+    renderProfile();
+    await screen.findByRole('heading', { name: 'Stable Manager' });
+    expect((screen.getAllByLabelText('Address line 2')[0] as HTMLInputElement).value).toBe('Apartment 4');
+    expect((screen.getAllByLabelText('Address line 2')[1] as HTMLInputElement).value).toBe('Barn 2');
   });
 });

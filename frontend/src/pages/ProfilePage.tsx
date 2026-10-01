@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
-import { LocationPicker, type GeographicLocationValue } from '@/components/ui/LocationPicker';
+import { MemberAddressFields, type MemberAddressValue } from '@/features/member/MemberAddressFields';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import {
   calculateProfileCompletion,
@@ -37,6 +37,7 @@ function toPersonal(profile: MemberProfile): PersonalProfileUpdate {
   return {
     first_name: profile.first_name ?? '', last_name: profile.last_name ?? '',
     mobile_number: profile.mobile_number ?? '', address: profile.address,
+    address_line_2: profile.address_line_2 ?? '',
     country: profile.country ?? '', state_province: profile.state_province,
     city: profile.city ?? '', postal_code: profile.postal_code,
   };
@@ -46,6 +47,7 @@ function toStable(profile: MemberProfile): StableProfileUpdate {
   const stable = profile.stable_profile;
   return {
     name: stable?.name ?? '', description: stable?.description, address: stable?.address,
+    address_line_2: stable?.address_line_2 ?? '',
     country: stable?.country ?? '', state_province: stable?.state_province, city: stable?.city ?? '',
     postal_code: stable?.postal_code, contact_name: stable?.contact_name,
     contact_phone: stable?.contact_phone, contact_email: stable?.contact_email,
@@ -161,7 +163,6 @@ export function ProfilePage() {
   const [notice, setNotice] = useState<Notice>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<'personal' | 'stable' | 'horse' | null>(null);
-  const [lookupMessage, setLookupMessage] = useState<Record<LocationSection, string>>({ personal: '', stable: '' });
 
   useEffect(() => {
     profileApi.getProfile().then((data) => {
@@ -187,25 +188,11 @@ export function ProfilePage() {
     return () => window.cancelAnimationFrame(animationFrame);
   }, [profile, requestedSection]);
 
-  const setLocation = (section: LocationSection, location: GeographicLocationValue) => {
-    if (section === 'personal') setPersonal((current) => current && ({ ...current, ...location }));
+  const setLocation = (section: LocationSection, location: Partial<MemberAddressValue>) => {
+    if (section === 'personal') setPersonal((current) => current && ({
+      ...current, ...location, country: location.country ?? current.country, city: location.city ?? current.city,
+    }));
     else setStable((current) => current && ({ ...current, ...location }));
-  };
-  const triggerLookup = async (section: LocationSection) => {
-    const data = section === 'personal' ? personal : stable;
-    if (!data?.country || !data.postal_code?.trim()) return;
-    setLookupMessage((current) => ({ ...current, [section]: 'Looking up location…' }));
-    try {
-      const result = await profileApi.lookupPostalCode(data.country, data.postal_code);
-      if (result.status === 'match') {
-        setLocation(section, { country: data.country, state_province: result.state_province ?? data.state_province ?? '', city: result.city ?? data.city ?? '' });
-        setLookupMessage((current) => ({ ...current, [section]: 'Location details filled where available. You can edit them.' }));
-      } else {
-        setLookupMessage((current) => ({ ...current, [section]: result.status === 'no_match' ? 'No match found. Please enter the location details.' : 'Lookup is unavailable. Please enter the location details.' }));
-      }
-    } catch {
-      setLookupMessage((current) => ({ ...current, [section]: 'Lookup is unavailable. Please enter the location details.' }));
-    }
   };
   const savePersonal = async () => {
     if (!personal) return;
@@ -214,7 +201,7 @@ export function ProfilePage() {
     }
     setSaving('personal');
     try {
-      const saved = await profileApi.savePersonal({ ...personal, address: optional(personal.address ?? ''), state_province: optional(personal.state_province ?? ''), postal_code: optional(personal.postal_code ?? '') });
+      const saved = await profileApi.savePersonal({ ...personal, address: optional(personal.address ?? ''), address_line_2: optional(personal.address_line_2 ?? ''), state_province: optional(personal.state_province ?? ''), postal_code: optional(personal.postal_code ?? '') });
       setProfile(saved); setPersonal(toPersonal(saved)); setNotice({ kind: 'success', text: 'Personal information saved.' });
     } catch (error) { setNotice({ kind: 'error', text: extractErrorMessage(error, 'Personal information could not be saved.') }); }
     finally { setSaving(null); }
@@ -224,7 +211,7 @@ export function ProfilePage() {
     if (!stable.name.trim()) return setNotice({ kind: 'error', text: 'Stable name is required before saving.' });
     setSaving('stable');
     try {
-      const saved = await profileApi.saveStable({ ...stable, name: stable.name.trim() });
+      const saved = await profileApi.saveStable({ ...stable, name: stable.name.trim(), address: optional(stable.address ?? ''), address_line_2: optional(stable.address_line_2 ?? '') });
       setProfile((current) => current && ({ ...current, stable_profile: saved })); setStable(toStable({ ...profile!, stable_profile: saved })); setNotice({ kind: 'success', text: 'Stable profile saved.' });
     } catch (error) { setNotice({ kind: 'error', text: extractErrorMessage(error, 'Stable profile could not be saved.') }); }
     finally { setSaving(null); }
@@ -278,9 +265,7 @@ export function ProfilePage() {
         <div className={styles.formGroup}>
           <h3 className={styles.formGroupHeading}>Personal location</h3>
           <p className={styles.formHelp}>Use your current address. State or province is only required where the selected country uses one.</p>
-          <Input label="Address" required value={personal.address ?? ''} onChange={(e) => setPersonal({ ...personal, address: e.target.value })} />
-        <LocationPicker value={{ country: personal.country, state_province: personal.state_province ?? '', city: personal.city }} onChange={(value) => setLocation('personal', value)} required idPrefix="personal-location" />
-        <Input label="Postal / ZIP code" required value={personal.postal_code ?? ''} onChange={(e) => setPersonal({ ...personal, postal_code: e.target.value })} onBlur={() => triggerLookup('personal')} hint={lookupMessage.personal || 'Enter a postal/ZIP code to look up available location details.'} />
+          <MemberAddressFields section="personal" value={personal} onChange={(patch) => setLocation('personal', patch)} />
         </div>
         <div className={styles.actions}><Button onClick={savePersonal} loading={saving === 'personal'}>Save personal information</Button></div>
       </Card></section>
@@ -288,13 +273,12 @@ export function ProfilePage() {
         <div className={styles.formGroup}>
           <h3 className={styles.formGroupHeading}>Stable identity</h3>
           <p className={styles.formHelp}>Your stable name and location make it easier to coordinate care.</p>
-          <div className={styles.grid}><Input label="Stable name" required value={stable.name} onChange={(e) => setStable({ ...stable, name: e.target.value })} /><Input label="Stable address" required value={stable.address ?? ''} onChange={(e) => setStable({ ...stable, address: e.target.value })} /></div>
+          <Input label="Stable name" required value={stable.name} onChange={(e) => setStable({ ...stable, name: e.target.value })} />
         </div>
         <FormField label="Stable description" optional htmlFor="stable-description"><textarea id="stable-description" className={styles.textarea} rows={3} value={stable.description ?? ''} onChange={(e) => setStable({ ...stable, description: e.target.value })} /></FormField>
         <div className={styles.formGroup}>
           <h3 className={styles.formGroupHeading}>Stable location</h3>
-          <LocationPicker value={{ country: stable.country ?? '', state_province: stable.state_province ?? '', city: stable.city ?? '' }} onChange={(value) => setLocation('stable', value)} required idPrefix="stable-location" />
-          <Input label="Postal / ZIP code" required value={stable.postal_code ?? ''} onChange={(e) => setStable({ ...stable, postal_code: e.target.value })} onBlur={() => triggerLookup('stable')} hint={lookupMessage.stable || 'Enter a postal/ZIP code to look up available location details.'} />
+          <MemberAddressFields section="stable" value={stable} onChange={(patch) => setLocation('stable', patch)} />
         </div>
         <div className={styles.formGroup}>
           <h3 className={styles.formGroupHeading}>Stable contact</h3>

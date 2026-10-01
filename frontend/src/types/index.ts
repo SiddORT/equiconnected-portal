@@ -155,6 +155,7 @@ export interface PersonalProfileUpdate {
   last_name: string;
   mobile_number: string;
   address?: string | null;
+  address_line_2?: string | null;
   country: string;
   state_province?: string | null;
   city: string;
@@ -166,6 +167,7 @@ export interface StableProfile {
   name: string;
   description: string | null;
   address: string | null;
+  address_line_2?: string | null;
   country: string | null;
   state_province: string | null;
   city: string | null;
@@ -180,6 +182,7 @@ export interface StableProfileUpdate {
   name: string;
   description?: string | null;
   address?: string | null;
+  address_line_2?: string | null;
   country?: string | null;
   state_province?: string | null;
   city?: string | null;
@@ -224,6 +227,7 @@ export interface MemberProfile {
   email: string;
   mobile_number: string | null;
   address: string | null;
+  address_line_2?: string | null;
   country: string | null;
   state_province: string | null;
   city: string | null;

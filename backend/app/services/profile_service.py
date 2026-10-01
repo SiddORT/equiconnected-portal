@@ -42,7 +42,12 @@ class ProfileService:
 
     def update_personal(self, user: User, payload: PersonalProfileUpdate) -> User:
         member = self.get(user)
-        for field, value in payload.model_dump().items():
+        fields = payload.model_dump()
+        # Older clients do not send address_line_2. Keep the saved value when
+        # omitted while still allowing an explicit null to clear it.
+        if "address_line_2" not in payload.model_fields_set:
+            fields.pop("address_line_2")
+        for field, value in fields.items():
             setattr(member, field, value)
         self._repo.commit()
         return self.get(user)
@@ -55,7 +60,10 @@ class ProfileService:
         if stable is None:
             stable = self._repo.create_stable(member.id, payload.model_dump())
         else:
-            for field, value in payload.model_dump().items():
+            fields = payload.model_dump()
+            if "address_line_2" not in payload.model_fields_set:
+                fields.pop("address_line_2")
+            for field, value in fields.items():
                 setattr(stable, field, value)
         self._repo.commit()
         return self._repo.get_stable(member.id)  # type: ignore[return-value]
