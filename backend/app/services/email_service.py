@@ -320,6 +320,31 @@ class EmailService:
         )
         self._deliver(message, recipient)
 
+    def send_contact_confirmation_email(self, recipient: str) -> None:
+        """Acknowledge an accepted enquiry without repeating private content."""
+        acknowledgement = (
+            "Your enquiry has been submitted. We will get back to you soon."
+        )
+        message = self._build_message(
+            recipient=recipient,
+            subject="Your EquiConnected enquiry confirmation",
+            plain=(
+                "Thank you for contacting EquiConnected.\n\n"
+                f"{acknowledgement}\n\n"
+                "If you did not submit this enquiry, you can safely ignore this email.\n"
+            ),
+            html=self._branded_html(
+                headline="Thank you for contacting us.",
+                body_html=acknowledgement,
+                action_label="Visit EquiConnected",
+                action_url="https://equiconnected.com",
+                security_html=(
+                    "If you did not submit this enquiry, you can safely ignore this email."
+                ),
+            ),
+        )
+        self._deliver(message, recipient)
+
     def send_smtp_test_email(self, recipient: str) -> None:
         """Use the normal SMTP transport, without links, tokens or user-provided content."""
         message = MIMEText(

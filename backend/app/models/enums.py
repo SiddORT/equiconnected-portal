@@ -75,6 +75,7 @@ class EmailPurpose(str, enum.Enum):
     PROVIDER_PORTAL_ACCESS = "provider_portal_access"
     SUBSCRIBER_CONFIRMATION = "subscriber_confirmation"
     CONTACT_NOTIFICATION = "contact_notification"
+    CONTACT_CONFIRMATION = "contact_confirmation"
     SMTP_TEST = "smtp_test"
 
 

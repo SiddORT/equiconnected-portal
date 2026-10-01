@@ -158,3 +158,48 @@ def test_subscriber_confirmation_uses_branded_shell_and_reach_out_copy(monkeypat
     assert "team will be in touch soon" in plain.get_payload(decode=True).decode("utf-8")
     assert "team will be in touch soon" in html.get_payload(decode=True).decode("utf-8")
     assert "cid:equiconnected-logo" in html.get_payload(decode=True).decode("utf-8")
+
+
+def test_contact_confirmation_uses_branded_multipart_and_configured_sender(monkeypatch):
+    _FakeSMTP.sent_messages = []
+    monkeypatch.setattr(
+        email_service,
+        "get_settings",
+        lambda: SimpleNamespace(
+            SMTP_HOST="smtp.example.test",
+            SMTP_PORT=587,
+            SMTP_USER="",
+            SMTP_PASSWORD="",
+            EMAIL_TLS=True,
+            resolved_email_from="EquiConnected <no-reply@example.test>",
+        ),
+    )
+    monkeypatch.setattr(email_service.smtplib, "SMTP", _FakeSMTP)
+
+    email_service.EmailService().send_contact_confirmation_email("sender@example.test")
+
+    assert len(_FakeSMTP.sent_messages) == 1
+    message = message_from_string(_FakeSMTP.sent_messages[0])
+    assert message["Subject"] == "Your EquiConnected enquiry confirmation"
+    assert message["To"] == "sender@example.test"
+    assert message["From"] == "EquiConnected <no-reply@example.test>"
+    assert message["Reply-To"] is None
+    assert message.get_content_type() == "multipart/related"
+    parts = list(message.walk())
+    assert any(part.get_content_type() == "multipart/alternative" for part in parts)
+    plain = next(part for part in parts if part.get_content_type() == "text/plain")
+    html = next(part for part in parts if part.get_content_type() == "text/html")
+    plain_body = plain.get_payload(decode=True).decode("utf-8")
+    html_body = html.get_payload(decode=True).decode("utf-8")
+    copy = "Your enquiry has been submitted. We will get back to you soon."
+    assert copy in plain_body and copy in html_body
+    assert "Thank you" in plain_body and "Thank you" in html_body
+    assert "cid:equiconnected-logo" in html_body
+    assert "background-color:#090908" in html_body
+    assert "Visit EquiConnected" in html_body
+    logo = next(part for part in parts if part.get_content_type() == "image/png")
+    assert logo["Content-ID"] == "<equiconnected-logo>"
+    assert logo.get_content_disposition() == "inline"
+    # This API intentionally accepts only the recipient, so no name, phone,
+    # enquiry category or private message can enter either confirmation body.
+    assert "sender@example.test" not in plain_body + html_body

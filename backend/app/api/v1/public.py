@@ -42,7 +42,7 @@ def send_contact_message(
     body: ContactMessageRequest,
     db: _DB,
 ) -> dict[str, str]:
-    """Persist a public enquiry before attempting an optional email notification."""
+    """Persist an enquiry before independent confirmation and team delivery."""
     recipient = get_settings().ADMIN_EMAIL.strip()
     try:
         ContactEnquiryService(db).submit(

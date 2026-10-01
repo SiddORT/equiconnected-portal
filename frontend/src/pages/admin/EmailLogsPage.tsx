@@ -33,6 +33,7 @@ function purposeLabel(purpose: EmailDeliveryLog['purpose']): string {
   if (purpose === 'provider_portal_access') return 'Provider portal access';
   if (purpose === 'subscriber_confirmation') return 'Subscriber confirmation';
   if (purpose === 'contact_notification') return 'Contact notification';
+  if (purpose === 'contact_confirmation') return 'Contact confirmation';
   return 'Account verification';
 }
 

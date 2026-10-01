@@ -1,10 +1,15 @@
 """Administrator access and filtering for persisted contact enquiries."""
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 from app.core.security import hash_password
+from app.core.rate_limit import _contact_attempts
+from app.models.email_delivery_log import EmailDeliveryLog
 from app.models.contact_enquiry import ContactEnquiry
-from app.models.enums import ContactEnquiryType
+from app.models.enums import ContactEnquiryType, EmailPurpose
 from app.repositories.user_repository import UserRepository
+from app.services.email_service import EmailService
+from app.api.v1 import public
 
 
 ADMIN_URL = "/api/v1/admin/contact-enquiries"
@@ -267,3 +272,55 @@ def test_contact_enquiry_list_rejects_invalid_range_and_bad_query_values(
         params={"page_size": 101},
         headers=headers,
     ).status_code == 422
+
+
+def test_admin_email_logs_keep_contact_confirmation_and_team_recipients_distinct(
+    client, db, seeded_admin, monkeypatch
+):
+    _contact_attempts.clear()
+    monkeypatch.setattr(
+        public, "get_settings", lambda: SimpleNamespace(ADMIN_EMAIL="team@example.com")
+    )
+    # Both delivery methods are replaced so this integration test never uses SMTP.
+    monkeypatch.setattr(
+        EmailService, "send_contact_confirmation_email", lambda *_args: None
+    )
+    monkeypatch.setattr(
+        EmailService, "send_contact_message", lambda *_args, **_kwargs: None
+    )
+    payload = {
+        "name": "Repeat Sender",
+        "email": "repeat@example.com",
+        "enquiry_type": "general",
+        "message": "Please contact me about the platform.",
+    }
+
+    first = client.post("/api/v1/public/contact", json=payload)
+    second = client.post(
+        "/api/v1/public/contact", json={**payload, "enquiry_type": "partnership"}
+    )
+    assert first.status_code == second.status_code == 202
+    assert db.query(ContactEnquiry).filter_by(email=payload["email"]).count() == 2
+
+    headers = _auth(_admin_token(client, seeded_admin))
+    response = client.get("/api/v1/admin/email-logs", headers=headers)
+
+    assert response.status_code == 200, response.text
+    contact_rows = [
+        row for row in response.json()["data"]
+        if row["purpose"] in {
+            "contact_confirmation",
+            EmailPurpose.CONTACT_NOTIFICATION.value,
+        }
+    ]
+    assert len(contact_rows) == 4
+    assert len({row["id"] for row in contact_rows}) == 4
+    assert {
+        (row["purpose"], row["recipient_email"])
+        for row in contact_rows
+    } == {
+        ("contact_confirmation", "repeat@example.com"),
+        (EmailPurpose.CONTACT_NOTIFICATION.value, "team@example.com"),
+    }
+    assert all(row["status"] == "success" for row in contact_rows)
+    assert db.query(EmailDeliveryLog).count() == 4

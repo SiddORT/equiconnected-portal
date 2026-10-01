@@ -1,4 +1,6 @@
-"""Durable contact-enquiry acceptance and optional notification delivery."""
+"""Durable contact-enquiry acceptance and independent email deliveries."""
+from collections.abc import Callable
+
 from sqlalchemy.orm import Session
 
 from app.models.enums import EmailDeliveryStatus, EmailPurpose
@@ -21,34 +23,47 @@ class ContactEnquiryService:
     def submit(
         self, body: ContactMessageRequest, *, notification_recipient: str | None
     ) -> None:
-        """Commit the enquiry before optionally attempting an email notification."""
+        """Accept durably, then independently acknowledge and notify the team."""
         self._enquiries.create(body)
+        # Use validated request values, never expired ORM attributes that could
+        # reopen the acceptance transaction while SMTP is running.
+        self._attempt_delivery(
+            recipient=str(body.email),
+            purpose=EmailPurpose.CONTACT_CONFIRMATION,
+            send=lambda: self._email.send_contact_confirmation_email(str(body.email)),
+        )
         recipient = (notification_recipient or "").strip()
-        if not recipient:
-            return
+        if recipient:
+            self._attempt_delivery(
+                recipient=recipient,
+                purpose=EmailPurpose.CONTACT_NOTIFICATION,
+                send=lambda: self._email.send_contact_message(
+                    recipient,
+                    name=body.name,
+                    email=str(body.email),
+                    enquiry_type=body.enquiry_type,
+                    phone=body.phone,
+                    text=body.message,
+                ),
+            )
 
-        # The enquiry repository has committed before this independent durable
-        # email-attempt lifecycle begins; SMTP therefore runs without a DB txn.
+    def _attempt_delivery(
+        self, *, recipient: str, purpose: EmailPurpose, send: Callable[[], None]
+    ) -> None:
+        """Require durable accounting for each handoff without risking acceptance."""
         try:
             attempt_id = self._email_logs.record_durable_attempt(
                 recipient_email=recipient,
-                purpose=EmailPurpose.CONTACT_NOTIFICATION,
+                purpose=purpose,
             )
         except Exception:
-            # Notification delivery is optional once the enquiry is accepted.
+            # Do not hand off unaccounted mail; the other delivery still runs.
             return
 
         outcome = EmailDeliveryStatus.SUCCESS
         failure_message = None
         try:
-            self._email.send_contact_message(
-                recipient,
-                name=body.name,
-                email=str(body.email),
-                enquiry_type=body.enquiry_type,
-                phone=body.phone,
-                text=body.message,
-            )
+            send()
         except Exception as exc:
             outcome = EmailDeliveryStatus.FAILED
             failure_message = safe_failure_message(exc)

@@ -378,6 +378,7 @@ export interface EmailDeliveryLog {
     | 'provider_portal_access'
     | 'subscriber_confirmation'
     | 'contact_notification'
+    | 'contact_confirmation'
     | 'smtp_test';
   status: EmailDeliveryStatus;
   failure_message: string | null;
