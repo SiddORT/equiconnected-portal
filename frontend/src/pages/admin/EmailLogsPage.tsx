@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { getEmailDeliveryLogs, sendSMTPTest } from '@/api/admin';
-import { extractErrorMessage, getApiErrorCode } from '@/api/client';
-import { useAuth } from '@/app/AuthContext';
+import { getEmailDeliveryLogs } from '@/api/admin';
+import { extractErrorMessage } from '@/api/client';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge } from '@/components/ui/Badge';
@@ -70,7 +69,6 @@ function isFilterComplete(
 }
 
 export function EmailLogsPage() {
-  const { user } = useAuth();
   const { formatTimestamp } = useTimeSettings();
   const [searchParams, setSearchParams] = useSearchParams();
   const rawMode = searchParams.get('filter_mode');
@@ -90,9 +88,6 @@ export function EmailLogsPage() {
   const [result, setResult] = useState<PaginatedResponse<EmailDeliveryLog> | null>(null);
   const [loadState, setLoadState] = useState<LoadingState>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [confirmSend, setConfirmSend] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [testFeedback, setTestFeedback] = useState<string | null>(null);
   const filterIsComplete = isFilterComplete(
     filterMode, filterDate, filterMonth, filterYear, dateFrom, dateTo,
   );
@@ -141,30 +136,6 @@ export function EmailLogsPage() {
   ]);
 
   useEffect(() => { void load(); }, [load]);
-
-  const handleSend = async () => {
-    if (sending) return;
-    setSending(true);
-    setTestFeedback(null);
-    try {
-      const response = await sendSMTPTest();
-      setTestFeedback(response.status === 'success'
-        ? 'Accepted by SMTP. This does not guarantee inbox delivery.'
-        : response.status === 'pending'
-          ? 'Outcome pending. Check Email Logs before trying again.'
-          : `Test failed: ${response.failure_message ?? 'Unable to deliver email.'}`);
-    } catch (error) {
-      setTestFeedback(getApiErrorCode(error) === 'rate_limited'
-        ? 'Too many SMTP tests. Please try again later.'
-        : getApiErrorCode(error) === 'email_log_unavailable'
-          ? 'The attempt could not be recorded. No test email was sent.'
-          : 'Unable to complete the SMTP test. Check Email Logs before trying again.');
-    } finally {
-      setSending(false);
-      setConfirmSend(false);
-      void load();
-    }
-  };
 
   const setFilterMode = (nextMode: string) => {
     updateParams({
@@ -237,27 +208,6 @@ export function EmailLogsPage() {
         breadcrumbs={[{ label: 'Admin' }, { label: 'Email Logs' }]}
       />
       <div className={styles.body}>
-        <section className={styles.testSection} aria-labelledby="smtp-test-heading">
-          <h2 id="smtp-test-heading">Send test email</h2>
-          <p>A plainly labeled test message will be sent to your admin-account email address:
-            {' '}<strong>{user?.email}</strong>. You cannot choose another recipient here.</p>
-          {!confirmSend ? (
-            <Button type="button" size="sm" onClick={() => { setConfirmSend(true); setTestFeedback(null); }}>
-              Send test email
-            </Button>
-          ) : (
-            <div className={styles.testActions}>
-              <span>Send one test email to {user?.email}?</span>
-              <Button type="button" size="sm" loading={sending} onClick={() => void handleSend()}>
-                {sending ? 'Sending…' : 'Confirm send'}
-              </Button>
-              <Button type="button" size="sm" variant="outline" disabled={sending}
-                onClick={() => setConfirmSend(false)}>Cancel</Button>
-            </div>
-          )}
-          {testFeedback && <p role="status" className={styles.testFeedback}>{testFeedback}</p>}
-          <p className={styles.hint}>SMTP acceptance only confirms handoff; it does not prove inbox delivery.</p>
-        </section>
         <form className={styles.filters} onSubmit={(event) => event.preventDefault()}>
           <Select
             label="Date filter"
