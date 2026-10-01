@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.models.enums import DoctorAvailability, ProviderType, VisitStability
+from app.models.enums import DoctorAvailability, ProviderReviewStatus, ProviderType, VisitStability
 
 
 class DirectoryLocation(BaseModel):
@@ -57,6 +57,9 @@ class MemberReviewResponse(BaseModel):
     rating: int
     comment: str
     comment_visible: bool
+    status: ProviderReviewStatus
+    member_note: str | None = None
+    version: int
     created_at: datetime
     updated_at: datetime
 
@@ -64,6 +67,7 @@ class MemberReviewResponse(BaseModel):
 class MemberReviewUpsert(BaseModel):
     rating: int = Field(..., ge=1, le=5)
     comment: str = Field("", max_length=2000)
+    expected_version: int | None = Field(None, ge=1)
 
     @field_validator("comment", mode="before")
     @classmethod
@@ -138,9 +142,45 @@ class AdminReviewListItem(BaseModel):
     rating: int
     comment: str
     comment_visible: bool
+    status: ProviderReviewStatus
+    member_note: str | None = None
+    internal_note: str | None = None
+    version: int
+    deleted_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
 
 class CommentVisibilityUpdate(BaseModel):
     comment_visible: bool
+    expected_version: int = Field(..., ge=1)
+
+
+class MemberReviewItem(MemberReviewResponse):
+    provider_id: UUID
+    provider_name: str
+
+
+class AdminReviewStatusUpdate(BaseModel):
+    status: ProviderReviewStatus
+    expected_version: int = Field(..., ge=1)
+    member_note: str | None = Field(None, max_length=2000)
+    internal_note: str | None = Field(None, max_length=4000)
+
+
+class ProviderReviewActionResponse(BaseModel):
+    id: UUID
+    actor_id: UUID | None
+    actor_name: str | None
+    actor_email: str
+    actor_type: str
+    action: str
+    from_status: ProviderReviewStatus | None
+    to_status: ProviderReviewStatus | None
+    version: int
+    content_snapshot: dict
+    created_at: datetime
+
+
+class AdminReviewDetail(AdminReviewListItem):
+    history: list[ProviderReviewActionResponse]

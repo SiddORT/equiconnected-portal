@@ -25,12 +25,20 @@ from app.schemas.review import (
     MemberProviderDetail,
     MemberProviderListItem,
     MemberReviewResponse,
+    MemberReviewItem,
     MemberReviewUpsert,
     PublicProviderReview,
 )
-from app.services.review_service import DiscoverableProviderNotFoundError, ReviewService
+from app.services.review_service import (
+    DiscoverableProviderNotFoundError,
+    ReviewConflictError,
+    ReviewNotFoundError,
+    ReviewService,
+    ReviewStateError,
+)
 
 router = APIRouter(prefix="/member/providers", tags=["Member Provider Directory"])
+member_reviews_router = APIRouter(prefix="/member/reviews", tags=["Member Reviews"])
 _DB = Annotated[Session, Depends(get_db)]
 
 
@@ -159,10 +167,21 @@ def _review_response(review) -> MemberReviewResponse:
     return MemberReviewResponse(
         id=review.id,
         rating=review.rating,
-        comment=review.comment if review.comment_visible else "",
+        comment=review.comment,
         comment_visible=review.comment_visible,
+        status=review.status,
+        member_note=review.member_note,
+        version=review.version,
         created_at=review.created_at,
         updated_at=review.updated_at,
+    )
+
+
+def _member_review_item(review, provider) -> MemberReviewItem:
+    return MemberReviewItem(
+        **_review_response(review).model_dump(),
+        provider_id=provider.id,
+        provider_name=provider.name,
     )
 
 
@@ -363,11 +382,130 @@ def save_member_provider_review(
             user.id,
             rating=body.rating,
             comment=body.comment,
-            audit_context=context_from_request(request, user.id),
+            expected_version=body.expected_version,
+            audit_context=context_from_request(request, user.id, actor_type="member"),
         )
     except DiscoverableProviderNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "provider_not_found", "message": "Provider not found."},
         )
+    except ReviewConflictError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={
+            "code": "review_conflict",
+            "message": str(error),
+        })
+    except ReviewStateError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={
+            "code": "review_state_conflict",
+            "message": str(error),
+        })
     return _review_response(review)
+
+
+@member_reviews_router.get("", response_model=PaginatedResponse[MemberReviewItem])
+def list_own_reviews(
+    svc: _Svc,
+    user: MemberUser,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+) -> PaginatedResponse[MemberReviewItem]:
+    rows, total = svc.list_member_reviews(user.id, page=page, page_size=page_size)
+    return PaginatedResponse(
+        data=[_member_review_item(review, provider) for review, provider in rows],
+        meta=PaginationMeta(
+            page=page,
+            page_size=page_size,
+            total=total,
+            total_pages=max(1, ceil(total / page_size)),
+        ),
+    )
+
+
+@member_reviews_router.get("/counts", response_model=dict[str, int])
+def own_review_counts(svc: _Svc, user: MemberUser) -> dict[str, int]:
+    return svc.member_review_counts(user.id)
+
+
+@member_reviews_router.get("/{review_id}", response_model=MemberReviewItem)
+def get_own_review(review_id: UUID, svc: _Svc, user: MemberUser) -> MemberReviewItem:
+    try:
+        review = svc.get_member_review(review_id, user.id)
+    except ReviewNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={
+            "code": "review_not_found",
+            "message": "Review not found.",
+        })
+    return _member_review_item(review, review.provider)
+
+
+@member_reviews_router.put("/{review_id}", response_model=MemberReviewResponse)
+def update_own_review(
+    review_id: UUID,
+    body: MemberReviewUpsert,
+    request: Request,
+    user: MemberUser,
+    svc: _Svc,
+) -> MemberReviewResponse:
+    if body.expected_version is None:
+        raise HTTPException(status_code=status.HTTP_428_PRECONDITION_REQUIRED, detail={
+            "code": "review_version_required",
+            "message": "Reload your review before editing it.",
+        })
+    try:
+        review = svc.edit_member_review(
+            review_id,
+            user.id,
+            rating=body.rating,
+            comment=body.comment,
+            expected_version=body.expected_version,
+            audit_context=context_from_request(request, user.id, actor_type="member"),
+        )
+    except ReviewNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={
+            "code": "review_not_found",
+            "message": "Review not found.",
+        })
+    except ReviewConflictError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={
+            "code": "review_conflict",
+            "message": str(error),
+        })
+    except ReviewStateError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={
+            "code": "review_state_conflict",
+            "message": str(error),
+        })
+    return _review_response(review)
+
+
+@member_reviews_router.delete("/{review_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_own_review(
+    review_id: UUID,
+    request: Request,
+    user: MemberUser,
+    svc: _Svc,
+    expected_version: int = Query(..., ge=1),
+) -> None:
+    try:
+        svc.delete_member_review(
+            review_id,
+            user.id,
+            expected_version=expected_version,
+            audit_context=context_from_request(request, user.id, actor_type="member"),
+        )
+    except ReviewNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={
+            "code": "review_not_found",
+            "message": "Review not found.",
+        })
+    except ReviewConflictError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={
+            "code": "review_conflict",
+            "message": str(error),
+        })
+    except ReviewStateError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={
+            "code": "review_state_conflict",
+            "message": str(error),
+        })

@@ -12,6 +12,7 @@ const NAV_ITEMS: NavItem[] = [
 const ENQUIRY_ITEMS: NavItem[] = [
   { label: 'Subscribers', to: '/admin/subscribers', icon: '✉' },
   { label: 'Contact Enquiries', to: '/admin/contact-enquiries', icon: '✉' },
+  { label: 'Platform feedback', to: '/admin/feedback', icon: '✎' },
 ];
 
 const DIRECTORY_ITEMS: NavItem[] = [

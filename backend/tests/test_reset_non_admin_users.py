@@ -9,6 +9,7 @@ from app.models.enums import InvitationStatus, ProviderType
 from app.models.invitation import ProviderInvitation
 from app.models.profile import Horse, StableProfile
 from app.models.provider import Provider, ProviderReview
+from app.models.provider_review_action import ProviderReviewAction
 from app.models.refresh_token import RefreshToken
 from app.models.role import Role
 from app.models.user import EmailVerificationToken, User, UserRole
@@ -117,12 +118,27 @@ def test_confirmed_reset_preserves_admin_and_cleans_member_owned_records(db):
             audit,
         ]
     )
+    db.flush()
+    review_action = ProviderReviewAction(
+        review_id=review.id,
+        actor_id=member.id,
+        actor_name=member.full_name,
+        actor_email=member.email,
+        actor_type="member",
+        action="member_submitted",
+        from_status=None,
+        to_status="PENDING",
+        version=1,
+        content_snapshot={"rating": review.rating, "comment": review.comment},
+    )
+    db.add(review_action)
     db.commit()
     admin_session_id = admin_session.id
     member_session_id = member_session.id
     audit_id = audit.id
     verification_token_id = verification_token.id
     review_id = review.id
+    review_action_id = review_action.id
 
     result = execute_reset(db, confirmation=RESET_CONFIRMATION)
     db.expire_all()
@@ -136,6 +152,7 @@ def test_confirmed_reset_preserves_admin_and_cleans_member_owned_records(db):
     assert db.scalar(select(Horse).where(Horse.user_id == member.id)) is None
     assert db.scalar(select(StableProfile).where(StableProfile.user_id == member.id)) is None
     assert db.get(ProviderReview, review_id) is None
+    assert db.get(ProviderReviewAction, review_action_id) is None
     assert db.scalar(select(UserRole).where(UserRole.user_id == member.id)) is None
     assert db.get(AuditLog, audit_id).user_id is None
 

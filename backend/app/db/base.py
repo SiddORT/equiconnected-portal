@@ -25,6 +25,9 @@ from app.models.provider import (  # noqa: F401, E402
     ProviderReview,
     ProviderSpecialization,
 )
+from app.models.provider_review_action import ProviderReviewAction  # noqa: F401, E402
+from app.models.member_feedback import MemberFeedback, MemberFeedbackAction  # noqa: F401, E402
+from app.models.member_history import MemberBrowsingHistory  # noqa: F401, E402
 from app.models.provider_registration import ProviderRegistrationApplication  # noqa: F401, E402
 from app.models.doctor import DoctorOrganization, DoctorProfile, DoctorQualification  # noqa: F401, E402
 from app.models.invitation import ProviderInvitation, ProviderPortalSetupToken  # noqa: F401, E402

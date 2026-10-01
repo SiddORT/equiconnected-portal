@@ -86,7 +86,7 @@ class User(TimestampMixin, Base):
         "Horse", back_populates="user", cascade="all, delete-orphan"
     )
     provider_reviews: Mapped[list["ProviderReview"]] = relationship(  # noqa: F821
-        "ProviderReview", back_populates="member", cascade="all, delete-orphan"
+        "ProviderReview", back_populates="member"
     )
     provider_registration_application: Mapped["ProviderRegistrationApplication | None"] = relationship(  # noqa: F821
         "ProviderRegistrationApplication",

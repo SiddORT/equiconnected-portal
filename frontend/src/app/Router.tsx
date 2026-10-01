@@ -41,6 +41,9 @@ import { ProviderPasswordSetupPage } from '@/pages/ProviderPasswordSetupPage';
 import { SubscribersPage } from '@/pages/admin/SubscribersPage';
 import { ContactEnquiriesPage, ContactEnquiryDetailPage } from '@/pages/admin/ContactEnquiriesPage';
 import { LanguagesPage } from '@/pages/admin/LanguagesPage';
+import { MemberReviewsPage } from '@/pages/MemberReviewsPage';
+import { MemberHistoryPage } from '@/pages/MemberHistoryPage';
+import { PlatformFeedbackPage, PlatformFeedbackDetailPage } from '@/pages/admin/PlatformFeedbackPage';
 
 const AnimationPage = lazy(() =>
   import('@/pages/AnimationPage').then((module) => ({ default: module.AnimationPage }))
@@ -106,6 +109,8 @@ export function AppRouter() {
             <Route path="/admin/contact-enquiries/:id" element={<ContactEnquiryDetailPage />} />
             <Route path="/admin/provider-applications" element={<ProviderApplicationsPage />} />
             <Route path="/admin/reviews" element={<ReviewsPage />} />
+            <Route path="/admin/feedback" element={<PlatformFeedbackPage />} />
+            <Route path="/admin/feedback/:id" element={<PlatformFeedbackDetailPage />} />
             <Route path="/admin/activity-logs" element={<ActivityLogsPage />} />
             <Route path="/admin/email-logs" element={<EmailLogsPage />} />
             <Route path="/admin/settings" element={<SettingsPage />} />
@@ -123,6 +128,8 @@ export function AppRouter() {
             <Route path="/providers" element={<ProviderDirectoryPage />} />
             <Route path="/providers/:id" element={<MemberProviderDetailPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/my-reviews" element={<MemberReviewsPage />} />
+            <Route path="/history" element={<MemberHistoryPage />} />
           </Route>
         </Route>
 

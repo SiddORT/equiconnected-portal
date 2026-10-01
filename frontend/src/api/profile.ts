@@ -4,6 +4,10 @@ import type {
   StableProfile, StableProfileUpdate,
 } from '@/types';
 
+function notifyMemberProfileChanged() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('member-profile-changed'));
+}
+
 export async function getProfile(): Promise<MemberProfile> {
   const { data } = await apiClient.get<MemberProfile>('/profile');
   return data;
@@ -11,26 +15,31 @@ export async function getProfile(): Promise<MemberProfile> {
 
 export async function savePersonal(payload: PersonalProfileUpdate): Promise<MemberProfile> {
   const { data } = await apiClient.put<MemberProfile>('/profile/personal', payload);
+  notifyMemberProfileChanged();
   return data;
 }
 
 export async function saveStable(payload: StableProfileUpdate): Promise<StableProfile> {
   const { data } = await apiClient.put<StableProfile>('/profile/stable', payload);
+  notifyMemberProfileChanged();
   return data;
 }
 
 export async function createHorse(payload: HorsePayload): Promise<Horse> {
   const { data } = await apiClient.post<Horse>('/profile/horses', payload);
+  notifyMemberProfileChanged();
   return data;
 }
 
 export async function saveHorse(id: string, payload: HorsePayload): Promise<Horse> {
   const { data } = await apiClient.put<Horse>(`/profile/horses/${id}`, payload);
+  notifyMemberProfileChanged();
   return data;
 }
 
 export async function deleteHorse(id: string): Promise<void> {
   await apiClient.delete(`/profile/horses/${id}`);
+  notifyMemberProfileChanged();
 }
 
 export async function uploadHorsePhoto(id: string, file: File): Promise<Horse> {
@@ -39,11 +48,13 @@ export async function uploadHorsePhoto(id: string, file: File): Promise<Horse> {
   const { data } = await apiClient.post<Horse>(`/profile/horses/${id}/photo`, form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
+  notifyMemberProfileChanged();
   return data;
 }
 
 export async function removeHorsePhoto(id: string): Promise<void> {
   await apiClient.delete(`/profile/horses/${id}/photo`);
+  notifyMemberProfileChanged();
 }
 
 export async function lookupPostalCode(country: string, postalCode: string): Promise<PostalLookupResult> {

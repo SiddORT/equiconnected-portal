@@ -8,6 +8,10 @@ import { ProviderDirectoryPage } from './ProviderDirectoryPage';
 
 vi.mock('@/api/providers', () => ({ listMemberProviders: vi.fn(), getMemberProviderFilters: vi.fn(), saveMemberProvider: vi.fn(), removeSavedMemberProvider: vi.fn() }));
 vi.mock('@/components/ui/LoadingSpinner', () => ({ LoadingSpinner: () => <span>loading</span> }));
+vi.mock('@/api/memberHistoryRecording', () => ({
+  historyFilters: (params: URLSearchParams) => Object.fromEntries([...params].filter(([key]) => ['name', 'region'].includes(key))),
+  recordMemberHistory: vi.fn().mockResolvedValue(undefined),
+}));
 
 const item = {
   id: 'p-1', is_saved: false, provider_type: 'CLINIC' as const, name: 'Austin Equine Clinic',

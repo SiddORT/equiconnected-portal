@@ -25,6 +25,7 @@ from app.models.audit_log import AuditLog  # noqa: E402
 from app.models.invitation import ProviderInvitation  # noqa: E402
 from app.models.profile import Horse, StableProfile  # noqa: E402
 from app.models.provider import ProviderReview  # noqa: E402
+from app.models.provider_review_action import ProviderReviewAction  # noqa: E402
 from app.models.refresh_token import RefreshToken  # noqa: E402
 from app.models.user import EmailVerificationToken, User, UserRole  # noqa: E402
 
@@ -259,6 +260,17 @@ def execute_reset(db: Session, *, confirmation: str | None) -> ResetResult:
     target_ids = [account.user_id for account in plan.targeted_users]
     try:
         if target_ids:
+            review_ids = select(ProviderReview.id).where(
+                ProviderReview.member_id.in_(target_ids)
+            )
+            db.execute(
+                delete(ProviderReviewAction).where(
+                    ProviderReviewAction.review_id.in_(review_ids)
+                )
+            )
+            db.execute(
+                delete(ProviderReview).where(ProviderReview.member_id.in_(target_ids))
+            )
             result = db.execute(delete(User).where(User.id.in_(target_ids)))
             deleted_user_count = int(result.rowcount or 0)
         else:

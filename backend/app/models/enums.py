@@ -48,6 +48,30 @@ class ProviderProfileUpdateStatus(str, enum.Enum):
     REJECTED = "REJECTED"
 
 
+class ProviderReviewStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    PUBLISHED = "PUBLISHED"
+    REJECTED = "REJECTED"
+    HIDDEN = "HIDDEN"
+
+
+class MemberFeedbackStatus(str, enum.Enum):
+    PENDING = "Pending"
+    IN_REVIEW = "In review"
+    RESOLVED = "Resolved"
+    REJECTED = "Rejected"
+
+
+class MemberFeedbackCategory(str, enum.Enum):
+    WEBSITE_APP = "Website / App"
+    SEARCH_MATCHING = "Search & Matching"
+    PROVIDER_EXPERIENCE = "Provider Experience"
+    ACCOUNT_PROFILE = "Account / Profile"
+    TECHNICAL_ISSUE = "Technical Issue"
+    SUGGESTION = "Suggestion"
+    OTHER = "Other"
+
+
 class DoctorOrganizationStatus(str, enum.Enum):
     PENDING = "PENDING"
     REJECTED = "REJECTED"

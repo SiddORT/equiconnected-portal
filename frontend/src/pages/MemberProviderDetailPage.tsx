@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import * as providersApi from '@/api/providers';
+import { recordMemberHistory } from '@/api/memberHistoryRecording';
 import { extractErrorMessage } from '@/api/client';
 import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { Alert } from '@/components/ui/Alert';
@@ -111,6 +112,8 @@ export function MemberProviderDetailPage() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
   const reviewRef = useRef<HTMLTextAreaElement>(null);
+  const recordedProfile = useRef<string | null>(null);
+  const reviewSubmitting = useRef(false);
   const closeGallery = useCallback(() => setGalleryIndex(null), []);
 
   const load = useCallback(async (showLoading = true) => {
@@ -126,6 +129,11 @@ export function MemberProviderDetailPage() {
       setProvider(detail);
       setRating(String(detail.own_review?.rating ?? 5));
       setComment(detail.own_review?.comment ?? '');
+      const eventKey = `provider:${location.key}:${id}`;
+      if (recordedProfile.current !== eventKey) {
+        recordedProfile.current = eventKey;
+        void recordMemberHistory({ event_key: eventKey, type: 'provider', provider_id: id });
+      }
       return detail;
     } catch (error) {
       if (showLoading) setNotice({ kind: 'error', text: extractErrorMessage(error, 'Provider details could not be loaded.') });
@@ -133,7 +141,7 @@ export function MemberProviderDetailPage() {
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, [id]);
+  }, [id, location.key]);
 
   useEffect(() => {
     void load().catch(() => undefined);
@@ -147,18 +155,19 @@ export function MemberProviderDetailPage() {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!id) return;
+    if (!id || reviewSubmitting.current || provider?.own_review?.status === 'HIDDEN') return;
     const cleanComment = comment.trim();
     if (cleanComment.length > 2000) {
       setNotice({ kind: 'error', text: 'Comments must be 2,000 characters or fewer.' });
       return;
     }
+    reviewSubmitting.current = true;
     setSaving(true);
     setNotice(null);
     try {
-      const savedReview = await providersApi.saveMemberProviderReview(id, { rating: Number(rating), comment: cleanComment });
+      const savedReview = await providersApi.saveMemberProviderReview(id, { rating: Number(rating), comment: cleanComment, expected_version: provider?.own_review?.version });
       setProvider(current => current ? { ...current, own_review: savedReview } : current);
-      setNotice({ kind: 'success', text: provider?.own_review ? 'Your review has been updated.' : 'Your review has been saved.' });
+      setNotice({ kind: 'success', text: 'Your review has been saved and is awaiting publication. Edits return reviews to moderation.' });
       try {
         await load(false);
       } catch {
@@ -167,6 +176,7 @@ export function MemberProviderDetailPage() {
     } catch (error) {
       setNotice({ kind: 'error', text: extractErrorMessage(error, 'Your review could not be saved.') });
     } finally {
+      reviewSubmitting.current = false;
       setSaving(false);
     }
   };
@@ -308,15 +318,21 @@ export function MemberProviderDetailPage() {
 
           <section className={styles.section} id="reviews">
             <div className={styles.reviewHeading}><div><p className={styles.kicker}>Member experiences</p><h2>Reviews</h2></div>
-              <button type="button" className={styles.writeReview} onClick={scrollToReview}>{provider.own_review ? 'Edit your review' : 'Write a review'} <span aria-hidden="true">↗</span></button>
+              {provider.own_review?.status !== 'HIDDEN' && <button type="button" className={styles.writeReview} onClick={scrollToReview}>{provider.own_review ? 'Edit your review' : 'Write a review'} <span aria-hidden="true">↗</span></button>}
             </div>
             <div className={styles.reviewSummary}>
               <div className={styles.average}><strong>{provider.average_rating?.toFixed(1) ?? '—'}</strong><span className={styles.goldStars} aria-hidden="true">{provider.average_rating == null ? '☆☆☆☆☆' : `${'★'.repeat(Math.round(provider.average_rating))}${'☆'.repeat(5 - Math.round(provider.average_rating))}`}</span><small>{provider.review_count} member {reviewLabel}</small></div>
               <p>Ratings reflect member feedback recorded for this provider.</p>
             </div>
-            {provider.own_review && !provider.own_review.comment_visible && <Alert variant="info">Your prior comment is currently hidden from the directory. You can still update your rating and comment.</Alert>}
+            {provider.own_review && <Alert variant="info">
+              Your review: {provider.own_review.status ?? (provider.own_review.comment_visible ? 'Published' : 'Hidden')}.
+              {provider.own_review.status === 'HIDDEN' ? ' Your approved rating is retained, but your comment is private and this review cannot be edited.' : ' New reviews and edits await publication.'}
+              {provider.own_review.member_note && <p>{provider.own_review.member_note}</p>}
+              {provider.own_review.status === 'HIDDEN' && <p>{provider.own_review.comment || 'No comment provided.'}</p>}
+              <Link to="/my-reviews">Manage your reviews and feedback</Link>
+            </Alert>}
             <ReviewCardList reviews={provider.visible_reviews} formatTimestamp={formatTimestamp} emptyTitle="No published comments yet." emptyDescription="Share your experience to help other horse owners and stable managers." />
-            <form className={styles.reviewForm} id="write-review" onSubmit={submit}>
+            {provider.own_review?.status !== 'HIDDEN' && <form className={styles.reviewForm} id="write-review" onSubmit={submit}>
               <div><p className={styles.kicker}>Your experience</p><h3>{provider.own_review ? 'Update your review' : 'Leave a review'}</h3></div>
               <fieldset className={styles.starFieldset}>
                 <legend>Your rating</legend>
@@ -331,8 +347,8 @@ export function MemberProviderDetailPage() {
               <span className={styles.characterCount} id="review-count">{comment.length}/2000</span>
               {notice && <div aria-live="polite"><Alert variant={notice.kind} onDismiss={() => setNotice(null)}>{notice.text}</Alert></div>}
               <Button type="submit" loading={saving}>{provider.own_review ? 'Update review' : 'Submit review'}</Button>
-              <p className={styles.moderationNote}>Reviews are subject to community moderation. Only published comments appear above.</p>
-            </form>
+              <p className={styles.moderationNote}>New reviews and edits await publication. Only published comments appear above; hidden comments remain private.</p>
+            </form>}
           </section>
 
           {photos.length > 0 && <section className={styles.section} id="gallery">

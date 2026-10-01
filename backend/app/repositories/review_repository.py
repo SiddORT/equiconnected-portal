@@ -5,14 +5,21 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Float, case, func, select
+from sqlalchemy import Float, case, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.enums import ProviderStatus, ProviderType, PublicationStatus, VisitStability
+from app.models.enums import (
+    ProviderReviewStatus,
+    ProviderStatus,
+    ProviderType,
+    PublicationStatus,
+    VisitStability,
+)
 from app.models.language import ProviderLanguage
 from app.models.provider import Provider, ProviderLocation, ProviderReview, ProviderSpecialization
 from app.models.provider_favorite import ProviderFavorite
+from app.models.provider_review_action import ProviderReviewAction
 from app.models.specialization import Specialization
 from app.models.user import User
 
@@ -28,6 +35,12 @@ class ReviewRepository:
                 ProviderReview.provider_id.label("provider_id"),
                 func.avg(ProviderReview.rating).cast(Float).label("average_rating"),
                 func.count(ProviderReview.id).label("review_count"),
+            )
+            .where(
+                ProviderReview.deleted_at.is_(None),
+                ProviderReview.status.in_(
+                    [ProviderReviewStatus.PUBLISHED, ProviderReviewStatus.HIDDEN]
+                ),
             )
             .group_by(ProviderReview.provider_id)
             .subquery()
@@ -332,7 +345,13 @@ class ReviewRepository:
             select(
                 func.avg(ProviderReview.rating).cast(Float),
                 func.count(ProviderReview.id),
-            ).where(ProviderReview.provider_id == provider_id)
+            ).where(
+                ProviderReview.provider_id == provider_id,
+                ProviderReview.deleted_at.is_(None),
+                ProviderReview.status.in_(
+                    [ProviderReviewStatus.PUBLISHED, ProviderReviewStatus.HIDDEN]
+                ),
+            )
         ).one()
         return average, count
 
@@ -343,6 +362,8 @@ class ReviewRepository:
                 .join(User, User.id == ProviderReview.member_id)
                 .where(
                     ProviderReview.provider_id == provider_id,
+                    ProviderReview.deleted_at.is_(None),
+                    ProviderReview.status == ProviderReviewStatus.PUBLISHED,
                     ProviderReview.comment_visible.is_(True),
                     ProviderReview.comment != "",
                 )
@@ -357,45 +378,288 @@ class ReviewRepository:
             select(ProviderReview).where(
                 ProviderReview.provider_id == provider_id,
                 ProviderReview.member_id == member_id,
+                ProviderReview.deleted_at.is_(None),
             )
         )
 
     def save_member_review(
-        self, provider_id: UUID, member_id: UUID, *, rating: int, comment: str
-    ) -> tuple[ProviderReview, bool]:
-        # A read-then-insert leaves simultaneous first submissions vulnerable to
-        # a unique-constraint race. PostgreSQL's atomic upsert preserves the
-        # one-review rule while retaining PUT's idempotent behavior.
+        self,
+        provider_id: UUID,
+        member_id: UUID,
+        *,
+        rating: int,
+        comment: str,
+        expected_version: int | None,
+    ) -> tuple[ProviderReview | None, bool]:
         existing = self.get_member_review(provider_id, member_id)
         now = datetime.now(timezone.utc)
+        if existing is not None:
+            if expected_version is None:
+                if existing.rating == rating and existing.comment == comment:
+                    return existing, False
+                return None, False
+            return self.update_member_review(
+                existing.id,
+                member_id,
+                rating=rating,
+                comment=comment,
+                expected_version=expected_version,
+            ), False
+
+        # A version identifies an edit, never a first submission. A deleted
+        # target must not be recreated by a stale edit.
+        if expected_version is not None:
+            return None, False
+
         statement = insert(ProviderReview).values(
             provider_id=provider_id,
             member_id=member_id,
             rating=rating,
             comment=comment,
             comment_visible=True,
+            status=ProviderReviewStatus.PENDING,
+            version=1,
             created_at=now,
             updated_at=now,
         )
-        statement = statement.on_conflict_do_update(
+        statement = statement.on_conflict_do_nothing(
             index_elements=[ProviderReview.provider_id, ProviderReview.member_id],
-            set_={
-                "rating": statement.excluded.rating,
-                "comment": statement.excluded.comment,
-                # Moderation state intentionally survives a member edit.
-                "updated_at": now,
-            },
-        ).returning(ProviderReview.id)
-        review_id = self._db.scalar(statement)
-        review = self._db.get(ProviderReview, review_id)
-        assert review is not None
-        return review, existing is None
+            index_where=ProviderReview.deleted_at.is_(None),
+        ).returning(ProviderReview.id, ProviderReview.version)
+        inserted = self._db.execute(statement).one_or_none()
+        review_id = inserted[0] if inserted else None
+        if review_id is None:
+            # Concurrent first submissions are idempotent only when service
+            # validation confirms that the payload matches this exact retry.
+            # Crucially, this does not overwrite an admin's moderation update.
+            existing = self.get_member_review(provider_id, member_id)
+            return existing, False
+        self._db.flush()
+        return self.get_review(review_id), inserted[1] == 1
+
+    def update_member_review(
+        self,
+        review_id: UUID,
+        member_id: UUID,
+        *,
+        rating: int,
+        comment: str,
+        expected_version: int,
+    ) -> ProviderReview | None:
+        changed = self._db.execute(
+            update(ProviderReview)
+            .where(
+                ProviderReview.id == review_id,
+                ProviderReview.member_id == member_id,
+                ProviderReview.version == expected_version,
+                ProviderReview.status != ProviderReviewStatus.HIDDEN,
+                ProviderReview.deleted_at.is_(None),
+            )
+            .values(
+                rating=rating,
+                comment=comment,
+                status=ProviderReviewStatus.PENDING,
+                comment_visible=True,
+                member_note=None,
+                version=ProviderReview.version + 1,
+                updated_at=datetime.now(timezone.utc),
+            )
+            .returning(ProviderReview.id)
+        ).scalar_one_or_none()
+        if changed is None:
+            return None
+        self._db.flush()
+        return self.get_review(changed)
 
     def get_review(self, review_id: UUID) -> ProviderReview | None:
         return self._db.scalar(
             select(ProviderReview)
             .where(ProviderReview.id == review_id)
+            .execution_options(populate_existing=True)
             .options(selectinload(ProviderReview.provider), selectinload(ProviderReview.member))
+        )
+
+    def list_member_reviews(
+        self, member_id: UUID, *, page: int, page_size: int
+    ) -> tuple[list[tuple[ProviderReview, Provider]], int]:
+        conditions = [
+            ProviderReview.member_id == member_id,
+            ProviderReview.deleted_at.is_(None),
+        ]
+        total = self._db.scalar(
+            select(func.count()).select_from(ProviderReview).where(*conditions)
+        ) or 0
+        rows = self._db.execute(
+            select(ProviderReview, Provider)
+            .join(Provider, Provider.id == ProviderReview.provider_id)
+            .where(*conditions)
+            .order_by(ProviderReview.updated_at.desc(), ProviderReview.id)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        ).all()
+        return list(rows), total
+
+    def member_review_counts(self, member_id: UUID) -> dict[str, int]:
+        rows = self._db.execute(
+            select(ProviderReview.status, func.count(ProviderReview.id))
+            .where(
+                ProviderReview.member_id == member_id,
+                ProviderReview.deleted_at.is_(None),
+            )
+            .group_by(ProviderReview.status)
+        ).all()
+        counts = {status.value.lower(): int(count) for status, count in rows}
+        counts["all"] = sum(counts.values())
+        return counts
+
+    def delete_member_review(
+        self, review_id: UUID, member_id: UUID, expected_version: int
+    ) -> ProviderReview | None:
+        review = self._db.scalar(
+            select(ProviderReview).where(
+                ProviderReview.id == review_id,
+                ProviderReview.member_id == member_id,
+                ProviderReview.deleted_at.is_(None),
+                ProviderReview.version == expected_version,
+            )
+        )
+        if review is None:
+            return None
+        now = datetime.now(timezone.utc)
+        changed = self._db.execute(
+            update(ProviderReview)
+            .where(
+                ProviderReview.id == review_id,
+                ProviderReview.member_id == member_id,
+                ProviderReview.deleted_at.is_(None),
+                ProviderReview.version == expected_version,
+            )
+            .values(deleted_at=now, version=ProviderReview.version + 1, updated_at=now)
+            .returning(ProviderReview.id)
+        ).scalar_one_or_none()
+        if changed is None:
+            return None
+        self._db.flush()
+        return self.get_review(review_id)
+
+    def set_review_status(
+        self,
+        review_id: UUID,
+        *,
+        expected_version: int,
+        new_status: ProviderReviewStatus,
+        member_note: str | None = None,
+        internal_note: str | None = None,
+        update_member_note: bool = False,
+        update_internal_note: bool = False,
+    ) -> ProviderReview | None:
+        review = self.get_review(review_id)
+        if (
+            review is None
+            or review.deleted_at is not None
+            or review.version != expected_version
+            or not self._valid_status_transition(review.status, new_status)
+        ):
+            return None
+        now = datetime.now(timezone.utc)
+        values = {
+            "status": new_status,
+            "comment_visible": new_status != ProviderReviewStatus.HIDDEN,
+            "version": ProviderReview.version + 1,
+            "updated_at": now,
+        }
+        if update_member_note:
+            values["member_note"] = member_note
+        if update_internal_note:
+            values["internal_note"] = internal_note
+        changed_id = self._db.execute(
+            update(ProviderReview)
+            .where(
+                ProviderReview.id == review_id,
+                ProviderReview.version == expected_version,
+                ProviderReview.deleted_at.is_(None),
+            )
+            .values(**values)
+            .returning(ProviderReview.id)
+        ).scalar_one_or_none()
+        if changed_id is None:
+            return None
+        self._db.flush()
+        return self.get_review(changed_id)
+
+    @staticmethod
+    def _valid_status_transition(
+        old: ProviderReviewStatus, new: ProviderReviewStatus
+    ) -> bool:
+        valid = {
+            ProviderReviewStatus.PENDING: {
+                ProviderReviewStatus.PENDING,
+                ProviderReviewStatus.PUBLISHED,
+                ProviderReviewStatus.REJECTED,
+            },
+            ProviderReviewStatus.PUBLISHED: {
+                ProviderReviewStatus.PUBLISHED,
+                ProviderReviewStatus.REJECTED,
+                ProviderReviewStatus.HIDDEN,
+            },
+            ProviderReviewStatus.REJECTED: {
+                ProviderReviewStatus.REJECTED,
+                ProviderReviewStatus.PUBLISHED,
+            },
+            ProviderReviewStatus.HIDDEN: {
+                ProviderReviewStatus.HIDDEN,
+                ProviderReviewStatus.PUBLISHED,
+            },
+        }
+        return new in valid[old]
+
+    def record_action(
+        self,
+        *,
+        review_id: UUID,
+        actor_id: UUID | None,
+        action: str,
+        from_status: ProviderReviewStatus | None,
+        to_status: ProviderReviewStatus | None,
+        version: int,
+        actor_type: str,
+    ) -> ProviderReviewAction:
+        actor = self._db.get(User, actor_id) if actor_id is not None else None
+        review = self.get_review(review_id)
+        if review is None:
+            raise ValueError("Cannot snapshot a missing provider review.")
+        entry = ProviderReviewAction(
+            review_id=review_id,
+            actor_id=actor_id,
+            actor_name=actor.full_name[:200] if actor else "Unavailable account",
+            actor_email=actor.email[:254] if actor else "",
+            actor_type=actor_type,
+            action=action,
+            from_status=from_status.value if from_status else None,
+            to_status=to_status.value if to_status else None,
+            version=version,
+            content_snapshot={
+                "rating": review.rating,
+                "comment": review.comment,
+                "status": review.status.value,
+                "comment_visible": review.comment_visible,
+                "member_note": review.member_note,
+                "internal_note": review.internal_note,
+                "deleted_at": review.deleted_at.isoformat() if review.deleted_at else None,
+            },
+        )
+        self._db.add(entry)
+        self._db.flush()
+        return entry
+
+    def list_review_actions(self, review_id: UUID):
+        return list(
+            self._db.execute(
+                select(ProviderReviewAction)
+                .options(selectinload(ProviderReviewAction.actor))
+                .where(ProviderReviewAction.review_id == review_id)
+                .order_by(ProviderReviewAction.created_at, ProviderReviewAction.id)
+            ).scalars().all()
         )
 
     def list_admin_reviews(
@@ -403,6 +667,7 @@ class ReviewRepository:
         *,
         provider_id: UUID | None,
         comment_visible: bool | None,
+        review_status: ProviderReviewStatus | None = None,
         page: int,
         page_size: int,
     ) -> tuple[list[tuple[ProviderReview, Provider, User]], int]:
@@ -411,6 +676,8 @@ class ReviewRepository:
             conditions.append(ProviderReview.provider_id == provider_id)
         if comment_visible is not None:
             conditions.append(ProviderReview.comment_visible == comment_visible)
+        if review_status is not None:
+            conditions.append(ProviderReview.status == review_status)
         total = self._db.scalar(
             select(func.count()).select_from(ProviderReview).where(*conditions)
         ) or 0

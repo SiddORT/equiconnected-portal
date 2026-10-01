@@ -107,7 +107,7 @@ export async function removeSavedMemberProvider(id: string): Promise<void> {
 
 export async function saveMemberProviderReview(
   id: string,
-  body: { rating: number; comment: string }
+  body: { rating: number; comment: string; expected_version?: number }
 ): Promise<MemberProviderReview> {
   const { data } = await apiClient.put<MemberProviderReview>(
     `/member/providers/${id}/review`,

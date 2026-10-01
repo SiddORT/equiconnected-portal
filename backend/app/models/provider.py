@@ -32,6 +32,7 @@ from app.models.enums import (
     DoctorAvailability,
     PublicationStatus,
     ProviderProfileUpdateStatus,
+    ProviderReviewStatus,
     VisitStability,
 )
 
@@ -102,7 +103,7 @@ class Provider(TimestampMixin, Base):
         "ProviderLanguage", back_populates="provider", cascade="all, delete-orphan"
     )
     reviews: Mapped[list["ProviderReview"]] = relationship(
-        back_populates="provider", cascade="all, delete-orphan"
+        back_populates="provider"
     )
     provider_registration_application: Mapped["ProviderRegistrationApplication | None"] = relationship(  # noqa: F821
         "ProviderRegistrationApplication", back_populates="provider", uselist=False
@@ -202,7 +203,7 @@ class ProviderReview(TimestampMixin, Base):
     )
     member_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="RESTRICT"),
         nullable=False,
     )
     rating: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -210,18 +211,40 @@ class ProviderReview(TimestampMixin, Base):
     comment_visible: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )
+    status: Mapped[ProviderReviewStatus] = mapped_column(
+        Enum(ProviderReviewStatus, name="provider_review_status", native_enum=True),
+        nullable=False,
+        default=ProviderReviewStatus.PENDING,
+        server_default=ProviderReviewStatus.PENDING.value,
+    )
+    member_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    internal_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     provider: Mapped["Provider"] = relationship(back_populates="reviews")
     member: Mapped["User"] = relationship(back_populates="provider_reviews")
+    actions: Mapped[list["ProviderReviewAction"]] = relationship(
+        back_populates="review",
+        order_by="ProviderReviewAction.created_at",
+    )
 
     __table_args__ = (
         CheckConstraint("rating >= 1 AND rating <= 5", name="ck_provider_reviews_rating"),
-        UniqueConstraint(
-            "provider_id", "member_id", name="uq_provider_reviews_provider_member"
-        ),
+        CheckConstraint("version >= 1", name="ck_provider_reviews_version"),
         Index("ix_provider_reviews_provider_id", "provider_id"),
         Index("ix_provider_reviews_comment_visible", "comment_visible"),
         Index("ix_provider_reviews_created_at", "created_at"),
+        Index(
+            "uq_provider_reviews_active_provider_member",
+            "provider_id",
+            "member_id",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+            sqlite_where=text("deleted_at IS NULL"),
+        ),
+        Index("ix_provider_reviews_member_created", "member_id", "created_at"),
+        Index("ix_provider_reviews_status_deleted", "status", "deleted_at"),
     )
 
 

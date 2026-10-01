@@ -984,6 +984,9 @@ export interface MemberProviderReview {
   rating: number;
   comment: string;
   comment_visible: boolean;
+  status?: 'PENDING' | 'PUBLISHED' | 'REJECTED' | 'HIDDEN';
+  member_note?: string | null;
+  version?: number;
   created_at: string;
   updated_at: string;
 }

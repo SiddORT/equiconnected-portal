@@ -1,6 +1,7 @@
 """Provider discovery, member reviews, and administrator moderation coverage."""
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from uuid import UUID
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
@@ -8,7 +9,14 @@ from app.core.security import create_access_token, hash_password
 from app.repositories.review_repository import ReviewRepository
 from tests.conftest import TestingSessionLocal
 from app.models.audit_log import AuditLog
-from app.models.enums import DoctorAvailability, ProviderStatus, ProviderType, PublicationStatus, VisitStability
+from app.models.enums import (
+    DoctorAvailability,
+    ProviderReviewStatus,
+    ProviderStatus,
+    ProviderType,
+    PublicationStatus,
+    VisitStability,
+)
 from app.models.provider import (
     DoctorVisit,
     Provider,
@@ -17,6 +25,7 @@ from app.models.provider import (
     ProviderReview,
     ProviderSpecialization,
 )
+from app.models.provider_review_action import ProviderReviewAction
 from app.models.doctor import DoctorProfile, DoctorQualification
 from app.models.language import Language, ProviderLanguage
 from app.models.specialization import Specialization
@@ -453,6 +462,7 @@ class TestMemberProviderDiscoveryAndReviews:
                     member_id=reviewer.id,
                     rating=5,
                     comment="Excellent",
+                    status=ProviderReviewStatus.PUBLISHED,
                 ),
             ]
         )
@@ -516,8 +526,8 @@ class TestMemberProviderDiscoveryAndReviews:
         )
         unlocated = _provider(db, "Unlocated Clinic", latitude=None, longitude=None)
         db.add_all([
-            ProviderReview(provider_id=nearby.id, member_id=member.id, rating=5, comment="Great"),
-            ProviderReview(provider_id=far.id, member_id=member.id, rating=3, comment="Fine"),
+            ProviderReview(provider_id=nearby.id, member_id=member.id, rating=5, comment="Great", status=ProviderReviewStatus.PUBLISHED),
+            ProviderReview(provider_id=far.id, member_id=member.id, rating=3, comment="Fine", status=ProviderReviewStatus.PUBLISHED),
         ])
         db.commit()
 
@@ -591,11 +601,12 @@ class TestMemberProviderDiscoveryAndReviews:
             maximum_working_radius_km="40",
         ).visit_stability = VisitStability.NOT_STABLE_VISIT
         db.add(
-            ProviderReview(provider_id=nearby.id, member_id=member.id, rating=5, comment="Great")
+            ProviderReview(provider_id=nearby.id, member_id=member.id, rating=5, comment="Great", status=ProviderReviewStatus.PUBLISHED)
         )
         db.add(
             ProviderReview(
-                provider_id=second_nearby.id, member_id=member.id, rating=2, comment="Okay"
+                provider_id=second_nearby.id, member_id=member.id, rating=2, comment="Okay",
+                status=ProviderReviewStatus.PUBLISHED,
             )
         )
         db.commit()
@@ -740,14 +751,38 @@ class TestMemberProviderDiscoveryAndReviews:
             json={"rating": 4, "comment": "Caring team"},
         )
         assert created.status_code == 200
+        assert created.json()["status"] == "PENDING"
+        assert created.json()["version"] == 1
+        retry = client.put(
+            f"{MEMBER_BASE}/{provider.id}/review",
+            headers=headers,
+            json={"rating": 4, "comment": "Caring team"},
+        )
+        assert retry.status_code == 200
+        assert retry.json()["id"] == created.json()["id"]
+        assert retry.json()["version"] == created.json()["version"]
+        assert db.query(ProviderReviewAction).filter_by(
+            review_id=UUID(created.json()["id"])
+        ).count() == 1
+        no_version_edit = client.put(
+            f"{MEMBER_BASE}/{provider.id}/review",
+            headers=headers,
+            json={"rating": 3, "comment": "Different content without a version"},
+        )
+        assert no_version_edit.status_code == 409
         updated = client.put(
             f"{MEMBER_BASE}/{provider.id}/review",
             headers=headers,
-            json={"rating": 5, "comment": "Even better on our second visit"},
+            json={
+                "rating": 5,
+                "comment": "Even better on our second visit",
+                "expected_version": created.json()["version"],
+            },
         )
         assert updated.status_code == 200
         assert db.query(ProviderReview).count() == 1
         assert db.query(ProviderReview).one().rating == 5
+        assert updated.json()["status"] == "PENDING"
         assert client.put(
             f"{MEMBER_BASE}/{provider.id}/review",
             headers=headers,
@@ -756,23 +791,61 @@ class TestMemberProviderDiscoveryAndReviews:
 
         detail = client.get(f"{MEMBER_BASE}/{provider.id}", headers=headers)
         assert detail.status_code == 200
-        assert detail.json()["review_count"] == 1
-        assert detail.json()["average_rating"] == 5.0
+        assert detail.json()["review_count"] == 0
+        assert detail.json()["average_rating"] is None
         assert detail.json()["years_experience"] == 14
-        assert detail.json()["visible_reviews"][0]["comment"] == "Even better on our second visit"
+        assert detail.json()["visible_reviews"] == []
 
         admin, _ = seeded_admin
         review_id = updated.json()["id"]
+        unapproved_hide = client.patch(
+            f"{ADMIN_BASE}/{review_id}/status",
+            headers=_headers(admin),
+            json={"status": "HIDDEN", "expected_version": updated.json()["version"]},
+        )
+        assert unapproved_hide.status_code == 409
+        assert client.get(f"{MEMBER_BASE}/{provider.id}", headers=headers).json()["review_count"] == 0
         denied = client.patch(
             f"{ADMIN_BASE}/{review_id}/comment-visibility",
             headers=headers,
             json={"comment_visible": False},
         )
         assert denied.status_code == 403
+        published = client.patch(
+            f"{ADMIN_BASE}/{review_id}/status",
+            headers=_headers(admin),
+            json={
+                "status": "PUBLISHED",
+                "expected_version": updated.json()["version"],
+                "member_note": "Thank you for sharing your experience.",
+                "internal_note": "Reviewed against moderation guidelines.",
+            },
+        )
+        assert published.status_code == 200
+        assert published.json()["status"] == "PUBLISHED"
+        assert published.json()["version"] == 3
+        detail = client.get(f"{MEMBER_BASE}/{provider.id}", headers=headers).json()
+        assert detail["review_count"] == 1
+        assert detail["average_rating"] == 5.0
+        assert detail["visible_reviews"][0]["comment"] == "Even better on our second visit"
+        assert detail["own_review"]["member_note"] == "Thank you for sharing your experience."
+        published_retry = client.put(
+            f"{MEMBER_BASE}/{provider.id}/review",
+            headers=headers,
+            json={"rating": 5, "comment": "Even better on our second visit"},
+        )
+        assert published_retry.status_code == 200
+        assert published_retry.json()["status"] == "PUBLISHED"
+        assert published_retry.json()["version"] == published.json()["version"]
+        assert published_retry.json()["member_note"] == "Thank you for sharing your experience."
+        own_card = client.get(f"/api/v1/member/reviews/{review_id}", headers=headers)
+        assert own_card.status_code == 200
+        assert "internal_note" not in own_card.json()
+
         hidden = client.patch(
             f"{ADMIN_BASE}/{review_id}/comment-visibility",
             headers=_headers(admin),
-            json={"comment_visible": False},
+            json={"comment_visible": False, "expected_version": published.json()["version"]},
         )
         assert hidden.status_code == 200
         assert hidden.json()["comment_visible"] is False
@@ -782,7 +855,17 @@ class TestMemberProviderDiscoveryAndReviews:
         assert after_hide["review_count"] == 1
         assert after_hide["average_rating"] == 5.0
         assert after_hide["visible_reviews"] == []
-        assert after_hide["own_review"]["comment"] == ""
+        assert after_hide["own_review"]["comment"] == "Even better on our second visit"
+        hidden_edit = client.put(
+            f"{MEMBER_BASE}/{provider.id}/review",
+            headers=headers,
+            json={
+                "rating": 1,
+                "comment": "Trying to bypass moderation",
+                "expected_version": hidden.json()["version"],
+            },
+        )
+        assert hidden_edit.status_code == 409
         moderation = client.get(
             ADMIN_BASE, headers=_headers(admin), params={"comment_visible": "false"}
         )
@@ -792,14 +875,109 @@ class TestMemberProviderDiscoveryAndReviews:
         restored = client.patch(
             f"{ADMIN_BASE}/{review_id}/comment-visibility",
             headers=_headers(admin),
-            json={"comment_visible": True},
+            json={"comment_visible": True, "expected_version": hidden.json()["version"]},
         )
         assert restored.status_code == 200
         assert client.get(f"{MEMBER_BASE}/{provider.id}", headers=headers).json()["visible_reviews"][0]["comment"]
 
+        history = client.get(f"{ADMIN_BASE}/{review_id}", headers=_headers(admin))
+        assert history.status_code == 200
+        actions = history.json()["history"]
+        assert [action["action"] for action in actions] == [
+            "member_submitted",
+            "member_edited",
+            "admin_published",
+            "admin_hidden",
+            "admin_published",
+        ]
+        assert actions[1]["content_snapshot"]["comment"] == "Even better on our second visit"
+        assert actions[2]["content_snapshot"]["member_note"] == "Thank you for sharing your experience."
+        assert actions[2]["content_snapshot"]["internal_note"] == "Reviewed against moderation guidelines."
+        assert actions[2]["actor_name"] == admin.full_name
+        assert actions[2]["actor_email"] == admin.email
+
         events = db.query(AuditLog).filter(AuditLog.resource_id == review_id).all()
         assert events
         assert all("Caring team" not in str(event.event_metadata) for event in events)
+
+    def test_member_review_ownership_stale_writes_and_soft_deletion_history(
+        self, client, db, seeded_admin
+    ):
+        owner = _member(db, "lifecycle-owner@example.com")
+        other = _member(db, "lifecycle-other@example.com")
+        admin, _ = seeded_admin
+        provider = _provider(db, "Lifecycle Clinic")
+        headers = _headers(owner)
+        created = client.put(
+            f"{MEMBER_BASE}/{provider.id}/review",
+            headers=headers,
+            json={"rating": 4, "comment": "Keep the original account of my visit"},
+        )
+        assert created.status_code == 200
+        review_id = created.json()["id"]
+
+        listing = client.get("/api/v1/member/reviews", headers=headers)
+        assert listing.status_code == 200
+        assert listing.json()["meta"]["total"] == 1
+        assert listing.json()["data"][0]["id"] == review_id
+        assert listing.json()["data"][0]["status"] == "PENDING"
+        assert client.get(
+            f"/api/v1/member/reviews/{review_id}", headers=_headers(other)
+        ).status_code == 404
+        assert client.put(
+            f"/api/v1/member/reviews/{review_id}",
+            headers=_headers(other),
+            json={"rating": 1, "comment": "Not mine", "expected_version": 1},
+        ).status_code == 404
+        assert client.delete(
+            f"/api/v1/member/reviews/{review_id}",
+            headers=_headers(other),
+            params={"expected_version": 1},
+        ).status_code == 404
+
+        stale_edit = client.put(
+            f"/api/v1/member/reviews/{review_id}",
+            headers=headers,
+            json={"rating": 3, "comment": "Stale write", "expected_version": 8},
+        )
+        assert stale_edit.status_code == 409
+        edited = client.put(
+            f"/api/v1/member/reviews/{review_id}",
+            headers=headers,
+            json={
+                "rating": 5,
+                "comment": "The current version",
+                "expected_version": created.json()["version"],
+            },
+        )
+        assert edited.status_code == 200
+        assert edited.json()["status"] == "PENDING"
+        deleted = client.delete(
+            f"/api/v1/member/reviews/{review_id}",
+            headers=headers,
+            params={"expected_version": edited.json()["version"]},
+        )
+        assert deleted.status_code == 204
+        assert client.get("/api/v1/member/reviews", headers=headers).json()["meta"]["total"] == 0
+
+        # A new active review is allowed, while the deleted record and its
+        # attributable action snapshots remain available to administrators.
+        replacement = client.put(
+            f"{MEMBER_BASE}/{provider.id}/review",
+            headers=headers,
+            json={"rating": 2, "comment": "A fresh review"},
+        )
+        assert replacement.status_code == 200
+        assert replacement.json()["id"] != review_id
+        admin_detail = client.get(f"{ADMIN_BASE}/{review_id}", headers=_headers(admin))
+        assert admin_detail.status_code == 200
+        payload = admin_detail.json()
+        assert payload["deleted_at"] is not None
+        assert payload["comment"] == "The current version"
+        assert payload["history"][-1]["action"] == "member_deleted"
+        assert payload["history"][-1]["content_snapshot"]["comment"] == "The current version"
+        assert payload["history"][-1]["actor_name"] == owner.full_name
+        assert payload["history"][-1]["actor_email"] == owner.email
 
     def test_reviews_cannot_target_an_undiscoverable_provider(self, client, db):
         member = _member(db, "missing@example.com")
@@ -818,24 +996,83 @@ class TestMemberProviderDiscoveryAndReviews:
         member_id = member.id
         barrier = Barrier(2)
 
-        def submit(rating: int):
+        def submit():
             session = TestingSessionLocal()
             try:
                 barrier.wait(timeout=5)
                 review, _ = ReviewRepository(session).save_member_review(
-                    provider_id, member_id, rating=rating, comment=f"Rating {rating}"
+                    provider_id,
+                    member_id,
+                    rating=4,
+                    comment="Idempotent concurrent submission",
+                    expected_version=None,
                 )
+                if review is None:
+                    session.rollback()
+                    return None
                 session.commit()
                 return review.id
             finally:
                 session.close()
 
         with ThreadPoolExecutor(max_workers=2) as pool:
-            review_ids = list(pool.map(submit, [4, 5]))
+            review_ids = list(pool.map(lambda _index: submit(), [1, 2]))
 
         assert review_ids[0] == review_ids[1]
         assert db.query(ProviderReview).count() == 1
-        assert db.query(ProviderReview).one().rating in {4, 5}
+        assert db.query(ProviderReview).one().rating == 4
+        assert db.query(ProviderReview).one().status == ProviderReviewStatus.PENDING
+
+    def test_conflicting_concurrent_first_write_does_not_overwrite_moderation(
+        self, db
+    ):
+        member = _member(db, "moderation-race@example.com")
+        provider = _provider(db, "Moderation Race Clinic")
+        existing = ProviderReview(
+            provider_id=provider.id,
+            member_id=member.id,
+            rating=5,
+            comment="Submitted content",
+            status=ProviderReviewStatus.PUBLISHED,
+            member_note="Approved note",
+            internal_note="Moderator-only note",
+            version=2,
+        )
+        db.add(existing)
+        db.commit()
+
+        session = TestingSessionLocal()
+        try:
+            repository = ReviewRepository(session)
+            original_get = repository.get_member_review
+            read_count = 0
+
+            def simulate_stale_initial_read(provider_id, member_id):
+                nonlocal read_count
+                read_count += 1
+                if read_count == 1:
+                    return None
+                return original_get(provider_id, member_id)
+
+            repository.get_member_review = simulate_stale_initial_read
+            retried, created = repository.save_member_review(
+                provider.id,
+                member.id,
+                rating=5,
+                comment="Submitted content",
+                expected_version=None,
+            )
+            assert retried is not None
+            assert created is False
+            session.commit()
+        finally:
+            session.close()
+
+        db.refresh(existing)
+        assert existing.status == ProviderReviewStatus.PUBLISHED
+        assert existing.version == 2
+        assert existing.member_note == "Approved note"
+        assert existing.internal_note == "Moderator-only note"
 
     def test_admin_provider_list_summaries_include_hidden_comments(self, client, db, seeded_admin):
         admin, _ = seeded_admin
@@ -850,6 +1087,7 @@ class TestMemberProviderDiscoveryAndReviews:
                 rating=5,
                 comment="Visible feedback",
                 comment_visible=True,
+                status=ProviderReviewStatus.PUBLISHED,
             ),
             ProviderReview(
                 provider_id=reviewed.id,
@@ -857,6 +1095,7 @@ class TestMemberProviderDiscoveryAndReviews:
                 rating=3,
                 comment="Hidden feedback",
                 comment_visible=False,
+                status=ProviderReviewStatus.HIDDEN,
             ),
         ])
         db.commit()
@@ -884,6 +1123,7 @@ class TestMemberProviderDiscoveryAndReviews:
             rating=5,
             comment="Visible scoped comment",
             comment_visible=True,
+            status=ProviderReviewStatus.PUBLISHED,
         )
         hidden_review = ProviderReview(
             provider_id=provider.id,
@@ -891,6 +1131,7 @@ class TestMemberProviderDiscoveryAndReviews:
             rating=2,
             comment="Hidden scoped comment",
             comment_visible=False,
+            status=ProviderReviewStatus.HIDDEN,
         )
         db.add_all([
             visible_review,
@@ -900,6 +1141,7 @@ class TestMemberProviderDiscoveryAndReviews:
                 member_id=other_reviewer.id,
                 rating=4,
                 comment="Other provider comment",
+                status=ProviderReviewStatus.PUBLISHED,
             ),
         ])
         db.commit()
@@ -935,7 +1177,7 @@ class TestMemberProviderDiscoveryAndReviews:
         updated = client.patch(
             f"{ADMIN_BASE}/{visible_review.id}/comment-visibility",
             headers=_headers(admin),
-            json={"comment_visible": False},
+            json={"comment_visible": False, "expected_version": visible_review.version},
         )
         assert updated.status_code == 200
         assert updated.json()["rating"] == 5

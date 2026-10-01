@@ -10,6 +10,7 @@ from app.core.security import hash_password
 from app.models.enums import (
     InvitationStatus,
     ProviderApplicationStatus,
+    ProviderReviewStatus,
     ProviderStatus,
     ProviderType,
     PublicationStatus,
@@ -170,6 +171,7 @@ def test_portal_setup_is_single_use_and_provider_profile_is_owned(client, db, se
             rating=5,
             comment="Visible member comment",
             comment_visible=True,
+            status=ProviderReviewStatus.PUBLISHED,
         ),
         ProviderReview(
             provider_id=provider.id,
@@ -177,6 +179,7 @@ def test_portal_setup_is_single_use_and_provider_profile_is_owned(client, db, se
             rating=1,
             comment="Hidden moderation comment",
             comment_visible=False,
+            status=ProviderReviewStatus.HIDDEN,
         ),
     ])
     db.commit()
@@ -224,6 +227,7 @@ def test_approved_registration_provider_can_manage_own_profile_and_see_visible_f
                 rating=5,
                 comment="Clear and compassionate care.",
                 comment_visible=True,
+                status=ProviderReviewStatus.PUBLISHED,
             ),
             ProviderReview(
                 provider_id=provider.id,
@@ -231,6 +235,7 @@ def test_approved_registration_provider_can_manage_own_profile_and_see_visible_f
                 rating=1,
                 comment="Moderated feedback remains private.",
                 comment_visible=False,
+                status=ProviderReviewStatus.HIDDEN,
             ),
         ]
     )

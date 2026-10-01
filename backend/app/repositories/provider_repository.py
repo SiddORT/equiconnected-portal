@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.enums import (
     ProviderStatus,
+    ProviderReviewStatus,
     ProviderType,
     PublicationStatus,
     VisitStability,
@@ -125,7 +126,13 @@ class ProviderRepository:
                 func.avg(ProviderReview.rating).cast(Float).label("average_rating"),
                 func.count(ProviderReview.id).label("review_count"),
             )
-            .where(ProviderReview.provider_id.in_(select(page_provider_ids.c.id)))
+            .where(
+                ProviderReview.provider_id.in_(select(page_provider_ids.c.id)),
+                ProviderReview.deleted_at.is_(None),
+                ProviderReview.status.in_(
+                    [ProviderReviewStatus.PUBLISHED, ProviderReviewStatus.HIDDEN]
+                ),
+            )
             .group_by(ProviderReview.provider_id)
             .subquery()
         )

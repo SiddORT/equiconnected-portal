@@ -17,6 +17,7 @@ vi.mock('@/app/TimeSettingsContext', () => ({
     formatTimestamp: (value: string) => value,
   }),
 }));
+vi.mock('@/api/memberHistoryRecording', () => ({ recordMemberHistory: vi.fn().mockResolvedValue(undefined) }));
 
 const detail = {
   id: 'provider-1', is_saved: false, provider_type: 'CLINIC' as const, name: 'Austin Equine Clinic',
@@ -25,7 +26,7 @@ const detail = {
   location: { city: 'Austin', state_province: 'Texas', country: 'United States' },
   average_rating: 4.5, review_count: 2, distance_km: null,
   visible_reviews: [],
-  own_review: { id: 'review-1', rating: 4, comment: '', comment_visible: false, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+  own_review: { id: 'review-1', rating: 4, comment: '', comment_visible: false, status: 'PENDING' as const, version: 1, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
 };
 
 function renderProfile(entry: string | { pathname: string; search?: string; hash?: string; state?: unknown } = '/providers/provider-1') {
@@ -154,7 +155,7 @@ describe('MemberProviderDetailPage', () => {
     await user.click(back);
     expect(screen.getByText('?type=CLINIC / {"directoryCoordinates":{"latitude":30,"longitude":-97},"directoryLocationGranted":true}')).toBeTruthy();
   });
-  it('shows a hidden-comment explanation and submits an updated member review', async () => {
+  it('explains moderation and submits an updated member review to pending', async () => {
     vi.mocked(providersApi.getMemberProvider).mockResolvedValue({
       ...detail,
       visible_reviews: [{
@@ -189,7 +190,7 @@ describe('MemberProviderDetailPage', () => {
       });
     const user = userEvent.setup();
     renderProfile();
-    expect(await screen.findByText(/prior comment is currently hidden/i)).toBeTruthy();
+    expect((await screen.findAllByText(/new reviews and edits await publication/i)).length).toBeGreaterThan(0);
     expect((screen.getByRole('radio', { name: '4 stars' }) as HTMLInputElement).checked).toBe(true);
     expect(screen.getByText('17 member reviews')).toBeTruthy();
     expect(screen.queryByText(/no comment provided/i)).toBeNull();
@@ -197,10 +198,22 @@ describe('MemberProviderDetailPage', () => {
     await user.type(screen.getByLabelText('Comment (optional)'), 'Excellent follow-up');
     await user.click(screen.getByRole('button', { name: 'Update review' }));
     await waitFor(() => expect(providersApi.saveMemberProviderReview).toHaveBeenCalledWith(
-      'provider-1', { rating: 5, comment: 'Excellent follow-up' }
+      'provider-1', { rating: 5, comment: 'Excellent follow-up', expected_version: 1 }
     ));
-    expect(await screen.findByText('Your review has been updated.')).toBeTruthy();
+    expect(await screen.findByText(/Your review has been saved and is awaiting publication/)).toBeTruthy();
     expect(await screen.findByText('18 member reviews')).toBeTruthy();
+  });
+
+  it('keeps hidden review text private to its owner without offering an edit', async () => {
+    vi.mocked(providersApi.getMemberProvider).mockResolvedValue({
+      ...detail, own_review: { ...detail.own_review, status: 'HIDDEN', version: 3, comment: 'Owner-only hidden text', member_note: 'Comment removed by moderator.' },
+    });
+    renderProfile();
+    expect(await screen.findByText('Owner-only hidden text')).toBeTruthy();
+    expect(screen.getByText('Comment removed by moderator.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Update review' })).toBeNull();
+    expect(screen.queryByLabelText('Comment (optional)')).toBeNull();
+    expect(providersApi.saveMemberProviderReview).not.toHaveBeenCalled();
   });
 
   it('renders visible member feedback as a full card with the submitted timestamp', async () => {

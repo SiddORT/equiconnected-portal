@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import * as providersApi from '@/api/providers';
+import { historyFilters, recordMemberHistory } from '@/api/memberHistoryRecording';
 import { extractErrorMessage } from '@/api/client';
 import { Alert } from '@/components/ui/Alert';
 import { Pagination } from '@/components/ui/Pagination';
@@ -71,6 +72,7 @@ export function ProviderDirectoryPage() {
   const geoRequestId = useRef(0);
   const filtersRef = useRef<HTMLSelectElement>(null);
   const requestId = useRef(0);
+  const lastRecordedSearch = useRef<string | null>(null);
   useEffect(() => () => { geoRequestId.current++; requestId.current++; }, []);
   const query = searchParams.toString();
   const closestFirst = searchParams.get('closest_first') === 'true';
@@ -123,7 +125,18 @@ export function ProviderDirectoryPage() {
     }).then(data => {
       if (id !== requestId.current) return;
       if (page > data.meta.total_pages && data.meta.total > 0) updateParams({ page: '1' });
-      else setResult({ key: requestedKey, status: 'ready', data });
+      else {
+        setResult({ key: requestedKey, status: 'ready', data });
+        const filters = historyFilters(searchParams);
+        const signature = JSON.stringify(filters);
+        if (Object.keys(filters).length && signature !== lastRecordedSearch.current) {
+          void recordMemberHistory({
+            event_key: `search:${location.key}`,
+            type: 'search', filters,
+          });
+        }
+        lastRecordedSearch.current = signature;
+      }
     }).catch(error => {
       if (id === requestId.current) setResult({ key: requestedKey, status: 'error', message: extractErrorMessage(error, 'Providers could not be loaded.') });
     });

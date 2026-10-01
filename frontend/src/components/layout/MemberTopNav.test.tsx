@@ -1,11 +1,13 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { MemberTopNav } from './MemberTopNav';
 
-const { logout } = vi.hoisted(() => ({
+const { logout, getProfile, getRecentMemberHistory } = vi.hoisted(() => ({
   logout: vi.fn(),
+  getProfile: vi.fn(),
+  getRecentMemberHistory: vi.fn(),
 }));
 
 vi.mock('@/app/AuthContext', () => ({
@@ -25,6 +27,16 @@ vi.mock('@/app/AuthContext', () => ({
     logout,
   }),
 }));
+vi.mock('@/api/profile', () => ({ getProfile }));
+vi.mock('@/api/memberFeedback', () => ({ getRecentMemberHistory, submitPlatformFeedback: vi.fn() }));
+
+beforeEach(() => {
+  getProfile.mockResolvedValue({ horses: [{ id: 'horse-1' }] });
+  getRecentMemberHistory.mockResolvedValue([{
+    id: 'history-1', event_key: 'search:1', type: 'search', occurred_at: '2026-08-21T12:00:00Z',
+    provider_id: null, provider_name: null, provider_available: null, filters: { name: 'field vet' },
+  }]);
+});
 
 afterEach(() => {
   cleanup();
@@ -54,6 +66,45 @@ describe('MemberTopNav', () => {
 
     await user.click(screen.getByRole('link', { name: 'Profile' }));
     expect(screen.getByRole('button', { name: 'Open member navigation' }).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('opens an account menu with persisted profile details and recent member activity', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><MemberTopNav /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: 'Account menu for Amina Rider' }));
+    expect(await screen.findByText('1 horse in your care')).toBeTruthy();
+    expect(screen.getByText('Horse owner')).toBeTruthy();
+    expect(await screen.findByText('Provider search')).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'My Reviews & Feedback' }).getAttribute('href')).toBe('/my-reviews');
+    expect(screen.getByRole('menuitem', { name: 'View all' }).getAttribute('href')).toBe('/history');
+  });
+
+  it('refreshes profile and history after member activity events and closes on Escape with focus return', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><MemberTopNav /></MemoryRouter>);
+    const accountButton = screen.getByRole('button', { name: 'Account menu for Amina Rider' });
+    await user.click(accountButton);
+    await screen.findByText('Provider search');
+    getProfile.mockClear();
+    getRecentMemberHistory.mockClear();
+    window.dispatchEvent(new Event('member-profile-changed'));
+    await waitFor(() => expect(getProfile).toHaveBeenCalledTimes(1));
+    expect(getRecentMemberHistory).toHaveBeenCalledTimes(1);
+    await user.keyboard('{Escape}');
+    expect(accountButton.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(accountButton);
+  });
+
+  it('supports arrow-key movement through the account menu and outside-click dismissal', async () => {
+    const user = userEvent.setup();
+    render(<MemoryRouter><MemberTopNav /></MemoryRouter>);
+    const accountButton = screen.getByRole('button', { name: 'Account menu for Amina Rider' });
+    await user.click(accountButton);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'View all' })));
+    await user.keyboard('{ArrowDown}');
+    expect(document.activeElement?.textContent).toContain('Provider search');
+    await user.click(screen.getByRole('link', { name: 'EquiConnected home' }));
+    expect(accountButton.getAttribute('aria-expanded')).toBe('false');
   });
 
   it('logs the member out once and redirects to member sign-in', async () => {
