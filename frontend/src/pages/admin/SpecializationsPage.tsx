@@ -269,7 +269,7 @@ export function SpecializationsPage() {
         />
 
         {/* ── Pagination ──────────────────────────────────────────────────── */}
-        {loadState === 'success' && meta && (
+        {loadState === 'success' && meta && meta.total > 0 && (
           <Pagination
             page={page}
             pageSize={pageSize}
