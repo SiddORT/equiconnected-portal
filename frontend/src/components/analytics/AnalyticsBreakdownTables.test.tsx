@@ -17,6 +17,17 @@ const reports = [{
 
 afterEach(cleanup);
 
+it.each([
+  { group: { HORSE_OWNER: 3 } },
+  { group: [{ type: 'HORSE_OWNER', count: 3 }] },
+])('shows Horse Owner in subscriber breakdown tables', ({ group }) => {
+  const report = { ...reports[0], domain: 'subscribers', groups: { subscriber_type: group } } as AnalyticsBreakdowns;
+  render(<AnalyticsBreakdownTables reports={[report]} />);
+  fireEvent.click(screen.getByText('subscribers · subscriber type'));
+  expect(screen.getByRole('rowheader', { name: 'Horse Owner' })).toBeTruthy();
+  expect(screen.queryByText('HORSE_OWNER')).toBeNull();
+});
+
 describe('AnalyticsBreakdownTables', () => {
   it('starts collapsed and reveals a group definition and values on demand', async () => {
     const rendered = render(<AnalyticsBreakdownTables reports={reports} />);

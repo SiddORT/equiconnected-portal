@@ -1,5 +1,6 @@
 import type { AnalyticsBreakdowns } from '@/types/analytics';
 import { useId, useState } from 'react';
+import { analyticsCategoryLabel } from './analyticsLabels';
 import styles from './AnalyticsBreakdownTables.module.css';
 
 interface AggregateRow {
@@ -109,7 +110,7 @@ export function AnalyticsBreakdownTables({ reports, excludedGroupNames = [], exc
             <div className={styles.tableWrap}>
               <table><caption className="sr-only">{group.domain} {group.name} aggregate values</caption>
                 <thead><tr><th scope="col">Category / status</th><th scope="col">{variant === 'metrics' ? 'Value' : 'Count'}</th><th scope="col">Basis</th></tr></thead>
-                <tbody>{group.rows.map((row, index) => <tr key={`${row.category}-${index}`}><th scope="row">{row.category}</th><td>{row.value === null ? 'Unavailable' : row.value.toLocaleString()}</td><td>{basisFor(group.domain, group.name)}</td></tr>)}</tbody>
+                <tbody>{group.rows.map((row, index) => <tr key={`${row.category}-${index}`}><th scope="row">{analyticsCategoryLabel(row.category)}</th><td>{row.value === null ? 'Unavailable' : row.value.toLocaleString()}</td><td>{basisFor(group.domain, group.name)}</td></tr>)}</tbody>
               </table>
             </div></>}
           </details>

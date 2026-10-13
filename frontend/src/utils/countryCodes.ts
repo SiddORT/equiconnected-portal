@@ -139,7 +139,7 @@ const REST: CountryCode[] = [
 
 export const COUNTRY_CODES: CountryCode[] = [...COMMON, ...REST];
 
-export const DEFAULT_COUNTRY = COMMON[0];
+export const DEFAULT_COUNTRY = COMMON.find((country) => country.code === 'AE')!;
 
 /** Find the first country entry matching a dial code (e.g. "+44"). */
 export function findByDialCode(dialCode: string): CountryCode | undefined {

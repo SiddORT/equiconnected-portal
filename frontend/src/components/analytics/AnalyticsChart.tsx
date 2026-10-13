@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { AnalyticsGroup, AnalyticsPoint } from '@/types/analytics';
 import { Card } from '@/components/ui/Card';
+import { analyticsCategoryLabel } from './analyticsLabels';
 import styles from './AnalyticsChart.module.css';
 
 export interface ChartDatum { label: string; value: number | null }
@@ -13,7 +14,7 @@ function entriesOf(group: AnalyticsGroup | undefined): ChartDatum[] {
       ? { label, ...(value as Record<string, unknown>) }
       : { label, value });
   return rows.map((row, index) => {
-    const label = String(row.label ?? row.bucket ?? row.name ?? row.provider_name ?? row.status ?? row.category ?? row.rating ?? row.type ?? row.role ?? `Item ${index + 1}`);
+    const label = analyticsCategoryLabel(String(row.label ?? row.bucket ?? row.name ?? row.provider_name ?? row.status ?? row.category ?? row.rating ?? row.type ?? row.role ?? `Item ${index + 1}`));
     const raw = row.value ?? row.count ?? row.total ?? row.views ?? row.submissions ?? row.review_submissions ?? row.rating_count ?? row.profile_views;
     if (raw === null || raw === undefined || raw === '') return { label, value: null };
     const parsed = typeof raw === 'number' ? raw : Number(raw);

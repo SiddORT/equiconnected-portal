@@ -272,6 +272,7 @@ describe('Admin emergency country picker', () => {
   }
 
   it.each([
+    ['United Arab Emirates', '+971'],
     ['United States', '+1'],
     ['India', '+91'],
     ['Canada', '+1'],
@@ -279,7 +280,7 @@ describe('Admin emergency country picker', () => {
     render(<ProviderForm />);
     const user = await beginAdminWizard();
     await user.click(screen.getByRole('checkbox', { name: /Emergency services available/ }));
-    if (country !== 'United States') {
+    if (country !== 'United Arab Emirates') {
       await user.click(screen.getByRole('button', { name: /Country code:/ }));
       await user.type(screen.getByRole('textbox', { name: 'Search countries' }), country);
       await user.keyboard('{Enter}');
@@ -324,9 +325,9 @@ describe('Admin emergency country picker', () => {
     ['+1 403 555 9999', '+1', '403 555 9999'],
     ['+919988776655', '+91', '9988776655'],
     ['+971 50 123 4567', '+971', '50 123 4567'],
-    [' 403-555-9999 ', '+1', '403-555-9999'],
-    ['+999 123456', '+1', '+999 123456'],
-    [null, '+1', ''],
+    [' 403-555-9999 ', '+971', '403-555-9999'],
+    ['+999 123456', '+971', '+999 123456'],
+    [null, '+971', ''],
   ])('hydrates %s and preserves it during unrelated edits', async (number, prefix, local) => {
     render(<ProviderForm initialData={existingProvider({ emergency_contact_number: number })} />);
     const user = userEvent.setup();
@@ -996,7 +997,7 @@ describe('ProviderForm visit stability', () => {
     const number = screen.getByLabelText('Emergency contact number') as HTMLInputElement;
     expect(emergency.closest('div')?.contains(number)).toBe(true);
     expect(number.type).toBe('tel');
-    expect(screen.getByRole('button', { name: 'Country code: United States +1' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Country code: United Arab Emirates +971' })).toBeTruthy();
     expect(screen.queryByLabelText('Emergency contact name')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByText('Emergency contact number is required.')).toBeTruthy();
@@ -1483,7 +1484,7 @@ describe('ProviderForm edit wizard', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('checkbox', { name: /Emergency services available/ }));
-    expect(screen.getByRole('button', { name: 'Country code: United States +1' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Country code: United Arab Emirates +971' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByText('Emergency contact number is required.')).toBeTruthy();
   });

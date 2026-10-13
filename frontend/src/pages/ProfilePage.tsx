@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { MemberAddressFields, type MemberAddressValue } from '@/features/member/MemberAddressFields';
 import { PhoneInput } from '@/components/ui/PhoneInput';
+import { DEFAULT_COUNTRY } from '@/utils/countryCodes';
 import {
   calculateProfileCompletion,
   type ProfileCompletionSection,
@@ -30,7 +31,7 @@ function optional(value: string): string | null {
 
 function phoneParts(value: string) {
   const match = value.match(/^(\+\d{1,4})[\s-]*(.*)$/);
-  return { dialCode: match?.[1] ?? '+1', number: match?.[2] ?? value };
+  return { dialCode: match?.[1] ?? DEFAULT_COUNTRY.dialCode, number: match?.[2] ?? value };
 }
 
 function toPersonal(profile: MemberProfile): PersonalProfileUpdate {

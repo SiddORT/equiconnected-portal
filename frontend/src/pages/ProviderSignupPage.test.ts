@@ -148,18 +148,18 @@ describe('provider signup emergency phone picker', () => {
     expect(screen.queryByLabelText('Emergency contact number')).toBeNull();
     await user.click(screen.getByLabelText('Emergency services available'));
     const emergency = screen.getByLabelText('Emergency contact number');
-    const [mobilePicker, emergencyPicker] = screen.getAllByRole('button', { name: /Country code: United States \+1/ });
+    const [mobilePicker, emergencyPicker] = screen.getAllByRole('button', { name: /Country code: United Arab Emirates \+971/ });
     await user.click(emergencyPicker);
     const search = screen.getByRole('textbox', { name: 'Search countries' });
     await user.type(search, 'United Kingdom');
     expect(screen.getByRole('option', { name: /United Kingdom.*\+44/ })).toBeTruthy();
     await user.keyboard('{Enter}');
     expect(emergencyPicker.getAttribute('aria-label')).toBe('Country code: United Kingdom +44');
-    expect(mobilePicker.getAttribute('aria-label')).toBe('Country code: United States +1');
+    expect(mobilePicker.getAttribute('aria-label')).toBe('Country code: United Arab Emirates +971');
     await user.type(emergency, '20 1234 5678');
     await user.click(screen.getByRole('button', { name: 'Submit provider application' }));
     await waitFor(() => expect(authApi.registerProvider).toHaveBeenCalledWith(expect.objectContaining({
-      mobile_number: '+1 5551234567',
+      mobile_number: '+971 5551234567',
       emergency_services_available: true,
       emergency_contact_number: '+44 20 1234 5678',
     })));

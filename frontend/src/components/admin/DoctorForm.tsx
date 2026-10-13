@@ -7,6 +7,7 @@
  *   onCancel() — called when the user dismisses
  */
 import { useEffect, useState } from 'react';
+import { DEFAULT_COUNTRY } from '@/utils/countryCodes';
 import { extractErrorMessage } from '@/api/client';
 import {
   addDoctorSpecialization,
@@ -118,8 +119,8 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
       visit_stability: '',
       maximum_working_radius_km: '',
       emergency_services_available: false,
-      emergency_country_code: '+1',
-      emergency_iso_code: 'US',
+      emergency_country_code: DEFAULT_COUNTRY.dialCode,
+      emergency_iso_code: DEFAULT_COUNTRY.code,
       emergency_local_number: '',
     }
   );

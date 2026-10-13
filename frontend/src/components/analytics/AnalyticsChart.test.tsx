@@ -5,6 +5,17 @@ import { AnalyticsChart } from './AnalyticsChart';
 afterEach(cleanup);
 
 describe('AnalyticsChart', () => {
+  it.each([
+    { group: { HORSE_OWNER: 3 } },
+    { group: [{ type: 'HORSE_OWNER', count: 3 }] },
+  ])('shows the readable subscriber label in charts and their data table', ({ group }) => {
+    const rendered = render(<AnalyticsChart title="Subscribers" group={group} unit="subscriptions" />);
+    expect(screen.getByRole('img', { name: /Horse Owner: 3 subscriptions/ })).toBeTruthy();
+    fireEvent.click(rendered.container.querySelector('details summary')!);
+    expect(screen.getByRole('rowheader', { name: 'Horse Owner' })).toBeTruthy();
+    expect(screen.queryByText('HORSE_OWNER')).toBeNull();
+  });
+
   it('reads provider-specific count fields instead of plotting unavailable zeroes', () => {
     render(<AnalyticsChart title="Most-reviewed providers" group={[
       { name: 'Pine Ridge', rating_count: 18 },

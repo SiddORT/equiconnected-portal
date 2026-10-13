@@ -63,6 +63,7 @@ import styles from './ProviderForm.module.css';
 import wizardStyles from './ProviderWizard.module.css';
 import { invitationEmailEntries } from './invitationEmailEntries';
 import { completeEmergencyNumber, emergencyPhoneFromNumber } from './emergencyPhone';
+import { DEFAULT_COUNTRY } from '@/utils/countryCodes';
 import {
   normalizePostalCountry,
   postalLookupMessage,
@@ -205,7 +206,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       return [
         m
           ? { country_code: m[1], number: m[2], is_primary: true }
-          : { country_code: '+1', number: initialData.phone.trim(), is_primary: true },
+          : { country_code: DEFAULT_COUNTRY.dialCode, iso_code: DEFAULT_COUNTRY.code, number: initialData.phone.trim(), is_primary: true },
       ];
     }
     return [];
