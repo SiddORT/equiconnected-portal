@@ -1125,20 +1125,41 @@ describe('ProviderForm visit stability', () => {
     expect(screen.getByRole('button', { name: 'Country' }).hasAttribute('disabled')).toBe(false);
   });
 
-  it('checks doctor names and qualification titles before leaving professional details', async () => {
+  it('allows optional doctor names but checks added qualification titles before leaving professional details', async () => {
     render(<ProviderForm />);
     const user = await beginAdminWizard('DOCTOR');
-    await user.click(screen.getByRole('button', { name: 'Continue' }));
-    expect(screen.getByText('First name is required.')).toBeTruthy();
-    expect(screen.getByText('Last name is required.')).toBeTruthy();
-    await user.type(screen.getByLabelText('First name'), 'Amina');
-    await user.type(screen.getByLabelText('Last name'), 'Khan');
+    expect((screen.getByLabelText('First name') as HTMLInputElement).required).toBe(false);
+    expect((screen.getByLabelText('Last name') as HTMLInputElement).required).toBe(false);
     await user.click(screen.getByRole('button', { name: 'Add qualification' }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByText('Qualification title is required.')).toBeTruthy();
     await user.type(screen.getByLabelText('Title'), 'DVM');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByRole('checkbox', { name: /Stable visit/ })).toBeTruthy();
+  });
+
+  it.each([
+    ['', ''],
+    ['Amina', ''],
+    ['', 'Khan'],
+  ])('creates a vet with optional names "%s" and "%s" after review', async (first, last) => {
+    vi.mocked(createProvider).mockResolvedValue(existingProvider({ provider_type: 'DOCTOR' }));
+    render(<ProviderForm />);
+    const user = await beginAdminWizard('DOCTOR');
+    if (first) await user.type(screen.getByLabelText('First name'), first);
+    if (last) await user.type(screen.getByLabelText('Last name'), last);
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByRole('heading', { name: 'Services' })).toBeTruthy();
+    await finishClinicWizard(user);
+    expect(createProvider).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create provider' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Create provider' }));
+    await waitFor(() => expect(createProvider).toHaveBeenCalledWith(expect.objectContaining({
+      provider_type: 'DOCTOR',
+      name: 'North Star',
+      first_name: first || null,
+      last_name: last || null,
+    })));
   });
 
   it('keeps entries when moving back, reviews them, and creates only after confirmation', async () => {
@@ -1619,7 +1640,7 @@ describe('ProviderForm edit wizard', () => {
     expect(updateProviderLocation).not.toHaveBeenCalled();
   });
 
-  it('explains newly missing doctor names on the professional step', async () => {
+  it('allows clearing optional doctor names on the professional step during edit', async () => {
     const provider = existingProvider({
       provider_type: 'DOCTOR',
       doctor_profile: {
@@ -1627,14 +1648,25 @@ describe('ProviderForm edit wizard', () => {
         biography: null, years_experience: null, experience_description: null,
       },
     });
+    vi.mocked(updateProvider).mockResolvedValue(provider);
+    vi.mocked(getProvider).mockResolvedValue(provider);
     const user = userEvent.setup();
     render(<ProviderForm initialData={provider} />);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.clear(screen.getByLabelText('First name'));
+    await user.clear(screen.getByLabelText('Last name'));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
-    expect(screen.getByText('First name is required.')).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Professional details' })).toBeTruthy();
+    expect(screen.queryByText('First name is required.')).toBeNull();
+    expect(screen.queryByText('Last name is required.')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Services' })).toBeTruthy();
     expect(updateProvider).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).hasAttribute('disabled')).toBe(false));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateProvider).toHaveBeenCalledWith(
+      provider.id, expect.objectContaining({ first_name: null, last_name: null }),
+    ));
   });
 
   it('keeps type transitions coherent and sends changed relationships, services and location', async () => {

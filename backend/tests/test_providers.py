@@ -1451,6 +1451,35 @@ class TestAdminProviderForm:
         body.update(overrides)
         return body
 
+    @pytest.mark.parametrize("first,last", [(None, None), ("Amina", None), (None, "Khan")])
+    def test_doctor_professional_names_are_optional(
+        self, client: TestClient, admin_token: str, first, last
+    ):
+        response = client.post(
+            BASE, json=self.body(first_name=first, last_name=last),
+            headers=_auth(admin_token),
+        )
+        assert response.status_code == 201, response.text
+        saved = response.json()
+        assert saved["name"] == "Doctor Care"
+        profile = saved["doctor_profile"]
+        if first is None and last is None:
+            assert profile is None or (profile.get("first_name") is None and profile.get("last_name") is None)
+        else:
+            assert profile.get("first_name") == first
+            assert profile.get("last_name") == last
+        if profile:
+            cleared = client.patch(
+                f"{BASE}/{saved['id']}",
+                json={"admin_form_version": 2, "first_name": None, "last_name": None},
+                headers=_auth(admin_token),
+            )
+            assert cleared.status_code == 200, cleared.text
+            assert cleared.json()["name"] == saved["name"]
+            cleared_profile = cleared.json()["doctor_profile"] or {}
+            assert cleared_profile.get("first_name") is None
+            assert cleared_profile.get("last_name") is None
+
     @pytest.mark.parametrize("provider_type", ["DOCTOR", "CLINIC", "HOSPITAL"])
     def test_each_type_creates_one_location_and_unpublished_detail(
         self, client: TestClient, admin_token: str, provider_type: str

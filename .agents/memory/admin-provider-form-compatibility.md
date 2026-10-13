@@ -14,3 +14,9 @@ The guided step-by-step experience applies to both admin provider creation and e
 **Why:** Administrators need consistent controls and an explicit review before either persistence action. Edits can involve incomplete legacy records, so their wizard gates cannot inherit creation-only required fields. Invitation drafts have a separate save/submit workflow.
 
 **How to apply:** Apply wizard navigation to both admin modes, with mode-specific validation, and leave invitation drafts outside the wizard.
+
+Admin vet professional information is optional, including first and last names. The separate provider/practice name remains required.
+
+**Why:** The user explicitly asked that the admin Add Provider vet flow permit continuing without first and last names, consistent with its “Professional info — optional” heading.
+
+**How to apply:** Accept blank or partially supplied professional names in the admin wizard, including clearing optional names during edits. Validate professional values only when supplied. Keep this admin rule separate from the structured-name requirements of public invitation flows.

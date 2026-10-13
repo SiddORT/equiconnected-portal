@@ -493,12 +493,6 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     if (!(inv ? invitationServices.visit_stability : visitStability)) errors.visit_stability = 'Visit Stable is required.';
     if (wizard && !isEdit && providerType === 'DOCTOR' && !doctorAvailability)
       errors.doctor_availability = 'Choose ongoing or visiting availability.';
-    if (wizard && providerType === 'DOCTOR' && !firstName.trim() &&
-      (!isEdit || initialData?.provider_type !== 'DOCTOR' || Boolean(initialData.doctor_profile?.first_name)))
-      errors.first_name = 'First name is required.';
-    if (wizard && providerType === 'DOCTOR' && !lastName.trim() &&
-      (!isEdit || initialData?.provider_type !== 'DOCTOR' || Boolean(initialData.doctor_profile?.last_name)))
-      errors.last_name = 'Last name is required.';
     if (yearsExperience.trim()) {
       const n = Number(yearsExperience);
       if (!Number.isInteger(n) || n < 0 || n > 100) {
@@ -1186,8 +1180,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               Professional info <span className={styles.optionalTag}>— optional</span>
             </h3>
             <div className={styles.grid}>
-              <Input label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} error={errs.first_name} required={!isEdit} />
-              <Input label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} error={errs.last_name} required={!isEdit} />
+              <Input label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} error={errs.first_name} required={Boolean(inv) && !isEdit} />
+              <Input label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} error={errs.last_name} required={Boolean(inv) && !isEdit} />
               <Input
                 label="Professional title"
                 placeholder="e.g. Consultant Cardiologist"
