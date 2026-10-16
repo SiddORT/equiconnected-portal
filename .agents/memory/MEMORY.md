@@ -56,3 +56,4 @@
 - [Protected provisioning evidence](protected-provisioning-evidence.md) — validate readiness, not mere secret presence; preserve UAT encryption material during recovery.
 - [Contact cutover boundary](contact-cutover-boundary.md) — strict encrypted-only reads require a coordinated offline cutover; never hide incomplete conversion with plaintext fallback.
 - [Browser interception classification](browser-fetch-classification.md) — Vite modules also use CDP Fetch; classify API endpoints before allowing known local static resources.
+- [Provider feedback privacy](provider-feedback-privacy.md) — own-listing hidden feedback stays readable, but reviewer identity and private moderation notes stay out of provider responses.

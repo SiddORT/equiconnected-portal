@@ -4,11 +4,14 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import * as providersApi from '@/api/providers';
 import { ProviderAccountPage } from './ProviderAccountPage';
+import { ProviderFeedbackPage } from './ProviderFeedbackPage';
+import { Route, Routes } from 'react-router-dom';
 import type { ProviderPortalProfile } from '@/types';
 
 const mockLogout = vi.hoisted(() => vi.fn());
 
 vi.mock('@/api/providers', () => ({
+  getProviderPortalFeedback: vi.fn(),
   getProviderPortalProfile: vi.fn(),
   getProviderPortalSpecializations: vi.fn(),
   updateProviderPortalProfile: vi.fn(),
@@ -223,12 +226,13 @@ describe('ProviderAccountPage', () => {
     render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
 
     expect(await screen.findByRole('heading', { name: 'Your profile' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Member feedback' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Open Member Feedback in a new tab/ })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Open Member Feedback in a new tab/ }).getAttribute('target')).toBe('_blank');
     expect(screen.queryByText('Your provider account is approved.')).toBeNull();
     expect(screen.queryByText(/more account tools are ready/)).toBeNull();
   });
 
-  it('shows only member-visible feedback as timestamped cards without reviewer emails or moderation controls', async () => {
+  it('keeps feedback details out of Account and provides a safe new-tab link', async () => {
     vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue({
       ...portalProfile,
       visible_reviews: [
@@ -248,18 +252,14 @@ describe('ProviderAccountPage', () => {
 
     render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
 
-    const card = await screen.findByTestId('review-card');
-    expect(card.textContent).toContain('Amina Rider');
-    expect(card.textContent).toContain('★★★★★');
-    expect(card.textContent).toContain('Thoughtful and thorough care.');
-    expect(card.textContent).toContain('Submitted formatted 2026-01-02T03:04:05Z');
-    expect(screen.queryByText('private@example.com')).toBeNull();
+    const link = await screen.findByRole('link', { name: /Open Member Feedback in a new tab/ });
+    expect(link.getAttribute('href')).toBe('/provider/feedback');
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(screen.getByText('4.5 ★ · 1 review')).toBeTruthy();
+    expect(screen.queryByText('Amina Rider')).toBeNull();
+    expect(screen.queryByText('Thoughtful and thorough care.')).toBeNull();
     expect(screen.queryByText('This hidden comment must not be rendered.')).toBeNull();
-    expect(screen.queryByText('Private Reviewer')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Hide' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Restore' })).toBeNull();
-    expect(screen.queryByText('Visible')).toBeNull();
-    expect(screen.queryByText('Hidden')).toBeNull();
+    expect(screen.queryByTestId('feedback-drawer')).toBeNull();
   });
 
   it('welcomes the provider and returns to provider sign in after logout', async () => {
@@ -281,34 +281,90 @@ describe('ProviderAccountPage', () => {
     expect(screen.getByTestId('location').textContent).toBe('/provider/login');
   });
 
-  it('opens the feedback drawer, moves focus to close, and closes on Escape', async () => {
-    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(portalProfile);
-    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+  it('shows feedback statuses, rating-only reviews, and keyboard-accessible pagination', async () => {
+    const feedbackPage = (page: number) => ({
+      data: page === 1 ? [
+        { id: 'pending', rating: 4, comment: 'Careful visit.', reviewer_name: 'A. R.', created_at: '2026-01-02T03:04:05Z', status: 'PENDING' as const },
+        { id: 'published', rating: 5, comment: null, reviewer_name: 'M. L.', created_at: '2026-01-01T03:04:05Z', status: 'PUBLISHED' as const },
+      ] : [
+        { id: 'hidden', rating: 2, comment: 'Not currently public.', reviewer_name: 'J. K.', created_at: '2025-12-31T03:04:05Z', status: 'HIDDEN' as const },
+        { id: 'rejected', rating: 1, comment: 'A moderated review.', reviewer_name: 'Member', created_at: '2025-12-30T03:04:05Z', status: 'REJECTED' as const },
+      ],
+      meta: { page, page_size: 10, total: 12, total_pages: 2 },
+    });
+    vi.mocked(providersApi.getProviderPortalFeedback)
+      .mockResolvedValueOnce(feedbackPage(1))
+      .mockResolvedValueOnce(feedbackPage(2));
     const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/provider/feedback']}>
+        <Routes><Route path="/provider/feedback" element={<ProviderFeedbackPage />} /></Routes>
+      </MemoryRouter>
+    );
 
-    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+    expect(await screen.findByText('Awaiting moderation')).toBeTruthy();
+    const activeFeedbackLink = screen.getByRole('link', { name: 'Member Feedback' });
+    expect(activeFeedbackLink.getAttribute('aria-current')).toBe('page');
+    activeFeedbackLink.focus();
+    expect(document.activeElement).toBe(activeFeedbackLink);
+    expect(screen.getByText('Published')).toBeTruthy();
+    expect(screen.getByText('Rating only — no written comment was provided.')).toBeTruthy();
+    expect(screen.getByText('Submitted formatted 2026-01-02T03:04:05Z')).toBeTruthy();
+    expect(screen.getByText('A. R.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /reply|edit|delete|hide|restore/i })).toBeNull();
+    const next = screen.getByRole('button', { name: 'Next' });
+    next.focus();
+    expect(document.activeElement).toBe(next);
+    await user.keyboard('{Enter}');
 
-    const trigger = await screen.findByRole('button', { name: 'Member feedback' });
-    const drawer = screen.getByTestId('feedback-drawer');
-    expect(trigger.getAttribute('aria-expanded')).toBe('false');
-    expect(drawer.hasAttribute('hidden')).toBe(true);
+    expect(await screen.findByText('Hidden by admin')).toBeTruthy();
+    expect(screen.getByText('Not published')).toBeTruthy();
+    expect(screen.getByText('Not currently public.')).toBeTruthy();
+    expect(screen.getByText('Page 2 of 2')).toBeTruthy();
+    expect(providersApi.getProviderPortalFeedback).toHaveBeenNthCalledWith(2, 2, 10, expect.any(AbortSignal));
+  });
 
-    await user.click(trigger);
-    expect(trigger.getAttribute('aria-expanded')).toBe('true');
-    expect(drawer.hasAttribute('hidden')).toBe(false);
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close member feedback' }));
-    expect(screen.getByText('Thoughtful and thorough care.')).toBeTruthy();
+  it.each([
+    [401, 'Session expired', 'Sign in again'],
+    [403, 'Feedback unavailable', 'Return to Account'],
+    [503, 'We hit a snag', 'Retry'],
+  ])('handles provider feedback request status %i', async (status, heading, action) => {
+    const failure = Object.assign(new Error('request failed'), { response: { status } });
+    vi.mocked(providersApi.getProviderPortalFeedback).mockRejectedValue(failure);
+    render(<MemoryRouter><ProviderFeedbackPage /></MemoryRouter>);
 
-    await user.keyboard('{Escape}');
-    expect(trigger.getAttribute('aria-expanded')).toBe('false');
-    expect(drawer.hasAttribute('hidden')).toBe(true);
-    expect(document.activeElement).toBe(trigger);
+    expect(await screen.findByRole('heading', { name: heading })).toBeTruthy();
+    expect(screen.getByRole(action === 'Retry' ? 'button' : 'link', { name: action })).toBeTruthy();
+  });
 
-    await user.click(trigger);
-    await user.click(screen.getByRole('button', { name: 'Close member feedback' }));
-    expect(trigger.getAttribute('aria-expanded')).toBe('false');
-    expect(drawer.hasAttribute('hidden')).toBe(true);
-    expect(document.activeElement).toBe(trigger);
+  it('announces loading, recovers a failed request, and shows the empty state', async () => {
+    let rejectRequest!: (reason: Error) => void;
+    vi.mocked(providersApi.getProviderPortalFeedback)
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectRequest = reject; }))
+      .mockResolvedValueOnce({ data: [], meta: { page: 1, page_size: 10, total: 0, total_pages: 0 } });
+    render(<MemoryRouter><ProviderFeedbackPage /></MemoryRouter>);
+    expect(screen.getByRole('status').textContent).toContain('Loading member feedback');
+    rejectRequest(new Error('Temporary failure'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    expect(await screen.findByRole('heading', { name: 'No feedback yet' })).toBeTruthy();
+    expect(providersApi.getProviderPortalFeedback).toHaveBeenCalledTimes(2);
+  });
+
+  it('lets providers return when the last feedback page becomes empty', async () => {
+    const firstPage = {
+      data: [{ id: 'one', rating: 4, comment: '', reviewer_name: 'Member', created_at: '2026-01-01T00:00:00Z', status: 'PENDING' as const }],
+      meta: { page: 1, page_size: 10, total: 11, total_pages: 2 },
+    };
+    vi.mocked(providersApi.getProviderPortalFeedback)
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce({ data: [], meta: { page: 2, page_size: 10, total: 1, total_pages: 1 } })
+      .mockResolvedValueOnce({ ...firstPage, meta: { ...firstPage.meta, total: 1, total_pages: 1 } });
+    render(<MemoryRouter><ProviderFeedbackPage /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole('button', { name: 'Next' }));
+    expect(await screen.findByRole('heading', { name: 'No reviews on this page' })).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Return to first page' }));
+    expect(await screen.findByText('Awaiting moderation')).toBeTruthy();
+    expect(providersApi.getProviderPortalFeedback).toHaveBeenLastCalledWith(1, 10, expect.any(AbortSignal));
   });
 
   it('uses structured fields for profile collections instead of JSON payloads', async () => {

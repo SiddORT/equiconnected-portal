@@ -52,6 +52,19 @@ class PublicProviderReview(BaseModel):
     created_at: datetime
 
 
+class ProviderVisibleReview(BaseModel):
+    """Allowlisted profile feedback; reviewer_name is a server-masked label."""
+    id: UUID
+    rating: int
+    comment: str
+    reviewer_name: str
+    created_at: datetime
+
+
+class ProviderFeedbackReview(ProviderVisibleReview):
+    status: ProviderReviewStatus
+
+
 class MemberReviewResponse(BaseModel):
     id: UUID
     rating: int

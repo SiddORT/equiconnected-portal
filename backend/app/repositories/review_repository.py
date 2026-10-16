@@ -386,6 +386,26 @@ class ReviewRepository:
             or 0
         )
 
+    def list_provider_feedback(
+        self, provider_id: UUID, *, page: int, page_size: int
+    ) -> tuple[list[tuple[ProviderReview, User | None]], int]:
+        conditions = [
+            ProviderReview.provider_id == provider_id,
+            ProviderReview.deleted_at.is_(None),
+        ]
+        total = self._db.scalar(
+            select(func.count()).select_from(ProviderReview).where(*conditions)
+        ) or 0
+        rows = self._db.execute(
+            select(ProviderReview, User)
+            .outerjoin(User, User.id == ProviderReview.member_id)
+            .where(*conditions)
+            .order_by(ProviderReview.created_at.desc(), ProviderReview.id)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        ).all()
+        return list(rows), total
+
     def get_member_review(
         self, provider_id: UUID, member_id: UUID
     ) -> ProviderReview | None:

@@ -674,6 +674,17 @@ export interface ProviderPortalVisibleReview {
   created_at: string;
 }
 
+export type ProviderFeedbackStatus = 'PENDING' | 'PUBLISHED' | 'REJECTED' | 'HIDDEN';
+
+export interface ProviderFeedbackReview {
+  id: string;
+  rating: number;
+  comment: string | null;
+  reviewer_name: string;
+  created_at: string;
+  status: ProviderFeedbackStatus;
+}
+
 export interface ProviderPortalProfile {
   id: string;
   name: string;

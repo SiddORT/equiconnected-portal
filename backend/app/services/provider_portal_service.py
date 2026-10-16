@@ -23,6 +23,9 @@ from app.repositories.provider_profile_update_repository import ProviderProfileU
 from app.repositories.provider_repository import ProviderRepository
 from app.repositories.review_repository import ReviewRepository
 from app.services.invitation_service import InvalidProviderDataError
+from app.services.provider_feedback import feedback_review, visible_review
+from app.schemas.common import PaginatedResponse, PaginationMeta
+from app.schemas.review import ProviderFeedbackReview
 from app.services.provider_profile_update_service import (
     append_visit_additions,
     apply_editable_profile,
@@ -141,13 +144,7 @@ class ProviderPortalService:
             )
         average_rating, review_count = self._reviews.get_totals(provider_id)
         visible_reviews = [
-            {
-                "id": review.id,
-                "rating": review.rating,
-                "comment": review.comment,
-                "reviewer_name": member.full_name,
-                "created_at": review.created_at,
-            }
+            visible_review(review, member).model_dump()
             for review, member in self._reviews.list_visible_reviews(provider_id)
         ]
         return ProviderPortalResponse.from_provider(
@@ -161,6 +158,23 @@ class ProviderPortalService:
 
     def get_profile(self, user: User):
         return self._profile_response(self._provider_id_for_user(user))
+
+    def get_feedback(
+        self, user: User, *, page: int, page_size: int
+    ) -> PaginatedResponse[ProviderFeedbackReview]:
+        provider_id = self._provider_id_for_user(user)
+        if self._providers.get_by_id(provider_id) is None:
+            raise ProviderPortalUnavailableError()
+        rows, total = self._reviews.list_provider_feedback(
+            provider_id, page=page, page_size=page_size
+        )
+        return PaginatedResponse(
+            data=[feedback_review(review, member) for review, member in rows],
+            meta=PaginationMeta(
+                page=page, page_size=page_size, total=total,
+                total_pages=(total + page_size - 1) // page_size,
+            ),
+        )
 
     def get_insights(
         self,

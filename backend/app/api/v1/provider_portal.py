@@ -2,7 +2,7 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
@@ -15,6 +15,8 @@ from app.repositories.provider_repository import ProviderRepository
 from app.repositories.review_repository import ReviewRepository
 from app.schemas.provider import PhotoCreate, ProviderPortalResponse, ProviderPortalUpdate
 from app.schemas.provider_insights import ProviderInsightsReport
+from app.schemas.common import PaginatedResponse
+from app.schemas.review import ProviderFeedbackReview
 from app.services.invitation_service import InvalidProviderDataError
 from app.services.provider_insights_service import (
     InsightPreset,
@@ -110,6 +112,30 @@ def get_profile(current_user: CurrentUser, svc: _Svc) -> ProviderPortalResponse:
             status_code=403,
             detail={"code": "provider_portal_unavailable", "message": "Provider portal access is unavailable."},
         )
+
+
+@router.get("/feedback", response_model=PaginatedResponse[ProviderFeedbackReview])
+def get_feedback(
+    request: Request,
+    current_user: CurrentUser,
+    svc: _Svc,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+) -> PaginatedResponse[ProviderFeedbackReview]:
+    if set(request.query_params).difference({"page", "page_size"}):
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "provider_feedback_query_invalid",
+                    "message": "Only page and page_size are supported."},
+        )
+    try:
+        return svc.get_feedback(current_user, page=page, page_size=page_size)
+    except ProviderPortalUnavailableError:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "provider_portal_unavailable",
+                    "message": "Provider portal access is unavailable."},
+        ) from None
 
 
 @router.get("/insights", response_model=ProviderInsightsReport)

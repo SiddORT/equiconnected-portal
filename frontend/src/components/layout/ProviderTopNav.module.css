@@ -136,6 +136,22 @@
   opacity: 0.65;
 }
 
+@media (max-width: 1100px) {
+  .inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "brand account" "links links";
+    gap: 8px 12px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .brand { grid-area: brand; }
+  .account { grid-area: account; }
+  .links { grid-area: links; margin: 0; flex-wrap: wrap; }
+  .welcome { max-width: 28vw; }
+}
+
 @media (max-width: 640px) {
   .inner {
     width: 100%;
@@ -201,6 +217,9 @@
   .links {
     grid-area: links;
     margin: 0;
+    justify-content: space-between;
+    overflow-x: auto;
+    scrollbar-width: thin;
   }
 
   .account {
@@ -212,5 +231,12 @@
     min-height: 34px;
     padding: 0 10px;
     font-size: var(--text-xs);
+  }
+
+  .link {
+    flex: 0 0 auto;
+    padding-right: 6px;
+    padding-left: 6px;
+    font-size: 11px;
   }
 }

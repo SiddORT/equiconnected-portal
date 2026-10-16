@@ -36,7 +36,20 @@ import type {
   DoctorVisitCreate,
   Provider as ProviderTypeResponse,
   ProviderPortalAccess,
+  ProviderFeedbackReview,
 } from '@/types';
+
+export async function getProviderPortalFeedback(
+  page = 1,
+  pageSize = 10,
+  signal?: AbortSignal
+): Promise<PaginatedResponse<ProviderFeedbackReview>> {
+  const { data } = await apiClient.get<PaginatedResponse<ProviderFeedbackReview>>(
+    '/provider/portal/feedback',
+    { params: { page, page_size: pageSize }, signal }
+  );
+  return data;
+}
 
 export async function getProviderPortalProfile(): Promise<ProviderPortalProfile> {
   const { data } = await apiClient.get<ProviderPortalProfile>('/provider/portal/profile');

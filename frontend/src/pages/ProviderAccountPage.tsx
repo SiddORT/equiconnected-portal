@@ -3,13 +3,11 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
 import { extractErrorMessage } from '@/api/client';
 import * as providersApi from '@/api/providers';
-import { useTimeSettings } from '@/app/TimeSettingsContext';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ProviderTopNav } from '@/components/layout/ProviderTopNav';
-import { ReviewCardList } from '@/components/reviews/ReviewCard';
 import {
   InvitationServiceFields,
   invitationServicePayload,
@@ -181,7 +179,6 @@ function normalizeQualifications(
 
 export function ProviderAccountPage() {
   const { user } = useAuth();
-  const { formatTimestamp } = useTimeSettings();
   const [profile, setProfile] = useState<ProviderPortalProfile | null>(null);
   const [specializations, setSpecializations] = useState<ProviderSpecializationBrief[]>([]);
   const [form, setForm] = useState<ProviderPortalUpdate>({});
@@ -208,10 +205,6 @@ export function ProviderAccountPage() {
   const [loadingSpecializations, setLoadingSpecializations] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const feedbackTriggerRef = useRef<HTMLButtonElement>(null);
-  const feedbackCloseRef = useRef<HTMLButtonElement>(null);
-  const feedbackWasOpen = useRef(false);
   const serviceBaselineRef = useRef<InvitationServiceValues | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const photoUploadInProgressRef = useRef(false);
@@ -592,32 +585,6 @@ export function ProviderAccountPage() {
     setVisitError(null);
   }
 
-  useEffect(() => {
-    if (feedbackOpen) {
-      feedbackWasOpen.current = true;
-      feedbackCloseRef.current?.focus();
-      return;
-    }
-    if (feedbackWasOpen.current) {
-      feedbackWasOpen.current = false;
-      feedbackTriggerRef.current?.focus();
-    }
-  }, [feedbackOpen]);
-
-  useEffect(() => {
-    if (!feedbackOpen) return;
-
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setFeedbackOpen(false);
-      }
-    }
-
-    document.addEventListener('keydown', closeOnEscape);
-    return () => document.removeEventListener('keydown', closeOnEscape);
-  }, [feedbackOpen]);
-
   if (loading) {
     return (
       <div className={styles.page}>
@@ -669,54 +636,26 @@ export function ProviderAccountPage() {
           <Alert variant="success">Your most recent profile update was approved{profile.profile_update.reviewed_at ? ` on ${new Date(profile.profile_update.reviewed_at).toLocaleDateString()}` : ''}.</Alert>
         )}
         <div className={styles.workspace} data-testid="provider-workspace">
-          <div className={styles.feedbackDock}>
-            <button
-              ref={feedbackTriggerRef}
-              type="button"
-              className={styles.feedbackTrigger}
-              aria-controls="provider-feedback-drawer"
-              aria-expanded={feedbackOpen}
-              onClick={() => setFeedbackOpen((open) => !open)}
-            >
-              <span aria-hidden="true">★</span>
-              Member feedback
-              <span className={styles.triggerChevron} aria-hidden="true">{feedbackOpen ? '⌃' : '⌄'}</span>
-            </button>
-            <aside
-              id="provider-feedback-drawer"
-              className={styles.feedbackDrawer}
-              role="dialog"
-              aria-labelledby="provider-feedback-heading"
-              hidden={!feedbackOpen}
-              data-testid="feedback-drawer"
-            >
-              <div className={styles.drawerHeader}>
-                <div>
-                  <p className={styles.drawerEyebrow}>Member feedback</p>
-                  <h2 id="provider-feedback-heading">What members are saying</h2>
-                </div>
-                <button
-                  ref={feedbackCloseRef}
-                  type="button"
-                  className={styles.drawerClose}
-                  aria-label="Close member feedback"
-                  onClick={() => setFeedbackOpen(false)}
-                >
-                  <span aria-hidden="true">×</span>
-                  <span>Close</span>
-                </button>
-              </div>
+          <aside className={styles.feedbackSummary} aria-labelledby="feedback-summary-heading">
+            <div>
+              <p className={styles.summaryEyebrow}>Member feedback</p>
+              <h2 id="feedback-summary-heading">Your member rating</h2>
               <p className={styles.rating}>
                 {profile.average_rating?.toFixed(1) ?? '—'} ★ · {profile.review_count} review{profile.review_count === 1 ? '' : 's'}
               </p>
-              <ReviewCardList
-                reviews={profile.visible_reviews}
-                formatTimestamp={formatTimestamp}
-                emptyTitle="No member-visible review comments yet."
-                emptyDescription="Visible member feedback will appear here after it has been submitted."
-              />
-            </aside>
-          </div>
+            </div>
+            <div className={styles.feedbackSummaryAction}>
+              <p>Read every review and its moderation status in Member Feedback.</p>
+              <Link
+                to="/provider/feedback"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Open Member Feedback in a new tab so your unsaved profile edits stay open"
+              >
+                Open Member Feedback in a new tab — keep profile edits open
+              </Link>
+            </div>
+          </aside>
           <form ref={formRef} className={styles.card + ' ' + styles.form} onSubmit={save} noValidate>
             <h2>Your profile</h2>
             <p className={styles.hint}>Welcome, {user?.full_name ?? 'provider'}. Unpublished listings save immediately. Changes to published listings are held for administrator review; publication and operational controls are never available here.</p>

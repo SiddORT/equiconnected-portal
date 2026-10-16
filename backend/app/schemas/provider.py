@@ -19,6 +19,7 @@ from app.models.enums import (
     VisitStability,
 )
 from app.schemas.doctor import QualificationCreate, QualificationResponse
+from app.schemas.review import ProviderVisibleReview
 
 class AdminQualificationCreate(QualificationCreate):
     id: UUID | None = None
@@ -666,7 +667,7 @@ class ProviderPortalResponse(BaseModel):
     qualifications: list[QualificationCreate] = []
     average_rating: float | None = None
     review_count: int = 0
-    visible_reviews: list[dict] = []
+    visible_reviews: list[ProviderVisibleReview] = Field(default_factory=list)
     editable_profile: ProviderPortalEditableProfile
     profile_update: ProviderProfileUpdateState | None = None
 
