@@ -64,13 +64,14 @@ import wizardStyles from './ProviderWizard.module.css';
 import { invitationEmailEntries } from './invitationEmailEntries';
 import { completeEmergencyNumber, emergencyPhoneFromNumber } from './emergencyPhone';
 import { DEFAULT_COUNTRY } from '@/utils/countryCodes';
+import { DEFAULT_ADDRESS_COUNTRY } from '@/utils/geography';
 import {
   normalizePostalCountry,
   postalLookupMessage,
   startPostalLookup,
 } from '@/utils/postalLookup';
 import {
-  InvitationAddresses, InvitationServiceFields, invitationAddressesFromDraft,
+  InvitationAddresses, InvitationServiceFields, invitationAddressesFromDraft, invitationAddressHasContent,
   invitationLocationsPayload, invitationServicePayload, invitationServiceValuesFromDraft,
   validateInvitationServices,
 } from '@/components/invite/InvitationProfileFields';
@@ -130,7 +131,7 @@ const EMPTY_LOCATION: LocationValues = {
   address_line_2: '',
   city: '',
   state_province: '',
-  country: '',
+  country: DEFAULT_ADDRESS_COUNTRY,
   postal_code: '',
   latitude: '',
   longitude: '',
@@ -292,7 +293,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     initialData?.doctor_availability ?? 'ONGOING'
   );
   const [initialVisitLocation, setInitialVisitLocation] = useState({
-    name: '', address_line_1: '', city: '', state_province: '', country: '', postal_code: '',
+    name: '', address_line_1: '', city: '', state_province: '', country: DEFAULT_ADDRESS_COUNTRY, postal_code: '',
   });
   const [initialVisitStart, setInitialVisitStart] = useState('');
   const [initialVisitEnd, setInitialVisitEnd] = useState('');
@@ -307,7 +308,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     if (inv) {
       const draftPrimary =
         inv.initial.locations.find((l) => l.is_primary) ?? inv.initial.locations[0];
-      if (!draftPrimary) return EMPTY_LOCATION;
+      if (!draftPrimary) return { ...EMPTY_LOCATION, country: '' };
       return {
         name: draftPrimary.name ?? '',
         address_line_1: draftPrimary.address_line_1,
@@ -323,7 +324,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     if (!initialData) return EMPTY_LOCATION;
     const primary =
       initialData.locations.find((l) => l.is_primary) ?? initialData.locations[0];
-    if (!primary) return EMPTY_LOCATION;
+    if (!primary) return { ...EMPTY_LOCATION, country: '' };
     return {
       name: primary.name ?? '',
       address_line_1: primary.address_line_1,
@@ -442,18 +443,18 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         setPostalCandidates(result.candidates);
         setPostalMessage(postalLookupMessage(result, 'provider'));
       },
-    });
+    }, location.country);
     postalLookupCancel.current = cancel;
     return () => {
       cancel();
       if (postalLookupCancel.current === cancel) postalLookupCancel.current = null;
     };
-  }, [wizard, location.postal_code, selectedPostalCode]);
+  }, [wizard, location.postal_code, location.country, selectedPostalCode]);
 
   function updatePostalCode(value: string) {
     cancelPostalLookup();
     setLocation((current) => ({
-      ...current, postal_code: value, country: '', state_province: '', city: '',
+      ...current, postal_code: value,
     }));
     setSelectedPostalCode(null);
     setPostalCandidates([]);
@@ -502,12 +503,11 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     if (!inv && !isEdit && !location.country.trim()) errors.country = 'Country is required.';
     if (!inv && !isEdit && !location.city.trim()) errors.city = 'City is required.';
     if (!inv && !isEdit && !location.address_line_1.trim()) errors.address_line_1 = 'Address is required.';
-    if (wizard && !isEdit && !location.postal_code.trim()) errors.postal_code = 'Pincode / postal code is required.';
     const originalLocation = initialData?.locations.find((l) => l.is_primary) ?? initialData?.locations[0];
     const locationChanged = !isEdit || (originalLocation
       ? (Object.keys(location) as (keyof LocationValues)[]).some((key) =>
           location[key].trim() !== String(originalLocation[key] ?? '').trim())
-      : Object.values(location).some((value) => value.trim()));
+      : Object.entries(location).some(([key, value]) => key !== 'country' && value.trim()));
     if (locationChanged && (location.address_line_1.trim() || Object.values(location).some((value) => value.trim())) && !location.city.trim()) {
       errors.city = 'City is required when an address is provided.';
     }
@@ -529,7 +529,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     if (inv) {
       Object.assign(errors, validateInvitationServices(invitationServices));
       invitationAddresses.forEach((address, i) => {
-        const filled = Object.entries(address).some(([key, value]) => key !== 'key' && Boolean(value.trim()));
+        const filled = invitationAddressHasContent(address);
         if (filled && !address.name.trim()) errors[`address_${i}_name`] = 'Location name is required.';
         if (filled && !address.address_line_1.trim()) errors[`address_${i}_address_line_1`] = 'Address line 1 is required.';
         if (filled && !address.city.trim()) errors[`address_${i}_city`] = 'City is required.';
@@ -541,7 +541,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       });
       if (!isEdit && doctorAvailability === 'VISITING') {
         const hasLocation = Boolean(initialVisitLocation.address_line_1.trim() && initialVisitLocation.city.trim());
-        const hasAny = Boolean(initialVisitStart || initialVisitEnd || Object.values(initialVisitLocation).some(Boolean));
+        const hasAny = Boolean(initialVisitStart || initialVisitEnd ||
+          Object.entries(initialVisitLocation).some(([key, value]) => key !== 'country' && Boolean(value)));
         if (hasAny && (!hasLocation || !initialVisitStart || !initialVisitEnd)) {
           errors.initial_visit = 'Complete the initial visit location and both dates, or leave it unscheduled.';
         } else if (initialVisitStart && initialVisitEnd && initialVisitEnd < initialVisitStart) {
@@ -1465,7 +1466,6 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                   value={location.postal_code}
                   onChange={(e) => updatePostalCode(e.target.value)}
                   error={errs.postal_code}
-                  required={!isEdit}
                 />
                 {postalLoading && <p className={styles.hint} role="status">Looking up locations…</p>}
                 {!postalLoading && postalMessage && <p className={styles.hint} role="status">{postalMessage}</p>}
@@ -1486,6 +1486,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               value={location}
               onChange={(nextLocation) => {
                 cancelPostalLookup();
+                setSelectedPostalCode(location.postal_code);
                 setPostalCandidates([]);
                 setPostalMessage('');
                 setLocation((current) => ({ ...current, ...nextLocation }));
@@ -1504,7 +1505,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               containerClassName={styles.addressRow}
               label={wizard ? 'Address line 1' : 'Address'}
               value={location.address_line_1}
-              onChange={(e) => setLocation((l) => ({ ...l, address_line_1: e.target.value }))}
+              onChange={(e) => { cancelPostalLookup(); setPostalCandidates([]); setLocation((l) => ({ ...l, address_line_1: e.target.value })); }}
               error={errs.address_line_1}
               required={!isEdit}
             />
@@ -1512,7 +1513,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               containerClassName={styles.addressRow}
               label="Address line 2"
               value={location.address_line_2}
-              onChange={(e) => setLocation((l) => ({ ...l, address_line_2: e.target.value }))}
+              onChange={(e) => { cancelPostalLookup(); setPostalCandidates([]); setLocation((l) => ({ ...l, address_line_2: e.target.value })); }}
             />
             {!wizard && <Input
               label="Postal code"

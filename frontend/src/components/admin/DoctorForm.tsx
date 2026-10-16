@@ -8,6 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import { DEFAULT_COUNTRY } from '@/utils/countryCodes';
+import { invitationAddressHasContent } from '@/components/invite/InvitationProfileFields';
 import { extractErrorMessage } from '@/api/client';
 import {
   addDoctorSpecialization,
@@ -261,7 +262,7 @@ export function DoctorForm({ initialData, invitation, onSuccess, onCancel, child
     if (inv) {
       Object.assign(errors, validateInvitationServices(invitationServices));
       invitationAddresses.forEach((address, index) => {
-        const hasAddress = Object.entries(address).some(([key, value]) => key !== 'key' && Boolean(value.trim()));
+        const hasAddress = invitationAddressHasContent(address);
         if (!hasAddress) return;
         if (!address.name.trim()) errors[`address_${index}_name`] = 'Location name is required.';
         if (!address.address_line_1.trim()) errors[`address_${index}_address_line_1`] = 'Address line 1 is required.';

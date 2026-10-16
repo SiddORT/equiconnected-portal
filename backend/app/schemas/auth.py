@@ -130,7 +130,7 @@ class ProviderRegistrationRequest(RegistrationRequest):
     emergency_services_available: bool
     emergency_contact_number: str | None = Field(default=None, max_length=50)
     role: Literal["PROVIDER"] = "PROVIDER"
-    postal_code: str = Field(min_length=1, max_length=32)
+    postal_code: str | None = Field(default=None, max_length=32)
 
     @field_validator("provider_name")
     @classmethod
@@ -142,11 +142,8 @@ class ProviderRegistrationRequest(RegistrationRequest):
 
     @field_validator("postal_code")
     @classmethod
-    def trim_postal_code(cls, value: str) -> str:
-        value = value.strip()
-        if not value:
-            raise ValueError("Postal code is required.")
-        return value
+    def trim_postal_code(cls, value: str | None) -> str | None:
+        return value.strip() or None if value is not None else None
 
     @field_validator("professional_title", "working_address")
     @classmethod

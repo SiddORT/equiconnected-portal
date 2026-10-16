@@ -1,5 +1,6 @@
 """Provider account registration, verification, review, and staged-listing tests."""
 import threading
+import pytest
 from uuid import UUID
 from urllib.parse import parse_qs, urlparse
 
@@ -87,12 +88,12 @@ def _admin_headers(user) -> dict[str, str]:
     return {"Authorization": f"Bearer {create_access_token(str(user.id))}"}
 
 
-def _verified_application(client: TestClient, db, monkeypatch) -> ProviderRegistrationApplication:
+def _verified_application(client: TestClient, db, monkeypatch, **overrides) -> ProviderRegistrationApplication:
     _seed_provider_role(db)
     db.add(Specialization(id=_payload()["specialization_ids"][0], name="Equine medicine", is_active=True))
     db.commit()
     sent_urls = _capture_verification_email(monkeypatch)
-    response = client.post(f"{AUTH}/provider-register", json=_payload())
+    response = client.post(f"{AUTH}/provider-register", json=_payload(**overrides))
     assert response.status_code == 201
     assert db.query(Provider).count() == 0
     token = parse_qs(urlparse(sent_urls[0]).query)["token"][0]
@@ -103,6 +104,33 @@ def _verified_application(client: TestClient, db, monkeypatch) -> ProviderRegist
 
 
 class TestProviderRegistration:
+    @pytest.mark.parametrize("country", ["United Arab Emirates", "Canada"])
+    @pytest.mark.parametrize("postal_code", [None, "", "custom-123"])
+    def test_optional_postal_survives_registration_history_and_approval(
+        self, client, db, monkeypatch, seeded_admin, country, postal_code
+    ):
+        application = _verified_application(client, db, monkeypatch, country=country, postal_code=postal_code)
+        expected = postal_code or None
+        assert application.postal_code == expected
+        assert application.user.postal_code == expected
+        headers = _admin_headers(seeded_admin[0])
+        history = client.get(f"{APPLICATIONS}/{application.id}", headers=headers)
+        assert history.status_code == 200
+        assert history.json()["postal_code"] == expected
+        monkeypatch.setattr(EmailService, "send_provider_approval_email", lambda *args: None)
+        approved = client.post(f"{APPLICATIONS}/{application.id}/approve", headers=headers)
+        assert approved.status_code == 200
+        assert approved.json()["postal_code"] == expected
+        db.expire_all()
+        location = db.query(ProviderLocation).filter_by(provider_id=application.provider_id).one()
+        assert location.postal_code == expected
+        assert location.country == country
+
+    def test_postal_can_be_omitted(self):
+        payload = _payload()
+        del payload["postal_code"]
+        assert ProviderRegistrationRequest(**payload).postal_code is None
+
     def test_failed_verification_handoff_keeps_application_pending_until_resend(self, client, db, monkeypatch):
         _seed_provider_role(db)
         db.add(Specialization(id=_payload()["specialization_ids"][0], name="Equine medicine", is_active=True))

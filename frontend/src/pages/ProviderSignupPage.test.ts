@@ -28,6 +28,7 @@ vi.mock('@/components/ui/LocationPicker', () => ({
     value: { country: string; state_province: string; city: string };
   }) => createElement('div', null,
     createElement('button', { type: 'button', onClick: () => onChange({ country: 'Canada', state_province: 'Alberta', city: 'Calgary' }) }, 'Choose test location'),
+    createElement('button', { type: 'button', onClick: () => onChange({ country: 'India', state_province: '', city: '' }) }, 'Choose India'),
     createElement('output', { 'data-testid': 'signup-location-values' },
       [value.country, value.state_province, value.city].join('|')),
   ),
@@ -67,6 +68,10 @@ const validApplication: ProviderRegistrationRequest = {
 };
 
 describe('provider registration validation', () => {
+  it.each(['United Arab Emirates', 'Canada'])('allows blank and omitted postal codes in %s', (country) => {
+    expect(validateProviderSignup({ ...validApplication, country, postal_code: '' }).postal_code).toBeUndefined();
+    expect(validateProviderSignup({ ...validApplication, country, postal_code: undefined }).postal_code).toBeUndefined();
+  });
   it('requires the listing essentials and a complete location', () => {
     const errors = validateProviderSignup({
       ...validApplication,
@@ -192,6 +197,18 @@ describe('provider signup emergency phone picker', () => {
 });
 
 describe('provider signup postal lookup', () => {
+  it('defaults only a new location to UAE and keeps postal entry visible, optional and non-destructive', async () => {
+    const user = userEvent.setup();
+    render(createElement(MemoryRouter, null, createElement(ProviderSignupPage)));
+    const postal = await screen.findByLabelText('Pincode / postal code') as HTMLInputElement;
+    expect(postal.required).toBe(false);
+    expect(screen.getByTestId('signup-location-values').textContent).toBe('United Arab Emirates||');
+    await user.type(postal, '110001');
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 600)); });
+    expect(authApi.lookupProviderPostalCode).not.toHaveBeenCalled();
+    expect(postal.value).toBe('110001');
+    expect(screen.getByTestId('signup-location-values').textContent).toBe('United Arab Emirates||');
+  });
   it('requires explicit selection for a unique match and normalizes the selected country', async () => {
     const user = userEvent.setup();
     vi.mocked(authApi.lookupProviderPostalCode).mockResolvedValue({
@@ -207,9 +224,10 @@ describe('provider signup postal lookup', () => {
     });
     render(createElement(MemoryRouter, null, createElement(ProviderSignupPage)));
     const postal = await screen.findByLabelText('Pincode / postal code');
+    await user.click(screen.getByRole('button', { name: 'Choose India' }));
     await user.type(postal, '110001');
     const candidate = await screen.findByRole('button', { name: 'New Delhi, Delhi, India' });
-    expect(screen.getByTestId('signup-location-values').textContent).toBe('||');
+    expect(screen.getByTestId('signup-location-values').textContent).toBe('India||');
     expect(screen.getByText('Choose a place below to fill your location.')).toBeTruthy();
 
     await user.click(candidate);
@@ -230,6 +248,7 @@ describe('provider signup postal lookup', () => {
       resolveLookup = resolve;
     }));
     render(createElement(MemoryRouter, null, createElement(ProviderSignupPage)));
+    await user.click(screen.getByRole('button', { name: 'Choose India' }));
     await user.type(await screen.findByLabelText('Pincode / postal code'), '90210');
     await waitFor(() => expect(authApi.lookupProviderPostalCode).toHaveBeenCalled());
     await user.click(screen.getByRole('button', { name: 'Choose test location' }));
@@ -253,6 +272,7 @@ describe('provider signup postal lookup', () => {
     const user = userEvent.setup();
     render(createElement(MemoryRouter, null, createElement(ProviderSignupPage)));
     const postal = await screen.findByLabelText('Pincode / postal code');
+    await user.click(screen.getByRole('button', { name: 'Choose test location' }));
     await user.type(postal, '123');
     expect(authApi.lookupProviderPostalCode).not.toHaveBeenCalled();
 

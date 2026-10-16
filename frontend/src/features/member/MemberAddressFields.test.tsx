@@ -43,6 +43,20 @@ afterEach(() => {
 });
 
 describe('MemberAddressFields', () => {
+  it.each(['personal', 'stable'] as const)('keeps the UAE postal input optional and editable for %s', async (section) => {
+    vi.useFakeTimers();
+    render(<AddressHarness section={section} initial={{ country: 'United Arab Emirates', city: 'Dubai', postal_code: 'saved-code' }} />);
+    const input = screen.getByLabelText('Pincode / Postal code') as HTMLInputElement;
+    expect(input.required).toBe(false);
+    expect(input.value).toBe('saved-code');
+    await lookup('110001');
+    expect(input.value).toBe('110001');
+    expect((screen.getByLabelText('City') as HTMLInputElement).value).toBe('Dubai');
+    expect(authApi.lookupProviderPostalCode).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: '' } });
+    expect(input.value).toBe('');
+  });
+
   it('does not look up a saved pincode and orders fields for keyboard navigation', async () => {
     const user = userEvent.setup();
     render(<AddressHarness initial={{ postal_code: '78701', country: 'United States', city: 'Austin' }} />);

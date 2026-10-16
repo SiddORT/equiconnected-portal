@@ -17,6 +17,38 @@ afterEach(() => {
 });
 
 describe('shared postal source contract', () => {
+  it.each(['United Arab Emirates', ' AE ', 'uae', 'ARE'])('never queries a global source for UAE (%s)', async (country) => {
+    vi.useFakeTimers();
+    const onResult = vi.fn();
+    startPostalLookup('110001', { onResult }, country);
+    await vi.advanceTimersByTimeAsync(600);
+    expect(lookupProviderPostalCode).not.toHaveBeenCalled();
+    expect(onResult).not.toHaveBeenCalled();
+  });
+
+  it('filters international results by selected country and keeps multi-country discovery when unset', async () => {
+    vi.useFakeTimers();
+    const international = { ...candidate, country: 'India', country_code: 'IN' };
+    vi.mocked(lookupProviderPostalCode).mockResolvedValue({ status: 'match', candidates: [candidate, international] });
+    const selected = vi.fn();
+    const unset = vi.fn();
+    startPostalLookup('110001', { onResult: selected }, 'US');
+    startPostalLookup('110001', { onResult: unset }, '');
+    await vi.advanceTimersByTimeAsync(550);
+    expect(selected.mock.calls[0][0].candidates).toEqual([candidate]);
+    expect(unset.mock.calls[0][0].candidates).toEqual([candidate, international]);
+  });
+
+  it('offers manual entry when every result belongs to another country', async () => {
+    vi.useFakeTimers();
+    vi.mocked(lookupProviderPostalCode).mockResolvedValue({ status: 'match', candidates: [candidate] });
+    const onResult = vi.fn();
+    startPostalLookup('78701', { onResult }, 'Canada');
+    await vi.advanceTimersByTimeAsync(550);
+    expect(onResult).toHaveBeenCalledWith({ status: 'no_match', candidates: [] });
+    expect(postalLookupMessage(onResult.mock.calls[0][0], 'provider')).toContain('manually');
+  });
+
   it.each([
     [' us ', 'Other', 'United States'],
     ['', ' us ', 'United States'],

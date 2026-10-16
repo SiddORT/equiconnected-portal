@@ -981,6 +981,7 @@ describe('ProviderAccountPage', () => {
     await user.type(screen.getByLabelText('Visit 1 address line 2'), 'Gate 3');
     await user.type(screen.getByLabelText('Visit 1 city'), 'Dallas');
     await user.type(screen.getByLabelText('Visit 1 state, province, or emirate'), 'Texas');
+    await user.clear(screen.getByLabelText('Visit 1 country'));
     await user.type(screen.getByLabelText('Visit 1 country'), 'United States');
     await user.type(screen.getByLabelText('Visit 1 postal code'), '75201');
     expect(providersApi.updateProviderPortalProfile).not.toHaveBeenCalled();

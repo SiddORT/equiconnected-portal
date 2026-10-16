@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/Input';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import type { DraftLocation, InvitationDraftPayload, InvitationDraftProvider, VisitStability } from '@/types';
 import { COUNTRY_CODES, DEFAULT_COUNTRY } from '@/utils/countryCodes';
+import { DEFAULT_ADDRESS_COUNTRY } from '@/utils/geography';
 import { normalizePostalCountry, postalLookupMessage, startPostalLookup } from '@/utils/postalLookup';
 import styles from './InvitationProfileFields.module.css';
 
@@ -55,7 +56,7 @@ export function emptyInvitationAddress(key = 'address-0'): InvitationAddress {
     address_line_2: '',
     city: '',
     state_province: '',
-    country: '',
+    country: DEFAULT_ADDRESS_COUNTRY,
     postal_code: '',
   };
 }
@@ -72,6 +73,12 @@ export function invitationAddressesFromDraft(locations: DraftLocation[]): Invita
     country: location.country ?? '',
     postal_code: location.postal_code ?? '',
   }));
+}
+
+/** The new-address country default alone is not a partially entered address. */
+export function invitationAddressHasContent(address: InvitationAddress): boolean {
+  return Object.entries(address).some(([key, value]) =>
+    key !== 'key' && !(key === 'country' && value === DEFAULT_ADDRESS_COUNTRY) && Boolean(value.trim()));
 }
 
 function parseEmergencyNumber(value: string | null | undefined) {
@@ -247,15 +254,15 @@ export function InvitationAddresses({
   const requestedPostalCodes = useRef(new Map(
     value.map((address) => [address.key, address.postal_code.trim()])
   ));
-  const addressLookups = useRef(new Map<string, { postalCode: string; cancel: () => void }>());
+  const addressLookups = useRef(new Map<string, { postalCode: string; signature: string; cancel: () => void }>());
   // Keep legacy choices available if the invitee changes their mind before saving.
   const legacyAddresses = useRef(value.length > 1 ? value : []);
-  const postalSignature = value.map((address) => `${address.key}:${address.postal_code.trim()}`).join('|');
+  const postalSignature = JSON.stringify(value);
 
   useEffect(() => {
-    const currentPostalCodes = new Map(value.map((address) => [address.key, address.postal_code.trim()]));
+    const currentPostalCodes = new Map(value.map((address) => [address.key, JSON.stringify(address)]));
     for (const [key, request] of addressLookups.current) {
-      if (currentPostalCodes.get(key) === request.postalCode) continue;
+      if (currentPostalCodes.get(key) === request.signature) continue;
       request.cancel();
       addressLookups.current.delete(key);
       if (!currentPostalCodes.has(key)) requestedPostalCodes.current.delete(key);
@@ -293,8 +300,8 @@ export function InvitationAddresses({
             },
           }));
         },
-      });
-      addressLookups.current.set(address.key, { postalCode, cancel });
+      }, address.country);
+      addressLookups.current.set(address.key, { postalCode, signature: JSON.stringify(address), cancel });
     }
     // Existing postal values are restored from a saved invitation and should
     // not trigger a lookup until the invitee edits the field.

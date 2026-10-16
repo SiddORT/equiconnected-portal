@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PostalCandidate } from '@/api/auth';
 import { FormField } from '@/components/ui/FormField';
 import { Input } from '@/components/ui/Input';
-import { getStateOptions } from '@/utils/geography';
+import { getStateOptions, isUaeCountry } from '@/utils/geography';
 import { memberPostalLocation, postalLookupMessage, startPostalLookup } from '@/utils/postalLookup';
 import styles from './MemberAddressFields.module.css';
 
@@ -28,6 +28,8 @@ export function MemberAddressFields({
   const [selected, setSelected] = useState('');
   const cancelLookup = useRef<(() => void) | null>(null);
   const postal = useRef(value.postal_code ?? '');
+  const locationSignature = JSON.stringify([value.country, value.state_province, value.city, value.address, value.address_line_2]);
+  const previousLocation = useRef(locationSignature);
   const changeRef = useRef(onChange);
   changeRef.current = onChange;
   const postalId = `${section}-postal-code`;
@@ -50,6 +52,15 @@ export function MemberAddressFields({
 
   useEffect(() => () => cancelLookup.current?.(), []);
 
+  useEffect(() => {
+    if (previousLocation.current === locationSignature) return;
+    previousLocation.current = locationSignature;
+    cancel();
+    setCandidates([]);
+    setSelected('');
+    setMessage((current) => current === 'Looking up postal code…' ? '' : current);
+  }, [locationSignature]);
+
   function editLocation(patch: Partial<MemberAddressValue>) {
     cancel();
     setCandidates([]);
@@ -65,7 +76,7 @@ export function MemberAddressFields({
     setCandidates([]);
     setSelected('');
     setMessage('');
-    if (next.trim().length < 4) return;
+    if (next.trim().length < 4 || isUaeCountry(value.country)) return;
     setMessage('Looking up postal code…');
     cancelLookup.current = startPostalLookup(next, {
       onResult: (result) => {
@@ -83,16 +94,16 @@ export function MemberAddressFields({
         setCandidates(matches);
         setMessage(postalLookupMessage(result, 'member'));
       },
-    });
+    }, value.country ?? '');
   }
 
   return (
     <div className={styles.address}>
-      <Input id={postalId} label="Pincode / Postal code" required autoComplete="postal-code"
+      <Input id={postalId} label="Pincode / Postal code" autoComplete="postal-code"
         value={value.postal_code ?? ''} onChange={(event) => editPostal(event.target.value)}
         aria-describedby={statusId} />
       <p id={statusId} className={styles.hint} role="status">
-        {message || 'Enter a pincode to find matching places, or enter location details manually.'}
+        {message || (isUaeCountry(value.country) ? 'Postal code is optional. Enter location details manually.' : 'Enter a pincode to find matching places, or enter location details manually.')}
       </p>
       {candidates.length > 0 && (
         <FormField label={`Matching place for ${section} location`} htmlFor={`${section}-postal-place`}>
@@ -124,10 +135,10 @@ export function MemberAddressFields({
           onChange={(event) => editLocation({ city: event.target.value })} />
       </div>
       <Input label="Address line 1" required autoComplete="address-line1" value={value.address ?? ''}
-        onChange={(event) => onChange({ address: event.target.value })} />
+        onChange={(event) => editLocation({ address: event.target.value })} />
       <Input label="Address line 2" autoComplete="address-line2" hint="Optional"
         value={value.address_line_2 ?? ''}
-        onChange={(event) => onChange({ address_line_2: event.target.value })} />
+        onChange={(event) => editLocation({ address_line_2: event.target.value })} />
     </div>
   );
 }

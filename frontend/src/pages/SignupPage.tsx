@@ -13,7 +13,7 @@ import { LocationPicker } from '@/components/ui/LocationPicker';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import type { PublicRoleSelection, RegistrationRequest } from '@/types';
 import { DEFAULT_COUNTRY } from '@/utils/countryCodes';
-import { getStateOptions } from '@/utils/geography';
+import { DEFAULT_ADDRESS_COUNTRY, getStateOptions } from '@/utils/geography';
 import styles from './SignupPage.module.css';
 import { VerificationResend } from './VerificationResend';
 import { usePublicTrafficRoute } from '@/analytics/trafficTracking';
@@ -26,7 +26,7 @@ const initialForm: FormState = {
   last_name: '',
   email: '',
   mobile_number: '',
-  country: '',
+  country: DEFAULT_ADDRESS_COUNTRY,
   state_province: '',
   city: '',
   password: '',

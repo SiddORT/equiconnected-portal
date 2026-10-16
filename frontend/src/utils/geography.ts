@@ -1,5 +1,12 @@
 import { City, Country, State } from 'country-state-city';
 
+/** Initialization only: never use as a fallback when hydrating saved data. */
+export const DEFAULT_ADDRESS_COUNTRY = 'United Arab Emirates';
+
+export function isUaeCountry(country: string | null | undefined): boolean {
+  return ['ae', 'are', 'uae', 'united arab emirates'].includes(country?.trim().toLowerCase() ?? '');
+}
+
 export interface GeographicOption {
   value: string;
   label: string;

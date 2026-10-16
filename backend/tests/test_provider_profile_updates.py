@@ -938,7 +938,8 @@ def test_non_doctor_cannot_edit_doctor_experience_notes(client, db, seeded_admin
     assert response.status_code == 422
 
 
-def test_published_profile_update_isolated_then_rejected_and_resubmitted(client, db, seeded_admin):
+@pytest.mark.parametrize("postal_code", [None, "supplied-code"])
+def test_published_profile_update_isolated_then_rejected_and_resubmitted(client, db, seeded_admin, postal_code):
     admin, admin_password = seeded_admin
     provider, account = _portal_provider(
         db,
@@ -957,6 +958,8 @@ def test_published_profile_update_isolated_then_rejected_and_resubmitted(client,
             "locations": [{
                 "address_line_1": "2 Proposed Way",
                 "city": "Abu Dhabi",
+                "country": "United Arab Emirates",
+                "postal_code": postal_code,
                 "is_primary": True,
             }],
         },
@@ -965,6 +968,7 @@ def test_published_profile_update_isolated_then_rejected_and_resubmitted(client,
     body = submitted.json()
     assert body["name"] == "Approved Clinic"
     assert body["editable_profile"]["name"] == "Proposed Clinic"
+    assert body["editable_profile"]["locations"][0]["postal_code"] == postal_code
     assert body["profile_update"]["review_status"] == "PENDING_REVIEW"
     update_id = body["profile_update"]["id"]
     db.refresh(provider)

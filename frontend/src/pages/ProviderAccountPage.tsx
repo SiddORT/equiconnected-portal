@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/app/AuthContext';
+import { DEFAULT_ADDRESS_COUNTRY } from '@/utils/geography';
 import { extractErrorMessage } from '@/api/client';
 import * as providersApi from '@/api/providers';
 import { Alert } from '@/components/ui/Alert';
@@ -572,7 +573,7 @@ export function ProviderAccountPage() {
         address_line_2: null,
         city: '',
         state_province: null,
-        country: null,
+        country: DEFAULT_ADDRESS_COUNTRY,
         postal_code: null,
       },
     }]);

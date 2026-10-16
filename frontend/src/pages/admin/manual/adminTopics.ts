@@ -119,7 +119,7 @@ export const adminTopics: ManualTopic[] = [
       '4. In Services, choose Stable visit. If enabled, enter a maximum working radius greater than 0 km. Choose Emergency services available only when appropriate and provide its required emergency contact number.',
       '5. For Doctor / Vet, choose Ongoing or Visiting availability. A Visiting doctor may leave the initial visit blank or complete its location and both dates.',
       '6. Set Status (Active or Inactive) and Publication status (Unpublished or Published) independently.',
-      '7. In Contact & location, enter at least one valid primary email; add optional phone numbers and additional emails, marking one primary in each collection. Enter the primary location: Country, City, Address line 1, and Pincode / postal code are required for a new provider.',
+      '7. In Contact & location, enter at least one valid primary email; add optional phone numbers and additional emails, marking one primary in each collection. Enter the primary location: Country, City, and Address line 1 are required for a new provider. Pincode / postal code is optional.',
       '8. Review the information and return to a section to correct it. Optionally enable Send portal access email after creating this provider and choose a valid contact email.',
       '9. Choose Create provider and wait for the saved provider profile. If only photo upload fails, choose Retry photo upload or Edit saved provider rather than submitting a duplicate.',
     ],

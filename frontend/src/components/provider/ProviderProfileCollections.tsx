@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { DEFAULT_ADDRESS_COUNTRY } from '@/utils/geography';
 import { MultiEmailField, type EmailEntry } from '@/components/admin/MultiEmailField';
 import { MultiPhoneField, type PhoneEntry } from '@/components/admin/MultiPhoneField';
 import type { ProviderPortalUpdate } from '@/types';
@@ -227,7 +228,7 @@ export function ProviderProfileCollections({
                 address_line_2: null,
                 city: '',
                 state_province: null,
-                country: null,
+                country: DEFAULT_ADDRESS_COUNTRY,
                 postal_code: null,
                 latitude: null,
                 longitude: null,

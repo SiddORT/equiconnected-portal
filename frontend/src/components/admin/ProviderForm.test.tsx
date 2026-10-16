@@ -145,6 +145,7 @@ describe('Admin provider postal lookup', () => {
   async function reachLocationStep(user: ReturnType<typeof userEvent.setup>) {
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(await screen.findByLabelText('Pincode / postal code')).toBeTruthy();
+    await selectPostalCountry(user, 'India');
   }
 
   it('requires explicit selection for a unique match and normalizes the selected country', async () => {
@@ -164,7 +165,7 @@ describe('Admin provider postal lookup', () => {
     await reachLocationStep(user);
     await user.type(screen.getByLabelText('Pincode / postal code'), '110001');
     const candidate = await screen.findByRole('button', { name: 'New Delhi, Delhi, India' });
-    expect(screen.getByRole('button', { name: 'Country' }).textContent).toContain('Select country');
+    expect(screen.getByRole('button', { name: 'Country' }).textContent).toContain('India');
 
     await user.click(candidate);
     await user.click(screen.getByRole('button', { name: 'Country' }));
@@ -226,6 +227,12 @@ describe('Admin provider postal lookup', () => {
     expect(await screen.findByText('Lookup is unavailable. Enter the location manually.')).toBeTruthy();
   });
 });
+
+async function selectPostalCountry(user: ReturnType<typeof userEvent.setup>, country: string) {
+  await user.click(screen.getByRole('button', { name: 'Country' }));
+  await user.type(screen.getByRole('combobox', { name: 'Search country' }), country);
+  await user.click(screen.getByRole('option', { name: country }));
+}
 
 async function beginAdminWizard(type = 'CLINIC') {
   const user = userEvent.setup();
@@ -786,6 +793,8 @@ describe('ProviderForm visit stability', () => {
     render(<ProviderForm invitation={invitationConfig({}, save)} />);
     expect(screen.getAllByLabelText('Location name')).toHaveLength(1);
     expect(screen.queryByRole('button', { name: /Add address|Remove address/i })).toBeNull();
+    await user.clear(screen.getByLabelText('Country'));
+    await user.type(screen.getByLabelText('Country'), 'India');
     await user.type(screen.getByLabelText('Postal / ZIP code'), '110001');
     expect(await screen.findByRole('button', { name: 'Delhi Cantonment' })).toBeTruthy();
     expect(screen.getByLabelText('Postal / ZIP code').getAttribute('aria-describedby'))
@@ -814,12 +823,13 @@ describe('ProviderForm visit stability', () => {
     render(<ProviderForm invitation={{ ...invitationConfig({}, save), providerType: 'HOSPITAL' }} />);
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ locations: [] })));
+    await user.clear(screen.getByLabelText('Country'));
+    await user.type(screen.getByLabelText('Country'), 'India');
     await user.type(screen.getByLabelText('Postal / ZIP code'), '110001');
     await screen.findByRole('button', { name: 'New Delhi, India' });
     await user.click(screen.getByRole('button', { name: 'Enter location manually' }));
     expect(screen.queryByRole('button', { name: 'New Delhi, India' })).toBeNull();
     await user.type(screen.getByLabelText('Location name'), 'West hospital');
-    await user.type(screen.getByLabelText('Country'), 'India');
     await user.type(screen.getByLabelText('City'), 'Agra');
     await user.type(screen.getByLabelText('Address line 1'), '9 Hill Rd');
     await user.type(screen.getByLabelText('Address line 2'), 'Suite 2');
@@ -841,12 +851,13 @@ describe('ProviderForm visit stability', () => {
     await user.type(screen.getByRole('textbox', { name: 'Search countries' }), 'India');
     await user.click(screen.getByRole('option', { name: /India/ }));
     await user.type(screen.getByRole('textbox', { name: 'Emergency contact number' }), '9988776655');
+    await user.clear(screen.getByLabelText('Country'));
+    await user.type(screen.getByLabelText('Country'), 'India');
     await user.type(screen.getByLabelText('Postal / ZIP code'), '110001');
     expect(await screen.findByText('Postal lookup is unavailable. You can enter the address manually.')).toBeTruthy();
     await user.type(screen.getByLabelText('Location name'), 'South branch');
     await user.type(screen.getByLabelText('Address line 1'), '12 Road');
     await user.type(screen.getByLabelText('City'), 'Delhi');
-    await user.type(screen.getByLabelText('Country'), 'India');
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({
       emergency_contact_number: '+91 9988776655',
@@ -982,10 +993,10 @@ describe('ProviderForm visit stability', () => {
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByText('A primary email is required.')).toBeTruthy();
-    expect(screen.getByText('Country is required.')).toBeTruthy();
-    expect(screen.getByText('City is required.')).toBeTruthy();
-    expect(screen.getByText('Address is required.')).toBeTruthy();
-    expect(screen.getByText('Pincode / postal code is required.')).toBeTruthy();
+    expect(screen.queryByText('Country is required.')).toBeNull();
+    expect(screen.getByText('City is required when an address is provided.')).toBeTruthy();
+    expect(screen.getByText('Address line 1 is required when a city is provided.')).toBeTruthy();
+    expect(screen.queryByText('Pincode / postal code is required.')).toBeNull();
   });
 
   it('shows emergency contact fields beside the emergency checkbox and requires the number', async () => {
@@ -1110,18 +1121,19 @@ describe('ProviderForm visit stability', () => {
     render(<ProviderForm />);
     const user = await beginAdminWizard();
     await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await selectPostalCountry(user, 'India');
     const postal = screen.getByLabelText('Pincode / postal code');
     await user.type(postal, '110001');
     const candidate = await screen.findByRole('button', { name: 'New Delhi, Delhi, India' });
     expect(lookupProviderPostalCode).toHaveBeenCalledWith('110001', expect.any(AbortSignal));
-    expect(screen.getByRole('button', { name: 'Country' }).textContent).toContain('Select country');
+    expect(screen.getByRole('button', { name: 'Country' }).textContent).toContain('India');
     await user.click(candidate);
     expect(screen.getByRole('button', { name: 'Country' }).textContent).toContain('India');
     expect(screen.getByRole('button', { name: 'State / Province' }).textContent).toContain('Delhi');
     expect(screen.getByRole('button', { name: 'City' }).textContent).toContain('New Delhi');
     await user.clear(postal);
     await user.type(postal, 'othercode');
-    expect(screen.getByRole('button', { name: 'Country' }).textContent).toContain('Select country');
+    expect(screen.getByRole('button', { name: 'Country' }).textContent).toContain('India');
     expect(screen.getByRole('button', { name: 'Country' }).hasAttribute('disabled')).toBe(false);
   });
 
@@ -1735,6 +1747,7 @@ describe('ProviderForm edit wizard', () => {
     await user.click(screen.getByRole('button', { name: 'Continue' }));
     await user.clear(screen.getByRole('textbox', { name: 'Phone number 1' }));
     await user.type(screen.getByRole('textbox', { name: 'Phone number 1' }), '4035550200');
+    await selectPostalCountry(user, 'India');
     const postal = screen.getByLabelText('Pincode / postal code');
     await user.clear(postal);
     await user.type(postal, '110001');

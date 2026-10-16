@@ -1,5 +1,6 @@
 """Verified member profile access, ownership, validation, and persistence tests."""
 from datetime import datetime, timezone
+import pytest
 from app.core.security import create_access_token, hash_password
 from app.repositories.user_repository import UserRepository
 from app.api.v1 import profile as profile_router
@@ -44,6 +45,27 @@ def _personal():
 
 
 class TestMemberProfile:
+    @pytest.mark.parametrize("country", ["United Arab Emirates", "Canada"])
+    @pytest.mark.parametrize("postal_code", [None, "", "user-supplied"])
+    def test_optional_postal_personal_and_stable_roundtrip(self, client, db, country, postal_code):
+        member = _member(db, email="postal-fixture@example.com", roles=["stable_manager"])
+        headers = _headers(member)
+        location = {
+            "country": country, "state_province": "Dubai" if country == "United Arab Emirates" else "Ontario",
+            "city": "Dubai" if country == "United Arab Emirates" else "Toronto", "postal_code": postal_code,
+        }
+        personal = client.put(f"{BASE}/personal", headers=headers, json={**_personal(), **location})
+        assert personal.status_code == 200
+        stable = client.put(f"{BASE}/stable", headers=headers, json={
+            "name": "Postal fixture stable", "address": "1 Stable Road", **location,
+        })
+        assert stable.status_code == 200
+        saved = client.get(BASE, headers=headers).json()
+        assert saved["postal_code"] == (postal_code or None)
+        assert saved["stable_profile"]["postal_code"] == (postal_code or None)
+        assert saved["country"] == country
+        assert saved["stable_profile"]["country"] == country
+
     def test_requires_verified_member_and_returns_only_current_profile(self, client, db, seeded_admin):
         admin, _ = seeded_admin
         assert client.get(BASE).status_code == 401

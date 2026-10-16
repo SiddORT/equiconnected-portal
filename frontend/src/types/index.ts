@@ -126,7 +126,7 @@ export interface ProviderRegistrationRequest {
   country: string;
   state_province: string;
   city: string;
-  postal_code: string;
+  postal_code?: string | null;
   password: string;
   password_confirmation: string;
   role: 'PROVIDER';

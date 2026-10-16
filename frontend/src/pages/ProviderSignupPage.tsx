@@ -15,6 +15,7 @@ import type {
   ProviderType,
 } from '@/types';
 import { DEFAULT_COUNTRY } from '@/utils/countryCodes';
+import { DEFAULT_ADDRESS_COUNTRY } from '@/utils/geography';
 import {
   normalizePostalCountry,
   postalLookupMessage,
@@ -25,13 +26,14 @@ import { VerificationResend } from './VerificationResend';
 import { usePublicTrafficRoute } from '@/analytics/trafficTracking';
 
 type FormErrors = Partial<Record<keyof ProviderRegistrationRequest, string>>;
+type FormState = Omit<ProviderRegistrationRequest, 'postal_code'> & { postal_code: string };
 
-const initialForm: ProviderRegistrationRequest = {
+const initialForm: FormState = {
   first_name: '',
   last_name: '',
   email: '',
   mobile_number: '',
-  country: '',
+  country: DEFAULT_ADDRESS_COUNTRY,
   state_province: '',
   city: '',
   postal_code: '',
@@ -65,7 +67,7 @@ export function validateProviderSignup(
   emergencyDialCode = DEFAULT_COUNTRY.dialCode
 ): FormErrors {
   const errors: FormErrors = {};
-  for (const field of ['first_name', 'last_name', 'provider_name', 'mobile_number', 'country', 'city', 'postal_code', 'professional_title', 'working_address'] as const) {
+  for (const field of ['first_name', 'last_name', 'provider_name', 'mobile_number', 'country', 'city', 'professional_title', 'working_address'] as const) {
     if (!form[field].trim()) errors[field] = 'This field is required';
   }
   if (!form.specialization_ids.length) errors.specialization_ids = 'Select at least one specialization';
@@ -109,7 +111,7 @@ export function validateProviderSignup(
 
 export function ProviderSignupPage() {
   usePublicTrafficRoute('provider_signup', '/provider/signup');
-  const [form, setForm] = useState<ProviderRegistrationRequest>(initialForm);
+  const [form, setForm] = useState<FormState>(initialForm);
   const [mobileCountry, setMobileCountry] = useState(DEFAULT_COUNTRY);
   const [emergencyCountry, setEmergencyCountry] = useState(DEFAULT_COUNTRY);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -171,13 +173,13 @@ export function ProviderSignupPage() {
         setPostalCandidates(result.candidates);
         setPostalMessage(postalLookupMessage(result, 'provider'));
       },
-    });
+    }, form.country);
     postalLookupCancel.current = cancel;
     return () => {
       cancel();
       if (postalLookupCancel.current === cancel) postalLookupCancel.current = null;
     };
-  }, [form.postal_code, selectedPostalCode]);
+  }, [form.postal_code, form.country, selectedPostalCode]);
 
   function selectPostalCandidate(candidate: PostalCandidate) {
     cancelPostalLookup();
@@ -196,10 +198,16 @@ export function ProviderSignupPage() {
     }));
   }
 
-  function update<K extends keyof ProviderRegistrationRequest>(
+  function update<K extends keyof FormState>(
     field: K,
-    value: ProviderRegistrationRequest[K]
+    value: FormState[K]
   ) {
+    if (['country', 'state_province', 'city', 'working_address'].includes(field)) {
+      cancelPostalLookup();
+      setSelectedPostalCode(form.postal_code);
+      setPostalCandidates([]);
+      setPostalMessage('');
+    }
     setForm((current) => ({
       ...current,
       [field]: value,
@@ -221,7 +229,7 @@ export function ProviderSignupPage() {
   function updatePostalCode(value: string) {
     cancelPostalLookup();
     setForm((current) => ({
-      ...current, postal_code: value, country: '', state_province: '', city: '',
+      ...current, postal_code: value,
     }));
     setSelectedPostalCode(null);
     setPostalCandidates([]);
@@ -256,7 +264,7 @@ export function ProviderSignupPage() {
         country: form.country.trim(),
         state_province: form.state_province.trim(),
         city: form.city.trim(),
-        postal_code: form.postal_code.trim(),
+        postal_code: form.postal_code.trim() || null,
         provider_name: form.provider_name.trim(),
         professional_title: form.professional_title.trim(),
         working_address: form.working_address.trim(),
@@ -352,7 +360,7 @@ export function ProviderSignupPage() {
               <Input label="Pincode / postal code" id="provider-postal-code" maxLength={32}
                 autoComplete="postal-code" containerClassName={styles.signupField} value={form.postal_code}
                 onChange={(event) => updatePostalCode(event.target.value)}
-                error={errors.postal_code} disabled={submitting} required />
+                 error={errors.postal_code} disabled={submitting} />
               {postalLoading && <span className={styles.mobileLabel} role="status">Looking up locations…</span>}
               {!postalLoading && postalMessage && <span className={styles.mobileLabel} role="status">{postalMessage}</span>}
               {postalCandidates.length > 0 && (
@@ -370,6 +378,7 @@ export function ProviderSignupPage() {
             </div>
             <LocationPicker value={form} onChange={(nextLocation) => {
               cancelPostalLookup();
+              setSelectedPostalCode(form.postal_code);
               setPostalCandidates([]);
               setPostalMessage('');
               setForm((current) => ({ ...current, ...nextLocation }));

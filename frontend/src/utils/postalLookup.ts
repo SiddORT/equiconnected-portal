@@ -1,6 +1,6 @@
 import { Country, State } from 'country-state-city';
 import { lookupProviderPostalCode, type PostalCandidate } from '@/api/auth';
-import { getStateOptions } from '@/utils/geography';
+import { getStateOptions, isUaeCountry } from '@/utils/geography';
 
 export type PostalLookupResult = Awaited<ReturnType<typeof lookupProviderPostalCode>>;
 export const POSTAL_LOOKUP_DELAY = 550;
@@ -58,9 +58,10 @@ export function postalLookupMessage(result: PostalLookupResult, form: 'member' |
 export function startPostalLookup(
   postalCode: string,
   callbacks: { onLoading?: () => void; onResult: (result: PostalLookupResult) => void },
+  country = '',
 ): () => void {
   const query = postalCode.trim();
-  if (query.length < 4) return () => {};
+  if (query.length < 4 || isUaeCountry(country)) return () => {};
   const controller = new AbortController();
   const timer = setTimeout(async () => {
     if (controller.signal.aborted) return;
@@ -69,7 +70,14 @@ export function startPostalLookup(
     try {
       const response = await lookupProviderPostalCode(query, controller.signal);
       // Status, not stray source data, determines whether places are selectable.
-      result = { ...response, candidates: response.status === 'match' ? response.candidates : [] };
+      const countryName = normalizePostalCountry({ country } as PostalCandidate);
+      const candidates = response.status === 'match' ? response.candidates.filter((candidate) =>
+        !country.trim() || normalizePostalCountry(candidate).toLowerCase() === countryName.toLowerCase()) : [];
+      result = {
+        ...response,
+        status: response.status === 'match' && candidates.length === 0 ? 'no_match' : response.status,
+        candidates,
+      };
     } catch {
       result = { status: 'unavailable', candidates: [] };
     }

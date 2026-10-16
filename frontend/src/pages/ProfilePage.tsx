@@ -11,6 +11,7 @@ import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { MemberAddressFields, type MemberAddressValue } from '@/features/member/MemberAddressFields';
 import { PhoneInput } from '@/components/ui/PhoneInput';
 import { DEFAULT_COUNTRY } from '@/utils/countryCodes';
+import { DEFAULT_ADDRESS_COUNTRY } from '@/utils/geography';
 import {
   calculateProfileCompletion,
   type ProfileCompletionSection,
@@ -49,7 +50,7 @@ function toStable(profile: MemberProfile): StableProfileUpdate {
   return {
     name: stable?.name ?? '', description: stable?.description, address: stable?.address,
     address_line_2: stable?.address_line_2 ?? '',
-    country: stable?.country ?? '', state_province: stable?.state_province, city: stable?.city ?? '',
+    country: stable ? stable.country ?? '' : DEFAULT_ADDRESS_COUNTRY, state_province: stable?.state_province, city: stable?.city ?? '',
     postal_code: stable?.postal_code, contact_name: stable?.contact_name,
     contact_phone: stable?.contact_phone, contact_email: stable?.contact_email,
   };

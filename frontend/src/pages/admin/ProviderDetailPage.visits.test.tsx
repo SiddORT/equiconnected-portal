@@ -189,7 +189,7 @@ describe('ProviderDetailPage doctor visits', () => {
   it('creates a future return and reloads its dates and address', async () => {
     const visit = { id: 'new-trip', start_date: '2999-06-01', end_date: '2999-06-03',
       location: { address_line_1: '1 Prairie Way', city: 'Calgary', name: null,
-        state_province: null, country: null, postal_code: null } };
+        state_province: null, country: 'United Arab Emirates', postal_code: null } };
     const refreshed = doctor({ doctor_visits: [visit] });
     vi.mocked(getProvider).mockResolvedValueOnce(doctor()).mockResolvedValue(refreshed);
     vi.mocked(createProviderVisit).mockResolvedValue(refreshed);
@@ -203,7 +203,7 @@ describe('ProviderDetailPage doctor visits', () => {
       location: visit.location, start_date: visit.start_date, end_date: visit.end_date,
     }));
     expect(await screen.findByText('Upcoming · 2999-06-01 to 2999-06-03')).toBeTruthy();
-    expect(screen.getByText('1 Prairie Way, Calgary')).toBeTruthy();
+    expect(screen.getByText('1 Prairie Way, Calgary, United Arab Emirates')).toBeTruthy();
     expect(getProvider).toHaveBeenCalledTimes(2);
   });
 

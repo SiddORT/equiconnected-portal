@@ -40,6 +40,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { LocationPicker } from '@/components/ui/LocationPicker';
+import { DEFAULT_ADDRESS_COUNTRY } from '@/utils/geography';
 import { Select } from '@/components/ui/Select';
 import { PageHeader } from '@/components/layout/PageHeader';
 import type { DoctorVisitCreate, LoadingState, Provider, ProviderPortalAccess, Specialization } from '@/types';
@@ -80,7 +81,7 @@ const EMPTY_LOCATION_FORM: LocationFormValues = {
   address_line_2: '',
   city: '',
   state_province: '',
-  country: '',
+  country: DEFAULT_ADDRESS_COUNTRY,
   postal_code: '',
   latitude: '',
   longitude: '',
@@ -148,7 +149,7 @@ export function ProviderDetailPage() {
   const [visitFormOpen, setVisitFormOpen] = useState(false);
   const [editingVisitId, setEditingVisitId] = useState<string | null>(null);
   const [visitForm, setVisitForm] = useState<DoctorVisitCreate>({
-    location: { address_line_1: '', city: '', name: '', state_province: '', country: '', postal_code: '' },
+    location: { address_line_1: '', city: '', name: '', state_province: '', country: DEFAULT_ADDRESS_COUNTRY, postal_code: '' },
     start_date: '', end_date: '',
   });
 
@@ -182,7 +183,7 @@ export function ProviderDetailPage() {
     setVisitForm(visit ? {
       location: { ...visit.location, name: visit.location.name ?? '', state_province: visit.location.state_province ?? '', country: visit.location.country ?? '', postal_code: visit.location.postal_code ?? '' },
       start_date: visit.start_date, end_date: visit.end_date,
-    } : { location: { address_line_1: '', city: '', name: '', state_province: '', country: '', postal_code: '' }, start_date: '', end_date: '' });
+    } : { location: { address_line_1: '', city: '', name: '', state_province: '', country: DEFAULT_ADDRESS_COUNTRY, postal_code: '' }, start_date: '', end_date: '' });
     setVisitFormOpen(true);
   }
 

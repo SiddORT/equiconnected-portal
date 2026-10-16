@@ -33,6 +33,20 @@ const completePersonal: MemberProfile = {
 };
 
 describe('calculateProfileCompletion', () => {
+  it.each(['United Arab Emirates', 'United States'])('does not require personal or stable postal codes in %s', (country) => {
+    const completion = calculateProfileCompletion({
+      ...completePersonal, country, postal_code: null, roles: ['stable_manager'],
+      stable_profile: {
+        id: 'stable', name: 'Stable', description: null, address: 'Stable road',
+        country, state_province: 'State', city: 'City', postal_code: null,
+        contact_name: 'Contact', contact_email: 'stable@example.com',
+        contact_phone: '+971 501234567', updated_at: '',
+      },
+    });
+    expect(completion.isComplete).toBe(true);
+    expect(completion.percentage).toBe(100);
+  });
+
   it('counts only applicable roles and ignores optional horse details', () => {
     const completion = calculateProfileCompletion(completePersonal);
 

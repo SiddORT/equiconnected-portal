@@ -703,8 +703,11 @@ class TestPublicSave:
         data = resp.json()
         assert "id" in data
 
+    @pytest.mark.parametrize("country,postal_code", [
+        ("Canada", None), ("United Arab Emirates", None), ("United Arab Emirates", "supplied-code"),
+    ])
     def test_service_details_and_locations_round_trip_through_draft(
-        self, client, admin_token, captured_email, db
+        self, client, admin_token, captured_email, db, country, postal_code
     ):
         invitation = _create_invitation(
             client, admin_token, recipient_email="service-draft@example.com"
@@ -719,7 +722,8 @@ class TestPublicSave:
                     "name": "Main clinic",
                     "address_line_1": "10 Main Street",
                     "city": "Toronto",
-                    "country": "Canada",
+                    "country": country,
+                    "postal_code": postal_code,
                     "is_primary": True,
                 }
             ],
@@ -732,6 +736,8 @@ class TestPublicSave:
         assert provider["emergency_services_available"] is True
         assert provider["emergency_contact_number"] == "+15551234567"
         assert provider["locations"][0]["city"] == "Toronto"
+        assert provider["locations"][0]["country"] == country
+        assert provider["locations"][0]["postal_code"] == postal_code
 
         reopened = client.get(f"{PUBLIC_BASE}/{token}")
         assert reopened.status_code == 200
@@ -742,6 +748,8 @@ class TestPublicSave:
         provider_model = db.get(Provider, uuid.UUID(invitation["provider_id"]))
         assert len(provider_model.locations) == 1
         assert provider_model.locations[0].is_primary is True
+        assert provider_model.locations[0].country == country
+        assert provider_model.locations[0].postal_code == postal_code
 
     def test_disabling_service_options_clears_dependent_draft_values(
         self, client, admin_token, captured_email

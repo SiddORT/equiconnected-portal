@@ -102,7 +102,7 @@ export const providerTopics: ManualTopic[] = [
       'Open /provider/signup and enter Provider or practice name, then select Hospital, Clinic, or Doctor / Vet under Provider type.',
       'Enter First name, Last name, Email address, Mobile number, Professional title, and Years of experience.',
       'Select at least one item under Specializations; select relevant Languages if applicable.',
-      'Enter Pincode / postal code. Choose a matching postal-location result when one appears, or complete the country, state or province, city, and Address fields yourself.',
+      'Pincode / postal code is optional. For international postal lookup, select the country before entering a code. Choose a matching postal-location result when one appears, or complete the country, state or province, city, and Address fields yourself.',
       'Select Stable visit and enter Maximum Working Radius (KM) if you travel to stables. Select Emergency services available only if applicable and enter its Emergency contact number.',
       'Create and confirm a password, accept the Terms & Conditions and Privacy Policy, and select Submit provider application.',
       'Open the verification message and use its secure link within 24 hours. After verification, wait for administrator review; the confirmation page tells you whether the application was saved and email was sent.',

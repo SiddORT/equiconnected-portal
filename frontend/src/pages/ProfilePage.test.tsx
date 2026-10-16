@@ -110,8 +110,8 @@ describe('ProfilePage', () => {
     renderProfile();
 
     expect(await screen.findByTestId('profile-progress-summary')).toBeTruthy();
-    expect(screen.getByTestId('personal-section-status').textContent).toContain('2 items remaining');
-    expect(screen.getByTestId('stable-section-status').textContent).toContain('8 items remaining');
+    expect(screen.getByTestId('personal-section-status').textContent).toContain('1 item remaining');
+    expect(screen.getByTestId('stable-section-status').textContent).toContain('7 items remaining');
     expect(screen.getByTestId('horses-section-status').textContent).toContain('1 item remaining');
     fireEvent.click(screen.getByRole('button', { name: 'Add horse' }));
     expect(screen.getByRole('heading', { name: 'Required basics' })).toBeTruthy();

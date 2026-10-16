@@ -7,7 +7,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { listProviderSignupLanguages, lookupProviderPostalCode } from '@/api/auth';
 import { saveInvitationDraft, submitInvitation } from '@/api/invitations';
 import type { InvitationTokenData } from '@/types';
-import { InvitationAddresses, emptyInvitationAddress, type InvitationAddress } from './InvitationProfileFields';
+import { InvitationAddresses, emptyInvitationAddress, invitationAddressesFromDraft, type InvitationAddress } from './InvitationProfileFields';
 import { InvitationDoctorForm } from './InvitationDoctorForm';
 import doctorStyles from '@/components/admin/DoctorForm.module.css';
 
@@ -75,6 +75,22 @@ const postalMatch = {
     display_name: 'Toronto, Ontario, Canada',
   }],
 };
+
+it('defaults only new invitation addresses to UAE and preserves saved blank countries', async () => {
+  expect(invitationAddressesFromDraft([])[0].country).toBe('United Arab Emirates');
+  expect(invitationAddressesFromDraft([{
+    address_line_1: 'Historical road', city: 'Saved city', country: null, postal_code: 'saved-code',
+  }])[0]).toEqual(expect.objectContaining({ country: '', postal_code: 'saved-code' }));
+  const user = userEvent.setup();
+  render(<ControlledInvitationAddresses initial={[emptyInvitationAddress()]} />);
+  const postal = screen.getByLabelText('Postal / ZIP code') as HTMLInputElement;
+  expect(postal.required).toBe(false);
+  await user.type(postal, '110001');
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  expect(postal.value).toBe('110001');
+  expect(lookupProviderPostalCode).not.toHaveBeenCalled();
+  expect((screen.getByLabelText('Country') as HTMLInputElement).value).toBe('United Arab Emirates');
+});
 
 it('lets doctor invitees search, change, save and restore languages in an unclipped card', async () => {
   vi.mocked(listProviderSignupLanguages).mockResolvedValueOnce([
@@ -205,8 +221,8 @@ it('retains the legacy saved-address choice and loads the selected address', asy
 });
 
 it('keeps lookups for other addresses alive when one address postal code changes', async () => {
-  const first = emptyInvitationAddress('first');
-  const second = emptyInvitationAddress('second');
+  const first = { ...emptyInvitationAddress('first'), country: '' };
+  const second = { ...emptyInvitationAddress('second'), country: '' };
   const onChange = vi.fn();
   const { rerender, unmount } = render(<InvitationAddresses value={[first, second]} onChange={onChange} />);
   vi.mocked(lookupProviderPostalCode).mockImplementation(() => new Promise(() => {}));
@@ -245,7 +261,7 @@ it('requires an explicit choice from ambiguous postal matches and normalizes its
       { ...postalMatch.candidates[0], city: 'Etobicoke', display_name: 'Etobicoke, Ontario, Canada' },
     ],
   });
-  render(<ControlledInvitationAddresses initial={[emptyInvitationAddress()]} />);
+  render(<ControlledInvitationAddresses initial={[{ ...emptyInvitationAddress(), country: '' }]} />);
   await user.type(screen.getByLabelText('Postal / ZIP code'), 'M5V1E3');
 
   const matchingPlace = await screen.findByRole('button', { name: 'Toronto, Ontario, Canada' });
@@ -260,7 +276,7 @@ it('requires an explicit choice from ambiguous postal matches and normalizes its
 it('still requires an explicit choice for a unique postal match', async () => {
   const user = userEvent.setup();
   vi.mocked(lookupProviderPostalCode).mockResolvedValue(postalMatch);
-  render(<StrictMode><ControlledInvitationAddresses initial={[emptyInvitationAddress()]} /></StrictMode>);
+  render(<StrictMode><ControlledInvitationAddresses initial={[{ ...emptyInvitationAddress(), country: '' }]} /></StrictMode>);
   await user.type(screen.getByLabelText('Postal / ZIP code'), 'M5V1E3');
 
   const matchingPlace = await screen.findByRole('button', { name: 'Toronto, Ontario, Canada' });
@@ -281,7 +297,7 @@ it('cancels a pending lookup when location details are edited and suppresses its
       resolveLookup = resolve;
     });
   });
-  render(<ControlledInvitationAddresses initial={[emptyInvitationAddress()]} />);
+  render(<ControlledInvitationAddresses initial={[{ ...emptyInvitationAddress(), country: '' }]} />);
   await user.type(screen.getByLabelText('Postal / ZIP code'), 'M5V1E3');
   await waitFor(() => expect(lookupProviderPostalCode).toHaveBeenCalled(), { timeout: 2000 });
 
@@ -296,7 +312,7 @@ it('cancels a pending lookup when location details are edited and suppresses its
 it('shows the shared unavailable message when the postal lookup fails', async () => {
   const user = userEvent.setup();
   vi.mocked(lookupProviderPostalCode).mockRejectedValue(new Error('lookup failed'));
-  render(<ControlledInvitationAddresses initial={[emptyInvitationAddress()]} />);
+  render(<ControlledInvitationAddresses initial={[{ ...emptyInvitationAddress(), country: '' }]} />);
   await user.type(screen.getByLabelText('Postal / ZIP code'), 'M5V1E3');
 
   expect(await screen.findByText('Postal lookup is unavailable. You can enter the address manually.')).toBeTruthy();

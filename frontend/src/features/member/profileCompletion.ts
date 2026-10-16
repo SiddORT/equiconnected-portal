@@ -60,7 +60,6 @@ function personalSection(profile: MemberProfile): ProfileCompletionSection {
       ? [{ complete: hasValue(profile.state_province), missing: 'Choose your state or province.' }]
       : []),
     { complete: hasValue(profile.city), missing: 'Choose your city.' },
-    { complete: hasValue(profile.postal_code), missing: 'Add your postal or ZIP code.' },
   ];
   return section('personal', 'Account and contact', items);
 }
@@ -75,7 +74,6 @@ function stableSection(stable: StableProfile | null): ProfileCompletionSection {
       ? [{ complete: hasValue(stable?.state_province), missing: 'Choose the stable state or province.' }]
       : []),
     { complete: hasValue(stable?.city), missing: 'Choose the stable city.' },
-    { complete: hasValue(stable?.postal_code), missing: 'Add the stable postal or ZIP code.' },
     { complete: hasValue(stable?.contact_name), missing: 'Add a stable contact name.' },
     { complete: hasValue(stable?.contact_phone), missing: 'Add a stable contact phone.' },
     { complete: hasValue(stable?.contact_email), missing: 'Add a stable contact email.' },
