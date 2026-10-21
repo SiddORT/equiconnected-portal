@@ -345,15 +345,14 @@ export function PublicPage() {
             </div>
             <div className={styles.categoryGrid}>
               {[
-                { number: 'i', type: 'Veterinary professional', title: 'Vets', description: 'Find veterinary professionals and explore the care they offer for your horse.', image: categoryVet, credit: 'Photo by Daniel Bonilla on Unsplash' },
-                { number: 'ii', type: 'Clinic', title: 'Clinics', description: 'Discover equine clinics and learn more about their services and facilities.', image: categoryClinic, credit: 'Photo by Mathias Reding on Unsplash' },
-                { number: 'iii', type: 'Hospital', title: 'Hospitals', description: 'Explore equine hospitals and the care options available at each location.', image: categoryHospital, credit: 'Photo by D. Gibson on Unsplash' },
-              ].map(({ number, type, title, description, image, credit }) => (
+                { number: 'i', type: 'Veterinary professional', title: 'Vets', description: 'Find veterinary professionals and explore the care they offer for your horse.', image: categoryVet },
+                { number: 'ii', type: 'Clinic', title: 'Clinics', description: 'Discover equine clinics and learn more about their services and facilities.', image: categoryClinic },
+                { number: 'iii', type: 'Hospital', title: 'Hospitals', description: 'Explore equine hospitals and the care options available at each location.', image: categoryHospital },
+              ].map(({ number, type, title, description, image }) => (
                 <article className={styles.categoryCard} key={number}>
                   <Link to={careHref} className={styles.categoryLink} aria-label={`Explore ${title} in the directory`}>
                     <div className={styles.categoryPhoto}>
                       <img src={image} alt="" loading="lazy" />
-                      <span className={styles.categoryCredit}>{credit}</span>
                     </div>
                     <div className={styles.categoryCaption}><span>{number}</span> {type}</div>
                     <h3>{title}</h3>
@@ -379,7 +378,6 @@ export function PublicPage() {
               </div>
               <span className={styles.radiusCaption}>Illustrative only · not live results</span>
             </div>
-            <a className={styles.imageNote} href="https://unsplash.com/@weareambitious" target="_blank" rel="noreferrer">Photo by Ambitious Studio* | Rick Barrett on Unsplash</a>
           </div>
           <div className={styles.findCopy}>
             <p className={styles.sectionKicker}>Find equine care</p>
@@ -436,7 +434,6 @@ export function PublicPage() {
           </div>
           <figure className={styles.whyVisual}>
             <img className={styles.whyImage} src={whyPhoto} alt="A horse in a bright, close-up black-and-white portrait" loading="lazy" />
-            <figcaption className={styles.whyCredit}>Photo by Mahmoud Ayad on Unsplash</figcaption>
           </figure>
         </section>
 
@@ -451,8 +448,8 @@ export function PublicPage() {
               <span className={styles.ownerMotifTag}>Details you choose to add</span>
             </div>
             <div className={styles.ownerCredits}>
+              {/* Retain until this specific photo's licence is verified; see docs/homepage-photo-licences.md. */}
               <a href="https://unsplash.com/@ourselp" target="_blank" rel="noreferrer">Owner &amp; horse · Philippe Oursel / Unsplash</a>
-              <a href="https://unsplash.com/@glencarrie" target="_blank" rel="noreferrer">Horse detail · Glen Carrie / Unsplash</a>
             </div>
           </div>
           <div className={styles.ownersCopy}>
@@ -489,7 +486,7 @@ export function PublicPage() {
           </div>
           <figure className={styles.providerVisual}>
             <img src={vetPhoto} alt="A horse resting its head beside the person caring for it" loading="lazy" />
-            <figcaption>For the people behind equine care · Photo by Kirsten LaChance</figcaption>
+            <figcaption>For the people behind equine care</figcaption>
             <div className={styles.providerPreview} role="group" aria-label="Illustrative profile preview, not an actual provider listing">
               <span className={styles.providerPreviewEyebrow}>Illustrative profile preview</span>
               <span className={styles.providerPreviewMark} aria-hidden="true">EC</span>
@@ -517,7 +514,6 @@ export function PublicPage() {
               <li><span>03</span><div><strong>Check availability</strong><small>Arrange timing directly with the provider.</small></div></li>
             </ol>
           </aside>
-          <span className={styles.visitingCredit}>Photo by Filip Eliasson on Unsplash</span>
         </section>
 
         <EditorialReviewSlider careHref={careHref} />
@@ -533,13 +529,11 @@ export function PublicPage() {
           <div className={styles.emergencyVisual}>
             <img src={emergencyPhoto} alt="Calm horse looking out from a stable" loading="lazy" />
             <span className={styles.emergencyLabel}>Provider-shared emergency details</span>
-            <a className={styles.emergencyCredit} href="https://unsplash.com/@kellyforrister" target="_blank" rel="noreferrer">Photo by Kelly Forrister</a>
           </div>
         </section>
 
         <section className={styles.finalCta} id="join" aria-labelledby="final-heading">
           <img src={finalPhoto} alt="" loading="lazy" />
-          <a className={styles.finalCredit} href="https://unsplash.com/@itfeelslikefilm" target="_blank" rel="noreferrer">Photo by Janko Ferlič on Unsplash</a>
           <div className={styles.finalInner}>
             <p className={styles.sectionKicker}>For every horse, and everyone who cares for them</p>
             <h2 id="final-heading">Find the right care<br />for <em>your horse.</em></h2>

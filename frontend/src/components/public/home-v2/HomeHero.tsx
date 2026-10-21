@@ -30,14 +30,6 @@ export function HomeHero({ member }: { member: boolean }) {
         </div>
         <p className={styles.memberNote}>Provider directory access is available to members.</p>
       </div>
-      <a
-        className={styles.photoCredit}
-        href="https://unsplash.com/@helenalopesph"
-        target="_blank"
-        rel="noreferrer"
-      >
-        Hero photograph · Helena Lopes / Unsplash
-      </a>
       <a className={styles.scrollCue} href="#care" aria-label="Scroll to care options"><span />Explore</a>
     </section>
   );

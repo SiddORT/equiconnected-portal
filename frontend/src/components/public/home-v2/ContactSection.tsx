@@ -51,7 +51,6 @@ export function ContactSection() {
             <p><strong>For partners</strong>Working together</p>
           </div>
         </div>
-        <span className={styles.credit}>Photo by Helena Lopes on Unsplash</span>
       </div>
       <div className={styles.formSide}>
         <div className={styles.formInner}>

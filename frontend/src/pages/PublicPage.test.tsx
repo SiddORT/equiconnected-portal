@@ -57,7 +57,7 @@ beforeEach(() => {
 });
 
 describe('PublicPage', () => {
-  it('keeps hero content, member note, action, and photo attribution independent', () => {
+  it('keeps hero content, member note, and action without optional photo attribution', () => {
     renderPage();
     const hero = screen.getByRole('heading', { name: /Trusted equine care/i }).closest('section')!;
     const inner = hero.querySelector('[class*="heroInner"]')!;
@@ -67,7 +67,41 @@ describe('PublicPage', () => {
     expect(within(inner.children[3] as HTMLElement).getByRole('button', { name: 'Join EquiConnected' }).getAttribute('aria-expanded')).toBe('false');
     expect(inner.children[4].textContent).toBe('Provider directory access is available to members.');
     expect(hero.querySelector('[class*="heroLight"]')?.getAttribute('aria-hidden')).toBe('true');
-    expect(within(hero).getByRole('link', { name: /Hero photograph · Helena Lopes/ }).getAttribute('href')).toBe('https://unsplash.com/@helenalopesph');
+    expect(within(hero).queryByRole('link', { name: /Hero photograph|Helena Lopes/ })).toBeNull();
+    expect(within(hero).getByRole('link', { name: 'Scroll to care options' }).getAttribute('href')).toBe('#care');
+  });
+
+  it('removes only verified-optional credits and preserves every homepage photo and alternative text', () => {
+    const { container } = renderPage();
+    const photos = Array.from(container.querySelectorAll('main img'));
+    expect(photos.map((image) => [image.getAttribute('src')?.split('/').pop(), image.getAttribute('alt')])).toEqual([
+      ['home-v2-hero.jpg', 'A white horse moving through a dark green pasture'],
+      ['statement-detail-1.jpg', ''],
+      ['statement-detail-2.jpg', ''],
+      ['category-vet.jpg', ''],
+      ['category-clinic.jpg', ''],
+      ['category-hospital.jpg', ''],
+      ['find-care.jpg', 'A horse standing in a sunlit stable yard'],
+      ['why-care.jpg', 'A horse in a bright, close-up black-and-white portrait'],
+      ['owner-portrait.jpg', 'A horse owner standing close beside a chestnut horse'],
+      ['owner-horse.jpg', "Close-up of a horse's eye"],
+      ['vet-care.jpg', 'A horse resting its head beside the person caring for it'],
+      ['visiting-specialist.jpg', 'Horse and rider moving across an open landscape'],
+      ['emergency-care.jpg', 'Calm horse looking out from a stable'],
+      ['final-horses.jpg', ''],
+      ['home-v2-hero.jpg', ''],
+    ]);
+    expect(screen.queryByText(/Photo by|Hero photograph|Horse detail ·/i)).toBeNull();
+    // Fail closed: the portrait's individual licence is still unresolved.
+    const credits = container.querySelectorAll('a[href*="unsplash.com"]');
+    expect(credits).toHaveLength(1);
+    expect(credits[0].textContent).toBe('Owner & horse · Philippe Oursel / Unsplash');
+    expect(credits[0].getAttribute('href')).toBe('https://unsplash.com/@ourselp');
+    expect(document.querySelector('[class*="ownerCredits"]')?.children).toHaveLength(1);
+    expect(Array.from(container.querySelectorAll('figcaption')).every((caption) => caption.textContent?.trim())).toBe(true);
+    expect(screen.getByText('For the people behind equine care')).toBeTruthy();
+    expect(screen.getByText('Provider-shared emergency details')).toBeTruthy();
+    expect(screen.getByText('Illustrative only · not live results')).toBeTruthy();
   });
 
   it('places a working contact form before the updates signup', async () => {
@@ -669,7 +703,7 @@ describe('PublicPage', () => {
     expect(within(benefits).getByText(/when they’re available/i)).toBeTruthy();
     expect(within(benefits).getByText(/Ask providers about travel and availability/i)).toBeTruthy();
     expect(within(why).getByRole('img', { name: /horse in a bright, close-up black-and-white portrait/i })).toBeTruthy();
-    expect(within(why).getByText('Photo by Mahmoud Ayad on Unsplash')).toBeTruthy();
+    expect(within(why).queryByText(/Photo by/)).toBeNull();
     expect(within(why).queryByText(/verified profiles|qualifications checked|emergency lines and hours|results reflect where your horse is stabled/i)).toBeNull();
   });
 
@@ -698,14 +732,14 @@ describe('PublicPage', () => {
     expect(find.getByRole('link', { name: 'Check all providers' }).getAttribute('href')).toBe('/signup');
   });
 
-  it('presents six honest owner steps, attributed imagery, and a guest signup action', () => {
+  it('presents six honest owner steps, retains the unresolved portrait credit, and offers guest signup', () => {
     renderPage();
     const owners = within(screen.getByRole('region', { name: 'Your horses, known by heart — and on file.' }));
     expect(owners.getByText('For horse owners & riders')).toBeTruthy();
     expect(owners.getAllByRole('listitem')).toHaveLength(6);
     for (const text of [
       'Create your member profile', 'Add your horses', 'Include optional breed details',
-      'fill in breed details section',
+      'Fill in breed details section',
       'Browse provider-shared information', 'Save providers to revisit later',
     ]) expect(owners.getByText(text)).toBeTruthy();
     expect(owners.queryByText(/each horse’s stable location|search starts from|providers who reach that location/i)).toBeNull();
@@ -713,7 +747,7 @@ describe('PublicPage', () => {
     expect(owners.getByRole('img', { name: /close-up of a horse's eye/i })).toBeTruthy();
     expect(owners.getByLabelText('Illustrative horse profile, not a member record')).toBeTruthy();
     expect(owners.getByRole('link', { name: /Philippe Oursel/i }).getAttribute('href')).toBe('https://unsplash.com/@ourselp');
-    expect(owners.getByRole('link', { name: /Glen Carrie/i }).getAttribute('href')).toBe('https://unsplash.com/@glencarrie');
+    expect(owners.queryByRole('link', { name: /Glen Carrie/i })).toBeNull();
     expect(owners.getByRole('link', { name: 'Create your account' }).getAttribute('href')).toBe('/signup');
   });
 
@@ -732,7 +766,8 @@ describe('PublicPage', () => {
     expect(features.queryByRole('button')).toBeNull();
     expect(section.getByRole('link', { name: 'Register as a provider' }).getAttribute('href')).toBe('/provider/signup');
     expect(section.getByRole('img', { name: /horse resting its head beside the person caring for it/i })).toBeTruthy();
-    expect(section.getByText(/Photo by Kirsten LaChance/)).toBeTruthy();
+    expect(section.queryByText(/Photo by Kirsten LaChance/)).toBeNull();
+    expect(section.getByText('For the people behind equine care')).toBeTruthy();
     const preview = within(section.getByRole('group', { name: 'Illustrative profile preview, not an actual provider listing' }));
     expect(preview.getByText('Provider profile')).toBeTruthy();
     expect(preview.getByText('Practice name')).toBeTruthy();

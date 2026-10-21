@@ -95,7 +95,6 @@
 .arrow { display: inline-block; font-size: 16px; line-height: 1; transition: transform .2s ease; }
 .page a:hover .arrow { transform: translate(2px,-2px); }
 .memberNote { margin: 16px 0 0; color: rgba(247,243,234,.75); font-size: 11px; }
-.photoCredit { position: absolute; bottom: 15px; left: 24px; color: rgba(247,243,234,.74) !important; font-size: 9px; }
 .scrollCue { position: absolute; right: max(28px,calc((100vw - 1360px)/2)); bottom: 26px; display: flex; align-items: center; gap: 10px; color: rgba(247,243,234,.8) !important; font-size: 9px; letter-spacing: .17em; text-transform: uppercase; writing-mode: vertical-rl; }
 .scrollCue span { width: 1px; height: 44px; background: var(--gold-light); }
 
@@ -134,7 +133,6 @@
 .categoryPhoto { position: relative; aspect-ratio: 3/4; overflow: hidden; border-radius: 999px 999px 4px 4px; background: #c9c4b9; box-shadow: 0 25px 55px -38px rgba(32,28,21,.55); }
 .categoryPhoto img { width: 100%; height: 100%; object-fit: cover; transition: transform .65s cubic-bezier(.2,.7,.2,1); }
 .categoryCard:hover .categoryPhoto img { transform: scale(1.04); }
-.categoryCredit { position: absolute; bottom: 6px; left: 6px; padding: 2px 5px; background: rgba(23,22,18,.68); color: white; font-size: 10px; line-height: 1.4; }
 .categoryCaption { margin-top: 30px; color: #8d7441; font-size: 12px; font-weight: 700; letter-spacing: .18em; line-height: 1.5; text-transform: uppercase; }
 .categoryCaption span { margin-right: 8px; font: italic 20px var(--serif); letter-spacing: 0; text-transform: none; }
 .categoryCard h3 { margin: 12px 0 0; font: 400 39px/1.05 var(--serif); }
@@ -159,18 +157,6 @@
   overflow: visible;
 }
 .findSection .findImage > img { object-position: 52% center; border-radius: 3px; }
-.findSection .imageNote {
-  position: absolute;
-  bottom: 7px;
-  left: 7px;
-  max-width: calc(100% - 14px);
-  padding: 3px 6px;
-  border-radius: 2px;
-  background: rgba(32, 30, 26, .82);
-  color: #fff;
-  font-size: 9px;
-  line-height: 1.4;
-}
 .findSection .findCopy { max-width: 625px; }
 .findSection .findCopy .sectionKicker { color: #84734f; font-size: 9px; letter-spacing: .19em; }
 .findSection .findCopy h2 {
@@ -390,16 +376,6 @@
   object-fit: cover;
   object-position: 48% center;
 }
-.whyCredit {
-  position: absolute;
-  left: 10px;
-  bottom: 9px;
-  padding: 3px 6px;
-  background: rgba(23,22,18,.46);
-  color: rgba(247,243,234,.78);
-  font-size: 8px;
-  line-height: 1.4;
-}
 
 .ownersSection { width: min(100% - 64px,1390px); display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: center; gap: clamp(48px,6vw,90px); margin: auto; padding: clamp(80px,7vw,115px) 0; scroll-margin-top: 90px; }
 .ownersCollage { position: relative; height: clamp(560px,43vw,700px); min-width: 0; }
@@ -574,7 +550,6 @@
 .visitingGuide strong, .visitingGuide small { display: block; }
 .visitingGuide strong { font-size: 14px; }
 .visitingGuide small { margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.4; }
-.visitingCredit { position: absolute; z-index: 2; bottom: 16px; left: 24px; color: rgba(247,243,234,.7); font-size: 9px; }
 
 .editorial {
   width: min(100% - 64px, 1390px);
@@ -683,13 +658,11 @@
 .emergencyVisual img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .emergencyVisual::after { position: absolute; inset: 0; border: 1px solid rgba(39,36,30,.12); content: ''; }
 .emergencyLabel { position: absolute; z-index: 1; right: 16px; bottom: 16px; padding: 9px 13px; background: var(--paper); color: var(--ink); font-size: 9px; }
-.emergencyCredit { position: absolute; z-index: 1; bottom: 5px; left: 9px; color: var(--paper) !important; font-size: 8px; text-shadow: 0 1px 5px rgba(0,0,0,.8); }
 
 .finalCta { position: relative; min-height: 710px; display: flex; align-items: center; overflow: hidden; background: #282922; color: var(--paper); text-align: left; }
 .finalCta > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 53%; }
 .finalCta::after { position: absolute; inset: -1px -1px 64px; background: linear-gradient(90deg,rgba(18,19,16,.76),rgba(18,19,16,.34) 70%),linear-gradient(0deg,rgba(18,19,16,.36),rgba(18,19,16,.08)); content: ''; }
 .finalInner { position: relative; z-index: 1; width: min(100% - 64px,1390px); margin: 0 auto; padding: 110px 0; }
-.finalCredit { position: absolute; z-index: 2; right: 15px; bottom: 13px; padding: 3px 6px; border-radius: 2px; background: rgba(18,19,16,.74); color: rgba(247,243,234,.92) !important; font-size: 8px; }
 .finalCta h2 { max-width: 990px; margin: 19px 0 0; font: 400 clamp(65px,7vw,112px)/.94 var(--serif); letter-spacing: -.025em; }
 .finalCta > .finalInner > p:not(.sectionKicker) { max-width: 480px; margin: 20px 0 0; color: rgba(247,243,234,.85); font-size: 13px; }
 .finalActions { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 11px; margin-top: 30px; }
@@ -798,7 +771,6 @@
   .goldButton, .ghostButton { min-height: 48px; justify-content: space-between; padding-inline: 19px; }
   .audienceHero, .audienceHero > .goldButton { width: 100%; }
   .memberNote { max-width: 250px; font-size: 10px; }
-  .photoCredit { bottom: 11px; left: 14px; font-size: 8px; }
   .scrollCue { right: 12px; bottom: 20px; font-size: 8px; }
   .intro { width: calc(100% - 40px); padding: 65px 0 52px; }
   .intro h2 { font-size: clamp(37px,10vw,49px); line-height: 1.18; }
