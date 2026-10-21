@@ -308,7 +308,7 @@ export function PublicPage() {
           <div className={styles.sectionHead}>
             <div>
               <p className={styles.sectionKicker}>How it works</p>
-              <h2 id="steps-heading">Four quiet steps.</h2>
+              <h2 id="steps-heading">Find the right care for your horse.</h2>
             </div>
           </div>
           <ol className={styles.stepList}>

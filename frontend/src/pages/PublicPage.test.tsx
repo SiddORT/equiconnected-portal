@@ -766,7 +766,8 @@ describe('PublicPage', () => {
     expect(within(intro).getByRole('heading', { level: 2, name: /Every horse deserves care from someone who knows horses/i })).toBeTruthy();
     expect(within(intro).queryByText(/A starting point for horse owners, riders and stable teams/i)).toBeNull();
     expect(within(intro).queryByRole('link')).toBeNull();
-    const steps = screen.getByRole('region', { name: 'Four quiet steps.' });
+    const steps = screen.getByRole('region', { name: 'Find the right care for your horse.' });
+    expect(within(steps).getByRole('heading', { level: 2, name: 'Find the right care for your horse.' })).toBeTruthy();
     expect(within(steps).getByText('How it works')).toBeTruthy();
     expect(within(steps).getAllByRole('listitem')).toHaveLength(4);
     expect(within(steps).queryByText(/Start with what your horse needs\. Explore the network at your own pace\./i)).toBeNull();
