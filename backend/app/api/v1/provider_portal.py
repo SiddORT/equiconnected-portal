@@ -18,6 +18,7 @@ from app.schemas.provider_insights import ProviderInsightsReport
 from app.schemas.common import PaginatedResponse
 from app.schemas.review import ProviderFeedbackReview
 from app.services.invitation_service import InvalidProviderDataError
+from app.services.provider_profile_update_service import ProviderProfileUpdateConflictError
 from app.services.provider_insights_service import (
     InsightPreset,
     ProviderInsightsPeriodError,
@@ -213,6 +214,11 @@ def update_profile(
             status_code=403,
             detail={"code": "provider_portal_unavailable", "message": "Provider portal access is unavailable."},
         )
+    except ProviderProfileUpdateConflictError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "provider_profile_update_conflict", "message": str(exc)},
+        ) from None
     except InvalidProviderDataError as exc:
         raise HTTPException(
             status_code=422,

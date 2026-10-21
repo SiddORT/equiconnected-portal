@@ -63,6 +63,7 @@ function updateStatusBadge(status: ProviderProfileUpdateStatus) {
     PENDING_REVIEW: { label: 'Pending review', variant: 'warning' },
     APPROVED: { label: 'Approved', variant: 'success' },
     REJECTED: { label: 'Rejected', variant: 'error' },
+    SAVED_DIRECTLY: { label: 'Saved by provider', variant: 'success' },
   };
   return <Badge size="sm" variant={config[status].variant}>{config[status].label}</Badge>;
 }
@@ -345,10 +346,11 @@ function ProviderUpdatesTab({ formatTimestamp }: { formatTimestamp: (value: stri
           { value: 'PENDING_REVIEW', label: 'Pending review' },
           { value: 'APPROVED', label: 'Approved' },
           { value: 'REJECTED', label: 'Rejected' },
+          { value: 'SAVED_DIRECTLY', label: 'Saved by provider' },
         ],
       }]} />
     </div>
-    <DataTable columns={columns} data={result?.data ?? []} page={1} pageSize={100} rowKey={(item) => item.id} loading={loadState === 'loading'} ariaLabel="Provider profile updates" error={loadState === 'error' ? { title: 'Failed to load provider profile updates', message: errorMessage ?? undefined, onRetry: load } : null} empty={{ icon: '↻', title: hasFilters ? 'No provider updates found' : 'No provider updates yet', description: hasFilters ? 'Try adjusting your search or review status.' : 'Published provider profile changes will appear here for review.' }} />
+    <DataTable columns={columns} data={result?.data ?? []} page={1} pageSize={100} rowKey={(item) => item.id} loading={loadState === 'loading'} ariaLabel="Provider profile updates" error={loadState === 'error' ? { title: 'Failed to load provider profile updates', message: errorMessage ?? undefined, onRetry: load } : null} empty={{ icon: '↻', title: hasFilters ? 'No provider updates found' : 'No retained provider updates', description: hasFilters ? 'Try adjusting your search or review status.' : 'Historical proposals appear here. Eligible providers now save profile edits directly without another approval.' }} />
      {detailTarget && <ProfileUpdateDialog update={detailTarget} formatTimestamp={formatTimestamp} error={decisionError} confirmationOpen={decision !== null} onClose={() => { if (!deciding && !decision) setDetailTarget(null); }} onDecision={setDecision} />}
     {detailTarget && decision && <ProfileUpdateDecisionDialog action={decision} providerName={detailTarget.provider_name} busy={deciding} onCancel={() => setDecision(null)} onConfirm={(reason) => void decide(reason)} />}
   </>;
@@ -535,6 +537,7 @@ function ProfileUpdateDialog({ update, formatTimestamp, onClose, onDecision, err
       <header className={photoStyles.modalHeader}><h2 id={titleId}>Review provider profile update</h2><button ref={closeRef} type="button" className={photoStyles.close} onClick={onClose} aria-label="Close dialog" disabled={confirmationOpen}>×</button></header>
       <div className={photoStyles.modalBody}>
         <p className={photoStyles.providerMeta}><strong>{update.provider_name}</strong>{updateStatusBadge(update.review_status)}<span>Submitted {formatTimestamp(update.submitted_at)}</span></p>
+        {update.review_status === 'SAVED_DIRECTLY' && <Alert variant="success">The provider explicitly saved this retained draft without another administrator approval. These snapshots and any previous rejection are historical; the current listing may include newer edits.</Alert>}
         {update.rejection_reason && <Alert variant="error">Previous decision: {update.rejection_reason}</Alert>}
         <ProviderPhotoComparison current={update.current_profile.photos} proposed={update.proposed_profile.photos} />
         <div className={photoStyles.tableWrap}><table className={photoStyles.compareTable}>

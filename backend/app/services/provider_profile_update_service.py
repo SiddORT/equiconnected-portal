@@ -583,6 +583,12 @@ class ProviderProfileUpdateService:
     def reject(
         self, update_id: UUID, reviewer_id: UUID, rejection_reason: str | None
     ) -> ProviderProfileUpdate:
+        requested = self._updates.get(update_id)
+        if requested is None:
+            raise ProviderProfileUpdateNotFoundError()
+        if self._providers.lock_provider(requested.provider_id) is None:
+            self._db.rollback()
+            raise ProviderProfileUpdateNotFoundError()
         update = self._updates.get_for_update(update_id)
         if update is None:
             raise ProviderProfileUpdateNotFoundError()

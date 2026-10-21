@@ -1,7 +1,6 @@
 """Provider-owned portal operations for administrator-invited provider accounts."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 from uuid import UUID
@@ -27,6 +26,7 @@ from app.services.provider_feedback import feedback_review, visible_review
 from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.schemas.review import ProviderFeedbackReview
 from app.services.provider_profile_update_service import (
+    ProviderProfileUpdateConflictError,
     append_visit_additions,
     apply_editable_profile,
     editable_profile_from_snapshot,
@@ -85,6 +85,18 @@ class ProviderPortalService:
         invitation or an approved self-service registration. A missing or
         ambiguous link is deliberately not inferred from an email address.
         """
+        # Apply the authoritative account gate even for service callers. Do not
+        # infer approval from publication or retroactively gate eligible legacy
+        # invitation/direct-access accounts by their listing's operational status.
+        from app.auth.account_access import public_account_access_issue
+
+        if (
+            not user.is_active
+            or user.provider_portal_setup_pending
+            or user.role.name != "provider"
+            or public_account_access_issue(user) is not None
+        ):
+            raise ProviderPortalUnavailableError()
         provider_ids = {
             provider_id
             for (provider_id,) in self._db.query(ProviderInvitation.provider_id)
@@ -146,7 +158,7 @@ class ProviderPortalService:
         average_rating, review_count = self._reviews.get_totals(provider_id)
         visible_reviews = [
             visible_review(review, member).model_dump()
-            for review, member in self._reviews.list_visible_reviews(provider_id)
+            for review, member in self._reviews.list_visible_provider_reviews(provider_id)
         ]
         response = ProviderPortalResponse.from_provider(
             provider,
@@ -324,8 +336,8 @@ class ProviderPortalService:
             raise InvalidProviderDataError("Only provider-owned profile fields may be updated.")
         if not safe_fields:
             return self._profile_response(provider.id)
-        # Serializing submissions through the provider row prevents two browser
-        # tabs from each creating a separate draft before the unique row exists.
+        # Serialize owner writes and legacy decisions through the same root row.
+        # Reload canonical collections only after the lock has been acquired.
         locked = self._providers.lock_provider(provider.id)
         if locked is None:
             self._db.rollback()
@@ -333,11 +345,21 @@ class ProviderPortalService:
         provider = self._providers.get_by_id(provider.id)
         assert provider is not None
         profile_update = self._updates.get_for_provider_for_update(provider.id)
-        base = editable_profile_from_provider(provider)
+        canonical = editable_profile_from_provider(provider)
+        base = canonical
         if profile_update and profile_update.review_status in (
             ProviderProfileUpdateStatus.PENDING_REVIEW,
             ProviderProfileUpdateStatus.REJECTED,
         ):
+            expected_base = serialize_editable_profile(
+                provider, editable_profile_from_snapshot(provider, profile_update.base_profile)
+            )
+            if serialize_editable_profile(provider, canonical) != expected_base:
+                self._db.rollback()
+                raise ProviderProfileUpdateConflictError(
+                    "The listing changed after this draft was created. "
+                    "Discard the draft and reload the latest listing before saving."
+                )
             base = editable_profile_from_snapshot(
                 provider, profile_update.proposed_profile
             )
@@ -352,65 +374,41 @@ class ProviderPortalService:
             previous_visit_additions=base.visit_additions,
         )
 
-        if provider.publication_status.value == "PUBLISHED":
-            now = datetime.now(timezone.utc)
-            serialized = serialize_editable_profile(provider, editable)
-            if profile_update is None:
-                profile_update = self._updates.create(
-                    provider_id=provider.id,
-                    proposed_profile=serialized,
-                    base_profile=serialize_editable_profile(provider, base),
-                    review_status=ProviderProfileUpdateStatus.PENDING_REVIEW,
-                    submitted_at=now,
-                )
-            else:
-                profile_update.proposed_profile = serialized
-                if profile_update.review_status == ProviderProfileUpdateStatus.APPROVED:
-                    profile_update.base_profile = serialize_editable_profile(
-                        provider, base
-                    )
-                profile_update.review_status = ProviderProfileUpdateStatus.PENDING_REVIEW
-                profile_update.submitted_at = now
-                profile_update.reviewed_by_user_id = None
-                profile_update.reviewed_at = None
-                profile_update.rejection_reason = None
-            self._audit.record(
-                "provider_profile_update.submitted",
-                context=audit_context,
-                resource_type="provider_profile_update",
-                resource_id=str(profile_update.id),
-                summary="Submitted a provider-owned profile update for review.",
-                metadata={"provider_id": str(provider.id), "updated_fields": sorted(safe_fields)},
-            )
-        else:
-            # Unpublished profile changes are applied directly. Revalidate any
-            # retained proposals against the now-current schedule, but do not
-            # make a formerly timely addition invalid merely because review
-            # was delayed or the listing became unpublished.
-            if editable.visit_additions:
-                validate_editable_profile(provider, editable, self._providers)
+        # Every account admitted above has passed initial approval or the
+        # existing legacy access policy. Publication is an independent control.
+        # Recheck retained trip additions against today's recorded schedule.
+        if editable.visit_additions:
+            validate_editable_profile(provider, editable, self._providers)
+        try:
             apply_editable_profile(provider, editable, self._providers)
             append_visit_additions(provider, editable, self._providers)
-            if (
-                profile_update is not None
-                and profile_update.review_status
-                in (
-                    ProviderProfileUpdateStatus.PENDING_REVIEW,
-                    ProviderProfileUpdateStatus.REJECTED,
-                )
+            if profile_update is not None and profile_update.review_status in (
+                ProviderProfileUpdateStatus.PENDING_REVIEW,
+                ProviderProfileUpdateStatus.REJECTED,
             ):
-                profile_update.proposed_profile = serialize_editable_profile(
-                    provider, editable_profile_from_provider(provider)
+                # Keep both encrypted snapshots and original reviewer/rejection
+                # provenance. This is not an administrator approval.
+                profile_update.review_status = ProviderProfileUpdateStatus.SAVED_DIRECTLY
+                self._audit.record(
+                    "provider_profile_update.saved_directly",
+                    context=audit_context,
+                    resource_type="provider_profile_update",
+                    resource_id=str(profile_update.id),
+                    summary="Owner explicitly saved a retained draft without further review.",
+                    metadata={"provider_id": str(provider.id)},
                 )
             self._audit.record(
                 "provider_portal.profile_updated",
                 context=audit_context,
                 resource_type="provider",
                 resource_id=str(provider.id),
-                summary="Updated the provider's own unpublished portal profile.",
+                summary="Saved the provider's own profile without changing listing lifecycle controls.",
                 metadata={"updated_fields": sorted(safe_fields)},
             )
-        self._db.commit()
+            self._db.commit()
+        except Exception:
+            self._db.rollback()
+            raise
         return self._profile_response(provider.id)
 
     def discard_profile_update(
@@ -425,10 +423,13 @@ class ProviderPortalService:
         if profile_update is None:
             self._db.rollback()
             raise ProviderPortalUnavailableError()
-        if profile_update.review_status == ProviderProfileUpdateStatus.APPROVED:
+        if profile_update.review_status not in (
+            ProviderProfileUpdateStatus.PENDING_REVIEW,
+            ProviderProfileUpdateStatus.REJECTED,
+        ):
             self._db.rollback()
             raise ProviderProfileUpdateDiscardError(
-                "Approved profile update records cannot be discarded."
+                "Completed profile update history cannot be discarded."
             )
         self._db.delete(profile_update)
         self._audit.record(

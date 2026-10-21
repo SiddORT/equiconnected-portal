@@ -1,10 +1,15 @@
 """Provider-safe review projection, separate from member/admin review contracts."""
 from app.models.enums import ProviderReviewStatus
-from app.models.user import User
+from typing import Protocol
 from app.schemas.review import ProviderFeedbackReview, ProviderVisibleReview
 
 
-def masked_member_name(member: User | None) -> str:
+class MemberName(Protocol):
+    first_name: str | None
+    last_name: str | None
+
+
+def masked_member_name(member: MemberName | None) -> str:
     """Never infer identity from full_name, email, or unstructured legacy names."""
     if member is None:
         return "Member"

@@ -18,9 +18,6 @@ vi.mock('@/api/providers', () => ({
   discardProviderPortalProfileUpdate: vi.fn(),
   uploadProviderPortalPhoto: vi.fn(),
 }));
-vi.mock('@/api/client', () => ({
-  extractErrorMessage: () => 'Provider portal unavailable',
-}));
 vi.mock('@/app/AuthContext', () => ({
   useAuth: () => ({
     user: { full_name: 'Approved Provider' },
@@ -142,6 +139,33 @@ async function enterTab(user: ReturnType<typeof userEvent.setup>, label: string)
 }
 
 describe('ProviderAccountPage', () => {
+  it('preserves a stale retained draft and explains how to recover from a save conflict', async () => {
+    const retained = {
+      ...portalProfile,
+      profile_update: {
+        id: 'legacy-conflict', review_status: 'PENDING_REVIEW' as const,
+        submitted_at: '2026-01-01T00:00:00Z', reviewed_at: null,
+        reviewed_by_name: null, rejection_reason: null,
+      },
+    };
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(retained);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    const conflict = Object.assign(new Error('Request failed with status code 409'), {
+      isAxiosError: true,
+      response: { status: 409, data: { detail: {
+        code: 'provider_profile_update_conflict',
+        message: 'The listing changed after this draft was created. Discard the draft and reload the latest listing before saving.',
+      } } },
+    });
+    vi.mocked(providersApi.updateProviderPortalProfile).mockRejectedValue(conflict);
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+    await screen.findByLabelText('Provider or practice name');
+    await userEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+    expect(await screen.findByText(/The listing changed after this draft was created/)).toBeTruthy();
+    expect((screen.getByLabelText('Provider or practice name') as HTMLInputElement).value).toBe('Austin Equine Clinic');
+    expect(screen.getByRole('button', { name: 'Discard draft and reload current listing' })).toBeTruthy();
+    expect(providersApi.discardProviderPortalProfileUpdate).not.toHaveBeenCalled();
+  });
   it('preserves unknown availability and names/languages, then opens Visits from a draft Visiting selection', async () => {
     const profile: ProviderPortalProfile = {
       ...portalProfile, doctor_fields_available: true, doctor_availability: null,
@@ -467,8 +491,8 @@ describe('ProviderAccountPage', () => {
 
   it.each([
     ['unpublished draft', 'direct'],
-    ['published provider profile', 'pending'],
-  ] as const)('uploads, explicitly saves, and reloads photos for %s', async (_label, saveState) => {
+    ['published provider profile', 'direct'],
+  ] as const)('uploads, explicitly saves, and reloads photos for %s', async () => {
     vi.stubGlobal('URL', {
       createObjectURL: vi.fn(() => 'blob:provider-photo'),
       revokeObjectURL: vi.fn(),
@@ -497,14 +521,7 @@ describe('ProviderAccountPage', () => {
           is_thumbnail: savedPhoto.is_thumbnail,
         }],
       },
-      profile_update: saveState === 'pending' ? {
-        id: 'profile-update-1',
-        review_status: 'PENDING_REVIEW',
-        submitted_at: '2026-08-20T08:15:00Z',
-        reviewed_at: null,
-        reviewed_by_name: null,
-        rejection_reason: null,
-      } : null,
+      profile_update: null,
     };
     vi.mocked(providersApi.getProviderPortalProfile)
       .mockResolvedValueOnce(portalProfile)
@@ -553,18 +570,11 @@ describe('ProviderAccountPage', () => {
         })],
       })
     ));
-    expect(await screen.findByText(saveState === 'pending'
-      ? /Your uploaded photos and profile changes were saved to a review request/
-      : /Your uploaded photos and profile changes were saved to your unpublished provider profile/
-    )).toBeTruthy();
+    expect(await screen.findByText(/Your uploaded photos and profile changes have been saved. No further approval is needed/)).toBeTruthy();
 
     view.rerender(<MemoryRouter><ProviderAccountPage key="fresh-profile-load" /></MemoryRouter>);
-    if (saveState === 'pending') {
-      expect(await screen.findByText(/A profile update is awaiting review/)).toBeTruthy();
-    } else {
-      await screen.findByRole('heading', { name: 'Your profile' });
-      expect(screen.queryByText(/A profile update is awaiting review/)).toBeNull();
-    }
+    await screen.findByRole('heading', { name: 'Your profile' });
+    expect(screen.queryByText(/retained profile draft from the previous review process/)).toBeNull();
     await enterTab(user, 'Photos');
     expect((await screen.findByLabelText('Alt text') as HTMLInputElement).value).toBe('A horse clinic exterior');
     expect((screen.getByLabelText('Image title') as HTMLInputElement).value).toBe('Clinic entrance');
@@ -1021,17 +1031,13 @@ describe('ProviderAccountPage', () => {
     };
     const savedProfile: ProviderPortalProfile = {
       ...visitingProfile,
-      profile_update: {
-        id: 'profile-update-visit',
-        review_status: 'PENDING_REVIEW',
-        submitted_at: '2026-08-20T08:15:00Z',
-        reviewed_at: null,
-        reviewed_by_name: null,
-        rejection_reason: null,
-      },
+      profile_update: null,
+      doctor_visits: [...visitingProfile.doctor_visits, {
+        ...savedVisit, id: 'direct-saved-trip',
+      }],
       editable_profile: {
         ...visitingProfile.editable_profile,
-        visit_additions: [savedVisit],
+        visit_additions: [],
       },
     };
     vi.mocked(providersApi.getProviderPortalProfile)
@@ -1058,7 +1064,7 @@ describe('ProviderAccountPage', () => {
     await user.type(screen.getByLabelText('Visit 1 country'), 'United States');
     await user.type(screen.getByLabelText('Visit 1 postal code'), '75201');
     expect(providersApi.updateProviderPortalProfile).not.toHaveBeenCalled();
-    expect(screen.getByText(/select Save profile to submit them/)).toBeTruthy();
+    expect(screen.getByText(/select Save profile to record them/)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Save profile' }));
 
     await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(
@@ -1068,14 +1074,13 @@ describe('ProviderAccountPage', () => {
         }],
       })
     ));
-    expect(await screen.findByText(/A profile update is awaiting review/)).toBeTruthy();
-    expect(screen.getAllByText(/awaiting administrator review/)).toHaveLength(2);
+    expect(await screen.findByText(/Your provider profile has been saved. No further approval is needed/)).toBeTruthy();
+    expect(screen.queryByText(/retained profile draft from the previous review process/)).toBeNull();
 
     view.rerender(<MemoryRouter><ProviderAccountPage key="fresh-visit-profile" /></MemoryRouter>);
     await enterTab(user, 'Visits');
-    expect((screen.getByLabelText('Visit 1 start date') as HTMLInputElement).value).toBe(proposedDate);
-    expect((screen.getByLabelText('Visit 1 end date') as HTMLInputElement).value).toBe(proposedDate);
-    expect((screen.getByLabelText('Visit 1 address line 1') as HTMLInputElement).value).toBe('42 Arena Lane');
+    expect(screen.queryByLabelText('Visit 1 start date')).toBeNull();
+    expect(screen.getByText(/42 Arena Lane/)).toBeTruthy();
     expect(providersApi.getProviderPortalProfile).toHaveBeenCalledTimes(2);
   });
 
@@ -1161,8 +1166,7 @@ describe('ProviderAccountPage', () => {
       ...rejectedProfile,
       profile_update: {
         ...rejectedProfile.profile_update!,
-        review_status: 'PENDING_REVIEW',
-        rejection_reason: null,
+        review_status: 'SAVED_DIRECTLY',
       },
       editable_profile: { ...rejectedProfile.editable_profile, visit_additions: [] },
     });
@@ -1173,11 +1177,15 @@ describe('ProviderAccountPage', () => {
     expect(screen.getByText(/Please confirm the venue/)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Remove proposed visit 1' }));
     expect(screen.queryByLabelText('Visit 1 start date')).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Revise and resubmit' }));
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
     await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenLastCalledWith(
       expect.objectContaining({ visit_additions: [] })
     ));
-    await user.click(screen.getByRole('button', { name: 'Discard draft and reload approved listing' }));
+    expect(screen.queryByRole('button', { name: 'Discard draft and reload current listing' })).toBeNull();
+    cleanup();
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+    await screen.findByRole('button', { name: 'Discard draft and reload current listing' });
+    await user.click(screen.getByRole('button', { name: 'Discard draft and reload current listing' }));
     await waitFor(() => expect(providersApi.discardProviderPortalProfileUpdate).toHaveBeenCalledOnce());
   });
 
@@ -1278,6 +1286,6 @@ describe('ProviderAccountPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save profile' }));
 
     await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledOnce());
-    expect(screen.getByText('Your unpublished provider profile has been saved.')).toBeTruthy();
+    expect(screen.getByText(/Your provider profile has been saved. No further approval is needed/)).toBeTruthy();
   });
 });

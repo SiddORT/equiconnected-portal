@@ -488,16 +488,12 @@ export function ProviderAccountPage() {
       populate(updated);
       setNotice({
         variant: 'success',
-        text: updated.profile_update?.review_status === 'PENDING_REVIEW'
-          ? includesUploadedPhotos
-            ? 'Your uploaded photos and profile changes were saved to a review request. Members continue to see your last approved listing until an administrator approves it.'
-            : 'Your proposed profile update is awaiting administrator review. Your live listing is unchanged until approval.'
-          : includesUploadedPhotos
-            ? 'Your uploaded photos and profile changes were saved to your unpublished provider profile.'
-            : 'Your unpublished provider profile has been saved.',
+        text: includesUploadedPhotos
+          ? 'Your uploaded photos and profile changes have been saved. No further approval is needed. Published, eligible listings show the changes to members.'
+          : 'Your provider profile has been saved. No further approval is needed. Publication and account status are unchanged.',
       });
     } catch (err) {
-      setNotice({ variant: 'error', text: err instanceof Error ? err.message : extractErrorMessage(err, 'Your profile could not be saved.') });
+      setNotice({ variant: 'error', text: extractErrorMessage(err, err instanceof Error ? err.message : 'Your profile could not be saved.') });
     } finally {
       profileSavingRef.current = false;
       setSaving(false);
@@ -513,7 +509,7 @@ export function ProviderAccountPage() {
       populate(await providersApi.discardProviderPortalProfileUpdate());
       setNotice({
         variant: 'success',
-        text: 'Your draft was discarded and the latest approved listing has been reloaded. You can make a new proposal when ready.',
+        text: 'Your draft was discarded and the latest listing has been reloaded. You can edit and save it directly when ready.',
       });
     } catch (err) {
       setNotice({ variant: 'error', text: extractErrorMessage(err, 'Your draft could not be discarded.') });
@@ -546,7 +542,7 @@ export function ProviderAccountPage() {
     setUploadedPhotoReferences((current) => [...new Set([...current, uploaded.storage_reference])]);
     setNotice({
       variant: 'success',
-      text: 'Photo upload complete. The photo is not part of your profile yet. Select Save profile to include it; unpublished profiles save immediately, while changes to published listings await administrator review.',
+      text: 'Photo upload complete. The photo is not part of your profile yet. Select Save profile to include it. No further approval is needed.',
     });
     return portalPhoto;
   }
@@ -646,13 +642,13 @@ export function ProviderAccountPage() {
         </header>
         {notice && <Alert variant={notice.variant} onDismiss={() => setNotice(null)}>{notice.text}</Alert>}
         {profile.profile_update?.review_status === 'PENDING_REVIEW' && (
-          <Alert variant="warning">A profile update is awaiting review. You can keep revising this draft; members continue to see your last approved listing until an administrator approves it.</Alert>
+          <Alert variant="warning">You have a retained profile draft from the previous review process. It has not been applied. Select Save profile to save it directly, or discard it to reload the current listing. If the listing has changed since the draft was created, discard and reload before saving.</Alert>
         )}
         {profile.profile_update?.review_status === 'REJECTED' && (
-          <Alert variant="error">Your last profile update was declined{profile.profile_update.rejection_reason ? `: ${profile.profile_update.rejection_reason}` : '.'} Revise the draft below and save it to resubmit.</Alert>
+          <Alert variant="warning">Your last profile update was declined{profile.profile_update.rejection_reason ? `: ${profile.profile_update.rejection_reason}` : '.'} Your draft is retained below. Revise and save it directly, or discard it to reload the current listing.</Alert>
         )}
         {profile.profile_update?.review_status === 'APPROVED' && (
-          <Alert variant="success">Your most recent profile update was approved{profile.profile_update.reviewed_at ? ` on ${new Date(profile.profile_update.reviewed_at).toLocaleDateString()}` : ''}.</Alert>
+          <Alert variant="success">A historical profile update was approved{profile.profile_update.reviewed_at ? ` on ${new Date(profile.profile_update.reviewed_at).toLocaleDateString()}` : ''}. Further profile edits save directly without another approval.</Alert>
         )}
         <div className={styles.workspace} data-testid="provider-workspace">
           <aside className={styles.feedbackSummary} aria-labelledby="feedback-summary-heading">
@@ -677,7 +673,7 @@ export function ProviderAccountPage() {
           </aside>
           <form ref={formRef} className={styles.card + ' ' + styles.form} onSubmit={save} noValidate>
             <h2>Your profile</h2>
-            <p className={styles.hint}>Welcome, {user?.full_name ?? 'provider'}. Unpublished listings save immediately. Changes to published listings are held for administrator review; publication and operational controls are never available here.</p>
+            <p className={styles.hint}>Welcome, {user?.full_name ?? 'provider'}. Your approved account can save profile edits directly without another approval. Published, eligible listings show saved changes to members. Publication, operational status and account controls remain with administrators.</p>
             <div
               role="tablist"
               aria-label="Provider profile sections"
@@ -714,7 +710,7 @@ export function ProviderAccountPage() {
               >
                 <div className={styles.visitHeading}>
                   <h3>Visit history and scheduling</h3>
-                  <p>Recorded visits are read-only. New trips are proposed separately and do not change your approved schedule until they are saved and, for published listings, approved.</p>
+                  <p>Recorded visits are read-only. New trips are added to your schedule when you select Save profile; no further approval is needed.</p>
                 </div>
                 <section className={styles.visitSection} aria-labelledby="visit-history-heading">
                   <h4 id="visit-history-heading">Recorded visit history</h4>
@@ -748,10 +744,10 @@ export function ProviderAccountPage() {
                     <div>
                       <h4 id="proposed-visits-heading">Proposed visits</h4>
                       <p>{profile.profile_update?.review_status === 'PENDING_REVIEW'
-                        ? 'These additions are awaiting administrator review. You can revise or remove them before resubmitting.'
+                        ? 'These retained additions have not been recorded. Revise or remove them, then save directly.'
                         : profile.profile_update?.review_status === 'REJECTED'
                           ? 'These additions were declined with your profile update. Revise or remove them before saving again.'
-                          : 'Add trips here, then select Save profile to submit them. Leaving this tab never saves or submits changes.'}</p>
+                          : 'Add trips here, then select Save profile to record them. Leaving this tab never saves changes.'}</p>
                     </div>
                     <Button type="button" variant="outline" size="sm" disabled={saving} onClick={addVisitAddition}>
                       Add visit
@@ -765,7 +761,7 @@ export function ProviderAccountPage() {
                         <fieldset className={styles.proposedVisit} key={index}>
                           <legend>Proposed visit {index + 1}</legend>
                           <div className={styles.visitFieldActions}>
-                            <p>Not part of your recorded visit history until the change is saved and approved when review is required.</p>
+                            <p>Not part of your recorded visit history until you select Save profile.</p>
                             <button
                               type="button"
                               className={styles.removeVisit}
@@ -924,7 +920,7 @@ export function ProviderAccountPage() {
                 <legend>Doctor availability</legend>
                 <p className={styles.hint}>
                   {form.doctor_availability == null ? 'Not specified — choose explicitly when ready. Unrelated saves leave this unchanged. ' : ''}
-                  This is separate from stable/home visit services. Published changes require administrator approval.
+                  This is separate from stable/home visit services. Changes are applied when you save your profile.
                 </p>
                 <div className={styles.choice}>
                   {(['ONGOING', 'VISITING'] as const).map((value) => <label key={value}>
@@ -974,9 +970,9 @@ export function ProviderAccountPage() {
               disabled={saving || photoUploading}
             />
             <div className={styles.choice}>
-              <Button type="submit" loading={saving} disabled={photoUploading}>{profile.profile_update?.review_status === 'REJECTED' ? 'Revise and resubmit' : 'Save profile'}</Button>
+              <Button type="submit" loading={saving} disabled={photoUploading}>Save profile</Button>
               {photoUploading && <span role="status">Wait for photo uploads to finish before saving profile changes.</span>}
-              {profile.profile_update?.review_status !== 'APPROVED' && profile.profile_update && <Button type="button" variant="secondary" disabled={saving || photoUploading} onClick={() => void discardDraft()}>Discard draft and reload approved listing</Button>}
+              {(profile.profile_update?.review_status === 'PENDING_REVIEW' || profile.profile_update?.review_status === 'REJECTED') && <Button type="button" variant="secondary" disabled={saving || photoUploading} onClick={() => void discardDraft()}>Discard draft and reload current listing</Button>}
             </div>
           </form>
         </div>

@@ -196,7 +196,26 @@ def _visit_addition(start: date, end: date, city: str = "Pune") -> dict:
     }
 
 
-def test_visiting_doctor_owner_history_draft_and_delayed_approval(
+def _legacy_draft(client, db, provider, *, headers, json):
+    """Seed a pre-direct-save proposal, never pretend today's PATCH stages it."""
+    from app.services.provider_profile_update_service import (
+        editable_profile_from_provider, merge_editable_profile,
+        serialize_editable_profile, sync_editable_profile_contacts,
+    )
+    current = editable_profile_from_provider(ProviderRepository(db).get_by_id(provider.id))
+    proposed = sync_editable_profile_contacts(merge_editable_profile(current, json), set(json))
+    db.add(ProviderProfileUpdate(
+        provider_id=provider.id,
+        base_profile=serialize_editable_profile(provider, current),
+        proposed_profile=serialize_editable_profile(provider, proposed),
+        review_status=ProviderProfileUpdateStatus.PENDING_REVIEW,
+        submitted_at=datetime.now(timezone.utc),
+    ))
+    db.commit()
+    return client.get("/api/v1/provider/portal/profile", headers=headers)
+
+
+def test_visiting_doctor_owner_history_legacy_draft_and_delayed_save(
     client, db, seeded_admin
 ):
     admin, admin_password = seeded_admin
@@ -232,8 +251,8 @@ def test_visiting_doctor_owner_history_draft_and_delayed_approval(
     assert initial.json()["editable_profile"]["visit_additions"] == []
 
     proposed_date = date.today() + timedelta(days=20)
-    submitted = client.patch(
-        "/api/v1/provider/portal/profile",
+    submitted = _legacy_draft(
+        client, db, provider,
         headers=owner_headers,
         json={"visit_additions": [_visit_addition(proposed_date, proposed_date + timedelta(days=1))]},
     )
@@ -286,17 +305,16 @@ def test_visiting_doctor_owner_history_draft_and_delayed_approval(
         json={"description": "An unrelated profile edit."},
     )
     assert unrelated.status_code == 200, unrelated.text
-    assert unrelated.json()["editable_profile"]["visit_additions"][0]["start_date"] == (
-        late_start.isoformat()
-    )
-    assert db.query(DoctorVisit).filter_by(provider_id=provider.id).count() == 1
+    assert unrelated.json()["editable_profile"]["visit_additions"] == []
+    assert unrelated.json()["profile_update"]["review_status"] == "SAVED_DIRECTLY"
+    assert db.query(DoctorVisit).filter_by(provider_id=provider.id).count() == 2
 
     admin_token = _login(client, admin.email, admin_password)
     approved = client.post(
         f"/api/v1/admin/provider-profile-updates/{update.id}/approve",
         headers={"Authorization": f"Bearer {admin_token}"},
     )
-    assert approved.status_code == 200, approved.text
+    assert approved.status_code == 409, approved.text
     visits = db.query(DoctorVisit).filter_by(provider_id=provider.id).order_by(
         DoctorVisit.start_date
     ).all()
@@ -434,8 +452,8 @@ def test_unpublished_visit_additions_apply_once_and_published_draft_transition_c
     published_token = _login(client, published_account.email, "ProviderPass9")
     published_headers = {"Authorization": f"Bearer {published_token}"}
     future = date.today() + timedelta(days=12)
-    pending = client.patch(
-        "/api/v1/provider/portal/profile",
+    pending = _legacy_draft(
+        client, db, published,
         headers=published_headers,
         json={"visit_additions": [_visit_addition(future, future)]},
     )
@@ -451,7 +469,9 @@ def test_unpublished_visit_additions_apply_once_and_published_draft_transition_c
     assert saved.status_code == 200, saved.text
     assert len(saved.json()["doctor_visits"]) == 1
     assert saved.json()["editable_profile"]["visit_additions"] == []
-    assert update.proposed_profile["visit_additions"] == []
+    db.refresh(update)
+    assert len(update.proposed_profile["visit_additions"]) == 1  # retained historical content
+    assert update.review_status == ProviderProfileUpdateStatus.SAVED_DIRECTLY
     assert client.patch(
         "/api/v1/provider/portal/profile",
         headers=published_headers,
@@ -526,8 +546,8 @@ def test_visit_addition_rejection_revision_and_discard_stay_private(
     owner_token = _login(client, account.email, "ProviderPass9")
     owner_headers = {"Authorization": f"Bearer {owner_token}"}
     first_start = date.today() + timedelta(days=8)
-    submitted = client.patch(
-        "/api/v1/provider/portal/profile",
+    submitted = _legacy_draft(
+        client, db, provider,
         headers=owner_headers,
         json={"visit_additions": [_visit_addition(first_start, first_start)]},
     )
@@ -555,11 +575,10 @@ def test_visit_addition_rejection_revision_and_discard_stay_private(
     )
     assert revised.status_code == 200, revised.text
     assert revised.json()["profile_update"]["id"] == update_id
-    assert revised.json()["profile_update"]["review_status"] == "PENDING_REVIEW"
-    assert revised.json()["editable_profile"]["visit_additions"][0]["location"]["city"] == (
-        "Jaipur"
-    )
-    assert db.query(DoctorVisit).filter_by(provider_id=provider.id).count() == 0
+    assert revised.json()["profile_update"]["review_status"] == "SAVED_DIRECTLY"
+    assert revised.json()["doctor_visits"][0]["location"]["city"] == "Jaipur"
+    assert revised.json()["editable_profile"]["visit_additions"] == []
+    assert db.query(DoctorVisit).filter_by(provider_id=provider.id).count() == 1
 
     cleared = client.patch(
         "/api/v1/provider/portal/profile",
@@ -568,13 +587,12 @@ def test_visit_addition_rejection_revision_and_discard_stay_private(
     )
     assert cleared.status_code == 200, cleared.text
     assert cleared.json()["editable_profile"]["visit_additions"] == []
-    assert db.query(DoctorVisit).filter_by(provider_id=provider.id).count() == 0
+    assert db.query(DoctorVisit).filter_by(provider_id=provider.id).count() == 1
     discarded = client.post(
         "/api/v1/provider/portal/profile-update/discard",
         headers=owner_headers,
     )
-    assert discarded.status_code == 200, discarded.text
-    assert discarded.json()["profile_update"] is None
+    assert discarded.status_code == 409, discarded.text
 
 
 def test_approval_rechecks_fresh_admin_visits_and_appends_nothing_on_conflict(
@@ -590,8 +608,8 @@ def test_approval_rechecks_fresh_admin_visits_and_appends_nothing_on_conflict(
     )
     owner_token = _login(client, account.email, "ProviderPass9")
     start = date.today() + timedelta(days=18)
-    submitted = client.patch(
-        "/api/v1/provider/portal/profile",
+    submitted = _legacy_draft(
+        client, db, provider,
         headers={"Authorization": f"Bearer {owner_token}"},
         json={"visit_additions": [_visit_addition(start, start + timedelta(days=1))]},
     )
@@ -633,8 +651,8 @@ def test_approval_waiting_on_admin_root_lock_rechecks_post_commit_schedule(
     )
     start = date.today() + timedelta(days=24)
     owner_token = _login(client, account.email, "ProviderPass9")
-    submitted = client.patch(
-        "/api/v1/provider/portal/profile",
+    submitted = _legacy_draft(
+        client, db, provider,
         headers={"Authorization": f"Bearer {owner_token}"},
         json={"visit_additions": [_visit_addition(start, start + timedelta(days=1))]},
     )
@@ -794,7 +812,7 @@ def test_unpublished_non_doctor_can_directly_edit_and_read_years_experience(
     assert provider.years_experience == 0
 
 
-def test_published_non_doctor_years_experience_uses_review_and_applies_on_approval(
+def test_published_non_doctor_years_experience_saves_directly(
     client, db, seeded_admin
 ):
     admin, admin_password = seeded_admin
@@ -816,22 +834,11 @@ def test_published_non_doctor_years_experience_uses_review_and_applies_on_approv
     )
     assert submitted.status_code == 200, submitted.text
     body = submitted.json()
-    assert body["years_experience"] == 8
+    assert body["years_experience"] == 0
     assert body["editable_profile"]["years_experience"] == 0
-    assert body["profile_update"]["review_status"] == "PENDING_REVIEW"
-    update_id = body["profile_update"]["id"]
-    db.refresh(provider)
-    assert provider.years_experience == 8
-
-    admin_token = _login(client, admin.email, admin_password)
-    approved = client.post(
-        f"/api/v1/admin/provider-profile-updates/{update_id}/approve",
-        headers={"Authorization": f"Bearer {admin_token}"},
-    )
-    assert approved.status_code == 200, approved.text
+    assert body["profile_update"] is None
     db.refresh(provider)
     assert provider.years_experience == 0
-    assert approved.json()["proposed_profile"]["years_experience"] == 0
 
 
 @pytest.mark.parametrize(
@@ -865,33 +872,11 @@ def test_doctor_experience_notes_edit_clear_reload_and_approval(
     assert changed.json()["editable_profile"]["experience_description"] == (
         "Updated experience notes"
     )
-    if publication_status == PublicationStatus.PUBLISHED:
-        assert changed.json()["profile_update"]["review_status"] == "PENDING_REVIEW"
-        assert changed.json()["doctor_profile"]["experience_description"] == (
-            "Original experience notes"
-        )
-        update_id = changed.json()["profile_update"]["id"]
-        updated = client.get("/api/v1/provider/portal/profile", headers=headers)
-        assert updated.json()["editable_profile"]["experience_description"] == (
-            "Updated experience notes"
-        )
-
-        admin_token = _login(client, admin.email, admin_password)
-        approved = client.post(
-            f"/api/v1/admin/provider-profile-updates/{update_id}/approve",
-            headers={"Authorization": f"Bearer {admin_token}"},
-        )
-        assert approved.status_code == 200, approved.text
-        db.refresh(provider)
-        assert provider.doctor_profile.experience_description == "Updated experience notes"
-    else:
-        assert changed.json()["profile_update"] is None
-        updated = client.get("/api/v1/provider/portal/profile", headers=headers)
-        assert updated.json()["editable_profile"]["experience_description"] == (
-            "Updated experience notes"
-        )
-        db.refresh(provider)
-        assert provider.doctor_profile.experience_description == "Updated experience notes"
+    assert changed.json()["profile_update"] is None
+    updated = client.get("/api/v1/provider/portal/profile", headers=headers)
+    assert updated.json()["editable_profile"]["experience_description"] == "Updated experience notes"
+    db.refresh(provider)
+    assert provider.doctor_profile.experience_description == "Updated experience notes"
 
     cleared = client.patch(
         "/api/v1/provider/portal/profile",
@@ -900,22 +885,9 @@ def test_doctor_experience_notes_edit_clear_reload_and_approval(
     )
     assert cleared.status_code == 200, cleared.text
     assert cleared.json()["editable_profile"]["experience_description"] is None
-    if publication_status == PublicationStatus.PUBLISHED:
-        assert cleared.json()["profile_update"]["review_status"] == "PENDING_REVIEW"
-        update_id = cleared.json()["profile_update"]["id"]
-        reloaded = client.get("/api/v1/provider/portal/profile", headers=headers)
-        assert reloaded.json()["editable_profile"]["experience_description"] is None
-
-        admin_token = _login(client, admin.email, admin_password)
-        approved_clear = client.post(
-            f"/api/v1/admin/provider-profile-updates/{update_id}/approve",
-            headers={"Authorization": f"Bearer {admin_token}"},
-        )
-        assert approved_clear.status_code == 200, approved_clear.text
-    else:
-        assert cleared.json()["profile_update"] is None
-        reloaded = client.get("/api/v1/provider/portal/profile", headers=headers)
-        assert reloaded.json()["editable_profile"]["experience_description"] is None
+    assert cleared.json()["profile_update"] is None
+    reloaded = client.get("/api/v1/provider/portal/profile", headers=headers)
+    assert reloaded.json()["editable_profile"]["experience_description"] is None
     db.refresh(provider)
     assert provider.doctor_profile.experience_description is None
 
@@ -939,7 +911,7 @@ def test_non_doctor_cannot_edit_doctor_experience_notes(client, db, seeded_admin
 
 
 @pytest.mark.parametrize("postal_code", [None, "supplied-code"])
-def test_published_profile_update_isolated_then_rejected_and_resubmitted(client, db, seeded_admin, postal_code):
+def test_legacy_profile_update_isolated_then_rejected_and_saved_directly(client, db, seeded_admin, postal_code):
     admin, admin_password = seeded_admin
     provider, account = _portal_provider(
         db,
@@ -950,8 +922,8 @@ def test_published_profile_update_isolated_then_rejected_and_resubmitted(client,
     )
     token = _login(client, account.email, "ProviderPass9")
     headers = {"Authorization": f"Bearer {token}"}
-    submitted = client.patch(
-        "/api/v1/provider/portal/profile",
+    submitted = _legacy_draft(
+        client, db, provider,
         headers=headers,
         json={
             "name": "Proposed Clinic",
@@ -976,11 +948,7 @@ def test_published_profile_update_isolated_then_rejected_and_resubmitted(client,
     assert provider.locations[0].city == "Dubai"
     assert db.query(ProviderProfileUpdate).count() == 1
 
-    refreshed = client.patch(
-        "/api/v1/provider/portal/profile",
-        headers=headers,
-        json={"description": "A refreshed proposal in the same review request."},
-    )
+    refreshed = client.get("/api/v1/provider/portal/profile", headers=headers)
     assert refreshed.status_code == 200, refreshed.text
     assert refreshed.json()["profile_update"]["id"] == update_id
     assert db.query(ProviderProfileUpdate).count() == 1
@@ -1027,13 +995,13 @@ def test_published_profile_update_isolated_then_rejected_and_resubmitted(client,
     )
     assert resubmitted.status_code == 200
     assert resubmitted.json()["profile_update"]["id"] == update_id
-    assert resubmitted.json()["profile_update"]["review_status"] == "PENDING_REVIEW"
-    assert resubmitted.json()["profile_update"]["rejection_reason"] is None
+    assert resubmitted.json()["profile_update"]["review_status"] == "SAVED_DIRECTLY"
+    assert resubmitted.json()["profile_update"]["rejection_reason"]  # original provenance retained
     db.refresh(provider)
-    assert provider.name == "Approved Clinic"
+    assert provider.name == "Revised Proposed Clinic"
 
 
-def test_published_provider_photo_upload_stays_inside_the_review_request(
+def test_published_provider_photo_upload_is_applied_on_explicit_save(
     client, db, seeded_admin
 ):
     admin, _ = seeded_admin
@@ -1069,14 +1037,14 @@ def test_published_provider_photo_upload_stays_inside_the_review_request(
 
     assert submitted.status_code == 200, submitted.text
     body = submitted.json()
-    assert body["profile_update"]["review_status"] == "PENDING_REVIEW"
+    assert body["profile_update"] is None
     assert body["editable_profile"]["photos"][0]["storage_reference"] == photo["storage_reference"]
     db.refresh(provider)
-    assert provider.photos == []
+    assert provider.photos[0].storage_reference == photo["storage_reference"]
     (_UPLOADS_DIR / photo["storage_reference"].removeprefix("/uploads/")).unlink()
 
 
-def test_provider_photo_review_round_trip_reject_discard_resubmit_and_approve(
+def test_legacy_photo_review_reject_discard_then_direct_save(
     client, db, seeded_admin, monkeypatch, tmp_path
 ):
     admin, admin_password = seeded_admin
@@ -1192,8 +1160,8 @@ def test_provider_photo_review_round_trip_reject_discard_resubmit_and_approve(
             "is_thumbnail": True,
         },
     ]
-    saved = client.patch(
-        "/api/v1/provider/portal/profile",
+    saved = _legacy_draft(
+        client, db, provider,
         headers=provider_headers,
         json={"name": "Photo Review Clinic Revised", "photos": photo_proposal},
     )
@@ -1306,20 +1274,7 @@ def test_provider_photo_review_round_trip_reject_discard_resubmit_and_approve(
         json={"name": "Photo Review Clinic Revised", "photos": photo_proposal},
     )
     assert resubmitted.status_code == 200, resubmitted.text
-    resubmitted_id = resubmitted.json()["profile_update"]["id"]
-    assert resubmitted.json()["profile_update"]["review_status"] == "PENDING_REVIEW"
-    assert_member_listing(
-        "Photo Review Clinic",
-        [approved_photo.storage_reference],
-        approved_photo.storage_reference,
-    )
-    assert_lifecycle()
-    approved = client.post(
-        f"/api/v1/admin/provider-profile-updates/{resubmitted_id}/approve",
-        headers=admin_headers,
-    )
-    assert approved.status_code == 200, approved.text
-    assert approved.json()["review_status"] == "APPROVED"
+    assert resubmitted.json()["profile_update"] is None
     assert_lifecycle()
     gallery = client.get(
         f"/api/v1/admin/providers/{provider.id}", headers=admin_headers
@@ -1427,72 +1382,12 @@ def test_photo_save_preserves_provider_and_account_lifecycle(
     )
     assert saved.status_code == 200, saved.text
     assert_lifecycle()
-    if publication_status == PublicationStatus.PUBLISHED:
-        assert saved.json()["profile_update"]["review_status"] == "PENDING_REVIEW"
-        assert saved.json()["name"] == "Lifecycle Clinic"
-        assert saved.json()["editable_profile"]["name"] == "Lifecycle Clinic Revised"
-        assert provider.photos == []
-        update_id = saved.json()["profile_update"]["id"]
-
-        rejected = client.post(
-            f"/api/v1/admin/provider-profile-updates/{update_id}/reject",
-            headers=admin_headers,
-            json={"rejection_reason": "Please revise the provider photo."},
-        )
-        assert rejected.status_code == 200, rejected.text
-        assert rejected.json()["review_status"] == "REJECTED"
-        assert_lifecycle()
-        assert provider.name == "Lifecycle Clinic"
-        assert provider.photos == []
-        rejected_draft = client.get("/api/v1/provider/portal/profile", headers=headers)
-        assert rejected_draft.status_code == 200, rejected_draft.text
-        assert rejected_draft.json()["editable_profile"]["name"] == (
-            "Lifecycle Clinic Revised"
-        )
-        assert rejected_draft.json()["editable_profile"]["photos"][0][
-            "storage_reference"
-        ] == photo["storage_reference"]
-        assert_lifecycle()
-
-        discarded = client.post(
-            "/api/v1/provider/portal/profile-update/discard", headers=headers
-        )
-        assert discarded.status_code == 200, discarded.text
-        assert discarded.json()["profile_update"] is None
-        assert discarded.json()["editable_profile"]["name"] == "Lifecycle Clinic"
-        assert discarded.json()["editable_profile"]["photos"] == []
-        assert_lifecycle()
-
-        resubmitted = client.patch(
-            "/api/v1/provider/portal/profile",
-            headers=headers,
-            json={"name": "Lifecycle Clinic Revised", "photos": [photo]},
-        )
-        assert resubmitted.status_code == 200, resubmitted.text
-        assert resubmitted.json()["profile_update"]["review_status"] == "PENDING_REVIEW"
-        assert resubmitted.json()["profile_update"]["id"] != update_id
-        assert resubmitted.json()["editable_profile"]["photos"][0][
-            "storage_reference"
-        ] == photo["storage_reference"]
-        assert_lifecycle()
-        approved = client.post(
-            f"/api/v1/admin/provider-profile-updates/{resubmitted.json()['profile_update']['id']}/approve",
-            headers=admin_headers,
-        )
-        assert approved.status_code == 200, approved.text
-        assert approved.json()["review_status"] == "APPROVED"
-        assert_lifecycle()
-        assert provider.name == "Lifecycle Clinic Revised"
-        assert len(provider.photos) == 1
-        assert provider.photos[0].storage_reference == photo["storage_reference"]
-        assert provider.photos[0].is_thumbnail is True
-    else:
-        assert saved.json()["profile_update"] is None
-        assert saved.json()["name"] == "Lifecycle Clinic Revised"
-        assert len(provider.photos) == 1
-        assert provider.name == "Lifecycle Clinic Revised"
-        assert provider.photos[0].storage_reference == photo["storage_reference"]
-        assert provider.photos[0].is_thumbnail is True
+    assert saved.json()["profile_update"] is None
+    assert saved.json()["name"] == "Lifecycle Clinic Revised"
+    assert len(provider.photos) == 1
+    assert provider.name == "Lifecycle Clinic Revised"
+    assert provider.photos[0].storage_reference == photo["storage_reference"]
+    assert provider.photos[0].is_thumbnail is True
 
     reloaded = client.get("/api/v1/provider/portal/profile", headers=headers)
     assert reloaded.status_code == 200, reloaded.text
@@ -1523,8 +1418,8 @@ def test_disabled_provider_account_cannot_upload_or_save_photos(
         files={"file": ("disabled-draft.png", _one_pixel_png(), "image/png")},
     )
     assert uploaded.status_code == 201, uploaded.text
-    pending = client.patch(
-        "/api/v1/provider/portal/profile",
+    pending = _legacy_draft(
+        client, db, provider,
         headers=headers,
         json={
             "name": "Disabled Photo Clinic Proposal",
@@ -1594,8 +1489,8 @@ def test_admin_can_decide_photo_review_without_reactivating_disabled_owner(
         data={"alt_text": "Proposed room", "caption": "Proposed room"},
     )
     assert uploaded.status_code == 201, uploaded.text
-    submitted = client.patch(
-        "/api/v1/provider/portal/profile",
+    submitted = _legacy_draft(
+        client, db, provider,
         headers=provider_headers,
         json={
             "name": "Disabled Decision Clinic Revised",
@@ -1652,7 +1547,7 @@ def test_admin_can_decide_photo_review_without_reactivating_disabled_owner(
         assert provider.photos == []
 
 
-def test_approved_registered_provider_submits_published_changes_for_review(
+def test_approved_registered_provider_saves_published_changes_directly(
     client, db, seeded_admin
 ):
     admin, _ = seeded_admin
@@ -1672,10 +1567,10 @@ def test_approved_registered_provider_submits_published_changes_for_review(
     )
 
     assert submitted.status_code == 200, submitted.text
-    assert submitted.json()["profile_update"]["review_status"] == "PENDING_REVIEW"
+    assert submitted.json()["profile_update"] is None
     assert submitted.json()["editable_profile"]["name"] == "Registered Provider Proposal"
     db.refresh(provider)
-    assert provider.name == "Registered Published Clinic"
+    assert provider.name == "Registered Provider Proposal"
 
 
 def test_admin_approval_atomically_applies_snapshot_and_records_audit(client, db, seeded_admin):
@@ -1688,8 +1583,8 @@ def test_admin_approval_atomically_applies_snapshot_and_records_audit(client, db
         publication_status=PublicationStatus.PUBLISHED,
     )
     provider_token = _login(client, account.email, "ProviderPass9")
-    submitted = client.patch(
-        "/api/v1/provider/portal/profile",
+    submitted = _legacy_draft(
+        client, db, provider,
         headers={"Authorization": f"Bearer {provider_token}"},
         json={
             "name": "Approved Updated Clinic",
@@ -1747,8 +1642,8 @@ def test_approval_refuses_stale_snapshot_after_live_profile_changes(client, db, 
         publication_status=PublicationStatus.PUBLISHED,
     )
     provider_token = _login(client, account.email, "ProviderPass9")
-    submitted = client.patch(
-        "/api/v1/provider/portal/profile",
+    submitted = _legacy_draft(
+        client, db, provider,
         headers={"Authorization": f"Bearer {provider_token}"},
         json={"name": "Provider proposal"},
     )
@@ -1788,11 +1683,7 @@ def test_approval_refuses_stale_snapshot_after_live_profile_changes(client, db, 
         json={"name": "Rebased provider proposal"},
     )
     assert resubmitted.status_code == 200, resubmitted.text
-    approved = client.post(
-        f"/api/v1/admin/provider-profile-updates/{resubmitted.json()['profile_update']['id']}/approve",
-        headers={"Authorization": f"Bearer {admin_token}"},
-    )
-    assert approved.status_code == 200, approved.text
+    assert resubmitted.json()["profile_update"] is None
     db.refresh(provider)
     assert provider.name == "Rebased provider proposal"
 
@@ -1849,8 +1740,8 @@ def test_portal_service_values_round_trip_through_rejection_resubmission_and_app
     provider_token = _login(client, account.email, "ProviderPass9")
     headers = {"Authorization": f"Bearer {provider_token}"}
 
-    submitted = client.patch(
-        "/api/v1/provider/portal/profile",
+    submitted = _legacy_draft(
+        client, db, provider,
         headers=headers,
         json={
             "maximum_working_radius_km": 35,
@@ -1887,7 +1778,7 @@ def test_portal_service_values_round_trip_through_rejection_resubmission_and_app
         json={"name": "Services Clinic Resubmitted"},
     )
     assert resubmitted.status_code == 200, resubmitted.text
-    assert resubmitted.json()["profile_update"]["review_status"] == "PENDING_REVIEW"
+    assert resubmitted.json()["profile_update"]["review_status"] == "SAVED_DIRECTLY"
     assert resubmitted.json()["editable_profile"]["maximum_working_radius_km"] == 35
     assert resubmitted.json()["editable_profile"]["emergency_services_available"] is True
 
@@ -1895,7 +1786,7 @@ def test_portal_service_values_round_trip_through_rejection_resubmission_and_app
         f"/api/v1/admin/provider-profile-updates/{update_id}/approve",
         headers={"Authorization": f"Bearer {admin_token}"},
     )
-    assert approved.status_code == 200, approved.text
+    assert approved.status_code == 409, approved.text
     db.refresh(provider)
     assert float(provider.maximum_working_radius_km) == 35
     assert provider.emergency_services_available is True
@@ -1920,8 +1811,8 @@ def test_old_pending_snapshot_without_service_fields_preserves_live_services(
     provider.phone = "+971501112222"
     db.commit()
     token = _login(client, account.email, "ProviderPass9")
-    submitted = client.patch(
-        "/api/v1/provider/portal/profile",
+    submitted = _legacy_draft(
+        client, db, provider,
         headers={"Authorization": f"Bearer {token}"},
         json={"name": "Snapshot Clinic Proposal"},
     )
@@ -1996,8 +1887,8 @@ def test_old_base_contact_fallback_still_detects_live_contact_changes(
     provider.phone = "+971501234567"
     db.commit()
     provider_token = _login(client, account.email, "ProviderPass9")
-    submitted = client.patch(
-        "/api/v1/provider/portal/profile",
+    submitted = _legacy_draft(
+        client, db, provider,
         headers={"Authorization": f"Bearer {provider_token}"},
         json={"name": "Old Contact Base Proposal"},
     )
@@ -2214,7 +2105,7 @@ def test_published_contact_clear_is_not_repopulated_in_the_pending_snapshot(
     assert editable["phones"] == []
     assert editable["email"] is None
     assert editable["phone"] is None
-    assert cleared.json()["profile_update"]["review_status"] == "PENDING_REVIEW"
+    assert cleared.json()["profile_update"] is None
 
     reloaded = client.get(
         "/api/v1/provider/portal/profile",

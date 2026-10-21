@@ -312,7 +312,7 @@ export function ProviderProfileCollections({
       <section className={styles.collection} aria-labelledby="portal-photos-heading">
         {(reviewStatus === 'PENDING_REVIEW' || reviewStatus === 'REJECTED') && <section aria-label="Current approved photos">
           <h3>Current approved photos</h3>
-          <p>These remain on your approved listing. {reviewStatus === 'REJECTED' ? 'Rejected proposals below are retained for revision, not published.' : 'Proposed changes below are awaiting review.'}</p>
+          <p>These remain on your current listing. The draft below has not been applied. Save it directly or discard it to reload the current listing.</p>
           {approvedPhotos.length === 0 && <p>No approved photos.</p>}
           {approvedPhotos.map((photo, index) => <ProviderPhotoPreview key={`${photo.storage_reference}-${index}`} source={photo.storage_reference} alt={photo.alt_text ?? photo.caption ?? 'Approved provider photo'} className={styles.preview} />)}
         </section>}
@@ -394,7 +394,7 @@ export function ProviderProfileCollections({
           <div className={styles.uploadedNotice} role="status">
             <strong>Uploaded, not yet saved</strong>
             <span>
-              {unsavedUploadedPhotoCount === 1 ? 'This photo has' : 'These photos have'} been uploaded but {unsavedUploadedPhotoCount === 1 ? 'has' : 'have'} not been added to your profile yet. Select Save profile to include {unsavedUploadedPhotoCount === 1 ? 'it' : 'them'}. Unpublished profiles save immediately; changes to published listings await administrator review.
+              {unsavedUploadedPhotoCount === 1 ? 'This photo has' : 'These photos have'} been uploaded but {unsavedUploadedPhotoCount === 1 ? 'has' : 'have'} not been added to your profile yet. Select Save profile to include {unsavedUploadedPhotoCount === 1 ? 'it' : 'them'}. No further approval is needed.
             </span>
           </div>
         )}

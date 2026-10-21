@@ -1,6 +1,9 @@
 """Provider review privacy, lifecycle and read-only authorization boundaries."""
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from sqlalchemy import text
+from fastapi.testclient import TestClient
+from app.main import app
 
 import pytest
 
@@ -118,6 +121,23 @@ def test_feedback_lifecycle_pagination_and_profile_privacy(client, db):
     assert beyond.json()["data"] == []
     for query in ("page=0", "page_size=0", "page_size=101", f"provider_id={provider.id}"):
         assert client.get(f"/api/v1/provider/portal/feedback?{query}", headers=headers).status_code == 422
+
+
+def test_feedback_does_not_hydrate_unrelated_member_contacts(client, db):
+    """Feedback needs masked structured names, not decryptable member contacts.
+
+    Synthetic incompatible storage reproduces the over-broad query failure;
+    strict contact reads elsewhere must still fail closed.
+    """
+    _, _, _, members, headers = _feedback_fixture(client, db)
+    db.execute(text("UPDATE users SET mobile_number = :value WHERE id = :id"),
+               {"value": "synthetic-incompatible-contact", "id": members[0].id})
+    db.commit()
+    with TestClient(app, raise_server_exceptions=False) as transport:
+        response = transport.get("/api/v1/provider/portal/feedback", headers=headers)
+    assert response.status_code == 200, response.text
+    assert response.json()["meta"]["total"] == 7
+    assert all(row["reviewer_name"] == "Member A. R." for row in response.json()["data"])
 
 
 def test_feedback_roles_ownership_and_mutations(client, db, seeded_admin):

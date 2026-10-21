@@ -25,6 +25,7 @@ class ProviderProfileUpdateRepository:
             .options(joinedload(ProviderProfileUpdate.provider))
             .where(ProviderProfileUpdate.id == update_id)
             .with_for_update(of=ProviderProfileUpdate)
+            .execution_options(populate_existing=True)
         )
 
     def get(self, update_id: UUID) -> ProviderProfileUpdate | None:
@@ -42,6 +43,7 @@ class ProviderProfileUpdateRepository:
             select(ProviderProfileUpdate)
             .where(ProviderProfileUpdate.provider_id == provider_id)
             .with_for_update(of=ProviderProfileUpdate)
+            .execution_options(populate_existing=True)
         )
 
     def create(self, **fields) -> ProviderProfileUpdate:

@@ -11,7 +11,7 @@ from app.models.language import Language, ProviderLanguage
 from app.models.provider import DoctorVisit
 from app.repositories.provider_repository import ProviderRepository
 import app.services.provider_portal_service as portal_module
-from tests.test_provider_profile_updates import _portal_doctor, _portal_provider, _login, _visit_addition
+from tests.test_provider_profile_updates import _portal_doctor, _portal_provider, _login, _visit_addition, _legacy_draft
 
 
 def headers(client, user, password="ProviderPass9"):
@@ -49,22 +49,13 @@ def test_names_languages_classification_and_visit_atomic_lifecycle(client, db, s
     assert snapshot["first_name"] == "Amina"
     assert set(snapshot["language_ids"]) == set(body["language_ids"])
     assert any(item["id"] == str(inactive.id) and not item["is_active"] for item in submitted.json()["language_choices"])
-    if published:
-        update_id = submitted.json()["profile_update"]["id"]
-        db.refresh(provider)
-        assert provider.doctor_availability is None
-        assert db.query(DoctorVisit).filter_by(provider_id=provider.id).count() == 0
-        rejected = client.post(f"/api/v1/admin/provider-profile-updates/{update_id}/reject",
-            headers=admin_headers, json={"rejection_reason": "Synthetic revision"})
-        assert rejected.status_code == 200, rejected.text
-        retained = client.get("/api/v1/provider/portal/profile", headers=owner).json()
-        assert retained["editable_profile"]["first_name"] == "Amina"
-        assert len(retained["editable_profile"]["visit_additions"]) == 1
-        revised = client.patch("/api/v1/provider/portal/profile", headers=owner, json={"biography": "Revised"})
-        assert revised.status_code == 200, revised.text
-        approved = client.post(f"/api/v1/admin/provider-profile-updates/{update_id}/approve", headers=admin_headers)
-        assert approved.status_code == 200, approved.text
-        assert any(item["name"] == inactive.name for item in approved.json()["language_choices"])
+    assert submitted.json()["profile_update"] is None
+    assert submitted.json()["editable_profile"]["visit_additions"] == []
+    detail = client.get(f"/api/v1/admin/providers/{provider.id}", headers=admin_headers)
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["name"] == "Amina Rider"
+    assert detail.json()["doctor_availability"] == "VISITING"
+    assert len(detail.json()["doctor_visits"]) == 1
     db.expire_all()
     saved = ProviderRepository(db).get_by_id(provider.id)
     assert saved.name == "Amina Rider"
@@ -79,8 +70,7 @@ def test_names_languages_classification_and_visit_atomic_lifecycle(client, db, s
         "first_name": None, "last_name": None, "language_ids": [], "website": "https://changed.test",
     })
     assert cleared.status_code == 200, cleared.text
-    if published:
-        assert client.post(f"/api/v1/admin/provider-profile-updates/{cleared.json()['profile_update']['id']}/approve", headers=admin_headers).status_code == 200
+    assert cleared.json()["profile_update"] is None
     reloaded = client.get("/api/v1/provider/portal/profile", headers=owner).json()
     assert reloaded["editable_profile"]["language_ids"] == []
     assert reloaded["editable_profile"]["first_name"] is None
@@ -112,10 +102,10 @@ def test_invalid_owned_fields_and_explicit_proposal_resolution(client, db, seede
     }).status_code == 200
     assert client.patch("/api/v1/provider/portal/profile", headers=owner, json={"doctor_availability": "ONGOING"}).status_code == 422
     resolved = client.patch("/api/v1/provider/portal/profile", headers=owner, json={"doctor_availability": "ONGOING", "visit_additions": []})
-    assert resolved.status_code == 200, resolved.text
-    assert client.post("/api/v1/provider/portal/profile-update/discard", headers=owner).status_code == 200
+    assert resolved.status_code == 422, resolved.text  # saved trip history is immutable
+    assert client.post("/api/v1/provider/portal/profile-update/discard", headers=owner).status_code == 409
     db.refresh(provider)
-    assert provider.doctor_availability is None
+    assert provider.doctor_availability == DoctorAvailability.VISITING
 
 
 @pytest.mark.parametrize("provider_type", [ProviderType.CLINIC, ProviderType.HOSPITAL])
@@ -143,7 +133,7 @@ def test_classification_approval_conflict_does_not_apply_names_or_languages(clie
     db.commit()
     owner = headers(client, user)
     day = date.today() + timedelta(days=15)
-    request = client.patch("/api/v1/provider/portal/profile", headers=owner, json={
+    request = _legacy_draft(client, db, provider, headers=owner, json={
         "doctor_availability": "VISITING", "first_name": "Proposed", "last_name": "Doctor",
         "language_ids": [str(language.id)],
         "visit_additions": [_visit_addition(day, day)],

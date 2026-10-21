@@ -111,10 +111,13 @@ async def check(ws_url, domain, png, file_path):
                     patch = json.loads(request["postData"])
                     patches.append(copy.deepcopy(patch))
                     stored["editable_profile"].update(patch)
-                    stored["profile_update"] = dict(
-                        id="synthetic-update", review_status="PENDING_REVIEW",
-                        submitted_at="2026-10-21T00:00:00Z", reviewed_at=None,
-                        reviewed_by_name=None, rejection_reason=None)
+                    stored.update({key: copy.deepcopy(value) for key, value in patch.items()
+                                   if key in stored and key != "editable_profile"})
+                    stored["profile_update"] = None
+                    for addition in patch.get("visit_additions", []):
+                        stored["doctor_visits"].append(dict(
+                            **addition, id=f"synthetic-trip-{len(stored['doctor_visits'])}"))
+                    stored["editable_profile"]["visit_additions"] = []
                     body = copy.deepcopy(stored)
                 else:
                     unexpected.append(f"{method} {path}")
@@ -208,7 +211,7 @@ async def check(ws_url, domain, png, file_path):
             await fill("Last name", "Rider")
             await evaluate("[...document.querySelectorAll('label')].find(e=>e.textContent.trim()==='English').querySelector('input').click()")
             await click("Save profile")
-            await wait("document.body.innerText.includes('awaiting review')")
+            await wait("document.body.innerText.includes('No further approval is needed')")
             assert patches[-1]["doctor_availability"] is None
             assert patches[-1]["language_ids"] == ["old", "en"]
             await capture("desktop-basic.png")
@@ -251,7 +254,7 @@ async def check(ws_url, domain, png, file_path):
             await enter()
             await wait(f"!!document.querySelector('img[src=\"{REFERENCE}\"]')?.naturalWidth")
             await click("Save profile")
-            await wait("document.body.innerText.includes('uploaded photos and profile changes were saved')")
+            await wait("document.body.innerText.includes('uploaded photos and profile changes have been saved')")
             assert patches[-1]["doctor_availability"] == "VISITING"
             assert patches[-1]["visit_additions"][0]["start_date"] == day
             assert patches[-1]["visit_additions"][0]["location"]["city"] == "Dubai"
@@ -268,7 +271,8 @@ async def check(ws_url, domain, png, file_path):
                 assert await evaluate("document.querySelector('[value=ONGOING]').disabled")
                 await capture(f"mobile-{width}-classification.png")
                 await click("Visits")
-                assert await evaluate("document.querySelector('[id$=\"-start-date\"]').value") == day
+                assert not await evaluate("!!document.querySelector('[id$=\"-start-date\"]')")
+                assert await evaluate("document.body.innerText.includes('Dubai')")
                 await capture(f"mobile-{width}-visits.png")
                 await click("Basic details")
                 assert await evaluate("document.querySelector('#portal-last-name').value") == "Rider"

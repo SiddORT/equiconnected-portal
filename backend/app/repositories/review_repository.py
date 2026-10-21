@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
@@ -22,6 +23,13 @@ from app.models.provider_favorite import ProviderFavorite
 from app.models.provider_review_action import ProviderReviewAction
 from app.models.specialization import Specialization
 from app.models.user import User
+
+
+@dataclass(frozen=True)
+class ReviewMemberName:
+    """Only the structured name needed by the provider-safe projection."""
+    first_name: str | None
+    last_name: str | None
 
 
 class ReviewRepository:
@@ -356,14 +364,24 @@ class ReviewRepository:
         return average, count
 
     def list_visible_reviews(self, provider_id: UUID) -> list[tuple[ProviderReview, User]]:
-        return list(
-            self._db.execute(
-                select(ProviderReview, User)
+        """Member/public contract is separate from provider-safe name projection."""
+        return list(self._db.execute(
+            select(ProviderReview, User)
+            .join(User, User.id == ProviderReview.member_id)
+            .where(*self._visible_review_conditions(provider_id))
+            .order_by(ProviderReview.created_at.desc(), ProviderReview.id)
+        ).all())
+
+    def list_visible_provider_reviews(self, provider_id: UUID) -> list[tuple[ProviderReview, ReviewMemberName]]:
+        return [
+            (review, ReviewMemberName(first, last))
+            for review, first, last in self._db.execute(
+                select(ProviderReview, User.first_name, User.last_name)
                 .join(User, User.id == ProviderReview.member_id)
                 .where(*self._visible_review_conditions(provider_id))
                 .order_by(ProviderReview.created_at.desc(), ProviderReview.id)
             ).all()
-        )
+        ]
 
     @staticmethod
     def _visible_review_conditions(provider_id: UUID):
@@ -388,7 +406,7 @@ class ReviewRepository:
 
     def list_provider_feedback(
         self, provider_id: UUID, *, page: int, page_size: int
-    ) -> tuple[list[tuple[ProviderReview, User | None]], int]:
+    ) -> tuple[list[tuple[ProviderReview, ReviewMemberName]], int]:
         conditions = [
             ProviderReview.provider_id == provider_id,
             ProviderReview.deleted_at.is_(None),
@@ -397,14 +415,17 @@ class ReviewRepository:
             select(func.count()).select_from(ProviderReview).where(*conditions)
         ) or 0
         rows = self._db.execute(
-            select(ProviderReview, User)
+            # Do not hydrate/decrypt unrelated member contacts. Besides being
+            # unnecessary private data, incompatible legacy contact storage can
+            # otherwise make an entire listing's feedback fail to load.
+            select(ProviderReview, User.first_name, User.last_name)
             .outerjoin(User, User.id == ProviderReview.member_id)
             .where(*conditions)
             .order_by(ProviderReview.created_at.desc(), ProviderReview.id)
             .offset((page - 1) * page_size)
             .limit(page_size)
         ).all()
-        return list(rows), total
+        return [(review, ReviewMemberName(first, last)) for review, first, last in rows], total
 
     def get_member_review(
         self, provider_id: UUID, member_id: UUID

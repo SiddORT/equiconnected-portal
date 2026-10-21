@@ -775,7 +775,7 @@ export interface ProviderPortalEditableProfile extends ProviderPortalUpdate {
   qualifications: NonNullable<ProviderPortalUpdate['qualifications']>;
 }
 
-export type ProviderProfileUpdateStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
+export type ProviderProfileUpdateStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'SAVED_DIRECTLY';
 
 export interface ProviderProfileUpdateState {
   id: string;

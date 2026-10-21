@@ -46,6 +46,7 @@ class ProviderProfileUpdateStatus(str, enum.Enum):
     PENDING_REVIEW = "PENDING_REVIEW"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
+    SAVED_DIRECTLY = "SAVED_DIRECTLY"
 
 
 class ProviderReviewStatus(str, enum.Enum):
