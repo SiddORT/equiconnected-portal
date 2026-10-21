@@ -51,6 +51,7 @@ function PhotoCard({ photo, status, index }: { photo: Photo; status: string; ind
         : <div className={styles.imageState} role="img" aria-label={source ? `${altText}: image failed to load` : `${altText}: image unavailable`}>
             <span className={styles.imageMark} aria-hidden="true">Photo</span>
             <span>{source ? 'Image could not be loaded' : 'Image unavailable'}</span>
+            {source && <button type="button" onClick={() => setFailed(false)}>Retry stored image</button>}
           </div>}
       {photo.is_thumbnail && <span className={styles.thumbnail}>Profile photo</span>}
     </div>

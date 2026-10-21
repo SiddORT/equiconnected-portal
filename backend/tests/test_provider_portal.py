@@ -223,6 +223,11 @@ def test_portal_setup_is_single_use_and_provider_profile_is_owned(client, db, se
         "/api/v1/provider/portal/profile",
         headers={"Authorization": f"Bearer {provider_token}"},
         json={"name": "Updated Portal Clinic", "status": "ACTIVE", "publication_status": "PUBLISHED"},
+    ).status_code == 422
+    assert client.patch(
+        "/api/v1/provider/portal/profile",
+        headers={"Authorization": f"Bearer {provider_token}"},
+        json={"name": "Updated Portal Clinic"},
     ).status_code == 200
     db.refresh(provider)
     assert provider.name == "Updated Portal Clinic"

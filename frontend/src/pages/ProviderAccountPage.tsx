@@ -54,13 +54,13 @@ function portalTabs(canScheduleVisits: boolean) {
 }
 
 function mayScheduleProviderVisits(
-  profile: ProviderPortalProfile | null
+  profile: ProviderPortalProfile | null,
+  availability = profile?.editable_profile.doctor_availability ?? profile?.doctor_availability
 ): profile is ProviderPortalProfile {
   return Boolean(
     profile
-    && profile.can_schedule_visits
     && profile.doctor_fields_available
-    && profile.doctor_availability === 'VISITING'
+    && availability === 'VISITING'
   );
 }
 
@@ -212,12 +212,17 @@ export function ProviderAccountPage() {
   const profileSavingRef = useRef(false);
   const tabRefs = useRef<Partial<Record<PortalTab, HTMLButtonElement | null>>>({});
   const pendingInvalidFieldRef = useRef<HTMLElement | null>(null);
-  const visibleTabs = portalTabs(mayScheduleProviderVisits(profile));
+  const canScheduleVisits = mayScheduleProviderVisits(profile, form.doctor_availability);
+  const visibleTabs = portalTabs(canScheduleVisits);
 
   function populate(next: ProviderPortalProfile) {
     setProfile(next);
     const editable = next.editable_profile;
     setForm({
+      first_name: editable.first_name ?? null,
+      last_name: editable.last_name ?? null,
+      doctor_availability: editable.doctor_availability !== undefined ? editable.doctor_availability : next.doctor_availability,
+      language_ids: editable.language_ids ?? [],
       name: editable.name,
       description: editable.description,
       email: editable.email,
@@ -304,7 +309,7 @@ export function ProviderAccountPage() {
   }
 
   function handleTabKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
-    const tabs = portalTabs(mayScheduleProviderVisits(profile));
+    const tabs = visibleTabs;
     const currentIndex = tabs.findIndex((tab) => tab.id === activeTab);
     let nextIndex: number | null = null;
     if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
@@ -338,11 +343,18 @@ export function ProviderAccountPage() {
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
+    if (profileSavingRef.current) return;
     if (photoUploadInProgressRef.current) {
       setNotice({
         variant: 'warning',
         text: 'Wait for photo uploads to finish before saving your profile. Then save again to include the uploaded photos.',
       });
+      return;
+    }
+    if (profile?.doctor_fields_available && Boolean(form.first_name?.trim()) !== Boolean(form.last_name?.trim())) {
+      setNotice({ variant: 'error', text: 'Enter both doctor first and last names, or leave both empty for a legacy name-only listing.' });
+      const field = formRef.current?.querySelector<HTMLElement>(form.first_name?.trim() ? '#portal-last-name' : '#portal-first-name');
+      if (field) routeToInvalidField(field);
       return;
     }
     const includesUploadedPhotos = uploadedPhotoReferences.length > 0;
@@ -381,7 +393,7 @@ export function ProviderAccountPage() {
       }
       return;
     }
-    if (mayScheduleProviderVisits(profile)) {
+    if (canScheduleVisits && profile) {
       const invalidVisit = validateVisitAdditions(
         visitAdditions,
         profile.editable_profile.visit_additions ?? [],
@@ -423,7 +435,7 @@ export function ProviderAccountPage() {
         return;
       }
     }
-    const invalidFields = Array.from(formRef.current?.querySelectorAll<HTMLElement>(':invalid') ?? []);
+    const invalidFields = Array.from(formRef.current?.querySelectorAll<HTMLElement>('input:invalid, select:invalid, textarea:invalid') ?? []);
     const grandfatheredMissingRadius = baselineServices?.visit_stability === 'STABLE_VISIT'
       && services.visit_stability === 'STABLE_VISIT'
       && !baselineServices.maximum_working_radius_km.trim()
@@ -457,11 +469,14 @@ export function ProviderAccountPage() {
         emails: emails.map(({ email, is_primary }) => ({ email: email.trim(), is_primary })),
         photos,
       };
-      if (mayScheduleProviderVisits(profile)) body.visit_additions = visitAdditions;
+      if (profile?.doctor_fields_available) body.visit_additions = visitAdditions;
       if (profile?.doctor_fields_available) {
         delete body.description;
         body.qualifications = qualifications;
       } else {
+        delete body.first_name;
+        delete body.last_name;
+        delete body.doctor_availability;
         delete body.professional_title;
         delete body.biography;
         delete body.experience_description;
@@ -490,7 +505,9 @@ export function ProviderAccountPage() {
   }
 
   async function discardDraft() {
+    if (photoUploadInProgressRef.current || profileSavingRef.current) return;
     try {
+      profileSavingRef.current = true;
       setSaving(true);
       setNotice(null);
       populate(await providersApi.discardProviderPortalProfileUpdate());
@@ -501,6 +518,7 @@ export function ProviderAccountPage() {
     } catch (err) {
       setNotice({ variant: 'error', text: extractErrorMessage(err, 'Your draft could not be discarded.') });
     } finally {
+      profileSavingRef.current = false;
       setSaving(false);
     }
   }
@@ -684,7 +702,7 @@ export function ProviderAccountPage() {
                 </button>
               ))}
             </div>
-            {mayScheduleProviderVisits(profile) && (
+            {canScheduleVisits && (
               <div
                 id="provider-panel-visits"
                 role="tabpanel"
@@ -813,6 +831,29 @@ export function ProviderAccountPage() {
             >
               <h3>Basic details</h3>
               <Input label="Provider or practice name" id="portal-name" value={form.name ?? ''} onChange={(e) => update('name', e.target.value)} disabled={saving} required />
+              {profile.doctor_fields_available && <>
+                <Input label="First name" id="portal-first-name" maxLength={150} value={form.first_name ?? ''} onChange={(e) => update('first_name', e.target.value || null)} disabled={saving} />
+                <Input label="Last name" id="portal-last-name" maxLength={150} value={form.last_name ?? ''} onChange={(e) => update('last_name', e.target.value || null)} disabled={saving} />
+                <p className={styles.hint}>Enter both names or leave both empty to retain a legacy name-only listing. When both are provided, your listing name uses First name Last name. Your sign-in account is not changed.</p>
+              </>}
+              <fieldset className={styles.specializationSection}>
+                <legend>Languages</legend>
+                <p className={styles.hint}>Select the languages you offer care in. Inactive saved languages can be retained or removed, but cannot be newly selected.</p>
+                <div className={styles.specializations}>
+                  {(profile.language_choices ?? []).map((language) => {
+                    const selected = (form.language_ids ?? []).includes(language.id);
+                    const retained = (profile.editable_profile.language_ids ?? []).includes(language.id);
+                    return <label key={language.id}>
+                      <input type="checkbox" checked={selected} disabled={saving || (!language.is_active && !retained)}
+                        onChange={(event) => update('language_ids', event.target.checked
+                          ? [...new Set([...(form.language_ids ?? []), language.id])]
+                          : (form.language_ids ?? []).filter((id) => id !== language.id))} />
+                      {language.name}{!language.is_active ? ' (inactive, saved selection)' : ''}
+                    </label>;
+                  })}
+                </div>
+                {(profile.language_choices ?? []).length === 0 && <p>No language choices available.</p>}
+              </fieldset>
               {!profile.doctor_fields_available && (
                 <label className={styles.field}>Description
                   <textarea className={styles.textarea} rows={5} value={form.description ?? ''} onChange={(e) => update('description', e.target.value || null)} disabled={saving} maxLength={5000} />
@@ -879,6 +920,26 @@ export function ProviderAccountPage() {
                 </div>
               </section>
               <div className={styles.sectionDivider} />
+              {profile.doctor_fields_available && <fieldset className={styles.specializationSection}>
+                <legend>Doctor availability</legend>
+                <p className={styles.hint}>
+                  {form.doctor_availability == null ? 'Not specified — choose explicitly when ready. Unrelated saves leave this unchanged. ' : ''}
+                  This is separate from stable/home visit services. Published changes require administrator approval.
+                </p>
+                <div className={styles.choice}>
+                  {(['ONGOING', 'VISITING'] as const).map((value) => <label key={value}>
+                    <input type="radio" name="doctor-availability" value={value}
+                      checked={form.doctor_availability === value}
+                      disabled={saving || (value === 'ONGOING' && ((profile.doctor_visits?.length ?? 0) > 0 || visitAdditions.length > 0))}
+                      onChange={() => update('doctor_availability', value)} />
+                    {value === 'ONGOING' ? 'Ongoing' : 'Visiting'}
+                  </label>)}
+                </div>
+                {(profile.doctor_visits?.length ?? 0) > 0
+                  ? <p className={styles.hint}>Doctors with recorded visits must remain Visiting. Recorded history cannot be edited or deleted here.</p>
+                  : visitAdditions.length > 0 && <p className={styles.hint}>Remove proposed visits explicitly in Visits before choosing Ongoing. Saved proposals are removed only when you save the revised draft.</p>}
+                {canScheduleVisits && <Button type="button" variant="outline" onClick={() => changeTab('visits', true)}>Enter visit dates and locations</Button>}
+              </fieldset>}
               <InvitationServiceFields value={services} onChange={updateServices} errors={serviceErrors} disabled={saving} />
             </div>
             <ProviderProfileCollections
@@ -901,6 +962,8 @@ export function ProviderAccountPage() {
               emails={emails}
               onEmailsChange={setEmails}
               photos={photos}
+              approvedPhotos={profile.photos}
+              reviewStatus={profile.profile_update?.review_status}
               onPhotosChange={updatePhotos}
               onUploadPhoto={uploadPhoto}
               onPhotoUploadStateChange={updatePhotoUploadState}

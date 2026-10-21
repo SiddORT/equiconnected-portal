@@ -59,3 +59,4 @@
 - [Provider feedback privacy](provider-feedback-privacy.md) — own-listing hidden feedback stays readable, but reviewer identity and private moderation notes stay out of provider responses.
 - [Address postal policy](address-postal-policy.md) — optional postal codes, fresh-only UAE defaults, and unchanged existing address controls.
 - [Homepage photo permissions](homepage-photo-permissions.md) — verify image-specific terms; prototype credits can name the wrong photographer.
+- [Headless keyboard checks](headless-keyboard-checks.md) — foreground/focus setup and complete key events matter; assert activation, not only DOM focus.

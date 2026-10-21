@@ -35,6 +35,7 @@ from app.services.provider_profile_update_service import (
     serialize_editable_profile,
     sync_editable_profile_contacts,
     validate_editable_profile,
+    portal_language_choices,
 )
 
 
@@ -147,7 +148,7 @@ class ProviderPortalService:
             visible_review(review, member).model_dump()
             for review, member in self._reviews.list_visible_reviews(provider_id)
         ]
-        return ProviderPortalResponse.from_provider(
+        response = ProviderPortalResponse.from_provider(
             provider,
             average_rating=average_rating,
             review_count=review_count,
@@ -155,6 +156,8 @@ class ProviderPortalService:
             editable_profile=editable,
             profile_update=state,
         )
+        response.language_choices = portal_language_choices(provider, editable)
+        return response
 
     def get_profile(self, user: User):
         return self._profile_response(self._provider_id_for_user(user))
@@ -314,9 +317,11 @@ class ProviderPortalService:
             "experience_description", "qualifications",
             "maximum_working_radius_km", "emergency_services_available",
             "emergency_contact_number",
-            "visit_additions",
+            "visit_additions", "first_name", "last_name", "doctor_availability", "language_ids",
         }
         safe_fields = {key: value for key, value in fields.items() if key in allowed}
+        if set(fields) - allowed:
+            raise InvalidProviderDataError("Only provider-owned profile fields may be updated.")
         if not safe_fields:
             return self._profile_response(provider.id)
         # Serializing submissions through the provider row prevents two browser
@@ -393,11 +398,10 @@ class ProviderPortalService:
                     ProviderProfileUpdateStatus.PENDING_REVIEW,
                     ProviderProfileUpdateStatus.REJECTED,
                 )
-                and profile_update.proposed_profile.get("visit_additions")
             ):
-                cleared_snapshot = dict(profile_update.proposed_profile)
-                cleared_snapshot["visit_additions"] = []
-                profile_update.proposed_profile = cleared_snapshot
+                profile_update.proposed_profile = serialize_editable_profile(
+                    provider, editable_profile_from_provider(provider)
+                )
             self._audit.record(
                 "provider_portal.profile_updated",
                 context=audit_context,

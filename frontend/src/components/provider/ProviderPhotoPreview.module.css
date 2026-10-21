@@ -1,0 +1,4 @@
+.error { grid-column: 1 / -1; box-sizing: border-box; width: 100%; padding: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--bg-subtle); font-size: .85rem; line-height: 1.45; overflow-wrap: anywhere; }
+.error p { margin: 0 0 8px; }
+.error button { font: inherit; cursor: pointer; min-height: 40px; }
+.error button:focus-visible { outline: 3px solid var(--color-accent-400); outline-offset: 2px; }

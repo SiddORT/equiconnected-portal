@@ -731,7 +731,12 @@ def _provider_profile_update_response(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "provider_profile_update_not_found", "message": "Provider profile update not found."},
         )
+    from app.services.provider_profile_update_service import portal_language_choices
+    proposed = editable_profile_from_snapshot(provider, profile_update.proposed_profile)
+    current = editable_profile_from_provider(provider)
+    choices_profile = current.model_copy(update={"language_ids": list(set(current.language_ids + proposed.language_ids))})
     return ProviderProfileUpdateAdminResponse(
+        language_choices=portal_language_choices(provider, choices_profile),
         id=profile_update.id,
         provider_id=provider.id,
         provider_name=provider.name,

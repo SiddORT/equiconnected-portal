@@ -6,6 +6,7 @@ import { MultiEmailField, type EmailEntry } from '@/components/admin/MultiEmailF
 import { MultiPhoneField, type PhoneEntry } from '@/components/admin/MultiPhoneField';
 import type { ProviderPortalUpdate } from '@/types';
 import styles from './ProviderProfileCollections.module.css';
+import { ProviderPhotoPreview } from './ProviderPhotoPreview';
 
 export type PortalLocation = NonNullable<ProviderPortalUpdate['locations']>[number] & {
   is_primary: boolean;
@@ -28,6 +29,8 @@ interface ProviderProfileCollectionsProps {
   emails: EmailEntry[];
   onEmailsChange: (emails: EmailEntry[]) => void;
   photos: PortalPhoto[];
+  approvedPhotos?: PortalPhoto[];
+  reviewStatus?: string;
   onPhotosChange: (photos: PortalPhoto[]) => void;
   onUploadPhoto: (item: { file: File; alt_text: string | null; caption: string | null }) => Promise<PortalPhoto>;
   onPhotoUploadStateChange: (uploading: boolean) => void;
@@ -74,6 +77,8 @@ export function ProviderProfileCollections({
   emails,
   onEmailsChange,
   photos,
+  approvedPhotos = [],
+  reviewStatus,
   onPhotosChange,
   onUploadPhoto,
   onPhotoUploadStateChange,
@@ -305,6 +310,12 @@ export function ProviderProfileCollections({
         className={styles.panel}
       >
       <section className={styles.collection} aria-labelledby="portal-photos-heading">
+        {(reviewStatus === 'PENDING_REVIEW' || reviewStatus === 'REJECTED') && <section aria-label="Current approved photos">
+          <h3>Current approved photos</h3>
+          <p>These remain on your approved listing. {reviewStatus === 'REJECTED' ? 'Rejected proposals below are retained for revision, not published.' : 'Proposed changes below are awaiting review.'}</p>
+          {approvedPhotos.length === 0 && <p>No approved photos.</p>}
+          {approvedPhotos.map((photo, index) => <ProviderPhotoPreview key={`${photo.storage_reference}-${index}`} source={photo.storage_reference} alt={photo.alt_text ?? photo.caption ?? 'Approved provider photo'} className={styles.preview} />)}
+        </section>}
         <div className={styles.collectionHeader}>
           <div>
             <h2 id="portal-photos-heading">Profile photos</h2>
@@ -314,7 +325,7 @@ export function ProviderProfileCollections({
             type="button"
             variant="outline"
             size="sm"
-            disabled={disabled}
+            disabled={disabled || uploadingPhotos}
             onClick={() => fileInputRef.current?.click()}
           >
             Add photos
@@ -364,7 +375,7 @@ export function ProviderProfileCollections({
             </p>
             {stagedPhotos.map((photo) => (
               <div className={styles.stagedPhoto} key={photo.id}>
-                <img src={photo.preview} alt="" className={styles.preview} />
+                <ProviderPhotoPreview source={photo.preview} alt={`Selected image: ${photo.file.name}`} className={styles.preview} local />
                 <div className={styles.stagedFields}>
                   <strong>{photo.file.name}</strong>
                   <Input label="Alt text" value={photo.alt_text} onChange={(event) => updateStagedPhoto(photo.id, { alt_text: event.target.value })} disabled={disabled || uploadingPhotos} placeholder="Describe the image for screen readers" />
@@ -407,7 +418,7 @@ export function ProviderProfileCollections({
               </div>
               <div className={styles.savedPhoto}>
                 {photo.storage_reference ? (
-                  <img src={photo.storage_reference} alt={photo.alt_text ?? photo.caption ?? 'Provider photo'} className={styles.preview} />
+                  <ProviderPhotoPreview source={photo.storage_reference} alt={photo.alt_text ?? photo.caption ?? 'Provider photo'} className={styles.preview} />
                 ) : (
                   <div className={styles.previewPlaceholder}>Image unavailable</div>
                 )}

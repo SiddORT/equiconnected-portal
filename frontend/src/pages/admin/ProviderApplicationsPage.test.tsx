@@ -114,6 +114,28 @@ afterEach(() => {
 });
 
 describe('ProviderApplicationsPage', () => {
+  it('compares structured names, unknown classification, and readable retained language labels', async () => {
+    vi.mocked(adminApi.listProviderApplications).mockResolvedValue(response([]));
+    vi.mocked(adminApi.listProviderProfileUpdates).mockResolvedValue(response([{
+      ...profileUpdate,
+      language_choices: [
+        { id: 'en', name: 'English', code: 'en', is_active: true },
+        { id: 'old', name: 'Retained language', code: 'old', is_active: false },
+      ],
+      current_profile: { ...profileUpdate.current_profile, language_ids: ['old'], doctor_availability: null },
+      proposed_profile: { ...profileUpdate.proposed_profile, first_name: 'Amina', last_name: 'Rider', language_ids: ['en', 'old'], doctor_availability: 'VISITING' },
+    }]));
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/admin/provider-applications?tab=updates']}><ProviderApplicationsPage /></MemoryRouter>);
+    await user.click(await screen.findByLabelText('Actions for Austin Equine Clinic update'));
+    await user.click(await screen.findByText('Compare profiles'));
+    const review = await screen.findByRole('dialog', { name: 'Review provider profile update' });
+    expect(within(review).getByRole('row', { name: 'First name — Amina' })).toBeTruthy();
+    expect(within(review).getByRole('row', { name: 'Last name — Rider' })).toBeTruthy();
+    expect(within(review).getByRole('row', { name: 'Doctor availability Not specified VISITING' })).toBeTruthy();
+    const languages = within(review).getByRole('row', { name: /Languages Retained language \(inactive\) English, Retained language \(inactive\)/ });
+    expect(languages.textContent).not.toContain('"en"');
+  });
   it('hides list controls for an unfiltered empty provider application collection', async () => {
     vi.mocked(adminApi.listProviderApplications).mockResolvedValue(response([]));
 

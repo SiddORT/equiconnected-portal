@@ -40,6 +40,8 @@
 .removeVisit:disabled { cursor: not-allowed; opacity: .55; }
 .visitGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .specializationSection { display: grid; gap: 14px; }
+.specializationSection:where(fieldset) { min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--border-default); border-radius: var(--radius-md); }
+.specializationSection legend { padding: 0 5px; color: var(--text-primary); font-weight: 650; }
 .specializationHeader { display: flex; flex-wrap: wrap; flex-direction: column; align-items: flex-start; gap: 12px; }
 .specializationHeader h3, .tabPanel h3 { margin: 0; color: var(--text-primary); font-size: 1.12rem; }
 .specializationHeader p { margin: 5px 0 0; color: var(--text-secondary); font-size: .9rem; }

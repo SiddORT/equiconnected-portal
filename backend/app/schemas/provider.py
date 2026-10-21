@@ -586,6 +586,12 @@ class ProviderPortalUpdate(BaseModel):
     Administrative lifecycle fields deliberately do not appear here.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
+    first_name: str | None = Field(None, max_length=150)
+    last_name: str | None = Field(None, max_length=150)
+    doctor_availability: DoctorAvailability | None = None
+    language_ids: list[UUID] | None = None
     name: str | None = Field(None, min_length=1, max_length=300)
     description: str | None = Field(None, max_length=5000)
     email: str | None = Field(None, max_length=254)
@@ -624,6 +630,7 @@ class ProviderPortalEditableProfile(ProviderPortalUpdate):
     name: str = Field(..., min_length=1, max_length=300)
     visit_stability: VisitStability
     specialization_ids: list[UUID] = Field(default_factory=list)
+    language_ids: list[UUID] = Field(default_factory=list)
     locations: list[LocationCreate] = Field(default_factory=list)
     phones: list[PhoneCreate] = Field(default_factory=list)
     emails: list[EmailCreate] = Field(default_factory=list)
@@ -653,6 +660,7 @@ class ProviderPortalResponse(BaseModel):
     website: str | None
     visit_stability: VisitStability
     specializations: list[ProviderSpecializationBrief] = []
+    language_choices: list[ProviderLanguageBrief] = Field(default_factory=list)
     locations: list[LocationResponse] = []
     photos: list[PhotoResponse] = []
     phones: list[PhoneResponse] = []
@@ -748,6 +756,7 @@ class ProviderProfileUpdateAdminResponse(BaseModel):
     provider_type: ProviderType
     review_status: ProviderProfileUpdateStatus
     proposed_profile: ProviderPortalEditableProfile
+    language_choices: list[ProviderLanguageBrief] = Field(default_factory=list)
     current_profile: ProviderPortalEditableProfile
     submitted_at: datetime
     reviewed_by_user_id: UUID | None

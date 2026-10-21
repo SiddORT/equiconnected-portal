@@ -142,6 +142,79 @@ async function enterTab(user: ReturnType<typeof userEvent.setup>, label: string)
 }
 
 describe('ProviderAccountPage', () => {
+  it('preserves unknown availability and names/languages, then opens Visits from a draft Visiting selection', async () => {
+    const profile: ProviderPortalProfile = {
+      ...portalProfile, doctor_fields_available: true, doctor_availability: null,
+      language_choices: [
+        { id: 'en', name: 'English', code: 'en', is_active: true },
+        { id: 'old', name: 'Saved language', code: 'old', is_active: false },
+      ],
+      editable_profile: { ...portalProfile.editable_profile, first_name: 'Amina', last_name: 'Rider', language_ids: ['old'], doctor_availability: null },
+    };
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(profile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    vi.mocked(providersApi.updateProviderPortalProfile).mockResolvedValue(profile);
+    const user = userEvent.setup();
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+    expect((await screen.findByLabelText('First name') as HTMLInputElement).value).toBe('Amina');
+    expect((screen.getByLabelText('Last name') as HTMLInputElement).value).toBe('Rider');
+    expect((screen.getByRole('checkbox', { name: /Saved language/ }) as HTMLInputElement).checked).toBe(true);
+    await user.click(screen.getByRole('checkbox', { name: 'English' }));
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+    await waitFor(() => expect(providersApi.updateProviderPortalProfile).toHaveBeenCalledWith(expect.objectContaining({
+      first_name: 'Amina', last_name: 'Rider', doctor_availability: null, language_ids: ['old', 'en'],
+    })));
+    await enterTab(user, 'Services');
+    expect((screen.getByRole('radio', { name: 'Ongoing' }) as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByRole('radio', { name: 'Visiting' }) as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByText(/Not specified — choose explicitly/)).toBeTruthy();
+    await user.click(screen.getByRole('radio', { name: 'Visiting' }));
+    const visitTab = screen.getByRole('tab', { name: 'Visits' });
+    visitTab.focus();
+    await user.keyboard('{Enter}');
+    await user.click(screen.getByRole('button', { name: 'Add visit' }));
+    await enterTab(user, 'Services');
+    expect((screen.getByRole('radio', { name: 'Ongoing' }) as HTMLInputElement).disabled).toBe(true);
+    expect(screen.getByText(/Remove proposed visits explicitly/)).toBeTruthy();
+  });
+
+  it('keeps stored photo failures visible and provides keyboard retry without a temporary preview', async () => {
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue({
+      ...portalProfile,
+      editable_profile: { ...portalProfile.editable_profile, photos: [{
+        storage_reference: '/uploads/providers/provider-1/photos/unavailable.png',
+        alt_text: 'Saved exterior', display_order: 0, is_thumbnail: true,
+      }] },
+    });
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    const user = userEvent.setup();
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+    await enterTab(user, 'Photos');
+    fireEvent.error(screen.getByRole('img', { name: 'Saved exterior' }));
+    expect(screen.getByText(/Saving will not repair/)).toBeTruthy();
+    const retry = screen.getByRole('button', { name: 'Retry image' });
+    retry.focus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('img', { name: 'Saved exterior' }).getAttribute('src')).toBe('/uploads/providers/provider-1/photos/unavailable.png');
+    expect(providersApi.uploadProviderPortalPhoto).not.toHaveBeenCalled();
+  });
+
+  it('blocks Ongoing for recorded trips and omits doctor-only controls for clinics', async () => {
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(visitingProfile);
+    vi.mocked(providersApi.getProviderPortalSpecializations).mockResolvedValue([]);
+    const user = userEvent.setup();
+    const view = render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+    await enterTab(user, 'Services');
+    expect((screen.getByRole('radio', { name: 'Ongoing' }) as HTMLInputElement).disabled).toBe(true);
+    expect(screen.getByText(/Doctors with recorded visits must remain Visiting/)).toBeTruthy();
+    view.unmount();
+    vi.mocked(providersApi.getProviderPortalProfile).mockResolvedValue(portalProfile);
+    render(<MemoryRouter><ProviderAccountPage /></MemoryRouter>);
+    await enterTab(user, 'Services');
+    expect(screen.queryByRole('radio', { name: 'Ongoing' })).toBeNull();
+    expect(screen.queryByLabelText('First name')).toBeNull();
+  });
+
   it('hides general description for doctors and leaves it out of profile saves', async () => {
     const profile = {
       ...portalProfile,

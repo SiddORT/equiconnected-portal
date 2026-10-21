@@ -687,6 +687,7 @@ export interface ProviderFeedbackReview {
 }
 
 export interface ProviderPortalProfile {
+  language_choices?: Language[];
   id: string;
   name: string;
   description: string | null;
@@ -722,6 +723,10 @@ export interface ProviderPortalProfile {
 }
 
 export interface ProviderPortalUpdate {
+  first_name?: string | null;
+  last_name?: string | null;
+  doctor_availability?: DoctorAvailability | null;
+  language_ids?: string[];
   name?: string;
   description?: string | null;
   email?: string | null;
@@ -1013,6 +1018,7 @@ export interface ProviderApplicationListParams {
 }
 
 export interface ProviderProfileUpdate {
+  language_choices?: Language[];
   id: string;
   provider_id: string;
   provider_name: string;

@@ -493,8 +493,16 @@ function ProfileUpdateDialog({ update, formatTimestamp, onClose, onDecision, err
   const proposedVisits = (
     update.proposed_profile as typeof update.proposed_profile & { visit_additions?: ProposedVisitAddition[] }
   ).visit_additions;
+  const languageNames = (ids: string[] | undefined) => (ids ?? []).map((id) => {
+    const language = update.language_choices?.find((item) => item.id === id);
+    return language ? `${language.name}${language.is_active ? '' : ' (inactive)'}` : `Unavailable language (${id})`;
+  }).join(', ') || '—';
   const rows: Array<[string, ReactNode, ReactNode]> = [
     ['Name', update.current_profile.name, update.proposed_profile.name],
+    ['First name', update.current_profile.first_name || '—', update.proposed_profile.first_name || '—'],
+    ['Last name', update.current_profile.last_name || '—', update.proposed_profile.last_name || '—'],
+    ['Languages', languageNames(update.current_profile.language_ids), languageNames(update.proposed_profile.language_ids)],
+    ['Doctor availability', update.current_profile.doctor_availability ?? 'Not specified', update.proposed_profile.doctor_availability ?? 'Not specified'],
     ['Description', update.current_profile.description || '—', update.proposed_profile.description || '—'],
     ['Email', update.current_profile.email || '—', update.proposed_profile.email || '—'],
     ['Phone', update.current_profile.phone || '—', update.proposed_profile.phone || '—'],

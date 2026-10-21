@@ -6,6 +6,7 @@ import json
 import re
 from types import SimpleNamespace
 from uuid import UUID
+from pydantic import ValidationError
 
 from app.core.phone_metadata import SUPPORTED_PHONE_DIAL_CODES
 from app.models.enums import (
@@ -38,11 +39,30 @@ class ProviderProfileUpdateConflictError(ProviderProfileUpdateDecisionError):
 
 
 _DOCTOR_FIELDS = {
+    "first_name",
+    "last_name",
+    "doctor_availability",
     "professional_title",
     "biography",
     "experience_description",
     "qualifications",
 }
+
+def portal_language_choices(provider: Provider, profile: ProviderPortalEditableProfile) -> list:
+    """Offer active values and identify retained inactive values without admin access."""
+    from sqlalchemy import or_, select
+    from sqlalchemy.orm import object_session
+    from app.models.language import Language
+    from app.schemas.provider import ProviderLanguageBrief
+
+    db = object_session(provider)
+    return [
+        ProviderLanguageBrief.model_validate(row)
+        for row in db.scalars(select(Language).where(or_(
+            Language.is_active.is_(True),
+            Language.id.in_(profile.language_ids),
+        )).order_by(Language.name)).all()
+    ]
 
 
 def _canonicalize_collection(items: list) -> list:
@@ -102,6 +122,7 @@ def editable_profile_from_provider(provider: Provider) -> ProviderPortalEditable
             )
         ),
         "visit_stability": provider.visit_stability,
+        "language_ids": sorted((link.language_id for link in provider.provider_languages), key=str),
         "specialization_ids": sorted(
             (link.specialization_id for link in provider.provider_specializations),
             key=str,
@@ -181,6 +202,9 @@ def editable_profile_from_provider(provider: Provider) -> ProviderPortalEditable
     if provider.provider_type == ProviderType.DOCTOR:
         payload.update(
             {
+                "doctor_availability": provider.doctor_availability,
+                "first_name": provider.doctor_profile.first_name if provider.doctor_profile else None,
+                "last_name": provider.doctor_profile.last_name if provider.doctor_profile else None,
                 "professional_title": (
                     provider.doctor_profile.professional_title
                     if provider.doctor_profile else None
@@ -227,7 +251,10 @@ def merge_editable_profile(
 ) -> ProviderPortalEditableProfile:
     merged = base.model_dump()
     merged.update(patch)
-    return ProviderPortalEditableProfile.model_validate(merged)
+    try:
+        return ProviderPortalEditableProfile.model_validate(merged)
+    except ValidationError as exc:
+        raise InvalidProviderDataError(str(exc)) from exc
 
 
 def sync_editable_profile_contacts(
@@ -275,6 +302,7 @@ def serialize_editable_profile(
 ) -> dict:
     """Create a stable, JSON-safe payload for comparisons and persistence."""
     payload = profile.model_dump(mode="json")
+    payload["language_ids"] = sorted(set(payload["language_ids"]))
     for field in (
         "locations",
         "phones",
@@ -303,6 +331,23 @@ def validate_editable_profile(
         raise InvalidProviderDataError(
             "Doctor-specific fields can only be saved for Doctor providers."
         )
+    retained_languages = {link.language_id for link in provider.provider_languages}
+    for language_id in set(profile.language_ids):
+        language = provider_repo.get_language(language_id)
+        if language is None or (not language.is_active and language_id not in retained_languages):
+            raise InvalidProviderDataError(f"Language not found or inactive: {language_id}")
+    if provider.provider_type == ProviderType.DOCTOR:
+        first = (profile.first_name or "").strip()
+        last = (profile.last_name or "").strip()
+        if bool(first) != bool(last):
+            raise InvalidProviderDataError("Enter both doctor first and last names, or leave both empty for a legacy name-only listing.")
+        if first and len(first) + len(last) + 1 > 300:
+            raise InvalidProviderDataError("Doctor full name must be 300 characters or fewer.")
+        if profile.doctor_availability != DoctorAvailability.VISITING:
+            if profile.visit_additions:
+                raise InvalidProviderDataError("Remove proposed visits explicitly before selecting a non-visiting classification.")
+            if provider_repo.visits(provider.id) and profile.doctor_availability != provider.doctor_availability:
+                raise InvalidProviderDataError("Doctors with recorded visits must remain Visiting. Recorded history cannot be removed here.")
     for specialization_id in dict.fromkeys(profile.specialization_ids):
         specialization = provider_repo.get_specialization(specialization_id)
         if specialization is None or not specialization.is_active:
@@ -359,7 +404,7 @@ def validate_editable_profile(
     if should_validate_visits and profile.visit_additions:
         if (
             provider.provider_type != ProviderType.DOCTOR
-            or provider.doctor_availability != DoctorAvailability.VISITING
+            or profile.doctor_availability != DoctorAvailability.VISITING
         ):
             raise InvalidProviderDataError(
                 "Only visiting doctors can add scheduled visits."
@@ -420,6 +465,10 @@ def apply_editable_profile(
     # suggestion semantics intentionally remain owned by InvitationService.
     profile = sync_editable_profile_contacts(profile, {"emails", "phones"})
     fields = profile.model_dump()
+    # Language retention is validated above; the invitation writer intentionally
+    # accepts only active values, so keep this portal-specific exception here.
+    language_ids = fields.pop("language_ids")
+    provider_repo.replace_languages(provider.id, language_ids)
     # These virtual draft entries are persisted as DoctorVisit rows only after
     # validation; they are not writable provider attributes.
     fields.pop("visit_additions", None)
