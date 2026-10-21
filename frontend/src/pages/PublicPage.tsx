@@ -345,10 +345,10 @@ export function PublicPage() {
             </div>
             <div className={styles.categoryGrid}>
               {[
-                { number: 'i', type: 'Veterinary professional', title: 'Vets', description: 'Find veterinary professionals and explore the care they offer for your horse.', services: ['Health checks', 'Lameness exams', 'Dentistry'], image: categoryVet, credit: 'Photo by Daniel Bonilla on Unsplash' },
-                { number: 'ii', type: 'Clinic', title: 'Clinics', description: 'Discover equine clinics and learn more about their services and facilities.', services: ['X-ray & ultrasound', 'Outpatient', 'Rehabilitation'], image: categoryClinic, credit: 'Photo by Mathias Reding on Unsplash' },
-                { number: 'iii', type: 'Hospital', title: 'Hospitals', description: 'Explore equine hospitals and the care options available at each location.', services: ['Surgery', 'Intensive care', 'MRI & CT'], image: categoryHospital, credit: 'Photo by D. Gibson on Unsplash' },
-              ].map(({ number, type, title, description, services, image, credit }) => (
+                { number: 'i', type: 'Veterinary professional', title: 'Vets', description: 'Find veterinary professionals and explore the care they offer for your horse.', image: categoryVet, credit: 'Photo by Daniel Bonilla on Unsplash' },
+                { number: 'ii', type: 'Clinic', title: 'Clinics', description: 'Discover equine clinics and learn more about their services and facilities.', image: categoryClinic, credit: 'Photo by Mathias Reding on Unsplash' },
+                { number: 'iii', type: 'Hospital', title: 'Hospitals', description: 'Explore equine hospitals and the care options available at each location.', image: categoryHospital, credit: 'Photo by D. Gibson on Unsplash' },
+              ].map(({ number, type, title, description, image, credit }) => (
                 <article className={styles.categoryCard} key={number}>
                   <Link to={careHref} className={styles.categoryLink} aria-label={`Explore ${title} in the directory`}>
                     <div className={styles.categoryPhoto}>
@@ -358,9 +358,6 @@ export function PublicPage() {
                     <div className={styles.categoryCaption}><span>{number}</span> {type}</div>
                     <h3>{title}</h3>
                     <p>{description}</p>
-                    <ul className={styles.categoryServices} aria-label="Example services; offerings vary by provider">
-                      {services.map((service) => <li key={service}>{service}</li>)}
-                    </ul>
                   </Link>
                 </article>
               ))}
