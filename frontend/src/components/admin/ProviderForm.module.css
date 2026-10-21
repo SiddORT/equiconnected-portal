@@ -363,6 +363,21 @@
   background: var(--bg-surface);
 }
 
+/* Keep visit actions compact in both grid cards and column-flex sections. */
+.form .visitAction {
+  align-self: flex-start;
+  justify-self: start;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  height: auto;
+  min-height: 40px;
+  padding-block: var(--space-2);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .serviceFields label {
   display: flex;
   align-items: center;

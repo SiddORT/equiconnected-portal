@@ -1524,7 +1524,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                     <p className={styles.hint}>{visitSummary(visit).split(' · ').slice(1).join(' · ')}</p>
                     <p className={styles.hint}>{visit.start_date > todayDate() ? 'Upcoming' : visit.end_date < todayDate() ? 'Historical — read-only' : 'Current — read-only'}</p>
                     {visit.start_date > todayDate() && doctorAvailability === 'VISITING' && (
-                      <Button type="button" variant="secondary" disabled={visitDrafts.some((draft) => draft.id === visit.id)}
+                      <Button type="button" variant="secondary" className={styles.visitAction} disabled={visitDrafts.some((draft) => draft.id === visit.id)}
                         onClick={() => setVisitDrafts((drafts) => [...drafts, { ...visit, location: { ...visit.location }, key: visit.id }])}>
                         {visitDrafts.some((draft) => draft.id === visit.id) ? 'Amendment staged below' : 'Amend upcoming visit'}
                       </Button>
@@ -1536,11 +1536,11 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                   <div key={draft.key} className={styles.visitCard}>
                     <h4 className={styles.sectionTitle}>{draft.id ? 'Amend upcoming visit' : 'Additional visit'} {index + 1} — not saved</h4>
                     <ProviderVisitFields value={draft} onChange={(value) => setVisitDrafts((drafts) => drafts.map((item) => item.key === draft.key ? { ...draft, ...value } : item))} />
-                    <Button type="button" variant="ghost" onClick={() => setVisitDrafts((drafts) => drafts.filter((item) => item.key !== draft.key))}>Discard {draft.id ? 'amendment' : 'new visit'}</Button>
+                    <Button type="button" variant="ghost" className={styles.visitAction} onClick={() => setVisitDrafts((drafts) => drafts.filter((item) => item.key !== draft.key))}>Discard {draft.id ? 'amendment' : 'new visit'}</Button>
                   </div>
                 ))}
                 {doctorAvailability === 'VISITING' && (
-                  <Button type="button" variant="secondary" onClick={() => setVisitDrafts((drafts) => [...drafts, {
+                  <Button type="button" variant="secondary" className={styles.visitAction} onClick={() => setVisitDrafts((drafts) => [...drafts, {
                     key: `new-${nextVisitKey.current++}`, start_date: '', end_date: '',
                     location: { address_line_1: '', city: '', country: DEFAULT_ADDRESS_COUNTRY },
                   }])}>Record additional visit</Button>
