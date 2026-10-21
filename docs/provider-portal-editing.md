@@ -62,6 +62,11 @@ fixture checks are synthetic UI evidence, not UAT origin/storage evidence.
 
 ## Required external configuration (server operator; not executed here)
 
+For the renewed repair, use [the current operator handoff](uat-photo-delivery.md).
+It contains fresh public evidence, access/approval blockers, active-upstream
+discovery, storage checks, a read-only verifier, and validation/rollback steps.
+The example below is historical guidance, **not a verified active UAT patch**.
+
 Add the following location to the existing UAT Nginx TLS server block, before
 the SPA fallback. Use the **same upstream as the existing `/api/` route**;
 8000 below is this project's documented FastAPI port, not an independently
