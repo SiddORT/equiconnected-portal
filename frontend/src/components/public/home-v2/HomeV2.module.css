@@ -141,6 +141,7 @@
 .categoryCard p { max-width: 390px; margin: 17px 0 0; color: var(--ink); font-size: 15px; line-height: 1.55; }
 .categoryServices { display: flex; flex-wrap: wrap; gap: 7px; margin: 30px 0 0; padding: 0; list-style: none; }
 .categoryServices li { padding: 5px 12px; border: 1px solid rgba(80,71,54,.2); border-radius: 999px; background: rgba(255,255,255,.32); font-size: 12px; line-height: 1.35; white-space: nowrap; }
+.categoryNote { margin: 28px 0 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
 
 .findSection { display: grid; grid-template-columns: 1.03fr .97fr; align-items: center; gap: clamp(42px,5vw,82px); width: min(100% - 64px,1390px); margin: auto; padding: clamp(35px,3vw,55px) 0 clamp(70px,7vw,110px); scroll-margin-top: 90px; }
 .findImage { position: relative; min-height: 530px; overflow: hidden; background: var(--paper-deep); }
