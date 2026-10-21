@@ -182,8 +182,10 @@ export async function revokeProviderPortalAccess(id: string): Promise<ProviderPo
   return data;
 }
 
-export async function createProvider(body: ProviderCreate): Promise<Provider> {
-  const { data } = await apiClient.post<Provider>('/admin/providers', body);
+export async function createProvider(body: ProviderCreate, requestKey?: string): Promise<Provider> {
+  const { data } = await apiClient.post<Provider>('/admin/providers', body, {
+    headers: requestKey ? { 'Idempotency-Key': requestKey } : undefined,
+  });
   return data;
 }
 

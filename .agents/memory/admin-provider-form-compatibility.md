@@ -20,3 +20,9 @@ Admin vet professional information is optional, including first and last names. 
 **Why:** The user explicitly asked that the admin Add Provider vet flow permit continuing without first and last names, consistent with its “Professional info — optional” heading.
 
 **How to apply:** Accept blank or partially supplied professional names in the admin wizard, including clearing optional names during edits. Validate professional values only when supplied. Keep this admin rule separate from the structured-name requirements of public invitation flows.
+
+Do not present an administrator's multi-request save as an atomic transaction. After a partial save, keep the reviewed snapshot stable for retry, reconcile uncertain visit outcomes, and state that Cancel does not undo committed changes.
+
+**Why:** Provider details, relationships, visits, photos and access-email delivery use independently committed requests. A later failure must not duplicate a provider or visit, silently discard unsaved input, or skip remaining work.
+
+**How to apply:** Preserve explicit review/save boundaries and retry identity when extending the shared wizard. Distinguish a confirmed rejection from a lost response; do not let a new create attempt replace an unresolved one.

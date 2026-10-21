@@ -30,10 +30,11 @@
 }
 .form {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-6);
   align-items: stretch;
 }
+.form > * { min-width: 0; }
 
 /* Cards that should span both columns */
 .cardFull {
@@ -94,14 +95,16 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: var(--space-4);
+  min-width: 0;
 }
 .basicSelections {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
   align-items: start;
+  min-width: 0;
 }
 
 .locationPicker {
@@ -119,6 +122,8 @@
 
 .textarea {
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
@@ -136,6 +141,7 @@
 
 .specFilterInput {
   width: 100%;
+  min-width: 0;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
@@ -145,6 +151,22 @@
   font-family: inherit;
   transition: border-color var(--transition-fast);
   box-sizing: border-box;
+}
+.adminForm :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select) {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: var(--text-sm);
+}
+.adminForm :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select):focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 1px;
+  border-color: var(--color-primary-500);
+}
+.adminForm input[type="checkbox"],
+.adminForm input[type="radio"] {
+  accent-color: var(--color-primary-500);
 }
 .specFilterInput:focus {
   outline: none;
@@ -307,6 +329,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--space-3);
 }
 
@@ -318,13 +341,26 @@
   padding: var(--space-3);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
+  min-width: 0;
 }
+.qualificationRow > * { min-width: 0; }
 
 .serviceFields {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.visitCard {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
 }
 
 .serviceFields label {
@@ -385,8 +421,18 @@
 .footer {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-3);
   padding-top: var(--space-4);
   border-top: 1px solid var(--border-default);
 }
 .cancelButton { margin-right: auto; }
+
+@media (max-width: 480px) {
+  .footer { justify-content: stretch; }
+  .footer > * { flex: 1 1 auto; }
+  .cancelButton { margin-right: 0; }
+  .qualificationRow { grid-template-columns: minmax(0, 1fr); }
+  .photoDropzone { align-items: flex-start; }
+}

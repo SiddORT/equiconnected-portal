@@ -47,9 +47,9 @@ export function ProviderWizardHeader({
         <ol className={styles.steps}>
           {steps.map((step, index) => (
             <li key={step.title} ref={current === index ? activeStep : undefined} className={`${styles.step} ${current === index ? styles.active : ''} ${index < current ? styles.done : ''}`}>
-              {index < current ? (
-                <button type="button" disabled={locked} onClick={() => onSelect(index)} aria-label={`Return to ${step.title}`}>
-                  <span className={styles.number} aria-hidden="true">✓</span>
+              {index !== current ? (
+                <button type="button" disabled={locked} onClick={() => onSelect(index)} aria-label={`Go to ${step.title}`}>
+                  <span className={styles.number} aria-hidden="true">{index + 1}</span>
                   <span className={styles.stepLabel}>{step.title}</span>
                 </button>
               ) : (

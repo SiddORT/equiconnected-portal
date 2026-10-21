@@ -7,7 +7,7 @@
  *   onCancel() — called when the user dismisses the form
  */
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { isAxiosError } from 'axios';
 import { extractErrorMessage } from '@/api/client';
 import { listProviderSignupLanguages, type PostalCandidate } from '@/api/auth';
 import {
@@ -16,6 +16,7 @@ import {
   addProviderSpecialization,
   createProvider,
   createProviderLocation,
+  createProviderVisit,
   getProvider,
   getProviderPortalAccess,
   removeProviderEmail,
@@ -24,6 +25,7 @@ import {
   sendProviderPortalAccess,
   updateProvider,
   updateProviderLocation,
+  updateProviderVisit,
   updateProviderPublication,
   updateProviderStatus,
   uploadProviderPhoto,
@@ -40,6 +42,8 @@ import { Select } from '@/components/ui/Select';
 import { MultiEmailField, type EmailEntry } from './MultiEmailField';
 import { MultiPhoneField, type PhoneEntry } from './MultiPhoneField';
 import { ProviderWizardHeader, ProviderWizardReview } from './ProviderWizard';
+import { ProviderVisitFields } from './ProviderVisitFields';
+import { orderVisitDrafts, sameVisit, todayDate, validateVisitDrafts, visitPayload, visitSummary, type VisitDraft } from './providerVisitDrafts';
 import { SignupMultiSelect } from '@/pages/SignupMultiSelect';
 import type {
   InvitationDraftPayload,
@@ -99,17 +103,21 @@ const PUBLICATION_OPTIONS = [
 ];
 
 const WIZARD_STEPS = [
-  { title: 'Basic details', description: 'Add the provider identity, specializations, languages, and photo.' },
-  { title: 'Professional details', description: 'Add professional background and qualifications.' },
-  { title: 'Services', description: 'Choose visit options, emergency care, and visibility.' },
+  { title: 'Basic information', description: 'Add provider identity and general information. Use the section navigation to see all available fields.' },
+  { title: 'Professional information', description: 'Optional doctor / vet background, experience and qualifications.' },
+  { title: 'Services & availability', description: 'Choose visit options, emergency care, availability and visibility.' },
   { title: 'Contact & location', description: 'Enter a primary email and one provider location.' },
   { title: 'Review & create', description: 'Check everything before creating the provider.' },
+  { title: 'Specializations', description: 'Search and select care specializations. This section is optional for every provider type.' },
+  { title: 'Languages', description: 'Search and select spoken languages. This section is optional for every provider type.' },
+  { title: 'Photo', description: 'Optionally add or replace the profile photo. Existing photos are retained.' },
 ];
+const REVIEW_STEP = 4;
 
 function wizardStepForField(key: string, providerType: string): number {
   if (key === 'provider_type' || key === 'name' || (key === 'years_experience' && providerType !== 'DOCTOR')) return 0;
   if (['first_name', 'last_name', 'years_experience'].includes(key) || key.startsWith('qualification_')) return 1;
-  if (['visit_stability', 'maximum_working_radius_km', 'emergency_contact_number', 'initial_visit', 'doctor_availability'].includes(key)) return 2;
+  if (['visit_stability', 'maximum_working_radius_km', 'emergency_contact_number', 'initial_visit', 'doctor_availability', 'visits'].includes(key)) return 2;
   return 3;
 }
 
@@ -179,7 +187,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const [providerType, setProviderType] = useState<string>(
     inv?.providerType ?? initialData?.provider_type ?? ''
   );
-  const stepOrder = providerType === 'DOCTOR' ? [0, 1, 2, 3, 4] : [0, 2, 3, 4];
+  const stepOrder = providerType === 'DOCTOR' ? [0, 5, 6, 1, 2, 3, 7, 4] : [0, 5, 6, 2, 3, 7, 4];
   const wizardPosition = stepOrder.indexOf(wizardStep);
   const [name, setName] = useState(inv?.initial.name ?? initialData?.name ?? '');
   const [description, setDescription] = useState(initialData?.description ?? '');
@@ -258,7 +266,12 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   const [qualifications, setQualifications] = useState<Array<QualificationCreate & { id?: string }>>(
     initialData?.qualifications?.map((q) => ({ id: q.id, title: q.title, institution: q.institution, year_obtained: q.year_obtained, description: q.description, display_order: q.display_order })) ?? []
   );
-  const [languages, setLanguages] = useState<Language[]>([]);
+  const qualificationsChanged = !isEdit || JSON.stringify(qualifications) !== JSON.stringify(
+    initialData?.qualifications?.map((q) => ({
+      id: q.id, title: q.title, institution: q.institution, year_obtained: q.year_obtained,
+      description: q.description, display_order: q.display_order,
+    })) ?? []);
+  const [languages, setLanguages] = useState<Language[]>(initialData?.languages ?? []);
   const [languageError, setLanguageError] = useState<string | null>(null);
   const [loadingLanguages, setLoadingLanguages] = useState(true);
   const [selectedLanguageIds, setSelectedLanguageIds] = useState<string[]>(
@@ -266,6 +279,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   );
   const [languageFilter, setLanguageFilter] = useState('');
   const [maximumRadius, setMaximumRadius] = useState(initialData?.maximum_working_radius_km != null ? String(initialData.maximum_working_radius_km) : '');
+  const serviceSettingsChanged = !isEdit || visitStability !== initialData?.visit_stability ||
+    maximumRadius !== (initialData?.maximum_working_radius_km != null ? String(initialData.maximum_working_radius_km) : '');
   const [emergencyServices, setEmergencyServices] = useState(initialData?.emergency_services_available ?? false);
   const [initialEmergencyPhone] = useState(() => emergencyPhoneFromNumber(initialData?.emergency_contact_number));
   const [emergencyPhone, setEmergencyPhone] = useState(initialEmergencyPhone);
@@ -284,7 +299,18 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     invitationAddressesFromDraft(inv?.initial.locations ?? []));
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(initialData?.thumbnail_url ?? null);
-  const [savedProviderId, setSavedProviderId] = useState<string | null>(null);
+  // Keep the exact reviewed snapshot fixed after saving starts. Each completed
+  // request is journalled so a later failure can resume instead of repeating it.
+  const [saveLocked, setSaveLocked] = useState(false);
+  const saveJournal = useRef(new Map<string, unknown>());
+  const createRequestKey = useRef<string | null>(null);
+  const persistedProviderId = useRef<string | null>(initialData?.id ?? null);
+  async function saveOnce<T,>(key: string, write: () => Promise<T>): Promise<T> {
+    if (saveJournal.current.has(key)) return saveJournal.current.get(key) as T;
+    const result = await write();
+    saveJournal.current.set(key, result);
+    return result;
+  }
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [selectedSpecIds, setSelectedSpecIds] = useState<string[]>(
     inv?.initial.specialization_ids ?? initialData?.specializations.map((s) => s.id) ?? []
@@ -293,10 +319,15 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     initialData?.doctor_availability ?? 'ONGOING'
   );
   const [initialVisitLocation, setInitialVisitLocation] = useState({
-    name: '', address_line_1: '', city: '', state_province: '', country: DEFAULT_ADDRESS_COUNTRY, postal_code: '',
+    name: '', address_line_1: '', address_line_2: '', city: '', state_province: '', country: DEFAULT_ADDRESS_COUNTRY, postal_code: '',
+    latitude: '' as string | number | null, longitude: '' as string | number | null,
   });
   const [initialVisitStart, setInitialVisitStart] = useState('');
   const [initialVisitEnd, setInitialVisitEnd] = useState('');
+  const [visitDrafts, setVisitDrafts] = useState<VisitDraft[]>([]);
+  const nextVisitKey = useRef(0);
+  const savedVisits = initialData?.doctor_visits ?? [];
+  const hasRecordedVisits = savedVisits.length > 0;
 
 
   useEffect(() => () => {
@@ -349,7 +380,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     setPostalLoading(false);
   }
 
-  const [specializations, setSpecializations] = useState<Specialization[]>([]);
+  const [specializations, setSpecializations] = useState<Specialization[]>(() =>
+    initialData?.specializations.map((saved) => ({ ...saved, description: null, created_at: '', updated_at: '' })) ?? []);
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
   const [specsError, setSpecsError] = useState<string | null>(null);
   const [loadingSpecializations, setLoadingSpecializations] = useState(true);
   const [specFilter, setSpecFilter] = useState('');
@@ -367,6 +400,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   // Load active specializations for the multi-select (page through all).
   useEffect(() => {
     let cancelled = false;
+    setLoadingSpecializations(true);
+    setSpecsError(null);
     (async () => {
       try {
         let all: Specialization[];
@@ -397,11 +432,13 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [catalogAttempt]);
 
   const invitationMode = Boolean(inv);
   useEffect(() => {
     let cancelled = false;
+    setLoadingLanguages(true);
+    setLanguageError(null);
     (async () => {
       try {
         let all: Language[] = [];
@@ -428,7 +465,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       }
     })();
     return () => { cancelled = true; };
-  }, [invitationMode, initialData]);
+  }, [invitationMode, initialData, catalogAttempt]);
 
   useEffect(() => {
     const query = location.postal_code.trim();
@@ -516,11 +553,11 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     if (!inv && !isEdit && !emailEntries.some((e) => e.email.trim() && e.is_primary)) {
       errors.email = 'A primary email is required.';
     }
-    if (!inv && visitStability === 'STABLE_VISIT' && (!maximumRadius.trim() || !Number.isFinite(Number(maximumRadius)) || Number(maximumRadius) <= 0) &&
+    if (!inv && serviceSettingsChanged && visitStability === 'STABLE_VISIT' && (!maximumRadius.trim() || !Number.isFinite(Number(maximumRadius)) || Number(maximumRadius) <= 0) &&
       !(isEdit && initialData?.visit_stability === 'STABLE_VISIT' && initialData.maximum_working_radius_km == null && !maximumRadius.trim())) {
       errors.maximum_working_radius_km = 'A finite radius greater than 0 is required for stable visits.';
     }
-    if (!inv && visitStability === 'NOT_STABLE_VISIT' && maximumRadius.trim()) {
+    if (!inv && serviceSettingsChanged && visitStability === 'NOT_STABLE_VISIT' && maximumRadius.trim()) {
       errors.maximum_working_radius_km = 'Radius is only available for stable visits.';
     }
     if (!inv && emergencyServices && !emergencyNumber.trim() &&
@@ -536,9 +573,20 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       });
     }
     if (!inv && providerType === 'DOCTOR') {
-      qualifications.forEach((q, i) => {
+      if (qualificationsChanged) qualifications.forEach((q, i) => {
         if (!q.title.trim()) errors[`qualification_${i}`] = 'Qualification title is required.';
+        else if (q.year_obtained != null && (!Number.isInteger(q.year_obtained) || q.year_obtained < 1900 || q.year_obtained > 2100))
+          errors[`qualification_${i}`] = 'Qualification year must be a whole number between 1900 and 2100.';
       });
+      if (visitDrafts.length) {
+        if (doctorAvailability !== 'VISITING') errors.visits = 'Staged visits require Visiting availability. Discard the drafts before changing availability.';
+        else {
+          const issue = validateVisitDrafts(visitDrafts, savedVisits);
+          if (issue) errors.visits = issue;
+        }
+      }
+      if (hasRecordedVisits && doctorAvailability !== 'VISITING')
+        errors.doctor_availability = 'A doctor with recorded visits must remain visiting.';
       if (!isEdit && doctorAvailability === 'VISITING') {
         const hasLocation = Boolean(initialVisitLocation.address_line_1.trim() && initialVisitLocation.city.trim());
         const hasAny = Boolean(initialVisitStart || initialVisitEnd ||
@@ -547,6 +595,11 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           errors.initial_visit = 'Complete the initial visit location and both dates, or leave it unscheduled.';
         } else if (initialVisitStart && initialVisitEnd && initialVisitEnd < initialVisitStart) {
           errors.initial_visit = 'End date must be on or after the start date.';
+        } else if (hasAny) {
+          const issue = validateVisitDrafts([{
+            key: 'initial', location: initialVisitLocation, start_date: initialVisitStart, end_date: initialVisitEnd,
+          }], []);
+          if (issue) errors.initial_visit = issue;
         }
       }
     }
@@ -587,16 +640,16 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   function nextWizardStep() {
     if (!validate(wizardStep)) return;
     const nextStep = stepOrder[Math.min(wizardPosition + 1, stepOrder.length - 1)];
-    if (nextStep === WIZARD_STEPS.length - 1) setReviewReady(false);
+    if (nextStep === REVIEW_STEP) setReviewReady(false);
     setWizardStep(nextStep);
   }
 
   useEffect(() => {
-    if (!wizard || wizardStep !== WIZARD_STEPS.length - 1 || savedProviderId) return;
+    if (!wizard || wizardStep !== REVIEW_STEP) return;
     // The next physical click in a double-click can land on the newly rendered CTA.
     const timer = window.setTimeout(() => setReviewReady(true), 500);
     return () => window.clearTimeout(timer);
-  }, [wizard, wizardStep, savedProviderId]);
+  }, [wizard, wizardStep]);
 
   function buildInvitationPayload(): InvitationDraftPayload {
     const payload: InvitationDraftPayload = {
@@ -642,26 +695,6 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     }
   }
 
-  async function retryPhotoUpload() {
-    if (!photo || !savedProviderId || submissionInProgress.current) return;
-    submissionInProgress.current = true;
-    setSubmitting(true);
-    setPhotoError(null);
-    try {
-      await uploadProviderPhoto(savedProviderId, photo, { display_order: 0, is_thumbnail: true });
-      const refreshed = await getProvider(savedProviderId);
-      setSavedProviderId(null);
-      setPhoto(null);
-      submissionCompleted.current = true;
-      onSuccess?.(refreshed);
-    } catch (err) {
-      setPhotoError(`Provider saved, but the photo could not be uploaded. Please retry or edit provider ${savedProviderId}: ${extractErrorMessage(err, 'upload failed')}`);
-    } finally {
-      submissionInProgress.current = false;
-      setSubmitting(false);
-    }
-  }
-
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     // Wizard navigation and creation are explicit button actions, never an
@@ -671,7 +704,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
   }
 
   async function submitProvider() {
-    if (submissionInProgress.current || submissionCompleted.current || (wizard && (wizardStep !== WIZARD_STEPS.length - 1 || !reviewReady))) return;
+    if (submissionInProgress.current || submissionCompleted.current || (wizard && (wizardStep !== REVIEW_STEP || !reviewReady))) return;
     setApiError(null);
     if (inv && invitationAddresses.length > 1) {
       setFieldErrors((current) => ({ ...current, address_choice: 'Choose one saved address to keep before continuing.' }));
@@ -705,18 +738,12 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       return;
     }
 
-    // A provider was already persisted when only its photo upload failed.
-    // Never submit the core form again (which could create a duplicate).
-    if (savedProviderId && photo) {
-      await retryPhotoUpload();
-      return;
-    }
-
     submissionInProgress.current = true;
     setSubmitting(true);
+    setSaveLocked(true);
     setPhotoError(null);
     try {
-      const completedInitialVisit = initialVisitStart && initialVisitEnd &&
+      const completedInitialVisit = doctorAvailability === 'VISITING' && initialVisitStart && initialVisitEnd &&
         initialVisitLocation.address_line_1.trim() && initialVisitLocation.city.trim()
         ? {
             location: {
@@ -726,6 +753,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               state_province: initialVisitLocation.state_province.trim() || null,
               country: initialVisitLocation.country.trim() || null,
               postal_code: initialVisitLocation.postal_code.trim() || null,
+              address_line_2: initialVisitLocation.address_line_2.trim() || null,
+              latitude: initialVisitLocation.latitude === '' ? null : initialVisitLocation.latitude,
+              longitude: initialVisitLocation.longitude === '' ? null : initialVisitLocation.longitude,
             },
             start_date: initialVisitStart,
             end_date: initialVisitEnd,
@@ -733,15 +763,14 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         : undefined;
       let saved: Provider;
       if (isEdit && initialData) {
-        saved = await updateProvider(initialData.id, {
+        saved = await saveOnce('provider', () => updateProvider(initialData.id, {
           admin_form_version: 2,
           provider_type: providerType as ProviderType,
           name: name.trim(),
           website: website.trim() || null,
           ...(providerType !== 'DOCTOR' ? { description: description.trim() || null } : {}),
           years_experience: yearsExperience.trim() ? Number(yearsExperience) : null,
-          ...(initialData.visit_stability === 'STABLE_VISIT' && initialData.maximum_working_radius_km == null &&
-            visitStability === 'STABLE_VISIT' && !maximumRadius.trim()
+          ...(!serviceSettingsChanged
             ? {} : {
               visit_stability: visitStability as VisitStability,
               maximum_working_radius_km: visitStability === 'STABLE_VISIT' && maximumRadius.trim() ? Number(maximumRadius) : null,
@@ -762,38 +791,38 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                 professional_title: professionalTitle.trim() || null,
                 biography: biography.trim() || null,
                 experience_description: experienceDescription.trim() || null,
-                qualifications: qualifications.map((q, i) => ({
+                ...(qualificationsChanged ? { qualifications: qualifications.map((q, i) => ({
                   ...q,
                   title: q.title.trim(),
                   institution: q.institution?.trim() || null,
                   description: q.description?.trim() || null,
                   display_order: i,
-                })),
+                })) } : {}),
               }
             : {}),
           ...(providerType === 'DOCTOR'
             ? { doctor_availability: doctorAvailability }
             : {}),
-        });
+        }));
         // Status / publication use dedicated endpoints — only when changed.
         if (status !== initialData.status) {
-          saved = await updateProviderStatus(initialData.id, status as ProviderStatus);
+          saved = await saveOnce('status', () => updateProviderStatus(initialData.id, status as ProviderStatus));
         }
         if (publication !== initialData.publication_status) {
-          saved = await updateProviderPublication(
+          saved = await saveOnce('publication', () => updateProviderPublication(
             initialData.id,
             publication as PublicationStatus
-          );
+          ));
         }
         // Specializations: apply the diff; untouched relationships persist.
         const originalIds = initialData.specializations.map((s) => s.id);
         const toAdd = selectedSpecIds.filter((id) => !originalIds.includes(id));
         const toRemove = originalIds.filter((id) => !selectedSpecIds.includes(id));
         for (const specId of toAdd) {
-          saved = await addProviderSpecialization(initialData.id, specId);
+          saved = await saveOnce(`spec-add-${specId}`, () => addProviderSpecialization(initialData.id, specId));
         }
         for (const specId of toRemove) {
-          saved = await removeProviderSpecialization(initialData.id, specId);
+          saved = await saveOnce(`spec-remove-${specId}`, () => removeProviderSpecialization(initialData.id, specId));
         }
         // Phones: diff against the saved list. Changed rows are re-created.
         const keptPhoneIds = new Set<string>();
@@ -815,14 +844,14 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         }
         const phonesToRemove = initialData.phones.filter((p) => !keptPhoneIds.has(p.id));
         for (const p of phonesToRemove) {
-          await removeProviderPhone(initialData.id, p.id);
+          await saveOnce(`phone-remove-${p.id}`, () => removeProviderPhone(initialData.id, p.id));
         }
-        for (const entry of phonesToAdd) {
-          await addProviderPhone(initialData.id, {
+        for (const [index, entry] of phonesToAdd.entries()) {
+          await saveOnce(`phone-add-${index}`, () => addProviderPhone(initialData.id, {
             country_code: entry.country_code,
             number: entry.number.trim(),
             is_primary: entry.is_primary,
-          });
+          }));
         }
         // Emails: same diff approach.
         const keptEmailIds = new Set<string>();
@@ -843,13 +872,13 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         }
         const emailsToRemove = initialData.emails.filter((e) => !keptEmailIds.has(e.id));
         for (const e of emailsToRemove) {
-          await removeProviderEmail(initialData.id, e.id);
+          await saveOnce(`email-remove-${e.id}`, () => removeProviderEmail(initialData.id, e.id));
         }
-        for (const entry of emailsToAdd) {
-          await addProviderEmail(initialData.id, {
+        for (const [index, entry] of emailsToAdd.entries()) {
+          await saveOnce(`email-add-${index}`, () => addProviderEmail(initialData.id, {
             email: entry.email.trim(),
             is_primary: entry.is_primary,
-          });
+          }));
         }
 
         // Location: PATCH existing primary, or POST a new one when filled.
@@ -875,9 +904,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             is_primary: true,
           };
           if (originalLocation) {
-            await updateProviderLocation(initialData.id, originalLocation.id, locBody);
+            await saveOnce('location', () => updateProviderLocation(initialData.id, originalLocation.id, locBody));
           } else {
-            await createProviderLocation(initialData.id, locBody);
+            await saveOnce('location', () => createProviderLocation(initialData.id, locBody));
           }
         }
 
@@ -945,20 +974,32 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             ? { doctor_availability: doctorAvailability, ...(completedInitialVisit ? { initial_visit: completedInitialVisit } : {}) }
             : {}),
         };
-        saved = await createProvider(body);
+        createRequestKey.current ??= crypto.randomUUID();
+        saved = await saveOnce('provider', () => createProvider(body, createRequestKey.current!));
+        persistedProviderId.current = saved.id;
+      }
+      // Provider availability must be persisted before calling the visiting-only
+      // endpoints. Resolve lost visit responses against the actual saved list.
+      const orderedVisits = orderVisitDrafts(visitDrafts, savedVisits);
+      if (!orderedVisits) throw new Error('Staged visits cannot be saved without an overlap. No visit history has been overwritten.');
+      for (const draft of orderedVisits) {
+        saved = await saveOnce(`visit-${draft.key}`, async () => {
+          const latest = await getProvider(saved.id);
+          const matching = latest.doctor_visits?.find((visit) =>
+            (draft.id ? visit.id === draft.id : true) && sameVisit(visit, draft));
+          if (matching) return latest;
+          const payload = visitPayload(draft);
+          return draft.id
+            ? updateProviderVisit(saved.id, draft.id, payload)
+            : createProviderVisit(saved.id, payload);
+        });
       }
       if (photo) {
-        try {
-          const uploaded = await uploadProviderPhoto(saved.id, photo, {
+          const uploaded = await saveOnce('photo', () => uploadProviderPhoto(saved.id, photo, {
             display_order: 0,
             is_thumbnail: true,
-          });
+          }));
           saved = { ...saved, photos: [...saved.photos, uploaded], thumbnail_url: uploaded.storage_reference };
-        } catch (photoErr) {
-          setSavedProviderId(saved.id);
-          setPhotoError(`Provider saved, but the photo could not be uploaded. Please retry or edit provider ${saved.id}: ${extractErrorMessage(photoErr, 'upload failed')}`);
-          return;
-        }
       }
       let portalAccessSentTo: string | undefined;
       let portalAccessIssue: {
@@ -987,11 +1028,17 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
           };
         }
       }
-      setSavedProviderId(null);
       submissionCompleted.current = true;
       onSuccess?.(saved, portalAccessIssue, portalAccessSentTo);
     } catch (err) {
-      setApiError(extractErrorMessage(err, 'Failed to save provider. Please try again.'));
+      const partial = saveJournal.current.size > 0;
+      const rejected = isAxiosError(err) && Boolean(err.response) && err.response!.status < 500;
+      setApiError(`${partial
+        ? 'Some changes have already been saved. Retry save to finish the remaining changes; completed writes will not be repeated. The reviewed fields are locked to keep the retry consistent. Cancel leaves saved changes in place. '
+        : rejected ? 'The save was rejected. Your input is retained; correct the issue and save again. '
+        : 'The save result could not be confirmed. Retry the same reviewed changes safely; do not start another Add Provider form. Cancel does not undo changes that may already have been saved. '
+      }${extractErrorMessage(err, 'Failed to save provider.')}`);
+      if (!partial && rejected) setSaveLocked(false);
     } finally {
       submissionInProgress.current = false;
       setSubmitting(false);
@@ -1007,7 +1054,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
     );
 
   return (
-    <form onSubmit={handleSubmit} noValidate className={styles.form}>
+    <form onSubmit={handleSubmit} noValidate className={`${styles.form} ${wizard ? styles.adminForm : ''}`}>
+      <fieldset disabled={submitting || saveLocked} style={{ display: 'contents' }}>
       {wizard && (
         <ProviderWizardHeader
           steps={stepOrder.map((index) => index === 4 && isEdit
@@ -1015,19 +1063,17 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             : WIZARD_STEPS[index])}
           mode={isEdit ? 'edit' : 'add'}
           current={wizardPosition}
-          onSelect={(index) => setWizardStep(stepOrder[index])}
-          locked={Boolean(savedProviderId) || submitting}
+          onSelect={(index) => {
+            if (stepOrder[index] === REVIEW_STEP) setReviewReady(false);
+            setWizardStep(stepOrder[index]);
+          }}
+          locked={saveLocked || submitting}
         />
       )}
       {(apiError || photoError || errs._form) && (
         <div className={`${styles.apiError} ${styles.cardFull}`} role="alert">
           {apiError ?? photoError ?? errs._form}
-          {photoError && savedProviderId && (
-            <>
-              <Button type="button" variant="secondary" onClick={retryPhotoUpload} disabled={submitting}>Retry photo upload</Button>
-              <Link to={`/admin/providers/${savedProviderId}/edit`}>Edit saved provider</Link>
-            </>
-          )}
+          {persistedProviderId.current && saveLocked && <p>Saved provider reference: {persistedProviderId.current}</p>}
         </div>
       )}
 
@@ -1043,7 +1089,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               value={providerType}
               onChange={(e) => setProviderType(e.target.value)}
               error={errs.provider_type}
-              disabled={Boolean(inv)}
+              disabled={Boolean(inv) || hasRecordedVisits || visitDrafts.length > 0}
               required
             />
             <Input
@@ -1090,28 +1136,9 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               />
             </FormField>
           )}
-          {wizard && (
-            <div className={styles.basicSelections}>
-              <SignupMultiSelect
-                tone="light"
-                label="Specializations"
-                options={specializations}
-                selectedIds={selectedSpecIds}
-                onChange={setSelectedSpecIds}
-                loading={loadingSpecializations}
-                error={specsError ?? undefined}
-              />
-              <SignupMultiSelect
-                tone="light"
-                label="Languages"
-                options={languages}
-                selectedIds={selectedLanguageIds}
-                onChange={setSelectedLanguageIds}
-                loading={loadingLanguages}
-                error={languageError ?? undefined}
-              />
-            </div>
-          )}
+          {wizard && <p className={styles.hint}>{providerType === 'DOCTOR'
+            ? 'Doctor / Vet professional information is optional and has its own section after Languages.'
+            : 'Professional names and qualifications apply only to doctors / vets. Clinics and hospitals can enter experience here.'}</p>}
           {inv && (
             <SignupMultiSelect
               tone="light"
@@ -1123,7 +1150,50 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               error={languageError ?? undefined}
             />
           )}
-          {!inv && (
+        </section>
+      </Card>}
+
+      {wizard && (wizardStep === 5 || wizardStep === 6) && (
+        <Card padding="lg" shadow="sm" className={`${styles.cardFull} ${styles.dropdownCard}`}>
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>{wizardStep === 5 ? 'Specializations' : 'Languages'} <span className={styles.optionalTag}>— optional</span></h3>
+            <p className={styles.hint}>Search the list to select options. Your selections appear below the control. Inactive saved selections are retained unless you remove them.</p>
+            {wizardStep === 5 ? (
+              <SignupMultiSelect
+                tone="light"
+                label="Specializations"
+                options={specializations.map((s) => ({ ...s, name: `${s.name}${!s.is_active ? ' (inactive)' : ''}` }))}
+                selectedIds={selectedSpecIds}
+                onChange={setSelectedSpecIds}
+                loading={loadingSpecializations}
+                error={specsError ?? undefined}
+              />
+            ) : (
+              <SignupMultiSelect
+                tone="light"
+                label="Languages"
+                options={languages.map((l) => ({ ...l, name: `${l.name}${!l.is_active ? ' (inactive)' : ''}` }))}
+                selectedIds={selectedLanguageIds}
+                onChange={setSelectedLanguageIds}
+                loading={loadingLanguages}
+                error={languageError ?? undefined}
+              />
+            )}
+            {((wizardStep === 5 && specsError) || (wizardStep === 6 && languageError)) && (
+              <>
+                <p className={styles.hint}>Saved selections remain visible and unchanged. Retry to load available options.</p>
+                <Button type="button" variant="secondary" onClick={() => setCatalogAttempt((value) => value + 1)}>Retry loading options</Button>
+              </>
+            )}
+            {wizardStep === 5 && !loadingSpecializations && !specsError && !specializations.some((s) => s.is_active) && <p className={styles.hint}>No active specializations are available. Saved inactive selections are retained; new selections are optional.</p>}
+            {wizardStep === 6 && !loadingLanguages && !languageError && !languages.some((l) => l.is_active) && <p className={styles.hint}>No active languages are available. Saved inactive selections are retained; new selections are optional.</p>}
+          </section>
+        </Card>
+      )}
+      {wizard && wizardStep === 7 && <Card padding="lg" shadow="sm" className={styles.cardFull}>
+        <section className={styles.section}>
+          <h3 className={styles.sectionTitle}>Photo <span className={styles.optionalTag}>— optional</span></h3>
+          {(
             <FormField label="Profile photo" optional htmlFor="provider-photo">
               <input id="provider-photo" className={styles.photoInput} type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={(e) => {
                 const file = e.target.files?.[0] ?? null;
@@ -1135,7 +1205,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                 }
                 setPhotoError(null);
                 setPhoto(file);
-                if (file) setPhotoPreview(URL.createObjectURL(file));
+                setPhotoPreview(file ? URL.createObjectURL(file) : initialData?.thumbnail_url ?? null);
               }} />
               <label htmlFor="provider-photo" className={styles.photoDropzone}>
                 {photoPreview
@@ -1178,11 +1248,11 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         <Card padding="lg" shadow="sm" className={styles.cardFull}>
           <section className={styles.section}>
             <h3 className={styles.sectionTitle}>
-              Professional info <span className={styles.optionalTag}>— optional</span>
+              Professional information <span className={styles.optionalTag}>— optional</span>
             </h3>
             <div className={styles.grid}>
-              <Input label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} error={errs.first_name} required={Boolean(inv) && !isEdit} />
-              <Input label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} error={errs.last_name} required={Boolean(inv) && !isEdit} />
+              <Input label="First name" maxLength={150} value={firstName} onChange={(e) => setFirstName(e.target.value)} error={errs.first_name} />
+              <Input label="Last name" maxLength={150} value={lastName} onChange={(e) => setLastName(e.target.value)} error={errs.last_name} />
               <Input
                 label="Professional title"
                 placeholder="e.g. Consultant Cardiologist"
@@ -1229,10 +1299,14 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
             </div>
             {qualifications.map((q, i) => (
               <div className={styles.qualificationRow} key={`qualification-${i}`}>
-                <Input label="Title" value={q.title} onChange={(e) => setQualifications((all) => all.map((x, j) => j === i ? { ...x, title: e.target.value } : x))} error={errs[`qualification_${i}`]} required />
-                <Input label="Institution" value={q.institution ?? ''} onChange={(e) => setQualifications((all) => all.map((x, j) => j === i ? { ...x, institution: e.target.value } : x))} />
-                <Input label="Year" type="number" value={q.year_obtained ?? ''} onChange={(e) => setQualifications((all) => all.map((x, j) => j === i ? { ...x, year_obtained: e.target.value ? Number(e.target.value) : null } : x))} />
+                <Input label="Title" maxLength={300} value={q.title} onChange={(e) => setQualifications((all) => all.map((x, j) => j === i ? { ...x, title: e.target.value } : x))} error={errs[`qualification_${i}`]} required />
+                <Input label="Institution" maxLength={300} value={q.institution ?? ''} onChange={(e) => setQualifications((all) => all.map((x, j) => j === i ? { ...x, institution: e.target.value } : x))} />
+                <Input label="Year" type="number" min={1900} max={2100} step={1} value={q.year_obtained ?? ''} onChange={(e) => setQualifications((all) => all.map((x, j) => j === i ? { ...x, year_obtained: e.target.value ? Number(e.target.value) : null } : x))} />
                 <Button type="button" variant="ghost" onClick={() => setQualifications((all) => all.filter((_, j) => j !== i))}>Remove</Button>
+                <FormField label="Qualification notes" optional htmlFor={`qualification-notes-${i}`} className={styles.addressRow}>
+                  <textarea id={`qualification-notes-${i}`} rows={2} maxLength={2000} className={styles.textarea} value={q.description ?? ''}
+                    onChange={(e) => setQualifications((all) => all.map((x, j) => j === i ? { ...x, description: e.target.value } : x))} />
+                </FormField>
               </div>
             ))}
           </section>
@@ -1410,34 +1484,67 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         <Card padding="lg" shadow="sm" className={styles.cardFull}>
           <section className={styles.section}>
             <h3 className={styles.sectionTitle}>Doctor availability</h3>
-            <p className={styles.hint}>Choose how this Doctor / Vet is currently taking trips. An initial visit is optional.</p>
+            <p className={styles.hint}>Visits are available only for visiting doctors / vets. Date ranges cannot overlap, including endpoints. Current and historical visits are read-only. Changes are staged until the final review and save.</p>
             <Select
               label="Availability"
               options={[{ value: 'ONGOING', label: 'Ongoing' }, { value: 'VISITING', label: 'Visiting' }]}
               value={doctorAvailability}
+              disabled={hasRecordedVisits || visitDrafts.length > 0}
               onChange={(e) => {
                 setDoctorAvailability(e.target.value as DoctorAvailability);
-                if (e.target.value !== 'VISITING') {
-                  setInitialVisitStart('');
-                  setInitialVisitEnd('');
-                }
               }}
             />
+            {hasRecordedVisits && <p className={styles.hint}>Recorded visit history requires this provider to remain a visiting doctor / vet.</p>}
             {errs.doctor_availability && <p className={styles.fieldError} role="alert">{errs.doctor_availability}</p>}
             {!isEdit && doctorAvailability === 'VISITING' && (
               <div className={styles.serviceFields}>
                 <p className={styles.hint}>Leave all fields blank to save without a visit, or complete every field to schedule the initial visit.</p>
                 {errs.initial_visit && <p className={styles.fieldError} role="alert">{errs.initial_visit}</p>}
-                <div className={styles.grid}>
-                  <Input label="Location name" value={initialVisitLocation.name} onChange={(e) => setInitialVisitLocation((v) => ({ ...v, name: e.target.value }))} />
-                  <Input label="Address line 1" value={initialVisitLocation.address_line_1} onChange={(e) => setInitialVisitLocation((v) => ({ ...v, address_line_1: e.target.value }))} />
-                  <Input label="City" value={initialVisitLocation.city} onChange={(e) => setInitialVisitLocation((v) => ({ ...v, city: e.target.value }))} />
-                  <Input label="State / Province" value={initialVisitLocation.state_province} onChange={(e) => setInitialVisitLocation((v) => ({ ...v, state_province: e.target.value }))} />
-                  <Input label="Country" value={initialVisitLocation.country} onChange={(e) => setInitialVisitLocation((v) => ({ ...v, country: e.target.value }))} />
-                  <Input label="Postal code" value={initialVisitLocation.postal_code} onChange={(e) => setInitialVisitLocation((v) => ({ ...v, postal_code: e.target.value }))} />
-                  <Input label="Start date" type="date" value={initialVisitStart} onChange={(e) => setInitialVisitStart(e.target.value)} />
-                  <Input label="End date" type="date" value={initialVisitEnd} onChange={(e) => setInitialVisitEnd(e.target.value)} />
-                </div>
+                <ProviderVisitFields value={{ location: initialVisitLocation, start_date: initialVisitStart, end_date: initialVisitEnd }}
+                  onChange={(value) => {
+                    setInitialVisitStart(value.start_date);
+                    setInitialVisitEnd(value.end_date);
+                    setInitialVisitLocation({
+                      name: value.location.name ?? '', address_line_1: value.location.address_line_1,
+                      address_line_2: value.location.address_line_2 ?? '', city: value.location.city,
+                      state_province: value.location.state_province ?? '', country: value.location.country ?? '',
+                      postal_code: value.location.postal_code ?? '',
+                      latitude: value.location.latitude ?? '', longitude: value.location.longitude ?? '',
+                    });
+                  }} />
+              </div>
+            )}
+            {isEdit && (
+              <div className={styles.section}>
+                <h4 className={styles.sectionTitle}>Recorded visits</h4>
+                {!savedVisits.length && <p className={styles.hint}>No visits recorded.</p>}
+                {[...savedVisits].sort((a, b) => a.start_date.localeCompare(b.start_date)).map((visit) => (
+                  <div key={visit.id} className={styles.visitCard}>
+                    <strong>{visit.start_date} to {visit.end_date}</strong>
+                    <p className={styles.hint}>{visitSummary(visit).split(' · ').slice(1).join(' · ')}</p>
+                    <p className={styles.hint}>{visit.start_date > todayDate() ? 'Upcoming' : visit.end_date < todayDate() ? 'Historical — read-only' : 'Current — read-only'}</p>
+                    {visit.start_date > todayDate() && doctorAvailability === 'VISITING' && (
+                      <Button type="button" variant="secondary" disabled={visitDrafts.some((draft) => draft.id === visit.id)}
+                        onClick={() => setVisitDrafts((drafts) => [...drafts, { ...visit, location: { ...visit.location }, key: visit.id }])}>
+                        {visitDrafts.some((draft) => draft.id === visit.id) ? 'Amendment staged below' : 'Amend upcoming visit'}
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                {errs.visits && <p className={styles.fieldError} role="alert">{errs.visits}</p>}
+                {visitDrafts.map((draft, index) => (
+                  <div key={draft.key} className={styles.visitCard}>
+                    <h4 className={styles.sectionTitle}>{draft.id ? 'Amend upcoming visit' : 'Additional visit'} {index + 1} — not saved</h4>
+                    <ProviderVisitFields value={draft} onChange={(value) => setVisitDrafts((drafts) => drafts.map((item) => item.key === draft.key ? { ...draft, ...value } : item))} />
+                    <Button type="button" variant="ghost" onClick={() => setVisitDrafts((drafts) => drafts.filter((item) => item.key !== draft.key))}>Discard {draft.id ? 'amendment' : 'new visit'}</Button>
+                  </div>
+                ))}
+                {doctorAvailability === 'VISITING' && (
+                  <Button type="button" variant="secondary" onClick={() => setVisitDrafts((drafts) => [...drafts, {
+                    key: `new-${nextVisitKey.current++}`, start_date: '', end_date: '',
+                    location: { address_line_1: '', city: '', country: DEFAULT_ADDRESS_COUNTRY },
+                  }])}>Record additional visit</Button>
+                )}
               </div>
             )}
           </section>
@@ -1548,8 +1655,8 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
       {wizard && wizardStep === 4 && (
         <>
           <ProviderWizardReview
-            locked={Boolean(savedProviderId)}
-            onEdit={setWizardStep}
+            locked={saveLocked || submitting}
+            onEdit={(step) => { setReviewReady(false); setWizardStep(step); }}
             sections={[
             { title: 'Basic details', step: 0, items: [
               { label: 'Provider type', value: PROVIDER_TYPE_OPTIONS.find((option) => option.value === providerType)?.label ?? '' },
@@ -1558,14 +1665,20 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                 ? [{ label: 'Description', value: description.trim() }]
                 : []),
               { label: 'Website', value: website.trim() },
-              { label: 'Photo', value: photoPreview
-                ? <img className={wizardStyles.reviewPhoto} src={photoPreview} alt={photo ? `Selected profile photo: ${photo.name}` : 'Current provider profile photo'} />
-                : 'No photo selected' },
-              { label: 'Specializations', value: selectedSpecIds.map((id) => specializations.find((s) => s.id === id)?.name ?? initialData?.specializations.find((s) => s.id === id)?.name ?? id).join(', ') },
-              { label: 'Languages', value: selectedLanguageIds.map((id) => languages.find((l) => l.id === id)?.name ?? initialData?.languages.find((l) => l.id === id)?.name ?? id).join(', ') },
+              ...(providerType !== 'DOCTOR' ? [{ label: 'Years of experience', value: yearsExperience }] : []),
+            ] },
+            { title: 'Specializations', step: 5, items: [
+              { label: 'Selected', value: selectedSpecIds.map((id) => specializations.find((s) => s.id === id)?.name ?? initialData?.specializations.find((s) => s.id === id)?.name ?? id).join(', ') },
+            ] },
+            { title: 'Languages', step: 6, items: [
+              { label: 'Selected', value: selectedLanguageIds.map((id) => languages.find((l) => l.id === id)?.name ?? initialData?.languages.find((l) => l.id === id)?.name ?? id).join(', ') },
             ] },
             ...(providerType === 'DOCTOR' ? [{ title: 'Professional details', step: 1, items: [
                 { label: 'Doctor / Vet', value: [firstName, lastName].filter(Boolean).join(' ') },
+                { label: 'Professional title', value: professionalTitle },
+                { label: 'Years of experience', value: yearsExperience },
+                { label: 'Biography', value: biography },
+                { label: 'Experience notes', value: experienceDescription },
                 { label: 'Qualifications', value: qualifications.length ? (
                   <ul className={wizardStyles.reviewQualifications}>
                     {qualifications.map((q, i) => (
@@ -1574,6 +1687,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                         {(q.institution?.trim() || q.year_obtained != null) && (
                           <span>{[q.institution?.trim(), q.year_obtained].filter((value) => value != null && value !== '').join(' · ')}</span>
                         )}
+                        {q.description && <span>{q.description}</span>}
                       </li>
                     ))}
                   </ul>
@@ -1589,8 +1703,11 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               ...(providerType === 'DOCTOR' ? [
                 { label: 'Doctor availability', value: doctorAvailability === 'ONGOING' ? 'Ongoing' : 'Visiting' },
                 ...(!isEdit
-                  ? [{ label: 'Initial visit', value: initialVisitStart && initialVisitEnd && initialVisitLocation.city ? `${initialVisitStart} to ${initialVisitEnd} · ${initialVisitLocation.city}` : 'No visit scheduled' }]
-                  : [{ label: 'Recorded visits', value: initialData?.doctor_visits?.length ? `${initialData.doctor_visits.length} visit period${initialData.doctor_visits.length === 1 ? '' : 's'}` : 'No visits recorded' }]),
+                  ? [{ label: 'Initial visit', value: doctorAvailability === 'VISITING' && initialVisitStart && initialVisitEnd && initialVisitLocation.city ? visitSummary({ start_date: initialVisitStart, end_date: initialVisitEnd, location: initialVisitLocation }) : 'No visit scheduled' }]
+                  : [
+                    { label: 'Recorded visits (retained)', value: savedVisits.length ? <ul className={wizardStyles.reviewQualifications}>{savedVisits.map((visit) => <li key={visit.id}>{visitSummary(visit)}</li>)}</ul> : 'No visits recorded' },
+                    { label: 'Visit changes to save', value: visitDrafts.length ? <ul className={wizardStyles.reviewQualifications}>{visitDrafts.map((draft) => <li key={draft.key}><strong>{draft.id ? 'Amendment' : 'Additional visit'}</strong>{visitSummary(draft)}</li>)}</ul> : 'No visit changes' },
+                  ]),
               ] : []),
             ] },
             { title: 'Contact & location', step: 3, items: [
@@ -1599,6 +1716,12 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
               { label: 'Location name', value: location.name },
               { label: 'Address', value: [location.address_line_1, location.city, location.state_province, location.country].filter(Boolean).join(', ') },
               { label: 'Pincode / postal code', value: location.postal_code },
+            ] },
+            { title: 'Photo', step: 7, items: [
+              { label: 'Profile photo', value: photoPreview
+                ? <img className={wizardStyles.reviewPhoto} src={photoPreview} alt={photo ? `Selected profile photo: ${photo.name}` : 'Current provider profile photo'} />
+                : 'No photo selected' },
+              { label: 'Change', value: photo ? 'Upload selected photo; keep existing photos' : 'Keep existing photos' },
             ] },
             ]}
           />
@@ -1609,7 +1732,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                 <input
                   type="checkbox"
                   checked={sendPortalAccessOnCreate}
-                  disabled={submitting || Boolean(savedProviderId) || validPortalEmails.length === 0}
+                  disabled={submitting || saveLocked || validPortalEmails.length === 0}
                   onChange={(event) => {
                     setSendPortalAccessOnCreate(event.target.checked);
                     setApiError(null);
@@ -1624,7 +1747,7 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
                   onChange={(event) => setPortalAccessEmail(event.target.value)}
                   options={validPortalEmails.map((email) => ({ value: email, label: email }))}
                   placeholder="Choose a contact email"
-                  disabled={submitting || Boolean(savedProviderId)}
+                  disabled={submitting || saveLocked}
                 />
               )}
               {validPortalEmails.length === 0 && (
@@ -1652,19 +1775,20 @@ export function ProviderForm({ initialData, invitation, onSuccess, onCancel }: P
         ) }}
         disabled={submitting || savingDraft}
       />}
+      </fieldset>
 
       <footer className={`${styles.footer} ${styles.cardFull}`}>
         {wizard ? (
           <>
             <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting} className={styles.cancelButton}>Cancel</Button>
             {wizardPosition > 0 && (
-              <Button type="button" variant="secondary" onClick={() => setWizardStep(stepOrder[wizardPosition - 1])} disabled={submitting || Boolean(savedProviderId)}>Back</Button>
+              <Button type="button" variant="secondary" onClick={() => setWizardStep(stepOrder[wizardPosition - 1])} disabled={submitting || saveLocked}>Back</Button>
             )}
-            {wizardStep < WIZARD_STEPS.length - 1 ? (
-              <Button key="continue" type="button" variant="primary" onClick={nextWizardStep}>Continue</Button>
+            {wizardStep !== REVIEW_STEP ? (
+              <Button key="continue" type="button" variant="primary" onClick={nextWizardStep} disabled={submitting || saveLocked}>Continue</Button>
             ) : (
-              <Button key="confirm" type="button" variant="primary" onClick={savedProviderId ? retryPhotoUpload : submitProvider}
-                disabled={!savedProviderId && !reviewReady} loading={submitting}>{savedProviderId ? 'Retry photo upload' : isEdit ? 'Save changes' : 'Create provider'}</Button>
+              <Button key="confirm" type="button" variant="primary" onClick={submitProvider}
+                disabled={!reviewReady} loading={submitting}>{saveLocked ? 'Retry remaining save' : isEdit ? 'Save changes' : 'Create provider'}</Button>
             )}
           </>
         ) : inv ? (

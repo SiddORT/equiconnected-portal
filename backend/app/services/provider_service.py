@@ -364,8 +364,14 @@ class ProviderService:
         qualifications: list[dict] | None = None,
         admin_form_version: int | None = None,
         initial_visit: dict | None = None,
+        create_id: UUID | None = None,
         audit_context: AuditContext | None = None,
     ) -> Provider:
+        if create_id is not None:
+            existing = self._repo.get_by_id(create_id)
+            if existing is not None:
+                return existing
+            core_fields = {**core_fields, "id": create_id}
         # Validate specialization IDs before touching the DB rows.
         for spec_id in specialization_ids:
             spec = self._repo.get_specialization(spec_id)
@@ -427,6 +433,12 @@ class ProviderService:
             self._repo.commit()
         except IntegrityError:
             self._repo.rollback()
+            # Concurrent retries serialize on the provider primary key. Only
+            # return the committed winner, never a half-created relationship set.
+            if create_id is not None:
+                existing = self._repo.get_by_id(create_id)
+                if existing is not None:
+                    return existing
             raise DuplicateSpecializationError("Duplicate specialization assignment.")
         except Exception:
             self._repo.rollback()
@@ -464,7 +476,9 @@ class ProviderService:
             radius is None or float(radius) <= 0
         ) and (stability_changed or radius_changed or provider.maximum_working_radius_km is not None):
             raise ValueError("stable visits require a positive radius")
-        if admin_form_version == 2 and effective_stability == VisitStability.NOT_STABLE_VISIT:
+        if admin_form_version == 2 and effective_stability == VisitStability.NOT_STABLE_VISIT and (
+            "visit_stability" in update_fields or "maximum_working_radius_km" in update_fields
+        ):
             update_fields["maximum_working_radius_km"] = None
         emergency = update_fields.get("emergency_services_available", provider.emergency_services_available)
         number = update_fields.get("emergency_contact_number", provider.emergency_contact_number)

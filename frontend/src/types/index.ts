@@ -838,6 +838,7 @@ export interface ProviderUpdate {
   /** Versioned admin form contract; omitted by invitation payloads. */
   admin_form_version?: 2;
   provider_type?: ProviderType;
+  doctor_availability?: DoctorAvailability | null;
   name?: string;
   description?: string | null;
   email?: string | null;

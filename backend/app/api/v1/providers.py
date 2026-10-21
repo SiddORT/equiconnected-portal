@@ -186,6 +186,16 @@ def list_providers(
 
 @router.post("", response_model=ProviderResponse, status_code=status.HTTP_201_CREATED)
 def create_provider(body: ProviderCreate, request: Request, user: CurrentUser, svc: _Svc):
+    # A lost create response must not create a second provider (or initial
+    # visit) on retry. Scope this optional key to the authenticated admin.
+    create_id = None
+    request_key = request.headers.get("Idempotency-Key")
+    if request_key:
+        try:
+            normalized_key = str(UUID(request_key))
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Idempotency-Key must be a UUID.")
+        create_id = _uuid.uuid5(_uuid.NAMESPACE_URL, f"equiconnected:admin-provider:{user.id}:{normalized_key}")
     _PROFILE_FIELDS = {"professional_title", "biography", "experience_description", "first_name", "last_name"}
     core = body.model_dump(
         exclude={"admin_form_version", "specialization_ids", "primary_location", "phones", "emails", "language_ids", "qualifications", "initial_visit"}
@@ -193,6 +203,7 @@ def create_provider(body: ProviderCreate, request: Request, user: CurrentUser, s
     )
     try:
         provider = svc.create(
+            create_id=create_id,
             core_fields=core,
             specialization_ids=body.specialization_ids,
             primary_location=(
