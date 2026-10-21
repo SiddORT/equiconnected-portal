@@ -276,7 +276,7 @@ export function ProviderDetailPage() {
         : await sendProviderPortalAccess(id);
       setPortalAccess(updated);
       setPortalAccessSuccess(
-        updated.message || `Password ${portalAccess.action ?? 'setup'} email sent to ${updated.recipient_email ?? selected?.email ?? portalAccess.recipient_email ?? 'the linked login email'}.`
+        updated.message?.trim() || `Password ${portalAccess.action ?? 'setup'} email sent to ${updated.recipient_email ?? selected?.email ?? portalAccess.recipient_email ?? 'the linked login email'}.`
       );
       await loadPortalAccess();
     } catch (err) {
@@ -334,7 +334,7 @@ export function ProviderDetailPage() {
     try {
       const result = await revokeProviderPortalAccess(id);
       await loadPortalAccess();
-      setPortalAccessSuccess(result.message || 'Pending portal access was canceled. The unactivated account has been permanently removed.');
+      setPortalAccessSuccess(result.message?.trim() || 'Pending portal access was canceled. The unactivated account has been permanently removed.');
     } catch (err) {
       setPortalAccessActionError(
         `${extractErrorMessage(err, 'Unable to cancel pending portal access.')} Check the provider status and try again; pending access may still be active.`
@@ -545,6 +545,13 @@ export function ProviderDetailPage() {
   );
   const portalAccessAction = portalAccess?.action ??
     (portalAccess && ['eligible', 'pending'].includes(portalAccess.status) ? 'setup' : null);
+  // Action feedback owns its confirmation; the status response may repeat it.
+  const portalSuccessText = portalAccessSuccess?.trim();
+  const portalGuidance = [...new Set(
+    [portalAccess?.message, portalAccess?.reason]
+      .map((text) => text?.trim())
+      .filter((text): text is string => Boolean(text) && text !== portalSuccessText)
+  )];
 
   const primaryPhone =
     p.phones.length > 0
@@ -611,6 +618,7 @@ export function ProviderDetailPage() {
       <div className={styles.body}>
         {approvalDelivery && (
           <Alert
+            className={styles.colFull}
             variant={approvalDelivery.email_sent ? 'success' : 'warning'}
             onDismiss={() => setApprovalDelivery(null)}
           >
@@ -694,6 +702,8 @@ export function ProviderDetailPage() {
         <Card padding="none" shadow="sm" className={styles.colFull}>
           <CardHeader><h2 className={styles.sectionTitle}>Provider portal access</h2></CardHeader>
           <CardBody>
+            {portalSuccessText && <p className={styles.portalSuccess} role="status">{portalSuccessText}</p>}
+            {portalAccessActionError && <p className={styles.actionError} role="alert">{portalAccessActionError}</p>}
             {portalAccessLoadError && (
               <div className={styles.actionError} role="alert">
                 {portalAccessLoadError}
@@ -709,10 +719,7 @@ export function ProviderDetailPage() {
                   <div><dt>Recipient</dt><dd>{portalAccess.recipient_email ?? '—'}</dd></div>
                   {portalAccess.sent_at && <div><dt>Last setup link issued</dt><dd>{formatTimestamp(portalAccess.sent_at)}</dd></div>}
                 </dl>
-                {portalAccess.message && <p className={styles.portalAccessMessage}>{portalAccess.message}</p>}
-                {portalAccess.reason && <p className={styles.portalAccessMessage}>{portalAccess.reason}</p>}
-                {portalAccessSuccess && <p className={styles.portalSuccess} role="status">{portalAccessSuccess}</p>}
-                {portalAccessActionError && <p className={styles.actionError} role="alert">{portalAccessActionError}</p>}
+                {portalGuidance.map((text) => <p key={text} className={styles.portalAccessMessage}>{text}</p>)}
                 {(canSendPortalAccess || portalAccess.can_revoke) && (
                   <div className={styles.portalAccessActions}>
                     {canSendPortalAccess && needsPortalEmailSelection && <Select
@@ -781,7 +788,7 @@ export function ProviderDetailPage() {
                 p.doctor_profile.professional_title ||
                 p.doctor_profile.biography ||
                 p.doctor_profile.experience_description) ? (
-                <dl className={`${styles.infoStrip} ${styles.professionalInfoStrip}`}>
+                <dl className={styles.infoStrip}>
                   <div><dt>First name</dt><dd>{p.doctor_profile.first_name ?? '—'}</dd></div>
                   <div><dt>Last name</dt><dd>{p.doctor_profile.last_name ?? '—'}</dd></div>
                   <div>

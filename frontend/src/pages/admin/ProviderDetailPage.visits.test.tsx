@@ -92,6 +92,116 @@ beforeEach(() => {
 });
 
 describe('ProviderDetailPage doctor visits', () => {
+  it.each([
+    ['Reset guidance.', 'Reset guidance.', ['Reset guidance.']],
+    ['  Reset guidance. \n', '\tReset guidance. ', ['Reset guidance.']],
+    ['Reset guidance.', 'A separate useful explanation.', ['Reset guidance.', 'A separate useful explanation.']],
+    [null, 'Reason only.', ['Reason only.']],
+    ['Message only.', null, ['Message only.']],
+    [null, null, []],
+    ['  ', '\n', []],
+  ])('presents portal message %j and reason %j without duplicates', async (message, reason, expected) => {
+    vi.mocked(getProvider).mockResolvedValue(doctor({ provider_type: 'CLINIC' }));
+    vi.mocked(getProviderPortalAccess).mockResolvedValue(pendingAccess({ message, reason }));
+    const view = renderDetail();
+    await screen.findByRole('button', { name: 'Resend password setup email' });
+    const guidance = view.container.querySelectorAll(`.${styles.portalAccessMessage}`);
+    expect([...guidance].map((p) => p.textContent)).toEqual(expected);
+  });
+
+  it.each(['setup', 'reset'] as const)('announces %s success once even when the refreshed response repeats it', async (action) => {
+    const confirmation = `Password ${action} email sent to main@example.com.`;
+    const access = pendingAccess({
+      action, available: true, status: action === 'reset' ? 'active' : 'pending',
+      reason: 'Distinct guidance remains visible.',
+    });
+    vi.mocked(getProvider).mockResolvedValue(doctor({ provider_type: 'CLINIC' }));
+    vi.mocked(getProviderPortalAccess).mockResolvedValueOnce(access).mockResolvedValue({
+      ...access, message: ` ${confirmation} `, reason: `\n${confirmation}`,
+    });
+    vi.mocked(sendProviderPortalAccess).mockResolvedValue({ ...access, message: confirmation });
+    renderDetail();
+    await userEvent.setup().click(await screen.findByRole('button', {
+      name: action === 'reset' ? 'Send password reset email' : 'Resend password setup email',
+    }));
+    await waitFor(() => expect(getProviderPortalAccess).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText('Loading portal access status…')).toBeNull());
+    expect(screen.getAllByText(confirmation)).toHaveLength(1);
+    expect(screen.getByText(confirmation).getAttribute('role')).toBe('status');
+  });
+
+  it('keeps distinct guidance and a single accessible send failure without a success confirmation', async () => {
+    vi.mocked(getProvider).mockResolvedValue(doctor({ provider_type: 'CLINIC' }));
+    vi.mocked(getProviderPortalAccess).mockResolvedValue(pendingAccess({
+      message: 'Pending setup.', reason: 'Use the selected contact.',
+    }));
+    vi.mocked(sendProviderPortalAccess).mockRejectedValue({
+      isAxiosError: true, response: { status: 503, data: { detail: { message: 'Synthetic delivery failure.' } } },
+    });
+    renderDetail();
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Resend password setup email' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Delivery is not confirmed.');
+    expect(screen.getAllByText(/Synthetic delivery failure/)).toHaveLength(1);
+    expect(document.querySelector(`.${styles.portalSuccess}`)).toBeNull();
+    expect(screen.getByText('Pending setup.')).toBeTruthy();
+    expect(screen.getByText('Use the selected contact.')).toBeTruthy();
+  });
+
+  it('retains cancellation success once when refreshed guidance contains the same confirmation', async () => {
+    const confirmation = 'Pending access canceled.';
+    vi.mocked(getProvider).mockResolvedValue(doctor({ provider_type: 'CLINIC' }));
+    vi.mocked(getProviderPortalAccess).mockResolvedValueOnce(pendingAccess()).mockResolvedValue(
+      pendingAccess({ status: 'eligible', can_revoke: false, message: ` ${confirmation} `, reason: 'You may select a corrected contact.' })
+    );
+    vi.mocked(revokeProviderPortalAccess).mockResolvedValue(pendingAccess({ message: confirmation }));
+    renderDetail();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Cancel pending access' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel access' }));
+    expect(await screen.findByText('You may select a corrected contact.')).toBeTruthy();
+    expect(screen.getAllByText(confirmation)).toHaveLength(1);
+    expect(screen.getByText(confirmation).getAttribute('role')).toBe('status');
+  });
+
+  it('preserves distinct guidance after success and keeps confirmation visible if the status refresh fails', async () => {
+    const confirmation = 'Password setup email sent to main@example.com.';
+    const access = pendingAccess({ message: confirmation, reason: 'Keep this separate explanation.' });
+    vi.mocked(getProvider).mockResolvedValue(doctor({ provider_type: 'CLINIC' }));
+    vi.mocked(getProviderPortalAccess).mockResolvedValueOnce(pendingAccess()).mockResolvedValueOnce(access)
+      .mockRejectedValueOnce(new Error('Synthetic status read failure.'));
+    vi.mocked(sendProviderPortalAccess).mockResolvedValue(access);
+    renderDetail();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Resend password setup email' }));
+    expect(await screen.findByText('Keep this separate explanation.')).toBeTruthy();
+    expect(screen.getAllByText(confirmation)).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Resend password setup email' }));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByText(confirmation).getAttribute('role')).toBe('status');
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+  });
+
+  it('uses only the Overview inset divider in addition to shared card headers, retaining list separators', () => {
+    const style = document.createElement('style');
+    style.textContent = readFileSync('src/pages/admin/ProviderDetailPage.module.css', 'utf8');
+    document.head.append(style);
+    try {
+      const rules = [...style.sheet!.cssRules] as CSSStyleRule[];
+      const rule = (selector: string) => rules.find((r) => r.selectorText === selector)!.style;
+      expect(rule('.infoStrip').getPropertyValue('border-top')).toBe('');
+      expect(rule('.overviewCard .infoStrip').getPropertyValue('border-top')).toBe('1px solid var(--border-default)');
+      expect(rule('.item').getPropertyValue('border-bottom')).toBe('1px solid var(--border-default)');
+      expect(readFileSync('src/pages/admin/ProviderDetailPage.module.css', 'utf8'))
+        .toMatch(/\.item:last-child\s*\{\s*border-bottom: none;/);
+      expect(rule('.body').getPropertyValue('grid-template-columns')).toBe('repeat(2, minmax(0, 1fr))');
+      expect(rule('.cardHeaderRow').getPropertyValue('flex-wrap')).toBe('wrap');
+      const shared = readFileSync('src/components/ui/Card.module.css', 'utf8');
+      expect(shared).toMatch(/\.cardHeader\s*\{[^}]*border-bottom: 1px solid var\(--border-default\)/);
+    } finally {
+      style.remove();
+    }
+  });
+
   it('offers password reset to a linked login email without a contact-email selector', async () => {
     const linkedAccess: ProviderPortalAccess = {
       status: 'active',

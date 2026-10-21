@@ -3,15 +3,21 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .body {
   padding: var(--space-8);
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-6);
   align-items: stretch;
   flex: 1;
+}
+
+.body > * {
+  min-width: 0;
 }
 
 .locationPicker {
@@ -76,10 +82,12 @@
 
 .portalAccessButtons > button {
   flex: 0 0 auto;
+  max-width: 100%;
+  white-space: normal;
 }
 
 .portalSuccess {
-  margin: 0;
+  margin: 0 0 var(--space-3);
   color: var(--color-success, #15803d);
   font-size: var(--text-sm);
 }
@@ -103,7 +111,7 @@
   margin: 0;
   padding-left: var(--space-3);
   border-left: 3px solid var(--color-primary, #4f46e5);
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .cardHeaderRow {
@@ -112,9 +120,10 @@
   justify-content: space-between;
   gap: var(--space-3);
   width: 100%;
+  flex-wrap: wrap;
 }
 
-/* Overview card — flat single block, no internal divider */
+/* Overview owns its inset separator; other cards use the shared header divider. */
 .overviewCard {
   padding: var(--space-4) var(--space-6);
   display: flex;
@@ -122,7 +131,7 @@
   gap: 0;
 }
 
-/* Overview header: title left, badges right — all on one line */
+/* Overview header: title left, badges right when space permits. */
 .overviewHeader {
   display: flex;
   align-items: center;
@@ -151,12 +160,12 @@
   display: flex;
   gap: 0;
   margin: 0;
-  border-top: 1px solid var(--border-default);
   flex-wrap: wrap;
+  column-gap: var(--space-5);
 }
 
-.professionalInfoStrip {
-  border-top: none;
+.overviewCard .infoStrip {
+  border-top: 1px solid var(--border-default);
 }
 
 .overviewDescription {
@@ -172,9 +181,9 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--space-3) var(--space-5) var(--space-3) 0;
-  min-width: 120px;
-  flex: 1;
+  padding: var(--space-3) 0;
+  min-width: 0;
+  flex: 1 1 120px;
 }
 
 .infoStrip dt {
@@ -250,6 +259,13 @@
   border-radius: var(--radius-full, 999px);
   font-size: var(--text-sm);
   color: var(--text-primary);
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pill > span {
+  min-width: 0;
 }
 
 .pillRemove {
@@ -271,10 +287,11 @@
   margin-top: var(--space-4);
   border-top: 1px solid var(--border-default);
   padding-top: var(--space-4);
+  flex-wrap: wrap;
 }
 
 .addSelect {
-  min-width: 200px;
+  min-width: min(100%, 200px);
   flex: 1;
 }
 
@@ -304,6 +321,8 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .itemTitle {
@@ -366,6 +385,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .removeBtn {
@@ -426,7 +446,7 @@
 
 .formGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: var(--space-4);
 }
 
@@ -649,7 +669,7 @@
 /* ── Photo grid ──────────────────────────────────────────────────────────── */
 .photoGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
   gap: var(--space-4);
 }
 
@@ -712,10 +732,17 @@
 
 @media (max-width: 900px) {
   .body {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     padding: var(--space-5);
   }
   .colFull {
     grid-column: 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .body {
+    padding: var(--space-3);
+    gap: var(--space-4);
   }
 }

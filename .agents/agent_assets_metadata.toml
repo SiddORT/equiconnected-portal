@@ -1,0 +1,30 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "DkmHdlS6dop7io56pswBe"
+uri = "file://generated-artifacts/provider-detail-layout/clinic-populated-1440.png"
+type = "image"
+title = "Provider detail — desktop"
+description = "Genuine admin page captured with synthetic clinic data. Single dividers and non-repeating portal guidance."
+logical_id = "c46d51c5-817d-4eb4-866f-bb5763a02c9c"
+content_hash = "sha256:afe3ff189f8c8f66f49d95ecbabce4809711d5eb6205d75f382191bc3987f131"
+size = 161552
+mtime_ms = 1792572927562
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:5f3f19d0-f60a-41e9-b2ff-9d685c044dc2/c46d51c5-817d-4eb4-866f-bb5763a02c9c/5979b531-5ded-41b6-a54e-3309a1a3b6b5"
+storage_version_token = "1792573076692516"
+content_type = "image/png"
+
+[[outputs]]
+id = "mh_DJwvNy-02s0LVUq459"
+uri = "file://generated-artifacts/provider-detail-layout/clinic-mobile-detail.png"
+type = "image"
+title = "Provider detail — narrow mobile"
+description = "320px synthetic clinic capture showing aligned cards and wrapped contact values. Full captures for all three provider types are in generated-artifacts/provider-detail-layout/."
+logical_id = "9454dd66-14b8-49b1-8f74-a4717f8fb931"
+content_hash = "sha256:96d5c0208d7b1a5bcf3dc0e0a8b5be5e4f01828bccf328e5ae2e7c71f167832f"
+size = 79158
+mtime_ms = 1792573054829
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:5f3f19d0-f60a-41e9-b2ff-9d685c044dc2/9454dd66-14b8-49b1-8f74-a4717f8fb931/a8a4ab1e-6009-4a35-af9b-328cb2c54445"
+storage_version_token = "1792573078064285"
+content_type = "image/png"
