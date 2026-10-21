@@ -81,18 +81,29 @@ function formatCalendarDate(value: string) {
   });
 }
 
-function visitLocationDescription(location: DoctorVisitCreate['location']) {
-  const coordinates = location.latitude != null || location.longitude != null
-    ? `Coordinates: ${location.latitude ?? '—'}, ${location.longitude ?? '—'}`
-    : null;
-  return [
-    location.name,
+function RecordedVisitLocation({ location }: { location: DoctorVisitCreate['location'] }) {
+  const addressLines = [
     location.address_line_1,
     location.address_line_2,
     [location.city, location.state_province, location.postal_code].filter(Boolean).join(', '),
     location.country,
-    coordinates,
-  ].filter(Boolean).join(', ');
+  ].filter(Boolean);
+
+  return (
+    <div className={styles.visitLocation}>
+      {location.name && <p className={styles.visitLocationName}>{location.name}</p>}
+      {addressLines.length > 0 && (
+        <div className={styles.visitAddress}>
+          {addressLines.map((line, index) => <span key={index}>{line}</span>)}
+        </div>
+      )}
+      {(location.latitude != null || location.longitude != null) && (
+        <p className={styles.visitCoordinates}>
+          Coordinates: {location.latitude ?? '—'}, {location.longitude ?? '—'}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function visitAdditionSnapshotKey(visit: DoctorVisitCreate) {
@@ -636,7 +647,7 @@ export function ProviderAccountPage() {
         <header className={styles.header}>
           <div>
             <p className={styles.eyebrow}>Provider portal</p>
-            <h1 className="text-display">Manage your submitted profile</h1>
+            <h1>Manage your submitted profile</h1>
             <p className={styles.headerIntro}>Keep your public listing current and easy for members to understand.</p>
           </div>
         </header>
@@ -731,7 +742,7 @@ export function ProviderAccountPage() {
                                 {' – '}
                                 <time dateTime={visit.end_date}>{formatCalendarDate(visit.end_date)}</time>
                               </p>
-                              <p className={styles.visitLocation}>{visitLocationDescription(visit.location)}</p>
+                              <RecordedVisitLocation location={visit.location} />
                             </article>
                           ))}
                         </div>}
@@ -969,7 +980,7 @@ export function ProviderAccountPage() {
               showQualifications={profile.doctor_fields_available}
               disabled={saving || photoUploading}
             />
-            <div className={styles.choice}>
+            <div className={styles.saveActions}>
               <Button type="submit" loading={saving} disabled={photoUploading}>Save profile</Button>
               {photoUploading && <span role="status">Wait for photo uploads to finish before saving profile changes.</span>}
               {(profile.profile_update?.review_status === 'PENDING_REVIEW' || profile.profile_update?.review_status === 'REJECTED') && <Button type="button" variant="secondary" disabled={saving || photoUploading} onClick={() => void discardDraft()}>Discard draft and reload current listing</Button>}
