@@ -51,3 +51,6 @@ htmlcov/
 coverage.xml
 frontend/tsconfig.tsbuildinfo
 /generated-artifacts/
+
+# Private uploaded reference screenshot; never include in task delivery.
+/attached_assets/image_1792572258597.png
