@@ -705,7 +705,7 @@ describe('PublicPage', () => {
     expect(owners.getAllByRole('listitem')).toHaveLength(6);
     for (const text of [
       'Create your member profile', 'Add your horses', 'Include optional breed details',
-      'Add registration and microchip numbers if you have them',
+      'fill in breed details section',
       'Browse provider-shared information', 'Save providers to revisit later',
     ]) expect(owners.getByText(text)).toBeTruthy();
     expect(owners.queryByText(/each horse’s stable location|search starts from|providers who reach that location/i)).toBeNull();
