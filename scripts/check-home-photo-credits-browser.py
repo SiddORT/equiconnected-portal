@@ -60,7 +60,7 @@ async def main():
                     "features": [{"name": "prefers-reduced-motion", "value": "reduce"}],
                 })
                 output = Path(tempfile.mkdtemp(prefix="home-photo-layout-"))
-                for width in (1440, 390):
+                for width in (1440, 390, 320):
                     await call("Emulation.setDeviceMetricsOverride", {
                         "width": width, "height": 900, "deviceScaleFactor": 1, "mobile": width < 768,
                     })
@@ -81,29 +81,42 @@ async def main():
                         const credits=[...document.querySelectorAll('main a[href*="unsplash.com"]')];
                         const text=document.querySelector('main').textContent;
                         const rect=e=>{const r=e.getBoundingClientRect();return {width:r.width,height:r.height}};
-                        const staleSelectors=['photoCredit','categoryCredit','imageNote','whyCredit',
+                        const staleSelectors=['ownerCredits','photoCredit','categoryCredit','imageNote','whyCredit',
                             'visitingCredit','emergencyCredit','finalCredit'];
                         return {
                             imageCount:images.length,
                             broken:images.filter(i=>!i.naturalWidth).map(i=>i.src),
                             collapsed:images.filter(i=>{const r=rect(i);return r.width<1||r.height<1}).map(i=>i.src),
                             credits:credits.map(a=>a.textContent),
-                            optionalCreditText:/Photo by|Hero photograph|Horse detail ·/i.test(text),
+                            optionalCreditText:/Photo by|Hero photograph|Horse detail ·|Owner & horse ·|Philippe Oursel/i.test(text),
                             staleOverlays:staleSelectors.filter(c=>document.querySelector('[class*="'+c+'"]')),
                             emptyCaptions:[...document.querySelectorAll('figcaption')].filter(c=>!c.textContent.trim()).length,
                             providerCaption:document.querySelector('#providers figcaption')?.textContent,
                             contactForm:!!document.querySelector('#contact form[aria-label="Contact EquiConnected"]'),
                             overflow:document.documentElement.scrollWidth>innerWidth,
-                            retainedCreditVisible:credits.length===1 && rect(credits[0]).height>0
+                            ownerImages:document.querySelectorAll('#owners img').length,
+                            ownerAlt:document.querySelector('#owners img')?.alt,
+                            ownerArch:getComputedStyle(document.querySelector('#owners img')).borderTopLeftRadius,
+                            ownerDetailRound:getComputedStyle(document.querySelector('#owners img:nth-child(2)')).borderRadius,
+                            ownerIllustration:!!document.querySelector('#owners [aria-label="Illustrative horse profile, not a member record"]'),
+                            ownerSteps:document.querySelectorAll('#owners li').length,
+                            ownerAction:document.querySelector('#owners a')?.getAttribute('href'),
+                            ownerContentClipped:[...document.querySelectorAll('#owners img, #owners [aria-label], #owners h2, #owners li, #owners a')].some(e=>{
+                                const r=e.getBoundingClientRect();return r.left<0||r.right>innerWidth||r.width<1||r.height<1;
+                            })
                         };
                     })()""")
                     assert checks["imageCount"] == 15, checks
                     assert not checks["broken"] and not checks["collapsed"], checks
-                    assert checks["credits"] == ["Owner & horse · Philippe Oursel / Unsplash"], checks
+                    assert checks["credits"] == [], checks
                     assert not checks["optionalCreditText"] and not checks["staleOverlays"], checks
                     assert not checks["emptyCaptions"] and not checks["overflow"], checks
                     assert checks["providerCaption"] == "For the people behind equine care", checks
-                    assert checks["contactForm"] and checks["retainedCreditVisible"], checks
+                    assert checks["contactForm"] and checks["ownerIllustration"], checks
+                    assert checks["ownerImages"] == 2 and checks["ownerSteps"] == 6, checks
+                    assert checks["ownerAlt"] == "A brown horse wearing a bridle, facing the camera", checks
+                    assert checks["ownerArch"] == "999px" and checks["ownerDetailRound"] == "50%", checks
+                    assert checks["ownerAction"] == "/signup" and not checks["ownerContentClipped"], checks
                     for section in ("providers", "owners", "emergency", "contact"):
                         await evaluate(f"document.getElementById('{section}').scrollIntoView({{block:'start',behavior:'instant'}})")
                         await asyncio.sleep(.15)

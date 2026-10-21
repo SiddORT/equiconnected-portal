@@ -439,17 +439,13 @@ export function PublicPage() {
 
         <section className={styles.ownersSection} id="owners" aria-labelledby="owners-heading">
           <div className={styles.ownersCollage}>
-            <img className={styles.ownerMain} src={ownerPortrait} alt="A horse owner standing close beside a chestnut horse" loading="lazy" />
+            <img className={styles.ownerMain} src={ownerPortrait} alt="A brown horse wearing a bridle, facing the camera" loading="lazy" />
             <img className={styles.ownerDetail} src={ownerPhoto} alt="Close-up of a horse's eye" loading="lazy" />
             <div className={styles.ownerProfileMotif} aria-label="Illustrative horse profile, not a member record">
               <span className={styles.ownerMotifLabel}>Horse profile · illustration</span>
               <strong>Your horse</strong>
               <span>Breed · registration · microchip</span>
               <span className={styles.ownerMotifTag}>Details you choose to add</span>
-            </div>
-            <div className={styles.ownerCredits}>
-              {/* Retain until this specific photo's licence is verified; see docs/homepage-photo-licences.md. */}
-              <a href="https://unsplash.com/@ourselp" target="_blank" rel="noreferrer">Owner &amp; horse · Philippe Oursel / Unsplash</a>
             </div>
           </div>
           <div className={styles.ownersCopy}>

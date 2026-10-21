@@ -385,8 +385,6 @@
 .ownerMotifLabel { color: #806c48; font-size: 8px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .ownerProfileMotif strong { font: 400 27px/1 var(--serif); }
 .ownerMotifTag { justify-self: start; margin-top: 4px; padding: 4px 9px; border-radius: 99px; background: #ece4d3; color: #786339; font-size: 9px; }
-.ownerCredits { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; gap: 3px 12px; color: var(--muted); font-size: 9px; line-height: 1.4; }
-.ownerCredits a { text-decoration: underline; text-underline-offset: 2px; }
 .ownersCopy { min-width: 0; }
 .ownersCopy h2 { max-width: 560px; font-size: clamp(46px,4.5vw,65px); line-height: 1; }
 .ownersCopy > p:not(.sectionKicker) { max-width: 510px; font-size: 13px; line-height: 1.65; }
@@ -809,7 +807,6 @@
   .ownerDetail { width: 47%; bottom: 7%; border-width: 6px; }
   .ownerProfileMotif { bottom: 10%; left: 4%; width: min(220px,61%); padding: 12px 13px; }
   .ownerProfileMotif strong { font-size: 23px; }
-  .ownerCredits { font-size: 8px; }
   .ownerList { margin: 23px 0 27px; }
   .ownerAction { max-width: 100%; }
   .providerCopy h2 { font-size: clamp(45px, 11vw, 57px); }
