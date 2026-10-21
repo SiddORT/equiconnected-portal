@@ -60,4 +60,8 @@
 - [Address postal policy](address-postal-policy.md) — optional postal codes, fresh-only UAE defaults, and unchanged existing address controls.
 - [Homepage photo permissions](homepage-photo-permissions.md) — verify image-specific terms; prototype credits can name the wrong photographer.
 - [Headless keyboard checks](headless-keyboard-checks.md) — foreground/focus setup and complete key events matter; assert activation, not only DOM focus.
+<<<<<<< HEAD
 - [External UAT photo evidence](external-uat-photo-evidence.md) — local image tests cannot establish VPS delivery; live proxy edits and synthetic account writes need separate approval.
+=======
+- [Horse discovery location policy](horse-discovery-location-policy.md) — locations are optional private discovery inputs, not profile-completion or stable-management entitlements.
+>>>>>>> 4baa251 (Add private horse locations and server-side horse coverage discovery)

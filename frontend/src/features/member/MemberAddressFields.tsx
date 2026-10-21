@@ -17,11 +17,12 @@ export interface MemberAddressValue {
 
 /** Lookup starts only after a member edits the pincode, never on profile load. */
 export function MemberAddressFields({
-  value, onChange, section,
+  value, onChange, section, requiredLocation = true,
 }: {
   value: MemberAddressValue;
   onChange: (patch: Partial<MemberAddressValue>) => void;
-  section: 'personal' | 'stable';
+  section: 'personal' | 'stable' | 'horse';
+  requiredLocation?: boolean;
 }) {
   const [message, setMessage] = useState('');
   const [candidates, setCandidates] = useState<PostalCandidate[]>([]);
@@ -126,15 +127,15 @@ export function MemberAddressFields({
         </FormField>
       )}
       <div className={styles.location}>
-        <Input label="Country" required autoComplete="country-name" value={value.country ?? ''}
+        <Input label="Country" required={requiredLocation} autoComplete="country-name" value={value.country ?? ''}
           onChange={(event) => editLocation({ country: event.target.value })} />
-        <Input label="State / Province" required={getStateOptions(value.country ?? '').length > 0}
+        <Input label="State / Province" required={requiredLocation && getStateOptions(value.country ?? '').length > 0}
           autoComplete="address-level1" value={value.state_province ?? ''}
           onChange={(event) => editLocation({ state_province: event.target.value })} />
-        <Input label="City" required autoComplete="address-level2" value={value.city ?? ''}
+        <Input label="City" required={requiredLocation} autoComplete="address-level2" value={value.city ?? ''}
           onChange={(event) => editLocation({ city: event.target.value })} />
       </div>
-      <Input label="Address line 1" required autoComplete="address-line1" value={value.address ?? ''}
+      <Input label="Address line 1" required={requiredLocation} autoComplete="address-line1" value={value.address ?? ''}
         onChange={(event) => editLocation({ address: event.target.value })} />
       <Input label="Address line 2" autoComplete="address-line2" hint="Optional"
         value={value.address_line_2 ?? ''}

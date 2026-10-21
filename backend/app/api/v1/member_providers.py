@@ -61,6 +61,7 @@ from app.services.provider_insights_service import (
     record_contact_click,
 )
 from app.services.visiting_calendar import visiting_calendar_month_range
+from app.services.profile_service import ProfileService, HorseNotFoundError, MemberProfileAccessError
 
 router = APIRouter(prefix="/member/providers", tags=["Member Provider Directory"])
 member_reviews_router = APIRouter(prefix="/member/reviews", tags=["Member Reviews"])
@@ -449,6 +450,7 @@ def list_member_providers(
     svc: _Svc,
     db: _DB,
     saved_only: bool = Query(False),
+    horse_id: UUID | None = Query(None),
     name: str | None = Query(None, max_length=200),
     provider_type: ProviderType | None = Query(None),
     minimum_rating: float | None = Query(None, ge=1, le=5),
@@ -464,6 +466,23 @@ def list_member_providers(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=50),
 ) -> PaginatedResponse[MemberProviderListItem]:
+    if horse_id is not None:
+        try:
+            horse = ProfileService(db).get_horse(user, horse_id)
+        except (HorseNotFoundError, MemberProfileAccessError):
+            raise HTTPException(404, detail={
+                "code": "horse_not_found",
+                "message": "This horse is no longer available. Choose another horse or clear the horse filter.",
+            }) from None
+        location = horse.effective_location
+        if not location["available"]:
+            raise HTTPException(422, detail={
+                "code": "horse_location_unavailable",
+                "message": f"This horse has no usable saved location. {location['reason']}",
+            })
+        latitude, longitude = location["latitude"], location["longitude"]
+        closest_first = within_working_radius = True
+        visit_stability = VisitStability.STABLE_VISIT
     if (closest_first or within_working_radius) and (latitude is None or longitude is None):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

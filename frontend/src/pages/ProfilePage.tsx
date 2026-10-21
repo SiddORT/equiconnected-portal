@@ -53,6 +53,7 @@ function toStable(profile: MemberProfile): StableProfileUpdate {
     country: stable ? stable.country ?? '' : DEFAULT_ADDRESS_COUNTRY, state_province: stable?.state_province, city: stable?.city ?? '',
     postal_code: stable?.postal_code, contact_name: stable?.contact_name,
     contact_phone: stable?.contact_phone, contact_email: stable?.contact_email,
+    latitude: stable?.latitude ?? null, longitude: stable?.longitude ?? null,
   };
 }
 
@@ -104,15 +105,27 @@ function ProfileProgressSummary({
 }
 
 function HorseForm({
-  initial, onCancel, onSave, saving,
-}: { initial: HorsePayload; onCancel: () => void; onSave: (horse: HorsePayload) => Promise<void>; saving: boolean }) {
+  initial, onCancel, onSave, saving, stable, canInherit,
+}: { initial: HorsePayload; onCancel: () => void; onSave: (horse: HorsePayload) => Promise<void>; saving: boolean; stable: MemberProfile['stable_profile']; canInherit: boolean }) {
   const [form, setForm] = useState<HorsePayload>(initial);
   const [error, setError] = useState<string | null>(null);
+  const [latitude, setLatitude] = useState(initial.latitude == null ? '' : String(initial.latitude));
+  const [longitude, setLongitude] = useState(initial.longitude == null ? '' : String(initial.longitude));
   const change = (field: keyof HorsePayload, value: string) => setForm((current) => ({ ...current, [field]: value }));
+  const mode = form.location_mode === 'stable' && canInherit ? 'stable' : 'custom';
+  const coordinatePair = (latitude.trim() === '') === (longitude.trim() === '');
+  const parsedLatitude = latitude.trim() === '' ? null : Number(latitude);
+  const parsedLongitude = longitude.trim() === '' ? null : Number(longitude);
+  const coordinateRangeValid = parsedLatitude === null || parsedLongitude === null || (
+    Number.isFinite(parsedLatitude) && Number.isFinite(parsedLongitude)
+    && Math.abs(parsedLatitude) <= 90 && Math.abs(parsedLongitude) <= 180
+  );
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!form.name.trim()) return setError('Horse name is required.');
     if (!form.sex) return setError('Horse sex is required.');
+    if (mode === 'custom' && !coordinatePair) return setError('Enter both coordinates, or leave both blank.');
+    if (mode === 'custom' && !coordinateRangeValid) return setError('Latitude must be between −90 and 90 and longitude between −180 and 180.');
     setError(null);
     await onSave({
       ...form, name: form.name.trim(), registered_name: optional(form.registered_name ?? ''),
@@ -120,8 +133,20 @@ function HorseForm({
       color: optional(form.color ?? ''), primary_discipline: optional(form.primary_discipline ?? ''),
       registration_number: optional(form.registration_number ?? ''), microchip_number: optional(form.microchip_number ?? ''),
       description: optional(form.description ?? ''),
+      location_mode: mode,
+      address: mode === 'custom' ? optional(form.address ?? '') : null,
+      address_line_2: mode === 'custom' ? optional(form.address_line_2 ?? '') : null,
+      country: mode === 'custom' ? optional(form.country ?? '') : null,
+      state_province: mode === 'custom' ? optional(form.state_province ?? '') : null,
+      city: mode === 'custom' ? optional(form.city ?? '') : null,
+      postal_code: mode === 'custom' ? optional(form.postal_code ?? '') : null,
+      latitude: mode === 'custom' ? parsedLatitude : null,
+      longitude: mode === 'custom' ? parsedLongitude : null,
     });
   };
+  const stablePreview = stable
+    ? [stable.address, stable.address_line_2, stable.city, stable.state_province, stable.country, stable.postal_code].filter(Boolean).join(', ')
+    : '';
   return (
     <form className={styles.horseForm} onSubmit={submit} noValidate>
       {error && <Alert variant="error" onDismiss={() => setError(null)}>{error}</Alert>}
@@ -151,6 +176,30 @@ function HorseForm({
       <FormField label="Description" optional htmlFor="horse-description">
         <textarea id="horse-description" className={styles.textarea} value={form.description ?? ''} onChange={(e) => change('description', e.target.value)} rows={3} />
       </FormField>
+      <section className={styles.horseLocation} aria-labelledby="horse-location-heading">
+        <div><h3 id="horse-location-heading" className={styles.formGroupHeading}>Horse location</h3><p className={styles.formHelp}>Used to find nearby providers who visit your horse. This location is private.</p></div>
+        <fieldset className={styles.locationChoice}>
+          <legend>Location source</legend>
+          <label><input type="radio" name="horse-location-mode" value="custom" checked={mode === 'custom'} onChange={() => setForm((current) => ({ ...current, location_mode: 'custom' }))} /> Enter a location for this horse</label>
+          <label aria-disabled={!canInherit}><input type="radio" name="horse-location-mode" value="stable" checked={mode === 'stable'} disabled={!canInherit} onChange={() => setForm((current) => ({ ...current, location_mode: 'stable' }))} /> Same as stable location</label>
+        </fieldset>
+        {!canInherit && <p className={styles.formHelp}>No saved stable profile is available. Stable managers can save one in Stable Info. You can enter a custom location without stable-management access.</p>}
+        {mode === 'stable' && canInherit && <div className={styles.locationPreview} aria-live="polite">
+          <strong>{stablePreview || 'Stable address not complete'}</strong>
+          {stable?.latitude != null && stable.longitude != null
+            ? <span>Coordinates saved · {stable.latitude}, {stable.longitude}</span>
+            : <span>Stable coordinates are missing. Add both coordinates in Stable Info to use this horse for distance search.</span>}
+          {!stable && <span>Save a stable profile to make this location available.</span>}
+        </div>}
+        {mode === 'custom' && <div className={styles.customLocation} aria-hidden={false}>
+          <MemberAddressFields section="horse" value={form} requiredLocation={false} onChange={(patch) => setForm((current) => ({ ...current, ...patch }))} />
+          <div className={styles.grid}>
+            <Input label="Latitude" type="number" step="any" min="-90" max="90" value={latitude} onChange={(e) => setLatitude(e.target.value)} hint="−90 to 90. Leave both coordinate fields blank if unknown." aria-invalid={!coordinatePair || !coordinateRangeValid} />
+            <Input label="Longitude" type="number" step="any" min="-180" max="180" value={longitude} onChange={(e) => setLongitude(e.target.value)} hint="−180 to 180. Zero is a valid coordinate." aria-invalid={!coordinatePair || !coordinateRangeValid} />
+          </div>
+          {(!coordinatePair || !coordinateRangeValid) && <p className={styles.coordinateError} role="alert">{!coordinatePair ? 'Enter both coordinates, or leave both blank.' : 'Coordinates are outside the valid latitude or longitude range.'}</p>}
+        </div>}
+      </section>
       <div className={styles.actions}><Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button><Button type="submit" loading={saving}>Save horse</Button></div>
     </form>
   );
@@ -161,6 +210,8 @@ export function ProfilePage() {
   const [profile, setProfile] = useState<MemberProfile | null>(null);
   const [personal, setPersonal] = useState<PersonalProfileUpdate | null>(null);
   const [stable, setStable] = useState<StableProfileUpdate | null>(null);
+  const [stableLatitude, setStableLatitude] = useState('');
+  const [stableLongitude, setStableLongitude] = useState('');
   const [editingHorse, setEditingHorse] = useState<Horse | null | 'new'>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [loading, setLoading] = useState(true);
@@ -169,6 +220,8 @@ export function ProfilePage() {
   useEffect(() => {
     profileApi.getProfile().then((data) => {
       setProfile(data); setPersonal(toPersonal(data)); setStable(toStable(data));
+      setStableLatitude(data.stable_profile?.latitude == null ? '' : String(data.stable_profile.latitude));
+      setStableLongitude(data.stable_profile?.longitude == null ? '' : String(data.stable_profile.longitude));
     }).catch((error) => setNotice({ kind: 'error', text: extractErrorMessage(error, 'We could not load your profile.') }))
       .finally(() => setLoading(false));
   }, []);
@@ -211,10 +264,14 @@ export function ProfilePage() {
   const saveStable = async () => {
     if (!stable) return;
     if (!stable.name.trim()) return setNotice({ kind: 'error', text: 'Stable name is required before saving.' });
+    const lat = stableLatitude.trim() === '' ? null : Number(stableLatitude);
+    const lon = stableLongitude.trim() === '' ? null : Number(stableLongitude);
+    if ((lat === null) !== (lon === null)) return setNotice({ kind: 'error', text: 'Enter both stable coordinates, or leave both blank.' });
+    if (lat !== null && lon !== null && (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180)) return setNotice({ kind: 'error', text: 'Latitude must be between −90 and 90 and longitude between −180 and 180.' });
     setSaving('stable');
     try {
-      const saved = await profileApi.saveStable({ ...stable, name: stable.name.trim(), address: optional(stable.address ?? ''), address_line_2: optional(stable.address_line_2 ?? '') });
-      setProfile((current) => current && ({ ...current, stable_profile: saved })); setStable(toStable({ ...profile!, stable_profile: saved })); setNotice({ kind: 'success', text: 'Stable profile saved.' });
+      const saved = await profileApi.saveStable({ ...stable, name: stable.name.trim(), address: optional(stable.address ?? ''), address_line_2: optional(stable.address_line_2 ?? ''), latitude: lat, longitude: lon });
+      setProfile((current) => current && ({ ...current, stable_profile: saved })); setStable(toStable({ ...profile!, stable_profile: saved })); setStableLatitude(saved.latitude == null ? '' : String(saved.latitude)); setStableLongitude(saved.longitude == null ? '' : String(saved.longitude)); setNotice({ kind: 'success', text: 'Stable profile saved.' });
     } catch (error) { setNotice({ kind: 'error', text: extractErrorMessage(error, 'Stable profile could not be saved.') }); }
     finally { setSaving(null); }
   };
@@ -281,6 +338,8 @@ export function ProfilePage() {
         <div className={styles.formGroup}>
           <h3 className={styles.formGroupHeading}>Stable location</h3>
           <MemberAddressFields section="stable" value={stable} onChange={(patch) => setLocation('stable', patch)} />
+          <div className={styles.grid}><Input label="Stable latitude" type="number" step="any" min="-90" max="90" value={stableLatitude} onChange={(e) => setStableLatitude(e.target.value)} hint="−90 to 90. Enter both coordinates, or leave both blank." /><Input label="Stable longitude" type="number" step="any" min="-180" max="180" value={stableLongitude} onChange={(e) => setStableLongitude(e.target.value)} hint="−180 to 180. Zero is valid." /></div>
+          {((stableLatitude.trim() === '') !== (stableLongitude.trim() === '') || (stableLatitude.trim() && stableLongitude.trim() && (!Number.isFinite(Number(stableLatitude)) || !Number.isFinite(Number(stableLongitude)) || Math.abs(Number(stableLatitude)) > 90 || Math.abs(Number(stableLongitude)) > 180))) && <p className={styles.coordinateError} role="alert">Enter a valid coordinate pair, or leave both blank.</p>}
         </div>
         <div className={styles.formGroup}>
           <h3 className={styles.formGroupHeading}>Stable contact</h3>
@@ -290,8 +349,8 @@ export function ProfilePage() {
         <div className={styles.actions}><Button onClick={saveStable} loading={saving === 'stable'}>Save stable profile</Button></div>
       </Card></section>}
       {canManageHorses && horsesStatus && <section id="horses-profile-section" aria-labelledby="horses-profile-heading" className={styles.sectionAnchor}><Card className={styles.section}><div className={styles.sectionHeader}><div><h2 id="horses-profile-heading" data-profile-section-heading tabIndex={-1}>Horse Owner</h2><p>Add at least one horse with its required basics, then manage every horse individually.</p></div><div className={styles.sectionActions}><SectionStatus section={horsesStatus} /><Button onClick={() => setEditingHorse('new')} disabled={editingHorse !== null}>Add horse</Button></div></div>
-        {editingHorse === 'new' && <HorseForm initial={emptyHorse} onCancel={() => setEditingHorse(null)} onSave={saveHorse} saving={saving === 'horse'} />}
-        <div className={styles.horseList}>{profile.horses.length === 0 && editingHorse !== 'new' ? <p className={styles.empty}>No horses added yet.</p> : profile.horses.map((horse) => editingHorseId === horse.id ? <HorseForm key={horse.id} initial={horse} onCancel={() => setEditingHorse(null)} onSave={saveHorse} saving={saving === 'horse'} /> : <article key={horse.id} className={styles.horseCard}><div className={styles.horseIdentity}>{horse.photo_reference ? <img src={horse.photo_reference} alt={`${horse.name}`} /> : <div className={styles.photoPlaceholder}>Horse photo</div>}<div><h3>{horse.name}</h3><p>{horse.sex.toLowerCase()} {horse.breed ? `• ${horse.breed}` : ''}</p></div></div><div className={styles.horseButtons}><label className={styles.photoButton}>Upload photo<input type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={(e) => e.target.files?.[0] && uploadPhoto(horse, e.target.files[0])} /></label>{horse.photo_reference && <Button variant="ghost" size="sm" onClick={async () => { try { await profileApi.removeHorsePhoto(horse.id); setProfile((current) => current && ({ ...current, horses: current.horses.map((item) => item.id === horse.id ? { ...item, photo_reference: null } : item) })); setNotice({ kind: 'success', text: 'Horse photo removed.' }); } catch (error) { setNotice({ kind: 'error', text: extractErrorMessage(error, 'Horse photo could not be removed.') }); } }}>Remove photo</Button>}<Button variant="outline" size="sm" onClick={() => setEditingHorse(horse)}>Edit</Button><Button variant="danger" size="sm" onClick={() => removeHorse(horse)}>Remove</Button></div></article>)}</div>
+         {editingHorse === 'new' && <HorseForm initial={emptyHorse} onCancel={() => setEditingHorse(null)} onSave={saveHorse} saving={saving === 'horse'} stable={profile.stable_profile} canInherit={!!profile.stable_profile} />}
+         <div className={styles.horseList}>{profile.horses.length === 0 && editingHorse !== 'new' ? <p className={styles.empty}>No horses added yet.</p> : profile.horses.map((horse) => editingHorseId === horse.id ? <HorseForm key={horse.id} initial={horse} onCancel={() => setEditingHorse(null)} onSave={saveHorse} saving={saving === 'horse'} stable={profile.stable_profile} canInherit={!!profile.stable_profile} /> : <article key={horse.id} className={styles.horseCard}><div className={styles.horseIdentity}>{horse.photo_reference ? <img src={horse.photo_reference} alt={`${horse.name}`} /> : <div className={styles.photoPlaceholder}>Horse photo</div>}<div><h3>{horse.name}</h3><p>{horse.sex.toLowerCase()} {horse.breed ? `• ${horse.breed}` : ''}</p></div></div><div className={styles.horseButtons}><label className={styles.photoButton}>Upload photo<input type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={(e) => e.target.files?.[0] && uploadPhoto(horse, e.target.files[0])} /></label>{horse.photo_reference && <Button variant="ghost" size="sm" onClick={async () => { try { await profileApi.removeHorsePhoto(horse.id); setProfile((current) => current && ({ ...current, horses: current.horses.map((item) => item.id === horse.id ? { ...item, photo_reference: null } : item) })); setNotice({ kind: 'success', text: 'Horse photo removed.' }); } catch (error) { setNotice({ kind: 'error', text: extractErrorMessage(error, 'Horse photo could not be removed.') }); } }}>Remove photo</Button>}<Button variant="outline" size="sm" onClick={() => setEditingHorse(horse)}>Edit</Button><Button variant="danger" size="sm" onClick={() => removeHorse(horse)}>Remove</Button></div></article>)}</div>
       </Card></section>}
     </main>
   );

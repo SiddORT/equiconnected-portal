@@ -15,7 +15,7 @@ from app.schemas.profile import (
     HorseCreate, HorseResponse, HorseUpdate, MemberProfileResponse, PersonalProfileUpdate,
     PostalLookupResponse, StableProfileResponse, StableProfileUpdate,
 )
-from app.services.profile_service import HorseNotFoundError, MemberProfileAccessError, ProfileService
+from app.services.profile_service import HorseLocationError, HorseNotFoundError, MemberProfileAccessError, ProfileService
 
 router = APIRouter(prefix="/profile", tags=["Member Profile"])
 _DB = Annotated[Session, Depends(get_db)]
@@ -94,6 +94,8 @@ def add_horse(body: HorseCreate, user: CurrentUser, svc: _Svc) -> HorseResponse:
         return HorseResponse.model_validate(svc.add_horse(user, body))
     except MemberProfileAccessError:
         raise _forbidden()
+    except HorseLocationError as exc:
+        raise HTTPException(422, detail={"code": "horse_location_invalid", "message": str(exc)}) from None
 
 
 @router.put("/horses/{horse_id}", response_model=HorseResponse)
@@ -104,6 +106,8 @@ def update_horse(horse_id: uuid.UUID, body: HorseUpdate, user: CurrentUser, svc:
         raise _forbidden()
     except HorseNotFoundError:
         raise _not_found()
+    except HorseLocationError as exc:
+        raise HTTPException(422, detail={"code": "horse_location_invalid", "message": str(exc)}) from None
 
 
 @router.delete("/horses/{horse_id}", status_code=status.HTTP_204_NO_CONTENT)

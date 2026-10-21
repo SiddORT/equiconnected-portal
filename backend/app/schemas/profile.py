@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 HorseSex = Literal["MARE", "GELDING", "STALLION", "FILLY", "COLT", "OTHER"]
 
@@ -44,7 +44,35 @@ class PersonalProfileUpdate(BaseModel):
     )(_trim_optional)
 
 
-class StableProfileUpdate(BaseModel):
+class LocationCoordinates(BaseModel):
+    latitude: float | None = Field(default=None, ge=-90, le=90, allow_inf_nan=False)
+    longitude: float | None = Field(default=None, ge=-180, le=180, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def coordinate_pair(self):
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Enter both latitude and longitude, or leave both blank.")
+        if ("latitude" in self.model_fields_set) != ("longitude" in self.model_fields_set):
+            raise ValueError("Send latitude and longitude together.")
+        return self
+
+
+class HorseLocation(LocationCoordinates):
+    location_mode: Literal["custom", "stable"] = "custom"
+    address: str | None = Field(default=None, max_length=300)
+    address_line_2: str | None = Field(default=None, max_length=300)
+    country: str | None = Field(default=None, max_length=100)
+    state_province: str | None = Field(default=None, max_length=100)
+    city: str | None = Field(default=None, max_length=100)
+    postal_code: str | None = Field(default=None, max_length=32)
+
+    _trim_location = field_validator(
+        "address", "address_line_2", "country", "state_province", "city", "postal_code",
+        mode="before",
+    )(_trim_optional)
+
+
+class StableProfileUpdate(LocationCoordinates):
     name: str = Field(min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=5000)
     address: str | None = Field(default=None, max_length=300)
@@ -71,7 +99,7 @@ class StableProfileUpdate(BaseModel):
     )(_trim_optional)
 
 
-class HorseCreate(BaseModel):
+class HorseCreate(HorseLocation):
     name: str = Field(min_length=1, max_length=200)
     sex: HorseSex
     registered_name: str | None = Field(default=None, max_length=200)
@@ -102,6 +130,8 @@ class HorseUpdate(HorseCreate):
 
 
 class StableProfileResponse(BaseModel):
+    latitude: float | None = None
+    longitude: float | None = None
     id: uuid.UUID
     name: str
     description: str | None
@@ -118,7 +148,21 @@ class StableProfileResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class HorseResponse(BaseModel):
+class EffectiveHorseLocation(BaseModel):
+    address: str | None = None
+    address_line_2: str | None = None
+    country: str | None = None
+    state_province: str | None = None
+    city: str | None = None
+    postal_code: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    available: bool
+    reason: str | None
+
+
+class HorseResponse(HorseLocation):
+    effective_location: EffectiveHorseLocation
     id: uuid.UUID
     name: str
     sex: HorseSex

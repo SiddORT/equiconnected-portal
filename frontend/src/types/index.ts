@@ -173,6 +173,8 @@ export interface StableProfile {
   state_province: string | null;
   city: string | null;
   postal_code: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   contact_name: string | null;
   contact_phone: string | null;
   contact_email: string | null;
@@ -188,6 +190,8 @@ export interface StableProfileUpdate {
   state_province?: string | null;
   city?: string | null;
   postal_code?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   contact_name?: string | null;
   contact_phone?: string | null;
   contact_email?: string | null;
@@ -205,8 +209,31 @@ export interface Horse {
   registration_number: string | null;
   microchip_number: string | null;
   description: string | null;
+  location_mode?: 'custom' | 'stable';
+  address?: string | null;
+  address_line_2?: string | null;
+  country?: string | null;
+  state_province?: string | null;
+  city?: string | null;
+  postal_code?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  effective_location?: HorseEffectiveLocation;
   photo_reference: string | null;
   updated_at: string;
+}
+
+export interface HorseEffectiveLocation {
+  address?: string | null;
+  address_line_2?: string | null;
+  country?: string | null;
+  state_province?: string | null;
+  city?: string | null;
+  postal_code?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  available: boolean;
+  reason: string | null;
 }
 
 export interface HorsePayload {
@@ -220,6 +247,15 @@ export interface HorsePayload {
   registration_number?: string | null;
   microchip_number?: string | null;
   description?: string | null;
+  location_mode?: 'custom' | 'stable';
+  address?: string | null;
+  address_line_2?: string | null;
+  country?: string | null;
+  state_province?: string | null;
+  city?: string | null;
+  postal_code?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface MemberProfile {
@@ -1151,6 +1187,7 @@ export interface MemberProviderListParams {
   page?: number;
   page_size?: number;
   name?: string;
+  horse_id?: string;
 }
 
 export interface AdminProviderReview {

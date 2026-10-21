@@ -19,6 +19,10 @@ class HorseNotFoundError(Exception):
     pass
 
 
+class HorseLocationError(Exception):
+    pass
+
+
 class ProfileService:
     def __init__(self, db: Session) -> None:
         self._repo = ProfileRepository(db)
@@ -63,6 +67,9 @@ class ProfileService:
             fields = payload.model_dump()
             if "address_line_2" not in payload.model_fields_set:
                 fields.pop("address_line_2")
+            for field in ("latitude", "longitude"):
+                if field not in payload.model_fields_set:
+                    fields.pop(field)
             for field, value in fields.items():
                 setattr(stable, field, value)
         self._repo.commit()
@@ -76,6 +83,7 @@ class ProfileService:
 
     def add_horse(self, user: User, payload: HorseCreate) -> Horse:
         self.list_horses(user)
+        self._validate_horse_location(user, payload.location_mode)
         horse = self._repo.add_horse(user.id, payload.model_dump())
         self._repo.commit()
         return horse
@@ -92,10 +100,23 @@ class ProfileService:
         horse = self._repo.get_horse(user.id, horse_id)
         if horse is None:
             raise HorseNotFoundError
-        for field, value in payload.model_dump().items():
+        fields = payload.model_dump()
+        location_fields = {
+            "location_mode", "address", "address_line_2", "country", "state_province",
+            "city", "postal_code", "latitude", "longitude",
+        }
+        for field in location_fields - payload.model_fields_set:
+            fields.pop(field)
+        if "location_mode" in fields:
+            self._validate_horse_location(user, fields["location_mode"])
+        for field, value in fields.items():
             setattr(horse, field, value)
         self._repo.commit()
         return horse
+
+    def _validate_horse_location(self, user: User, mode: str) -> None:
+        if mode == "stable" and self.get(user).stable_profile is None:
+            raise HorseLocationError("Save a stable profile before choosing Same as stable location.")
 
     def delete_horse(self, user: User, horse_id: uuid.UUID) -> None:
         self.list_horses(user)
