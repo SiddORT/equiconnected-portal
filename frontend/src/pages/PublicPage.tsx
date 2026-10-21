@@ -463,7 +463,7 @@ export function PublicPage() {
               <li><span aria-hidden="true">1</span> Create your member profile</li>
               <li><span aria-hidden="true">2</span> Add your horses</li>
               <li><span aria-hidden="true">3</span> Include optional breed details</li>
-              <li><span aria-hidden="true">4</span> fill in breed details section</li>
+              <li><span aria-hidden="true">4</span> Fill in breed details section</li>
               <li><span aria-hidden="true">5</span> Browse provider-shared information</li>
               <li><span aria-hidden="true">6</span> Save providers to revisit later</li>
             </ol>
