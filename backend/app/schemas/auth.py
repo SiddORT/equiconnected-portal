@@ -237,6 +237,7 @@ class EmailVerificationResponse(BaseModel):
 
     message: str
     email: EmailStr
+    outcome: Literal["provider_awaiting_approval"] | None = None
     redirect_to: Literal["/provider/login"] | None = None
 
 

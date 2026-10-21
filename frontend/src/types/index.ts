@@ -109,6 +109,7 @@ export interface ContactEnquiryListParams {
 
 export interface EmailVerificationResponse extends MessageResponse {
   email: string;
+  outcome?: 'provider_awaiting_approval';
   redirect_to?: '/login' | '/provider/login';
 }
 

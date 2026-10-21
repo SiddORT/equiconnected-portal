@@ -33,6 +33,34 @@ class _RefusingSMTP(_FakeSMTP):
     def sendmail(self, *_args):
         return {"recipient@example.test": (550, b"Rejected")}
 
+def test_provider_approval_email_keeps_account_recipient_absolute_link_and_brand(monkeypatch):
+    delivered = []
+    monkeypatch.setattr(
+        email_service.EmailService, "_deliver",
+        staticmethod(lambda message, recipient: delivered.append((message, recipient))),
+    )
+    recipient = "synthetic.provider@example.test"
+    login_url = "https://portal.example.test/provider/login"
+    email_service.EmailService().send_provider_approval_email(recipient, login_url)
+    assert len(delivered) == 1
+    message, address = delivered[0]
+    assert address == recipient
+    assert message["To"] == recipient
+    assert message["Subject"] == "Your EquiConnected provider account is approved"
+    parts = list(message.walk())
+    plain = next(part for part in parts if part.get_content_type() == "text/plain")
+    html = next(part for part in parts if part.get_content_type() == "text/html")
+    plain_body = plain.get_payload(decode=True).decode("utf-8")
+    html_body = html.get_payload(decode=True).decode("utf-8")
+    for body in (plain_body, html_body):
+        assert recipient in body
+        assert login_url in body
+        assert "unpublished" in body
+    assert f'href="{login_url}"' in html_body
+    assert 'background-color:#090908' in html_body
+    assert 'cid:equiconnected-logo' in html_body
+    assert any(part.get_content_type() == "image/png" for part in parts)
+
 
 def test_verification_email_uses_branded_shell_and_inline_logo(monkeypatch):
     """Verification email keeps the invitation visual system with relevant copy."""

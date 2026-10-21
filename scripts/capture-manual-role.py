@@ -966,10 +966,18 @@ class Fixtures:
         if path.endswith("/auth/provider-languages"):
             return LANGUAGES, 200
         if path.endswith("/auth/verify-email"):
+            if body.get("token") != "sample-member-verification":
+                return {
+                    "message": (
+                        "Your email has been verified. Your account is awaiting administrator approval. "
+                        "Once approved, you’ll receive an email with a link to sign in."
+                    ),
+                    "email": "sample.provider@example.test",
+                    "outcome": "provider_awaiting_approval",
+                }, 200
             return {
                 "message": "Sample email verification is complete. You can sign in.",
-                "email": SAMPLE_EMAIL if body.get("token") == "sample-member-verification" else "sample.provider@example.test",
-                "redirect_to": "/login" if body.get("token") == "sample-member-verification" else "/provider/login",
+                "email": SAMPLE_EMAIL,
             }, 200
         if path.endswith("/auth/provider-portal/setup-password") or path.endswith("/auth/provider-portal/reset-password"):
             return {"message": "Sample password setup complete."}, 200
@@ -1752,7 +1760,7 @@ async def main(provider_refresh=False):
             await screenshot(
                 "role-provider-verification-complete",
                 "Provider application · verified",
-                "Provider email verification confirms the next sign-in step without exposing the synthetic token.",
+                "Provider email verification confirms that administrator approval and an approval email must come before sign-in, without exposing the synthetic token.",
             )
             await navigate("/provider/setup-password?token=sample-setup-only", role="member")
             await wait_for("!!document.querySelector('#portal-password')", "provider password setup")

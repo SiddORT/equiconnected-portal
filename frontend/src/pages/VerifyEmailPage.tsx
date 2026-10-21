@@ -18,6 +18,7 @@ export function VerifyEmailPage() {
   const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [state, setState] = useState<VerificationState>('verifying');
   const [message, setMessage] = useState('We are securely verifying your email address.');
+  const [awaitingApproval, setAwaitingApproval] = useState(false);
   const [redirectPath, setRedirectPath] = useState<'/login' | '/provider/login'>('/login');
 
   useEffect(() => {
@@ -46,6 +47,10 @@ export function VerifyEmailPage() {
         if (!isMounted.current) return;
         setState('verified');
         setMessage(response.message);
+        if (response.outcome === 'provider_awaiting_approval') {
+          setAwaitingApproval(true);
+          return;
+        }
         setRedirectPath(response.redirect_to ?? '/login');
         redirectTimer.current = setTimeout(() => {
           if (!isMounted.current) return;
@@ -90,7 +95,7 @@ export function VerifyEmailPage() {
                 : 'Unable to verify email'}
           </h1>
           <p>{message}</p>
-          {state === 'verified' && (
+          {state === 'verified' && !awaitingApproval && (
             <>
               <p className={styles.redirectMessage} role="status">
                 Redirecting you to {redirectPath === '/provider/login' ? 'provider' : 'member'} sign in…
@@ -102,7 +107,7 @@ export function VerifyEmailPage() {
           )}
           {state === 'error' && <p className={styles.muted}>For your security, verification links can only be used once and expire after 24 hours.</p>}
           {state === 'error' && <VerificationResend token={tokenRef.current} />}
-          {state === 'error' && <Link className={styles.homeLink} to="/">Return to EquiConnected</Link>}
+          {(state === 'error' || awaitingApproval) && <Link className={styles.homeLink} to="/">Return to EquiConnected</Link>}
         </section>
       </section>
     </main>

@@ -99,7 +99,14 @@ def _verified_application(client: TestClient, db, monkeypatch, **overrides) -> P
     token = parse_qs(urlparse(sent_urls[0]).query)["token"][0]
     verified = client.post(f"{AUTH}/verify-email", json={"token": token})
     assert verified.status_code == 200
-    assert verified.json()["redirect_to"] == "/provider/login"
+    assert verified.json() == {
+        "message": (
+            "Your email has been verified. Your account is awaiting administrator approval. "
+            "Once approved, you’ll receive an email with a link to sign in."
+        ),
+        "email": _payload(**overrides)["email"],
+        "outcome": "provider_awaiting_approval",
+    }
     return db.query(ProviderRegistrationApplication).one()
 
 
@@ -245,10 +252,13 @@ class TestProviderRegistration:
         assert db.query(ProviderLanguage).filter_by(provider_id=provider_id).count() == 1
         assert db.query(Language).filter_by(id=language_id).one().is_active is False
 
+    @pytest.mark.parametrize("provider_type", ["CLINIC", "HOSPITAL", "DOCTOR"])
     def test_provider_registration_verification_and_atomic_approval(
-        self, client: TestClient, db, seeded_admin, monkeypatch
+        self, client: TestClient, db, seeded_admin, monkeypatch, provider_type
     ):
-        application = _verified_application(client, db, monkeypatch)
+        from app.core.config import get_settings
+        monkeypatch.setattr(get_settings(), "PUBLIC_APP_URL", "https://portal.example.test")
+        application = _verified_application(client, db, monkeypatch, provider_type=provider_type)
         provider_user = db.query(User).filter(User.id == application.user_id).one()
         assert application.review_status == ProviderApplicationStatus.PENDING_REVIEW
         assert provider_user.is_active is False
@@ -263,7 +273,7 @@ class TestProviderRegistration:
         admin, _password = seeded_admin
         listed = client.get(
             APPLICATIONS,
-            params={"review_status": "PENDING_REVIEW", "provider_type": "CLINIC"},
+            params={"review_status": "PENDING_REVIEW", "provider_type": provider_type},
             headers=_admin_headers(admin),
         )
         assert listed.status_code == 200
@@ -284,8 +294,9 @@ class TestProviderRegistration:
         assert approved.status_code == 200
         body = approved.json()
         assert body["email_sent"] is True
-        assert approval_emails[0][0] == provider_user.email
-        assert approval_emails[0][1].endswith("/provider/login")
+        assert approval_emails == [
+            (provider_user.email, "https://portal.example.test/provider/login")
+        ]
         assert body["review_status"] == "APPROVED"
         assert body["provider_id"]
         assert body["professional_title"] == "Equine veterinarian"
@@ -332,6 +343,12 @@ class TestProviderRegistration:
         )
         assert repeated.status_code == 409
         assert db.query(Provider).count() == 1
+        assert len(approval_emails) == 1
+        assert db.query(EmailDeliveryLog).filter_by(purpose="provider_approval").one().status == "success"
+        from app.services.provider_approval_email import send_provider_approval_email
+        assert send_provider_approval_email(db, provider_user, EmailService()) is True
+        assert len(approval_emails) == 1
+        assert db.query(EmailDeliveryLog).filter_by(purpose="provider_approval").count() == 1
 
         approved_login = client.post(
             f"{AUTH}/login",
@@ -343,6 +360,48 @@ class TestProviderRegistration:
             APPLICATIONS, headers=_admin_headers(provider_user)
         )
         assert forbidden.status_code == 403
+
+    def test_approval_commits_before_failed_email_and_retains_delivery_log(
+        self, client: TestClient, db, seeded_admin, monkeypatch
+    ):
+        from tests.conftest import TestingSessionLocal
+
+        application = _verified_application(client, db, monkeypatch)
+        application_id = application.id
+        recipients = []
+
+        def fail_delivery(_self, recipient, login_url):
+            recipients.append(recipient)
+            # A separate connection must see the approval before SMTP begins.
+            with TestingSessionLocal() as session:
+                committed = session.get(ProviderRegistrationApplication, application_id)
+                assert committed.review_status == ProviderApplicationStatus.APPROVED
+                assert committed.provider_id is not None
+                assert committed.user.is_active is True
+                attempt = session.query(EmailDeliveryLog).filter_by(purpose="provider_approval").one()
+                assert attempt.status == "pending"
+            raise EmailDeliveryError("SMTP TLS negotiation failed.")
+
+        monkeypatch.setattr(EmailService, "send_provider_approval_email", fail_delivery)
+        headers = _admin_headers(seeded_admin[0])
+        approved = client.post(f"{APPLICATIONS}/{application_id}/approve", headers=headers)
+        assert approved.status_code == 200
+        assert approved.json()["review_status"] == "APPROVED"
+        assert approved.json()["email_sent"] is False
+        db.expire_all()
+        application = db.get(ProviderRegistrationApplication, application_id)
+        assert application.user.is_active is True
+        assert application.user.provider_portal_approval_email_sent_at is None
+        delivery = db.query(EmailDeliveryLog).filter_by(purpose="provider_approval").one()
+        assert delivery.recipient_email == application.user.email
+        assert delivery.status == "failed"
+        assert delivery.failure_message == "SMTP TLS negotiation failed."
+        assert recipients == [application.user.email]
+        assert client.post(f"{APPLICATIONS}/{application_id}/approve", headers=headers).status_code == 409
+        assert len(recipients) == 1
+        assert client.post(f"{AUTH}/login", json={
+            "email": application.user.email, "password": "HorseCare2026",
+        }).status_code == 200
 
     def test_admin_application_details_include_saved_fields_and_inactive_selections(
         self, client: TestClient, db, seeded_admin, monkeypatch

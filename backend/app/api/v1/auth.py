@@ -431,12 +431,13 @@ def verify_email(
         )
     return EmailVerificationResponse(
         message=(
-            "Your email has been verified. Your provider application is now awaiting administrator review."
+            "Your email has been verified. Your account is awaiting administrator approval. "
+            "Once approved, you’ll receive an email with a link to sign in."
             if result.is_provider_application
             else "Your email has been verified. You can now sign in."
         ),
         email=result.email,
-        redirect_to="/provider/login" if result.is_provider_application else None,
+        outcome="provider_awaiting_approval" if result.is_provider_application else None,
     )
 
 
