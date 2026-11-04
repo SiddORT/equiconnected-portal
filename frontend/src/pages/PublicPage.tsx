@@ -297,7 +297,7 @@ export function PublicPage() {
         <section className={styles.intro} id="care" aria-labelledby="intro-heading">
           <h2 id="intro-heading">
             Every horse deserves care from someone who<span className={styles.introDesktopBreak}><br /></span>{' '}knows horses.
-            {' '}<span className={styles.inlinePhoto}><img src="/home-v2/statement-detail-1.jpg" alt="" /></span>
+            {' '}<span className={styles.inlinePhoto}><img className={styles.horseEyePhoto} src="/home-v2/statement-detail-1.jpg" alt="" /></span>
             {' '}EquiConnected brings together the vets, clinics and hospitals of the Emirates
             {' '}<span className={styles.inlinePhoto}><img src="/home-v2/statement-detail-2.jpg" alt="" /></span>
             {' '}<em>so the right one is always within reach.</em>

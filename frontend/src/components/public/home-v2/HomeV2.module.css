@@ -104,6 +104,7 @@
 .intro em { color: var(--gold); }
 .inlinePhoto { width: 1.68em; height: .82em; display: inline-block; overflow: hidden; margin: 0 .08em; border-radius: 999px; vertical-align: -.06em; }
 .inlinePhoto img { width: 100%; height: 100%; object-fit: cover; }
+.inlinePhoto .horseEyePhoto { object-position: center 78%; }
 .textLink { display: inline-flex; align-items: center; gap: 12px; padding-bottom: 5px; border-bottom: 1px solid var(--gold); font-size: 11px; font-weight: 700; white-space: nowrap; }
 
 .steps { padding: 0 max(32px,calc((100vw - 1390px)/2)) clamp(75px,7vw,115px); }
