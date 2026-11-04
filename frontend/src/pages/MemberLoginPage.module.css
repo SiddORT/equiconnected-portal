@@ -210,20 +210,27 @@
 }
 
 .showHide {
-  padding: 5px;
+  min-width: 44px;
+  padding: 5px 7px;
   border: 0;
   border-radius: 5px;
-  color: #87622e;
+  color: #6d4f28;
   background: transparent;
   cursor: pointer;
-  font-size: 0.9rem;
-  line-height: 1;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.1;
   pointer-events: all;
 }
 
-.showHide:hover,
+.showHide:hover {
+  background: rgba(109, 79, 40, 0.1);
+}
+
 .showHide:focus-visible {
-  background: rgba(135, 98, 46, 0.12);
+  outline: 2px solid #6d4f28;
+  outline-offset: 2px;
+  background: rgba(109, 79, 40, 0.12);
 }
 
 .noRegister {

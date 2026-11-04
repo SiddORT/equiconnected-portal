@@ -151,10 +151,12 @@ describe('MemberLoginPage', () => {
     await user.type(screen.getByLabelText('Password'), 'SecureHorse7');
     const password = screen.getByLabelText('Password');
     expect(password.getAttribute('type')).toBe('password');
+    expect(screen.getByRole('button', { name: 'Show password' }).textContent).toBe('Show');
 
     await user.click(screen.getByRole('button', { name: 'Show password' }));
     expect(screen.getByLabelText('Password').getAttribute('type')).toBe('text');
     expect(screen.getByRole('button', { name: 'Hide password' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Hide password' }).textContent).toBe('Hide');
 
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
     await waitFor(() => expect(login).toHaveBeenCalledWith('rider@example.com', 'SecureHorse7'));
