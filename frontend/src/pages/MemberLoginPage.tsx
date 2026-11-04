@@ -221,10 +221,10 @@ export function MemberLoginPage() {
 
           <p className={styles.noRegister}>
             New to EquiConnected?{' '}
-            <Link to="/signup" className={styles.signupLink}>Create your public account</Link>
+            <Link to="/signup" className={styles.signupLink}>Create your member account</Link>
           </p>
           <p className={styles.securityNote}>
-            Your account is for verified horse owners and stable managers.
+            For horse owners and stable managers.
           </p>
         </div>
       </main>
