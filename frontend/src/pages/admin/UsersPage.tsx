@@ -18,6 +18,7 @@ import styles from './UsersPage.module.css';
 const ROLE_OPTIONS = [
   { value: 'all', label: 'All roles' },
   { value: 'horse_owner', label: 'Horse Owner' },
+  { value: 'horse_rider', label: 'Horse Rider' },
   { value: 'stable_manager', label: 'Stable Manager' },
 ];
 

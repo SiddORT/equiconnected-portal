@@ -36,7 +36,7 @@ export interface TokenResponse {
   expires_in: number;
 }
 
-export type PublicRoleSelection = 'HORSE_OWNER' | 'STABLE_MANAGER' | 'BOTH';
+export type PublicRoleSelection = 'HORSE_OWNER' | 'HORSE_RIDER' | 'STABLE_MANAGER' | 'BOTH';
 
 export interface RegistrationRequest {
   first_name: string;

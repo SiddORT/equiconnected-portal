@@ -38,6 +38,7 @@ REQUIRED_ROLES = (
     ("admin", "Full system administrator"),
     ("provider", "Provider portal"),
     ("horse_owner", "Public horse owner account"),
+    ("horse_rider", "Public horse rider account"),
     ("stable_manager", "Public stable manager account"),
 )
 

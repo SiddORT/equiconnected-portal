@@ -245,7 +245,7 @@ def dashboard_stats(
         ),
     }
 
-    public_role_names = ("horse_owner", "stable_manager")
+    public_role_names = ("horse_owner", "horse_rider", "stable_manager")
     public_role_counts = dict(
         db.execute(
             select(Role.name, func.count(func.distinct(UserRole.user_id)))

@@ -146,6 +146,7 @@ class AuthService:
 
         role_names = {
             "HORSE_OWNER": ["horse_owner"],
+            "HORSE_RIDER": ["horse_rider"],
             "STABLE_MANAGER": ["stable_manager"],
             "BOTH": ["horse_owner", "stable_manager"],
         }[registration.role]
@@ -307,7 +308,7 @@ class AuthService:
             if user is None or user.email_verified_at is not None or user.provider_portal_setup_pending:
                 return False
             roles = {assignment.role.name for assignment in user.role_assignments}
-            if not roles.intersection({"horse_owner", "stable_manager", "provider"}):
+            if not roles.intersection({"horse_owner", "horse_rider", "stable_manager", "provider"}):
                 return False
             latest = self._db.scalar(
                 select(EmailDeliveryLog).where(

@@ -5,7 +5,8 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { MemberTopNav } from './MemberTopNav';
 import { readFileSync } from 'node:fs';
 
-const { logout, getProfile, getRecentMemberHistory } = vi.hoisted(() => ({
+const { logout, getProfile, getRecentMemberHistory, memberRole } = vi.hoisted(() => ({
+  memberRole: { value: 'horse_owner' },
   logout: vi.fn(),
   getProfile: vi.fn(),
   getRecentMemberHistory: vi.fn(),
@@ -19,8 +20,8 @@ vi.mock('@/app/AuthContext', () => ({
       first_name: 'Amina',
       last_name: 'Rider',
       full_name: 'amina rider',
-      role: 'horse_owner',
-      roles: ['horse_owner'],
+      role: memberRole.value,
+      roles: [memberRole.value],
       email_verified_at: '2026-08-21T00:00:00Z',
       last_successful_login_at: '2026-08-21T00:00:00Z',
       is_active: true,
@@ -33,6 +34,7 @@ vi.mock('@/api/memberFeedback', () => ({ getRecentMemberHistory, submitPlatformF
 vi.mock('@/components/messaging/useMessageUnreadCount', () => ({ useMessageUnreadCount: () => 3 }));
 
 beforeEach(() => {
+  memberRole.value = 'horse_owner';
   getProfile.mockResolvedValue({ horses: [{ id: 'horse-1' }] });
   getRecentMemberHistory.mockResolvedValue([{
     id: 'history-1', event_key: 'search:1', type: 'search', occurred_at: '2026-08-21T12:00:00Z',
@@ -78,6 +80,15 @@ describe('MemberTopNav', () => {
 
     await user.click(screen.getByRole('link', { name: 'Profile' }));
     expect(screen.getByRole('button', { name: 'Open member navigation' }).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('retains Horse Rider identity in the account menu', async () => {
+    memberRole.value = 'horse_rider';
+    const user = userEvent.setup();
+    render(<MemoryRouter><MemberTopNav /></MemoryRouter>);
+    await user.click(screen.getByRole('button', { name: 'Account menu for Amina Rider' }));
+    expect(await screen.findByText('Horse Rider')).toBeTruthy();
+    expect(screen.queryByText('Horse owner')).toBeNull();
   });
 
   it('opens an account menu with persisted profile details and recent member activity', async () => {

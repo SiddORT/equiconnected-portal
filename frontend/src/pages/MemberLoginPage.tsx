@@ -132,7 +132,7 @@ export function MemberLoginPage() {
               <small>Exceptional equine care</small>
             </span>
           </Link>
-          <p className={styles.storyEyebrow}>For horse owners &amp; stable managers</p>
+          <p className={styles.storyEyebrow}>For horse owners, riders &amp; stable managers</p>
           <h1 id="member-story-heading">The right care for every chapter.</h1>
           <p className={styles.storyCopy}>
             Discover trusted hospitals, clinics, and doctors for the horses who rely on you.
@@ -225,7 +225,7 @@ export function MemberLoginPage() {
             <Link to="/signup" className={styles.signupLink}>Create your member account</Link>
           </p>
           <p className={styles.securityNote}>
-            For horse owners and stable managers.
+            For horse owners, riders and stable managers.
           </p>
         </div>
       </main>

@@ -71,7 +71,7 @@ class AnalyticsFilters(BaseModel):
     country: str | None = Field(default=None, min_length=1, max_length=150)
     city: str | None = Field(default=None, min_length=1, max_length=150)
 
-    member_role: Literal["horse_owner", "stable_manager", "both"] | None = None
+    member_role: Literal["horse_owner", "horse_rider", "stable_manager", "both"] | None = None
     member_verified: bool | None = None
     member_active: bool | None = None
 

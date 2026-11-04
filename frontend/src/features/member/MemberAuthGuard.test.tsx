@@ -30,6 +30,17 @@ function renderGuard(initialEntry: string) {
 }
 
 describe('MemberAuthGuard', () => {
+  it.each(['/providers', '/profile', '/providers/visiting-calendar'])('allows a verified horse rider into %s', async (path) => {
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true, isLoading: false, login: vi.fn(), logout: vi.fn(),
+      user: { id: 'rider', email: 'rider@example.test', first_name: null, last_name: null,
+        full_name: 'Rider', role: 'horse_rider', roles: ['horse_rider'],
+        email_verified_at: '2026-01-01T00:00:00Z', last_successful_login_at: null, is_active: true },
+    });
+    renderGuard(path);
+    expect(await screen.findByText(path === '/profile' ? 'Member profile' : path.includes('calendar') ? 'Member calendar' : 'Provider directory')).toBeTruthy();
+  });
+
   it.each([null, '2026-01-01T00:00:00Z'])('only opens the calendar for verified members (%s)', async verified => {
     vi.mocked(useAuth).mockReturnValue({
       isAuthenticated: true, isLoading: false, login: vi.fn(), logout: vi.fn(),

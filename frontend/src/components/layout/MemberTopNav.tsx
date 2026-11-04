@@ -26,6 +26,7 @@ function roleName(roles: string[] = []) {
   const set = roles.map((r) => r.toLowerCase());
   if (set.some((r) => r.includes('stable')) && set.some((r) => r.includes('owner'))) return 'Horse owner & stable manager';
   if (set.some((r) => r.includes('stable'))) return 'Stable manager';
+  if (set.some((r) => r.includes('rider'))) return 'Horse Rider';
   return 'Horse owner';
 }
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import pytest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from threading import Barrier, Lock
@@ -66,10 +67,11 @@ def _login_headers(client, user: User):
     return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
+@pytest.mark.parametrize("role", ["horse_owner", "horse_rider"])
 def test_anonymous_request_is_uniform_and_delivers_hashed_fragment_link(
-    client, db, monkeypatch
+    client, db, monkeypatch, role
 ):
-    member = _create_user(db, "Member.Reset@Example.com", ["horse_owner"])
+    member = _create_user(db, "Member.Reset@Example.com", [role])
     delivered: list[tuple[str, str]] = []
     monkeypatch.setattr(
         EmailService,
@@ -206,10 +208,11 @@ def test_current_recovery_reads_role_assignments_again_under_lock(db, monkeypatc
         raise AssertionError("fresh provider assignment should disqualify member recovery")
 
 
+@pytest.mark.parametrize("roles", [["horse_owner", "stable_manager"], ["horse_rider"]])
 def test_password_reset_is_atomic_single_use_and_revokes_refresh_sessions(
-    client, db, monkeypatch
+    client, db, monkeypatch, roles
 ):
-    member = _create_user(db, "redeem-member@example.com", ["horse_owner", "stable_manager"])
+    member = _create_user(db, "redeem-member@example.com", roles)
     original_role_id = member.role_id
     delivered: list[str] = []
     monkeypatch.setattr(

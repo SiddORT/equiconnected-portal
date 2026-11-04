@@ -23,9 +23,9 @@ export const gettingStartedTopics: ManualTopic[] = [
   {
     id: 'member-create-account',
     title: 'Create and verify a member account',
-    purpose: 'Register as a horse owner, stable manager, or both so you can use the member directory and profile.',
+    purpose: 'Register as a horse owner, horse rider, stable manager, or both an owner and stable manager so you can use the member directory and profile.',
     where: 'Public site → Create your account → /signup; emailed verification link → /verify-email',
-    who: 'New horse owners and stable managers',
+    who: 'New horse owners, horse riders, and stable managers',
     prerequisites: [
       'A working email address that you can open.',
       'Your name, mobile number, country, and city.',
@@ -33,7 +33,7 @@ export const gettingStartedTopics: ManualTopic[] = [
     ],
     steps: [
       'Open /signup and enter First name, Last name, Email address, Mobile number, country, state or province when requested, and city.',
-      'Under I am joining as, select Horse Owner, Stable Manager, or Both.',
+      'Under I am joining as, select Horse Owner, Horse Rider, Stable Manager, or Both. Both combines Horse Owner and Stable Manager.',
       'Enter and confirm your password, then accept the Terms & Conditions and Privacy Policy.',
       'Select Create account. If the page says Check your inbox, open the secure verification email and follow its link within 24 hours.',
       'After verification, continue to member sign-in. If the page says Account saved because email delivery failed, do not register again; use the available verification-resend option.',

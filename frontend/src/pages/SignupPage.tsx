@@ -38,8 +38,9 @@ const initialForm: FormState = {
 
 const roleOptions: Array<{ value: PublicRoleSelection; label: string; description: string }> = [
   { value: 'HORSE_OWNER', label: 'Horse Owner', description: 'I own or care for horses.' },
+  { value: 'HORSE_RIDER', label: 'Horse Rider', description: 'I ride or care for horses.' },
   { value: 'STABLE_MANAGER', label: 'Stable Manager', description: 'I manage a stable or yard.' },
-  { value: 'BOTH', label: 'Both', description: 'Both descriptions apply to me.' },
+  { value: 'BOTH', label: 'Both', description: 'I’m a horse owner and a stable manager.' },
 ];
 
 export function validateSignup(form: FormState): FormErrors {

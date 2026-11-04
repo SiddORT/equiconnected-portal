@@ -8,7 +8,7 @@ from app.models.user import User
 from app.repositories.profile_repository import ProfileRepository
 from app.schemas.profile import HorseCreate, HorseUpdate, PersonalProfileUpdate, StableProfileUpdate
 
-MEMBER_ROLES = frozenset({"horse_owner", "stable_manager"})
+MEMBER_ROLES = frozenset({"horse_owner", "horse_rider", "stable_manager"})
 
 
 class MemberProfileAccessError(Exception):
@@ -35,7 +35,9 @@ class ProfileService:
         roles = self.role_names(user)
         if not roles.intersection(MEMBER_ROLES):
             raise MemberProfileAccessError
-        return roles
+        # Riders share horse-profile capabilities, but keep their stored role and
+        # displayed identity distinct. This does not grant stable-management access.
+        return roles | {"horse_owner"} if "horse_rider" in roles else roles
 
     def get(self, user: User) -> User:
         member = self._repo.get_member(user.id)

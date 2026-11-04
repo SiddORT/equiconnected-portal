@@ -335,6 +335,8 @@ class AdminAnalyticsRepository:
         stable_manager = cls._user_has_role("stable_manager")
         if filters.member_role == "horse_owner":
             conditions.append(horse_owner & ~stable_manager)
+        elif filters.member_role == "horse_rider":
+            conditions.append(cls._user_has_role("horse_rider") & ~stable_manager)
         elif filters.member_role == "stable_manager":
             conditions.append(stable_manager & ~horse_owner)
         elif filters.member_role == "both":
@@ -1034,6 +1036,7 @@ class AdminAnalyticsRepository:
         manager = self._user_has_role("stable_manager")
         role = case(
             (owner & manager, "both"),
+            (self._user_has_role("horse_rider"), "horse_rider"),
             (owner, "horse_owner"),
             (manager, "stable_manager"),
             else_="unknown",

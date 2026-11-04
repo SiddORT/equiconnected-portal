@@ -50,6 +50,7 @@ def _seed_public_roles(db) -> None:
     repo = UserRepository(db)
     for name, description in (
         ("horse_owner", "Public horse owner account"),
+        ("horse_rider", "Public horse rider account"),
         ("stable_manager", "Public stable manager account"),
     ):
         if repo.get_role_by_name(name) is None:
@@ -68,6 +69,74 @@ def _capture_verification_email(monkeypatch) -> list[str]:
 
 
 class TestPublicRegistration:
+    def test_horse_rider_migration_is_repeatable_and_protects_assigned_accounts(self, db):
+        path = Path(__file__).resolve().parents[1] / "alembic/versions/7d42b1e9a603_add_horse_rider_role.py"
+        spec = spec_from_file_location("horse_rider_migration", path)
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with Operations.context(MigrationContext.configure(db.connection())):
+            module.upgrade()
+            module.upgrade()
+            assert db.query(Role).filter(Role.name == "horse_rider").count() == 1
+            module.downgrade()
+            assert db.query(Role).filter(Role.name == "horse_rider").count() == 0
+            module.upgrade()
+            rider_role = db.query(Role).filter(Role.name == "horse_rider").one()
+            user = UserRepository(db).create_user(
+                email="migration-rider@example.com", password_hash="test-only-unused-hash",
+                role=rider_role, roles=[rider_role], is_active=True,
+            )
+            db.flush()
+            with pytest.raises(RuntimeError, match="while accounts use it"):
+                module.downgrade()
+            assert db.query(Role).filter(Role.name == "horse_rider").count() == 1
+            assert db.query(User).filter(User.id == user.id).count() == 1
+
+    def test_horse_rider_verification_login_and_owner_capabilities(self, client, db, monkeypatch):
+        _seed_public_roles(db)
+        sent = _capture_verification_email(monkeypatch)
+        registered = client.post(f"{BASE}/register", json=_payload(role="HORSE_RIDER"))
+        assert registered.status_code == 201, registered.text
+        blocked = client.post(f"{BASE}/login", json={
+            "email": "amina@example.com", "password": "HorseCare2026",
+        })
+        assert blocked.status_code == 403
+        assert blocked.json()["detail"]["code"] == "email_not_verified"
+        token = parse_qs(urlparse(sent[0]).query)["token"][0]
+        assert client.post(f"{BASE}/verify-email", json={"token": token}).status_code == 200
+        login = client.post(f"{BASE}/login", json={
+            "email": "amina@example.com", "password": "HorseCare2026",
+        })
+        assert login.status_code == 200, login.text
+        assert login.json()["user"]["role"] == "horse_rider"
+        assert login.json()["user"]["roles"] == ["horse_rider"]
+        headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        profile = client.get("/api/v1/profile", headers=headers)
+        assert profile.status_code == 200, profile.text
+        assert profile.json()["roles"] == ["horse_rider"]
+        horse = client.post("/api/v1/profile/horses",
+                            json={"name": "Rider's demonstration horse", "sex": "MARE"},
+                            headers=headers)
+        assert horse.status_code == 201, horse.text
+        horse_id = horse.json()["id"]
+        saved = client.put(f"/api/v1/profile/horses/{horse_id}",
+                           json={"name": "Updated rider horse", "sex": "MARE"},
+                           headers=headers)
+        assert saved.status_code == 200, saved.text
+        assert client.get("/api/v1/profile/horses", headers=headers).json()[0]["name"] == "Updated rider horse"
+        assert client.get("/api/v1/member/providers", headers=headers).status_code == 200
+        assert client.get("/api/v1/admin/users", headers=headers).status_code == 403
+        # A rider does not gain the distinct stable-manager entitlement.
+        stable = client.put("/api/v1/profile/stable", headers=headers, json={
+            "name": "Not permitted", "address": "Demo address", "country": "United Arab Emirates",
+            "state_province": "Dubai", "city": "Dubai", "contact_name": "Demo",
+            "contact_phone": "+971 50 000 0000", "contact_email": "demo@example.com",
+        })
+        assert stable.status_code == 403, stable.text
+        refreshed = client.post(f"{BASE}/refresh")
+        assert refreshed.status_code == 200, refreshed.text
+        assert refreshed.json()["user"]["role"] == "horse_rider"
+
     def test_resend_is_rate_limited_per_ip(self):
         from app.core.rate_limit import (
             _verification_resend_attempts, check_verification_resend_rate_limit,

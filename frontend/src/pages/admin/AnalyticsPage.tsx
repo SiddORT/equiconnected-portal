@@ -630,7 +630,7 @@ export function AnalyticsPage() {
                 <label className={styles.filterField}>Listing city<input value={filters.city ?? ''} placeholder="Recorded city" onChange={(event) => updateQuery({ city: event.target.value || undefined })} /></label>
               </>}
             </>}
-            {filterField('member_role', 'Member role', [['horse_owner', 'Horse owner'], ['stable_manager', 'Stable manager'], ['both', 'Both']], supportsMembers)}
+            {filterField('member_role', 'Member role', [['horse_owner', 'Horse owner'], ['horse_rider', 'Horse Rider'], ['stable_manager', 'Stable manager'], ['both', 'Both']], supportsMembers)}
             {filterField('member_verified', 'Verification', [['true', 'Verified'], ['false', 'Unverified']], supportsMembers)}
             {filterField('member_active', 'Account', [['true', 'Active'], ['false', 'Inactive']], supportsMembers)}
             {filterField('application_status', 'Application status', [['AWAITING_EMAIL_VERIFICATION', 'Awaiting verification'], ['PENDING_REVIEW', 'Pending review'], ['APPROVED', 'Approved'], ['REJECTED', 'Rejected']], supportsApplications)}

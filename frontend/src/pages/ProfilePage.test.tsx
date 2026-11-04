@@ -51,6 +51,14 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
+it('shows horse management to riders with their own role label and no stable-management section', async () => {
+  vi.mocked(profileApi.getProfile).mockResolvedValue({ ...baseProfile, roles: ['horse_rider'] });
+  renderProfile();
+  expect(await screen.findByRole('heading', { name: 'Horse Rider' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Add horse' })).toBeTruthy();
+  expect(screen.queryByRole('heading', { name: 'Stable Manager' })).toBeNull();
+});
+
 function renderProfile(path = '/profile') {
   return render(<MemoryRouter initialEntries={[path]}><ProfilePage /></MemoryRouter>);
 }

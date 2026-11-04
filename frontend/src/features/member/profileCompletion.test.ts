@@ -33,6 +33,15 @@ const completePersonal: MemberProfile = {
 };
 
 describe('calculateProfileCompletion', () => {
+  it('gives riders the owner completion flow with a distinct Horse Rider label', () => {
+    const rider = calculateProfileCompletion({ ...completePersonal, roles: ['horse_rider'] });
+    const owner = calculateProfileCompletion(completePersonal);
+    expect(rider.percentage).toBe(owner.percentage);
+    expect(rider.sections.map((item) => item.id)).toEqual(owner.sections.map((item) => item.id));
+    expect(rider.sections.find((item) => item.id === 'horses')?.label).toBe('Horse Rider');
+    expect(rider.sections.some((item) => item.id === 'stable')).toBe(false);
+  });
+
   it.each(['United Arab Emirates', 'United States'])('does not require personal or stable postal codes in %s', (country) => {
     const completion = calculateProfileCompletion({
       ...completePersonal, country, postal_code: null, roles: ['stable_manager'],

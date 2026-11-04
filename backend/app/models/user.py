@@ -19,7 +19,7 @@ from app.db.contact_types import (
 from app.models.base import TimestampMixin
 
 
-PUBLIC_ACCOUNT_ROLE_NAMES = ("horse_owner", "stable_manager")
+PUBLIC_ACCOUNT_ROLE_NAMES = ("horse_owner", "horse_rider", "stable_manager")
 PROVIDER_ACCOUNT_ROLE_NAME = "provider"
 
 

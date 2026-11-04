@@ -51,7 +51,7 @@ class LoginResponse(BaseModel):
     user: UserProfile
 
 
-PublicRoleSelection = Literal["HORSE_OWNER", "STABLE_MANAGER", "BOTH"]
+PublicRoleSelection = Literal["HORSE_OWNER", "HORSE_RIDER", "STABLE_MANAGER", "BOTH"]
 
 
 class RegistrationRequest(BaseModel):

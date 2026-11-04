@@ -85,7 +85,7 @@ function horseSection(profile: MemberProfile): ProfileCompletionSection {
   const hasRequiredHorse = profile.horses.some(
     (horse) => hasValue(horse.name) && hasValue(horse.sex),
   );
-  return section('horses', 'Horse Owner', [
+  return section('horses', profile.roles.includes('horse_rider') ? 'Horse Rider' : 'Horse Owner', [
     { complete: hasRequiredHorse, missing: 'Add at least one horse with a name and sex.' },
   ]);
 }
@@ -94,7 +94,7 @@ export function calculateProfileCompletion(profile: MemberProfile): ProfileCompl
   const sections = [personalSection(profile)];
   const roles = new Set(profile.roles.map((role) => role.toLowerCase()));
   if (roles.has('stable_manager')) sections.push(stableSection(profile.stable_profile));
-  if (roles.has('horse_owner')) sections.push(horseSection(profile));
+  if (roles.has('horse_owner') || roles.has('horse_rider')) sections.push(horseSection(profile));
 
   const completedItems = sections.reduce((total, item) => total + item.completedItems, 0);
   const totalItems = sections.reduce((total, item) => total + item.totalItems, 0);
